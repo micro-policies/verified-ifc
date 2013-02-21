@@ -1,0 +1,40 @@
+#+TODO: TODO(t) | DONE(d) 
+#+TODO: MAYBE(m)| NEVERMIND(n)
+
+Notes and TODOS on the pico machine
+
+* DONE The NI properties on the abstract machine
+** do we all agree on this property? 
+** can we check the invariant in Quickcheck? DONE IN THE PICO PAPER
+** keep up to date with the pico paper (should not be blocking though)
+   we've already generalized the property on an arbitrary lattice.
+
+* TODO Error cases:
+** CH: check that "falling of the end of the imem" is also a good way to halt execution
+
+* TODO Extend the language
+** ONGOING more instructions
+*** DONE : JumpsNZ, and Sub, and branching to a relative offset
+*** TODO : pop, swap, etc... maybe for the micro machine.
+** DONE labels (see Labels.v)
+   currently arbitrary, yet fixed, lattice.   
+   
+* MAYBE Definition of external behaviors: 
+** infinite traces
+** successfully terminating traces with result being
+*** the final state
+*** the return code
+*** nothing return    
+** failing termination (for an IF error)
+** failing termination (for stack underflow, memory out-of-bound...)
+This would imply to define several kinds of states.
+But makes the theorem clearer (IMHO)
+
+* ONGOING Start to build the concrete machine
+** stay deterministic. Deterministic is already a good starting point...
+** need to prove a backward simulation, get it from a forward.
+** this backward simulation should help us show that NI abstract -> NI concrete 
+  
+* MAYBE check that "falling of the end of the imem" is also a good way to halt execution
+  seems that we've moved away from begining-to-end
+  non-interference so maybe this doesn't matter for now

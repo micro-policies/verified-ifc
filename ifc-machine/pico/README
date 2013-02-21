@@ -1,0 +1,41 @@
+
+This is a proof of non-interference for the pico IFC machine.
+
+This code is known to work with Coq 8.4.
+
+-- Content
+   
+   lib        : divers library and utility definitions
+   common     : generic theorems 
+   tmu/mach_exec: executable def of the machine - old files -- stalled
+   tmu/amach  : definition of the abstract machine 
+   tmu/cmach  : definition of the concrete machine 
+   tmu/amach_ni: non-interference for abstract machine 
+   extraction : extraction script and extraction directory -- stalled
+   driver     : the driver to be linked with extracted files -- stalled
+
+-- Compile
+        make all
+   This will compile the coq definitions and proofs, 
+   extract the code of the machine into Haskell files,
+   and produce the executable driver/Driver.
+
+-- Coqtop and library paths...
+   
+   For using coqtop easily: 
+   
+   For Emacs under version 23: 
+   1) Modify config.el.example by setting the absolute path of the directory
+      safeqc/coq
+   2) Save this new file as config.el
+   3) Load this file anytime you want to coqtop a .v file
+      
+   For Emacs > 23: use directory locals. The example should work:
+   
+     ln -s example.dir-locals.el .dir-locals.el
+
+      
+
+    
+   
+
