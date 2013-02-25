@@ -13,25 +13,15 @@ Variable S: Type.
 Variable step: S -> S -> Prop.
 
 CoInductive sys_trace_smach : trace S -> Prop :=
-| sta_nil : forall s T,
-    (forall s', ~ step s s') -> 
-    T = (TCons s TNil) ->
+| sta_nil : forall s T, 
+    (forall s', ~ step s s') ->
+    (T = TCons s TNil) ->
     sys_trace_smach T
 | sta_cons: forall s s' T T',
     step s s' ->
     sys_trace_smach (TCons s' T) ->
     T' = (TCons s (TCons s' T)) ->
     sys_trace_smach T'.
-
-Lemma sys_trace_smach_cons: forall t s, 
-                              t <> TNil ->
-                              sys_trace_smach (TCons s t) ->
-                              sys_trace_smach t.
-Proof.
-  intros.
-  destruct t ; intuition.
-  inv H0. inv H2. inv H3.  auto.
-Qed.
   
 Variable Observer: Type.
 
@@ -101,35 +91,34 @@ Proof.
   
   Case "s1 and s2 irred".
      destruct (Low_dec o s1).
-     SCase "low_pc s1". 
-     inversion H3. inversion H4. 
-     apply li_low_lockstep; auto. 
-     rewrite <- H5. auto.
-     rewrite <- H7. rewrite <- H5. auto.
-     eapply li_lockstep_end; eauto.
-     SCase "~low_pc s1". 
-     inversion H3. inversion H4. 
-     rewrite <- H5. rewrite <- H7. 
+     SCase "low_pc s1".
+     inversion H3. inversion H4.
+     rewrite <- H5. rewrite <- H7.
+     apply li_low_lockstep; auto.
+     apply li_lockstep_end.     
+     SCase "~low_pc s1".
+     inversion H3. inversion H4.
+     rewrite <- H5. rewrite <- H7.
      apply li_high_end1; tauto.
 
   Case "s1 irred, not s2".
     destruct (Low_dec o s1).
     SCase "low_pc s1".
       destruct (Succ_dec s1).
-      SSCase "success s1". apply False_ind. 
+      SSCase "success s1". apply False_ind.
       apply low_lockstep_end with o s2 s' s1; eauto.
       eapply (@equiv_sym _ (equiv o)); eauto.
-      inversion H5. auto. 
-      SSCase "~success s1". 
+      inversion H5. auto.
+      SSCase "~success s1".
       inversion H3.
-      inversion H5. rewrite <- H5.      
+      inversion H5. rewrite <- H5.
       rewrite H8 in *.
       rewrite H6 in *.
-      apply li_high_end1; tauto. 
-    SCase "~low_pc s1". 
-      inversion H3. inversion H5. 
+      apply li_high_end1; tauto.
+    SCase "~low_pc s1".
+      inversion H3. inversion H5.
       rewrite <- H5. rewrite H8 in *.
-      rewrite H6 in *.    
+      rewrite H6 in *.
       apply li_high_end1; tauto.
 
   inv H1.
@@ -137,17 +126,17 @@ Proof.
     destruct (Low_dec o s2).
     SCase "low_pc s2".
       destruct (Succ_dec s2).
-      SSCase "success s2". 
+      SSCase "success s2".
       inversion H4. inversion H5.
       rewrite <- H7 in *. rewrite <- H8 in *. rewrite <- H6 in *.
-      apply False_ind;  eauto using low_lockstep_end. 
-      SSCase "~success s2". 
+      apply False_ind;  eauto using low_lockstep_end.
+      SSCase "~success s2".
       inversion H4.  inversion H5.
       rewrite <- H6 in *. rewrite <- H7 in *.  rewrite <- H8 in *.
-      apply li_high_end2; tauto. 
-   SCase "~low_pc s2". 
-      inversion H4. inversion H5. 
-      rewrite <- H8 in *. rewrite <- H6 in *.    
+      apply li_high_end2; tauto.
+   SCase "~low_pc s2".
+      inversion H4. inversion H5.
+      rewrite <- H8 in *. rewrite <- H6 in *.
       apply li_high_end2; tauto.
 
   Case "both s1 and s2 reduce".
