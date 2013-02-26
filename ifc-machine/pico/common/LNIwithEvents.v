@@ -238,7 +238,7 @@ Definition lockstep_ni_state_evt :=
 Theorem lockstep_ni_state_evt_holds : lockstep_ni_state_evt.
 Proof.
   unfold lockstep_ni_state_evt.
-  eapply lockstep_ni_holds with (s_low := s_low); eauto.
+  eapply lockstep_ni_holds with (e_low := s_low); eauto.
   intuition. 
 Qed.
 
