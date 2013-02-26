@@ -9,8 +9,7 @@ Require Import TMUInstr.
 Require Import Abstract.
 Require Import Rules.
 Require Import AbstractMachine.
-Require Import NotionsOfNI.
-Require Import LockStepNI.
+Require Import LNIwithEvents.
 
 Set Implicit Arguments.
 
@@ -37,7 +36,6 @@ Ltac exploit_low :=
         | [H: low_equiv_stkelt _ (AData _) (AData _) |- _ ] => inv H
         | [H: low_equiv_stkelt _ (ARet _ _) (ARet _ _) |- _ ] => inv H
     end.
-
 
 Ltac spec_pop_return :=
   (exploit @pop_to_return_spec; eauto);
@@ -424,32 +422,24 @@ Proof.
           congruence.
 Qed.
 
-
-Theorem lockstep_ni_amach_holds :
-  lockstep_ni_smach step_rules low_equiv_full_state low_pc success.
+Theorem lockstep_ni_amach :
+  lockstep_ni_state_evt step_rules low_pc success low_equiv_full_state.
 Proof.
-  eapply lockstep_ni_smach_holds ; eauto.
+  eapply lockstep_ni_state_evt_holds ; eauto.
+
+  intros; split ; eauto using pc_labels1, pc_labels2. 
+  exact low_pc_dec. 
+  exact success_dec.
   
   intros. constructor.
   intros x; auto.
-  intros x y z Hxy Hxz. etransitivity; eauto.
-  intros x y ; symmetry; eauto.
-  
-  intros. unfold low_pc.
-  destruct (flows_dec (snd (apc s)) o); auto.
-  right; congruence.
-  
-  induction 1;  unfold low_pc ; simpl; intuition. congruence. congruence.
-
-  intros.  destruct s; destruct apc;
-  (unfold success; simpl);
-  (destruct (index_list_Z z aimem); intuition);
-  (destruct i ; intuition).
+  intros x y z; etransitivity; eauto.
+  intros x; symmetry; eauto.  
   
   eapply lowstep; eauto.
   eapply highstep; eauto.
   eapply highlowstep; eauto.
-  eapply low_lockstep_end; eauto.
+  eapply low_lockstep_end; eauto.  
 Qed.
 
 End ParamMachine.

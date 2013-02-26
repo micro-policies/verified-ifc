@@ -109,7 +109,7 @@ Hypothesis low_lockstep_end : forall o s1 s1' s2,
   s_succ s2 ->
   False.
 
-Hypothesis pc_labels: forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2).
+Hypothesis s_equiv_low: forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2).
 
 
 Hypothesis s_low_dec: forall o s, {s_low o s} + {~s_low o s}.
@@ -119,7 +119,6 @@ Hypothesis H_s_equiv_equiv : (forall o, equivalence _ (s_equiv o)).
 Hypothesis e_e_equiv : forall o s1 s2, s_equiv o s1 s2 -> e_equiv o (e s1) (e s2).
 
 Hypothesis e_e_low : forall o s, s_low o s <-> e_low o (e s).
-Hint Resolve e_e_equiv e_e_low. 
 Hint Resolve e_e_low e_e_equiv : auto.
 
 Ltac auto_low := 
@@ -168,12 +167,12 @@ Proof.
       SSCase "low_pc s'".
         destruct (s_low_dec o s'0).
         SSSCase "low_pc s'0".
-          assert (~ s_low o s2) by (eelim pc_labels; eauto).
+          assert (~ s_low o s2) by (eelim s_equiv_low; eauto).
           apply li_high_low_lockstep; auto_low. 
           eapply lockstep_ni_holds with s' s'0; eauto.
         SSSCase "~low_pc s'0".
           assert(~ s_low o s2) by
-            (eelim pc_labels; eauto ; assumption).
+            (eelim s_equiv_low; eauto ; assumption).
           assert(s_equiv o s2 s'0) by eauto using highstep.
           apply li_high_high2; auto_low. 
           eapply lockstep_ni_holds with s1 s'0 ; eauto. 
@@ -188,3 +187,59 @@ Proof.
 Qed.
 
 End LNIwithEvents.
+
+
+Section LNIwithStateEvents.
+
+Variable S: Type.
+Variable O: Type.
+Variable step: S -> S -> Prop.
+Variable s_low: O -> S -> Prop.
+Variable s_succ: S -> Prop.
+Variable s_equiv : O -> S -> S -> Prop.
+
+Hypothesis s_equiv_low: forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2).
+Hypothesis s_low_dec: forall o s, {s_low o s} + {~s_low o s}.
+Hypothesis s_succ_dec: forall s, {s_succ s} + {~s_succ s}.
+Hypothesis H_s_equiv_equiv : (forall o, equivalence _ (s_equiv o)).
+
+Hypothesis lowstep : forall o as1 as1' as2 as2',
+  s_equiv o as1 as2 ->
+  s_low o as1 ->
+  step as1 as1' ->
+  step as2 as2' ->
+  s_equiv o as1' as2'.
+       
+Hypothesis highstep : forall o as1 as1', 
+  ~s_low o as1 ->
+  step as1 as1' ->
+  ~s_low o as1' ->
+  s_equiv o as1 as1'.
+
+Hypothesis highlowstep : forall o as1 as1' as2 as2', 
+  s_equiv o as1 as2 ->
+  ~s_low o as1 ->
+  step as1 as1' ->
+  s_low o as1' ->
+  step as2 as2' ->
+  s_low o as2' ->
+  s_equiv o as1' as2'.
+
+Hypothesis low_lockstep_end : forall o s1 s1' s2,
+  s_equiv o s1 s2 ->
+  s_low o s2 ->
+  step s1 s1' ->
+  s_succ s2 ->
+  False.
+
+Definition lockstep_ni_state_evt := 
+  lockstep_ni step s_low s_succ s_succ (fun x => x) s_equiv s_equiv.
+  
+Theorem lockstep_ni_state_evt_holds : lockstep_ni_state_evt.
+Proof.
+  unfold lockstep_ni_state_evt.
+  eapply lockstep_ni_holds with (s_low := s_low); eauto.
+  intuition. 
+Qed.
+
+End LNIwithStateEvents.

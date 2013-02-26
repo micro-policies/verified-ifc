@@ -502,6 +502,16 @@ Proof.
   unfold low_pc in *;  simpl in *. auto.
 Qed.
 
+Lemma pc_labels2 : forall o s1 s2,
+  low_equiv_full_state o s1 s2 ->
+  low_pc o s2 ->
+  low_pc o s1.
+Proof.
+  induction 1; intros. unfold low_pc in *;  simpl in *.
+  inv H. congruence.
+  unfold low_pc in *;  simpl in *. auto.
+Qed.
+
 Lemma index_list_low_equiv_some: forall (A: Type) (R: relation A) n e l l', 
   low_equiv_list R l l' ->
   index_list n l = None ->

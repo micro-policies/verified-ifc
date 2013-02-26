@@ -258,6 +258,13 @@ Proof.
   eauto with lat.
 Qed.
 
+Lemma low_pc_dec {T: Type} {Latt: JoinSemiLattice T}: forall o s, {low_pc o s}+{~ low_pc o s}.
+Proof.
+  intros. unfold low_pc.
+  destruct (flows_dec (snd (apc s)) o); auto.
+  right; congruence.
+Qed.
+
 Ltac step_in id :=
   let tac H := (unfold id in H ; repeat sto_break_succ idtac ; allinv ; 
     simpl @apc in * ; simpl @astk in * ; simpl @aimem in * ; simpl @amem in * ) in
