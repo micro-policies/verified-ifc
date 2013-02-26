@@ -1,5 +1,7 @@
-DIRS=lib common tmu tmu/amach tmu/cmach tmu/amach_ni 
+DIRS=lib common tmu tmu/amach tmu/cmach tmu/amach_ni .
 INCLUDES=$(patsubst %,-I %, $(DIRS))
+
+FINAL := Altogether
 
 LIB := 	Utils Monad Lattices LatticeHL
 
@@ -17,7 +19,7 @@ TMU_C := CLattices Concrete ConcreteMachine \
 
 VS := $(LIB:%=lib/%.v) $(COMMON:%=common/%.v) $(TMU:%=tmu/%.v) \
 	$(TMU_A:%=tmu/amach/%.v) $(TMU_C:%=tmu/cmach/%.v) \
-	$(TMU_ANI:%=tmu/amach_ni/%.v)
+	$(TMU_ANI:%=tmu/amach_ni/%.v) $(FINAL:%=%.v)
 
 EXTRACTDIR := extraction/
 EXTRACTION := $(EXTRACTDIR)Extraction.v

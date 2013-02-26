@@ -251,49 +251,47 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
           (CState m' i' ((CData (resv',rl))::s'') (pcret, if p' then pcretl else rpcl) pret)
 .
 
-    
 (* Success is reaching a Halt state in non-privileged mode and address. *)
-Definition success (cs : @CS T) : Prop :=
+Definition c_success (cs : @CS T) : Prop :=
   match index_list_Z (fst (pc cs)) (imem cs) with
   | Some Halt => is_true (negb (priv cs) && (fst (pc cs) >=? privInstSize))
   | _ => False
   end.
 
-Ltac break_success_goal :=
-  match goal with
-  | [|- context[success ?s]] =>
-      unfold success;
-      match goal with
-      | [|- context[index_list_Z ?idx ?imem]] =>
-         remember (index_list_Z idx imem) as oinstr;
-         destruct oinstr as [i |]; try tauto; destruct i; try tauto
-      end
-  end.
-
-Ltac break_success_hyp :=
-  match goal with
-  | [H : success ?s |- _] => gdep H; break_success_goal; intro H
-  end.
-
-Ltac break_success := try break_success_goal; repeat break_success_hyp.
-
-Local Open Scope bool_scope.
-
-Lemma success_dec:  forall s, {success s} + {~success s}.
-Proof.
- intro; break_success.
- unfold is_true.  destruct (negb (priv s) && (fst (pc s) >=? privInstSize)); intuition. 
-Qed.
-
-(* Easy lammas about the concrete *)
-Lemma success_runSTO_None : forall  s s',
-  success s ->
-  ~ cstep s s'.
-Proof.
-  intros. break_success. intros Hcont;  inv Hcont; simpl in *;
-  congruence.
-Qed.
-
 End CMach.
 
 Hint Constructors check_tags run_tmu.
+
+
+(* Ltac break_c_success_goal := *)
+(*   match goal with *)
+(*   | [|- context[c_success ?s]] => *)
+(*       unfold c_success; *)
+(*       match goal with *)
+(*       | [|- context[index_list_Z ?idx ?imem]] => *)
+(*          remember (index_list_Z idx imem) as oinstr; *)
+(*          destruct oinstr as [i |]; try tauto; destruct i; try tauto *)
+(*       end *)
+(*   end. *)
+
+(* Ltac break_c_success_hyp := *)
+(*   match goal with *)
+(*   | [H : c_success ?s |- _] => gdep H; break_c_success_goal; intro H *)
+(*   end. *)
+
+(* Ltac break_success := try break_success_goal; repeat break_success_hyp. *)
+
+(* Lemma success_dec:  forall s, {success s} + {~success s}. *)
+(* Proof. *)
+(*  intro; break_success. *)
+(*  unfold is_true.  destruct (negb (priv s) && (fst (pc s) >=? privInstSize)); intuition.  *)
+(* Qed. *)
+
+(* Easy lammas about the concrete *)
+(* Lemma success_runSTO_None : forall  s s', *)
+(*   success s -> *)
+(*   ~ cstep s s'. *)
+(* Proof. *)
+(*   intros. break_success. intros Hcont;  inv Hcont; simpl in *; *)
+(*   congruence. *)
+(* Qed. *)
