@@ -14,17 +14,12 @@ Require Import LNIwithEvents.
 
 (* Abstract Machine *)
 Require Import TMUInstr.
-Require Import Abstract.
-Require Import Rules.
-Require Import AbstractMachine.
-Require Import AbstractObsEquiv.
-Require Import NIAbstractMachine.
+Require Import Abstract Rules AbstractMachine.
+Require Import AbstractObsEquiv NIAbstractMachine.
 
 (* Concrete Machine *)
-Require Import Concrete.
-Require Import ConcreteMachine.
+Require Import Concrete ConcreteMachine CodeGen.
 Require Import FaultRoutine.
-Require CodeGen.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope. 
@@ -46,7 +41,7 @@ Inductive initial_astate (P: list (@Instr L)) : @AS L -> Prop :=
 (** * Non-interference property on the abstract Machine *)
 
 (** Defining observation, execution traces, and indistingability relation *)
-Let low_equiv_prog o := low_equiv_list (low_equiv_instr o).
+Let low_equiv_prog := fun o => low_equiv_list (low_equiv_instr o).
 Let observe_astate : @AS L -> @AS L := (fun x => x).
 Let aexec_with_trace := sys_trace step_rules success observe_astate.
 Let indistinguishable := lockstep_indist low_pc success low_equiv_full_state.
@@ -94,7 +89,7 @@ Theorem NI_concrete_machine: forall o P P' s s' T T',
     cexec_with_trace s' T' ->
     indistinguishable o T T'.
 Proof.
-  admit. (* TODO *)
+  admit. (* TODO with refinement + NI preservation *)
 Qed.
 
 End Altogether.
