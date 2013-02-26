@@ -1,3 +1,5 @@
+Require Setoid.
+Require RelationClasses.
 Require Import Relations.
 Require Import EqNat.
 Require Import List.
@@ -29,6 +31,7 @@ CoInductive sys_trace : S -> trace E -> Prop :=
              step s s' ->
              sys_trace s' (TCons (e s') T) ->
              sys_trace s (TCons (e s) (TCons (e s') T)).
+Hint Constructors sys_trace.
 
 Variable e_equiv : O -> relation E.
 
@@ -71,7 +74,17 @@ CoInductive lockstep_indist (O: O) : relation (trace E) :=
     lockstep_indist O (TCons s1 (TCons s1' t1))
                     (TCons s2 (TCons s2' t2)).
 
+
 Variable s_equiv : O -> relation S.
+
+Context {Equiv : forall o, @RelationClasses.Equivalence S (s_equiv o)}.
+
+Hint Extern 1 => 
+  match goal with 
+    | |- s_equiv _ _ _ => reflexivity
+  end.
+
+(* Hypothesis H_s_equiv_equiv : (forall o, equivalence _ (s_equiv o)). *)
 
 Definition lockstep_ni : Prop := forall o s1 s2 t1 t2,
   s_equiv o s1 s2 ->
@@ -111,10 +124,8 @@ Hypothesis low_lockstep_end : forall o s1 s1' s2,
 
 Hypothesis s_equiv_low: forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2).
 
-
 Hypothesis s_low_dec: forall o s, {s_low o s} + {~s_low o s}.
 Hypothesis s_succ_dec: forall s, {s_succ s} + {~s_succ s}.
-Hypothesis H_s_equiv_equiv : (forall o, equivalence _ (s_equiv o)).
 
 Hypothesis e_e_equiv : forall o s1 s2, s_equiv o s1 s2 -> e_equiv o (e s1) (e s2).
 
@@ -146,7 +157,7 @@ Proof.
     SCase "low_pc s1".
     apply False_ind.
       apply low_lockstep_end with o s2 s' s1; eauto.
-      eapply (@equiv_sym _ (s_equiv o)); eauto.
+      symmetry ; auto.
     SCase "~low_pc s1".
       apply li_high_end1; auto_low.
   Case "s2 irred, not s1".
@@ -176,18 +187,16 @@ Proof.
           assert(s_equiv o s2 s'0) by eauto using highstep.
           apply li_high_high2; auto_low. 
           eapply lockstep_ni_holds with s1 s'0 ; eauto. 
-          eapply (@equiv_trans _ (s_equiv o)); eauto. constructor; auto. 
+          etransitivity; eauto.
       SSCase "~low_pc s1' (similar to previous SSSCase)".
         assert(s_equiv o s1 s') by eauto using highstep.
         apply li_high_high1; auto_low.
           eapply lockstep_ni_holds with s' s2 ; eauto. 
-          eapply (@equiv_trans _ (s_equiv o)); eauto. 
-          eapply (@equiv_sym _ (s_equiv o)); eauto. 
-          constructor; auto. 
+          symmetry in H1.
+          etransitivity; eauto.
 Qed.
 
 End LNIwithEvents.
-
 
 Section LNIwithStateEvents.
 
@@ -198,10 +207,11 @@ Variable s_low: O -> S -> Prop.
 Variable s_succ: S -> Prop.
 Variable s_equiv : O -> S -> S -> Prop.
 
+Context {Equiv : forall o, @RelationClasses.Equivalence S (s_equiv o)}.
+
 Hypothesis s_equiv_low: forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2).
 Hypothesis s_low_dec: forall o s, {s_low o s} + {~s_low o s}.
 Hypothesis s_succ_dec: forall s, {s_succ s} + {~s_succ s}.
-Hypothesis H_s_equiv_equiv : (forall o, equivalence _ (s_equiv o)).
 
 Hypothesis lowstep : forall o as1 as1' as2 as2',
   s_equiv o as1 as2 ->

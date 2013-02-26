@@ -424,17 +424,12 @@ Qed.
 
 Theorem lockstep_ni_amach :
   lockstep_ni_state_evt step_rules low_pc success low_equiv_full_state.
-Proof.
+Proof. 
   eapply lockstep_ni_state_evt_holds ; eauto.
 
   intros; split ; eauto using pc_labels1, pc_labels2. 
   exact low_pc_dec. 
   exact success_dec.
-  
-  intros. constructor.
-  intros x; auto.
-  intros x y z; etransitivity; eauto.
-  intros x; symmetry; eauto.  
   
   eapply lowstep; eauto.
   eapply highstep; eauto.

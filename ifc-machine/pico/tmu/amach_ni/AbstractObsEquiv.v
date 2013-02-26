@@ -556,6 +556,8 @@ Qed.
 
 End ObsEquiv.
 
+Hint Resolve low_state.
+
 Hint Constructors 
   low_equiv_atom
   low_equiv_stkelt
