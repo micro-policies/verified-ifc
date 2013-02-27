@@ -3,7 +3,7 @@ INCLUDES=$(patsubst %,-I %, $(DIRS))
 
 FINAL := Altogether
 
-LIB := 	Utils Monad Lattices LatticeHL
+LIB := 	Utils Monad Lattices LatticeHL LibTactics
 
 COMMON:= NotionsOfNI Simulation LNIwithEvents LockStepNI BwdSimNI
 
