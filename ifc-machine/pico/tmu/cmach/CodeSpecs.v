@@ -311,6 +311,47 @@ Proof.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
+Lemma HT''_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+  HT'' c P  Q ->
+  (forall m s, Q m s -> Q' m s) ->
+  HT'' c P Q'.
+Proof.
+  intros ? ? ? ? HTPQ ?.
+  intros imem mem0 stk0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
+Qed.
+
+Lemma HT''_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
+  HT'' c P Q ->
+  (forall m s, P' m s -> P m s) ->
+  (forall m s, Q m s -> Q' m s) ->
+  HT'' c P' Q'.
+Proof.
+  intros.
+  eapply HT''_weaken_conclusion; eauto.
+  eapply HT''_strengthen_premise; eauto.
+Qed.
+
+
+(* A strengthened rule of consequence that takes into account that [Q]
+   need only be provable under the assumption that [P] is true for
+   *some* state.  This lets us utilize any "pure" content in [P] when
+   establishing [Q]. *)
+Lemma HT''_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
+  HT'' c P Q ->
+  (forall m s, P' m s -> P m s) ->
+  (forall m s, (exists m' s', P' m' s') -> Q m s -> Q' m s) ->
+  HT'' c P' Q'.
+Proof.
+  intros ? ? ? ? ? HTPQ HPP' HP'QQ'.
+  intros imem mem0 stk0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
+  eexists. eexists.
+  intuition.
+  eapply HP'QQ'; eauto.
+  auto.
+Qed.
+
 Lemma skip_spec: forall c P,
   HT'' (skip (length c) ++ c)
        P
