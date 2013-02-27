@@ -1,6 +1,7 @@
 Require Import ZArith.
 Require Import List.
 Require Import Utils.
+Require Import LibTactics.
 Import ListNotations. (* list notations *)
 
 Require Import TMUInstr.
@@ -588,6 +589,47 @@ Proof.
   intros.
   eapply ite_spec; eauto.
 Qed.
+
+Lemma cases_spec_step_specialized: forall c vc b cbs d P Qb Qcbs,
+  (* This could be abstracted: code that transforms the stack by
+  pushing one value computed from the existing stack and memory *)
+  (forall m0 s0,
+     HT'' c (fun m s => P m0 s0 /\
+                        m = m0 /\
+                        s = s0)
+            (fun m s => P m0 s0 /\
+                        m = m0 /\ 
+                        s = CData (vc m0 s0, handlerLabel) :: s0)) ->
+  HT'' b P Qb ->
+  HT'' (cases cbs d) P Qcbs ->
+  (forall m0 s0,
+    HT'' (cases ((c,b)::cbs) d) (fun m s => P m0 s0 /\
+                                            m = m0 /\
+                                            s = s0)
+                                (fun m s => (vc m0 s0 <> 0 -> Qb m s) /\
+                                            (vc m0 s0 = 0 -> Qcbs m s))).
+Proof.
+  intros c vc b cbs d P Qb Qcbs Hc Hb Hcbs.
+  intros m0 s0.
+  pose (Hc m0 s0) as Hcm0s0.
+  eapply ite_spec with (Pt := (fun m s => P m s /\ vc m0 s0 <> 0))
+                       (Pf := (fun m s => P m s /\ vc m0 s0 =  0)).
+  exact Hcm0s0.
+
+  apply (HT''_consequence' _ _ _ _ _ Hb); intuition.
+  elimtype False; jauto.
+
+  apply (HT''_consequence' _ _ _ _ _ Hcbs); intuition.
+  elimtype False; jauto.
+
+  intuition.
+  exists (vc m0 s0).
+  exists handlerLabel.
+  exists s0.
+  intuition; subst; auto.
+Qed.
+
+
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
 Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
