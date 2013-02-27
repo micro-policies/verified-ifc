@@ -12,11 +12,13 @@ Require Import Rules.
 Local Open Scope Z_scope. 
 Set Implicit Arguments. 
 
-Section TMUCodeGeneration. 
+Section TMUCodeGeneration.
 
 Context 
   {T: Type}
   {CLatt: ConcreteLattice T}.
+
+Definition code := list (@Instr T).
 
 (* Utility operations *)
 Definition pop := (@BranchNZ T) 1. 
@@ -48,13 +50,13 @@ Definition loadFrom loc :=
 (* Code generation with ease of proof in mind *)
 
 (* Skip the next [n] instructions conditionally *)
-Definition skipNZ (n : nat) : list (@Instr T) :=
+Definition skipNZ (n : nat) : code :=
   (* Add 1 because [BranchNZ] counts from the *current* pc *)
   (* Notation for lists and monads is conflicting ... *)
   BranchNZ (Z_of_nat (S n)) :: nil.
 
 (* Skip the next [n] instructions unconditionally *)
-Definition skip (n : nat) : list (@Instr T) :=
+Definition skip (n : nat) : code :=
   (* Pointless append here makes it easier to apply [HT''_compose] *)
   (push 1 :: nil) ++ skipNZ n.
 
@@ -66,7 +68,7 @@ Definition ifNZ t f :=
      ++ t.
 
 (* If statement: [if c then t else f] *)
-Definition ite (c t f : list (@Instr T)) : list (@Instr T) :=
+Definition ite (c t f : code) : code :=
   c ++ ifNZ t f.
 
 (* Case statement w/o default:
@@ -78,8 +80,7 @@ Definition ite (c t f : list (@Instr T)) : list (@Instr T) :=
    if cn then bn else noop
 
 *)
-Fixpoint cases (cbs : list (list (@Instr T) * list (@Instr T)))
-: list (@Instr T) :=
+Fixpoint cases (cbs : list (code * code)) : code :=
   (* This is a foldr ... *)
   match cbs with
   | nil           => nil
@@ -139,7 +140,7 @@ Fixpoint genExpr (e: rule_expr) :=
   | Join e1 e2 => genExpr e1 ++ genExpr e2 ++ genJoin
  end.
 
-Fixpoint genScond (s: rule_scond) : list (@Instr T) :=
+Fixpoint genScond (s: rule_scond) : code :=
   match s with
   | TRUE => genTrue
   | LE e1 e2 => genExpr e1 ++ genExpr e2 ++ genFlows
@@ -147,7 +148,7 @@ Fixpoint genScond (s: rule_scond) : list (@Instr T) :=
   | OR s1 s2 => genScond s1 ++ genScond s2 ++ genOr 
   end.
 
-Definition genRule (am:AllowModify) opcode : list (@Instr T) :=
+Definition genRule (am:AllowModify) opcode : code :=
   let (allow, labresopt, labrespc) := am in 
   let body := 
     genScond allow ++
@@ -166,7 +167,7 @@ Definition genRule (am:AllowModify) opcode : list (@Instr T) :=
   branchIfLocNeq addrOpLabel opcode (Z.of_nat (length body)) ++ body.
 
 
-Definition faultHandler (fetch_rule_impl:OpCode -> AllowModify) : list (@Instr T) :=
+Definition faultHandler (fetch_rule_impl:OpCode -> AllowModify) : code :=
   let gen opcode := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
   gen OpNoop ++
   gen OpAdd ++ 
