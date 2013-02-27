@@ -528,6 +528,25 @@ Proof.
   auto.
 Qed.
 
+Lemma cases_spec_base: forall d P Q,
+  HT'' d P Q -> HT'' (cases nil d) P Q.
+Proof.
+  auto.
+Qed.
+
+Lemma cases_spec_step: forall c b cbs d P Qc Pt Pf Q,
+  HT'' c P Qc ->
+  HT'' b Pt Q ->
+  HT'' (cases cbs d) Pf Q ->
+  (forall m s, Qc m s -> (exists v l s', s = CData (v,l) :: s' /\
+                                         (v <> 0 -> Pt m s') /\
+                                         (v =  0 -> Pf m s')))
+  ->
+  HT'' (cases ((c,b)::cbs) d) P Q.
+Proof.
+  intros.
+  eapply ite_spec; eauto.
+Qed.
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
 Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),

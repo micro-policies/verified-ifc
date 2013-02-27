@@ -77,14 +77,14 @@ Definition ite (c t f : code) : code :=
    if c1 then b1 else
    if c2 then b2 else
    ...
-   if cn then bn else noop
+   if cn then bn else default
 
 *)
-Fixpoint cases (cbs : list (code * code)) : code :=
+Fixpoint cases (cbs : list (code * code)) (default: code) : code :=
   (* This is a foldr ... *)
   match cbs with
-  | nil           => nil
-  | (c,b) :: cbs' => ite c b (cases cbs')
+  | nil           => default
+  | (c,b) :: cbs' => ite c b (cases cbs' default)
   end.
 
 (* Operations on booleans.  Not all of these are currently used. *)
