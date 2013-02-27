@@ -32,6 +32,7 @@ Variable match_states: S1 -> S2 -> Prop.
 Hypothesis match_states_final: forall s1 s2,
   (forall s1', ~ step1 s1 s1') ->
   match_states s1 s2 ->
+  s_succ1 s1 ->
   (forall s2', ~ step2 s2 s2') /\ (e1 s1) = (e2 s2).
 
 Hypothesis step_preserved: 
@@ -135,7 +136,7 @@ Proof.
 
   Case "m2 terminates".
     destruct (classic (forall s', ~ step1 s1 s')).
-    assert (Hev: e1 s1 = e2 s2) by (eapply match_states_final ; eauto).
+    assert (Hev: e1 s1 = e2 s2) by ((eapply match_states_final; eauto)).
     rewrite <- Hev. 
     apply oot_nil; auto.
     eapply succ_match_preserved ; eauto.
@@ -148,26 +149,28 @@ Proof.
     eelim H1; eauto.
     
   Case "m2 steps". 
-    destruct (classic (forall s', ~ step1 s1 s')).    
+    destruct (classic (forall s', ~ step1 s1 s')). 
 
     SCase "m1 terminates".
-    assert (HH : (forall s2' : S2, ~ step2 s2 s2') /\ e1 s1 = e2 s2) 
-      by (eapply match_states_final in H0 ; eauto).  
+    assert (HH : (forall s2' : S2, ~ step2 s2 s2') /\ e1 s1 = e2 s2) by 
+      (eapply match_states_final in H0 ; eauto).  
     destruct HH as [Hcont _]. eelim (Hcont s'); eauto.
 
-    SCase "m1 steps". 
-     destruct (classic (exists s', step1 s1 s')); eauto; [ | eelim H0 ; eauto].
-     destruct H3 as [s1' Hs1s']. 
+    SCase "m1 steps or aborts". 
+     destruct (classic (exists s', step1 s1 s')); [| eelim H0 ; eauto].
 
+     destruct H3 as [s1' Hs1s'].
+     
+     SSCase "m1 steps".
      assert (HH: e1 s1 = e2 s2 /\ (exists s2' : S2, step2 s2 s2' /\ match_states s1' s2')) by
          (eapply step_preserved  ; eauto). destruct HH as [Hev [s2' [Hstep Hmatch]]].
-     rewrite <- Hev in *. clear H0.
+     rewrite <- Hev in *. 
      assert (s' = s2') by (eapply step2_determinism ; eauto).
-     inv H0. clear H1.
+     subst. clear H1.
      assert (HHev': e1 s1' = e2 s2').
-        destruct (classic (exists s', step1 s1' s')); eauto.
-        destruct H0 as [s1'' Hs1's1'']. 
-        eapply step_preserved ; eauto. 
+         destruct (classic (exists s', step1 s1' s')); eauto.
+         destruct H1 as [s1'' Hs1's1'']. 
+         eapply step_preserved ; eauto.         
         eapply match_states_final ; eauto. 
        
      rewrite <- HHev'.  

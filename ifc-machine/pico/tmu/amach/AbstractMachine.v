@@ -42,7 +42,6 @@ Fixpoint run_tmr (opcode: OpCode) (lab1 lab2 lab3: option T) (pc: T):  option (o
   apply_rule r lab1 lab2 lab3 pc.
 
 (** * Rule-based abstract machine transition relation *)
-
 Inductive pop_to_return : list (@StkElmt T) -> list (@StkElmt T) -> Prop := 
 | sptr_done: forall a b s,
     pop_to_return ((ARet a b)::s) ((ARet a b)::s)
@@ -93,8 +92,8 @@ Qed.
 
 Lemma pop_to_return_spec3: forall s1 s2 b1 b2 a1 a2 dstk,
  pop_to_return (dstk ++ ARet a1 b1 :: s2)
-                    (ARet a2 b2 :: s1) ->
- (forall e : StkElmt, In e dstk -> exists a : @Atom T, e = AData a) ->
+               (ARet a2 b2 :: s1) ->
+ (forall e, In e dstk -> exists a : @Atom T, e = AData a) ->
  s1 = s2 .
 Proof.
   induction dstk; intros.

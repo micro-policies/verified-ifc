@@ -3,7 +3,6 @@ Require Import Omega.
 Require Import Utils.
 Require Import Lattices.
 Require Import TMUInstr.
-(* Require Import TMUAbstract. *)
 Require Import Monad.
 Require Import Coq.Unicode.Utf8. 
 Local Open Scope monad_scope.

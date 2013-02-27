@@ -10,10 +10,20 @@ Require Import Concrete.
 Set Implicit Arguments.
 Local Open Scope Z_scope.
 
+Require Import Coq.Unicode.Utf8. 
+
+
 Section CMach.
 
 Context {T: Type}
         {CLatt: ConcreteLattice T}.
+
+Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
+(* Didn't get it to work for some reason *)
+(* Notation "'≪' m , i , s , pc '≫'" := (@CState T m i s pc true) (at level 95, right associativity). *)
+(* Notation "'〈' m , i , s , pc '〉'" := (@CState T m i s pc false) (at level 95, no associativity). *)
+Notation "'__'" := None.
+(* Definition state m i s pc1 pc2 p := ≪ m,i,s, (pc1,pc2) ,p ≫. *)
 
 Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
    let optlabToZ optl :=
@@ -23,22 +33,21 @@ Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) :
      end in
    (opCodeToZ opcode, optlabToZ op1lab, optlabToZ op2lab, optlabToZ op3lab, labToZ pclab).
 
-Definition rvector (tagr:Z) (tagrpc:Z) : T * T :=
-   (ZToLab tagr,ZToLab tagrpc). 
+Definition rvector (tagr:Z) (tagrpc:Z) : T * T := (ZToLab tagr,ZToLab tagrpc). 
 
 (* TMU action on each instruction.  If rule is in the cache (currently
-just a single entry), leave the state unchanged and return
-Some(result_tag,result_pc_tag); otherwise, set the state to invoke the
-TMU fault handler code and return None. *)
+   just a single entry), leave the state unchanged and return
+   Some(result_tag,result_pc_tag); otherwise, set the state to invoke
+   the TMU fault handler code and return None. *)
  
 (* [check_stags opc opl1 opl2 opl3 pcl s1 s2] holds when:
    - either [s2] has an up to date cache (or a cache that we don't care about) 
-   - either [s2] is the privileged state in which the tmu routine should be executed *)
+   - either [s2] is the privileged state in which the tmu routine should be executed 
+*)
 Inductive check_tags (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T): @CS T -> @CS T -> Prop :=
 | ct_priv : (* completely ignore cache (as in Haskell code) *)
     forall m i s pc, 
-      check_tags opcode opl1 opl2 opl3 pcl 
-                 (CState m i s pc true) (CState m i s pc true) 
+      check_tags opcode opl1 opl2 opl3 pcl (CState m i s pc true) (CState m i s pc true) 
                  
 | ct_upriv_chit : (* m vector is in the cache *)
     forall m i s pc,
@@ -108,8 +117,8 @@ Proof.
 
 Lemma c_pop_to_return_spec2: forall  s1 s2 p1 p2 b1 b2 a1 a2 dstk,
  c_pop_to_return (dstk ++ CRet a1 b1 p1 :: s2)
-               (CRet a2 b2 p2 :: s1) ->
- (forall e : CStkElmt, In e dstk -> exists a : @Atom T, e = CData a) ->
+                 (CRet a2 b2 p2 :: s1) ->
+ (forall e, In e dstk -> exists a : @Atom T, e = CData a) ->
  CRet a1 b1 p1 =  CRet a2 b2 p2.
 Proof.
   induction dstk; intros.
@@ -121,8 +130,8 @@ Qed.
 
 Lemma c_pop_to_return_spec3: forall s1 s2 b1 b2 p1 p2 a1 a2 dstk,
  c_pop_to_return (dstk ++ CRet a1 b1 p1 :: s2)
-                    (CRet a2 b2 p2 :: s1) ->
- (forall e : CStkElmt, In e dstk -> exists a : @Atom T, e = CData a) ->
+                 (CRet a2 b2 p2 :: s1) ->
+ (forall e, In e dstk -> exists a : @Atom T, e = CData a) ->
  s1 = s2 .
 Proof.
   induction dstk; intros.
@@ -132,18 +141,19 @@ Proof.
   eapply IHdstk; eauto.
 Qed.
 
+
 Inductive cstep : @CS T -> @CS T -> Prop := 
 | cstep_nop : forall m i s pcv pcl rl rpcl p m' pcv' pcl' p' i' s',
-    index_list_Z pcv i = Some Noop ->
+    i @ pcv # Noop ->
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpNoop None None None pcl (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv',pcl') p')  ->    
+    run_tmu cstep OpNoop __ __ __  pcl (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv',pcl') p') ->    
     cache_hit_read m' p' rl rpcl -> 
     cstep (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv+1,rpcl) p')
 
 | cstep_add: forall m i s rpcl pcv  pcl p rl x1v x1v' x1l x1l' x2v  x2v' x2l x2l' pcv' pcl' m' p' i' s', 
-    index_list_Z pcv i = Some Add ->
+    i @ pcv # Add ->
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpAdd (Some x1l) (Some x2l) None pcl 
+    run_tmu cstep OpAdd (Some x1l) (Some x2l) __ pcl 
             (CState m i (CData (x1v,x1l)::(CData (x2v,x2l))::s) (pcv,pcl) p) 
             (CState m' i' (CData (x1v',x1l')::(CData (x2v',x2l'))::s') (pcv',pcl') p') ->
     cache_hit_read m' p' rl rpcl -> 
@@ -153,7 +163,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 | cstep_sub: forall m i s pcv pcl rpcl p rl x1v x1v' x1l m' x1l' x2v  x2v' x2l x2l' pcv' pcl' p' i' s', 
     index_list_Z pcv i = Some Sub ->
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpSub (Some x1l) (Some x2l) None pcl 
+    run_tmu cstep OpSub (Some x1l) (Some x2l) __ pcl 
             (CState m i (CData (x1v,x1l)::(CData (x2v,x2l))::s) (pcv,pcl) p)
             (CState m' i (CData (x1v',x1l')::(CData (x2v',x2l'))::s) (pcv',pcl') p') ->    
     cache_hit_read m' p' rl rpcl -> 
@@ -163,7 +173,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 | cstep_push: forall m i s cv cl pcv pcl rpcl p rl m' i' s' p' pcv' pcl', 
     index_list_Z pcv i = Some (Push (cv,cl)) ->
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpPush (Some cl) None None pcl (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv',pcl') p') ->  
+    run_tmu cstep OpPush (Some cl) __ __ pcl (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv',pcl') p') ->  
     cache_hit_read m' p' rl rpcl ->     
     cstep (CState m i s (pcv,pcl) p) 
           (CState m' i' ((CData (cv,rl))::s') (pcv'+1,rpcl) p')
@@ -172,7 +182,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
     index_list_Z pcv i = Some Load ->
     check_addr_priv p pcv privInstSize ->
     index_list_Z addrv m = Some (xv,xl) ->
-    run_tmu cstep OpLoad (Some addrl) (Some xl) None pcl 
+    run_tmu cstep OpLoad (Some addrl) (Some xl) __ pcl 
             (CState m i ((CData (addrv,addrl))::s) (pcv,pcl) p) 
             (CState m' i' ((CData (addrv',addrl'))::s) (pcv',pcl') p') ->    
     index_list_Z addrv' m' = Some (xv',xl') ->
@@ -193,11 +203,10 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
     cstep (CState m i ((CData (addrv,addrl))::(CData (xv,xl))::s) (pcv,pcl) p)
           (CState m'' i' s' (pcv'+1,rpcl) p')
 
-| cstep_jump: forall m i i' s pcv pcl pcv' pcl' pcj pcjl rl rpcl m' p p' s', 
-              forall pcj' pcjl',
+| cstep_jump: forall m i i' s pcv pcl pcv' pcl' pcj pcjl rl rpcl m' p p' s' pcj' pcjl',
     index_list_Z pcv i = Some Jump ->
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpJump (Some pcjl) None None pcl 
+    run_tmu cstep OpJump (Some pcjl) __ __ pcl 
             (CState m i ((CData (pcj,pcjl))::s) (pcv,pcl) p) 
             (CState m' i' ((CData (pcj',pcjl'))::s') (pcv',pcl') p') ->    
     cache_hit_read m' p' rl rpcl ->     
@@ -207,7 +216,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 | cstep_branchnz: forall m i i' s s' pcv pcl offv av al av' al' rl p rpcl p' m' pcv' pcl',
     index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep  OpBranchNZ (Some al) None None pcl
+    run_tmu cstep  OpBranchNZ (Some al) __ __ pcl
             (CState m i ((CData (av,al))::s) (pcv,pcl) p)
             (CState m' i' ((CData (av',al'))::s') (pcv',pcl') p') ->    
     cache_hit_read m' p' rl rpcl ->     
@@ -220,7 +229,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
     check_addr_priv p pcv privInstSize ->
     length args = a -> (forall a, In a args -> exists d, a = CData d) ->
     length args' = a -> (forall a, In a args' -> exists d, a = CData d) ->
-    run_tmu cstep  OpCall (Some pcl') None None pcl
+    run_tmu cstep  OpCall (Some pcl') __ __ pcl
             (CState m i ((CData (pcc,pccl))::args++s) (pcv,pcl) p) 
             (CState m' i' ((CData (pcc',pccl'))::args'++s') (pcv',pcl') p')  ->    
     cache_hit_read m' p' rl rpcl ->     
@@ -231,7 +240,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 | cstep_ret: forall m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl s'' pret, 
     index_list_Z pcv i = Some Ret -> 
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpRet (Some pcl') None None pcl
+    run_tmu cstep OpRet (Some pcl') __ __ pcl
             (CState m i s (pcv,pcl) p)
             (CState m' i' s' (pcv',pcl') p') ->    
     c_pop_to_return s' ((CRet (pcret,pcretl) false pret)::s'') ->
@@ -242,7 +251,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 | cstep_vret: forall m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl s'' pret resv resl resv' resl', 
     index_list_Z pcv i = Some VRet -> 
     check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpVRet (Some resl) (Some pcl') None pcl 
+    run_tmu cstep OpVRet (Some resl) (Some pcl') __ pcl 
             (CState m i (CData (resv,resl)::s) (pcv,pcl) p)
             (CState m' i' (CData (resv',resl')::s') (pcv',pcl') p') ->
     c_pop_to_return s' ((CRet (pcret,pcretl) true pret)::s'') ->
@@ -263,6 +272,7 @@ End CMach.
 Hint Constructors check_tags run_tmu.
 
 
+(* DD: Not sure we need all that... *)
 (* Ltac break_c_success_goal := *)
 (*   match goal with *)
 (*   | [|- context[c_success ?s]] => *)
