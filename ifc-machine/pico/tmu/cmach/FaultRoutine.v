@@ -47,15 +47,14 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m
 Conjecture handler_correct : 
   forall (fetch_rule_impl : OpCode -> AllowModify),
   forall opcode op1l op2l op3l pcl m retaddr r_stack r_imem,
-
     let am := fetch_rule_impl opcode in
     let handler := faultHandler fetch_rule_impl in
     cache_hit m (mvector opcode op1l op2l op3l pcl) ->
-    forall m' imem st pc priv,
+    exists m' imem st pc priv, 
       runsToEscape cstep 
                    0 (Z_of_nat (length handler)) 
                    (CState m (handler++r_imem) (CRet retaddr false false::r_stack) (0,handlerLabel) true)
-                   (CState m' imem st pc priv) -> 
+                   (CState m' imem st pc priv) /\ 
       match apply_rule am op1l op2l op3l pcl with
         | Some (olr,lpc) => handler_final_mem_matches' olr lpc m m' priv 
                      /\ pc = retaddr
@@ -72,28 +71,31 @@ Definition handler : list (@Instr T) := faultHandler get_rule.
 Definition runHandler : @CS T -> @CS T -> Prop := runsToEscape cstep 0 (Z_of_nat (length handler)).
                
 Conjecture handler_correct_succeed : 
-  forall opcode op1l op2l op3l pcl m raddr s i i' olr lpc m' st pc priv,
+  forall opcode op1l op2l op3l pcl m raddr s i olr lpc,
   forall (INPUT: cache_hit m (mvector opcode op1l op2l op3l pcl))
-         (HANDL: runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
-                            (CState m' i' st pc priv))
          (RULE: apply_rule (get_rule opcode) op1l op2l op3l pcl = Some (olr,lpc)),
-    handler_final_mem_matches' olr lpc m m' priv 
-    /\ pc = raddr 
-    /\ st = s.
+    exists m',
+    runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
+               (CState m' (handler++i) s raddr false) /\
+    handler_final_mem_matches' olr lpc m m' false.
               
 Conjecture handler_correct_fail : 
-  forall opcode op1l op2l op3l pcl m raddr s i i' m' st pc priv,
+  forall opcode op1l op2l op3l pcl m raddr s i,
   forall (INPUT: cache_hit m (mvector opcode op1l op2l op3l pcl))
-         (HANDL: runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
-                            (CState m' i' st pc priv))
          (RULE: apply_rule (get_rule opcode) op1l op2l op3l pcl = None),
-    m' = m /\ pc = (-1,handlerLabel).
+    exists st,
+    runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
+               (CState m (handler++i) st (-1,handlerLabel) true).
 
-(* We should also have the following: 
+(* (DD:) We should also have the following: 
     - the handler code terminates
     - it does not modifies the user program
     - it preserves the handler code itself
    But all these are probably much more easier to state and prove when get_rule is instanciated!
+ APT: I don't follow.  They should certainly be provable independently of the instantation of get_rule,
+and I've now incorporated them above. 
+In fact, preservation of all code (user and handler) is actually a universal property of the machines,
+and should really be built into their definition, i.e. imem should not be part of the state. 
 *)
 
 End HandlerCorrect.
