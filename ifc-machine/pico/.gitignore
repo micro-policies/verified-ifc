@@ -1,0 +1,8 @@
+# Coq
+*.v.d
+*.vo
+*.glob
+Makefile.coq
+
+# Emacs
+.dir-locals.el

@@ -34,8 +34,8 @@ This code is known to work with Coq 8.4.
    
      ln -s example.dir-locals.el .dir-locals.el
 
-      
+-- Git Svn
 
-    
-   
-
+   If you are using Git Svn (if you don't know what this means, then
+   you are not using it), note that there is a .gitignore file in this
+   directory.
