@@ -807,4 +807,54 @@ Conjecture genScond_spec: forall (c: rule_scond),
            (fun m s => m = m0 /\
                        s = CData (boolToZ b, handlerLabel) :: s0).
 
+(* XXX: Need to change the definition of [genRule] for this: it should
+   take an AllowModify, but not an opcode, since that check will be
+   part of the fault handler (a [cases] construct). The modified
+   [genRule] will be called [genApplyRule]. *)
+
+(* XXX: how to best model [option]s and monadic sequencing in the code
+   gens?  E.g., for [genApplyRule_spec], I need to handle both [Some
+   (Some l1, l2)] and [Some (None, l2)].  Do I do different things to
+   memory in these cases? If so I need to distinguish these cases in
+   my stack returns.
+
+   Also, modeling [option]s in the generated code might make the
+   correctness proof easier? *)
+
+(* XXX: def this in ./CodeGen.v *)
+Hypothesis genApplyRule: AllowModify -> code.
+
+
+(* NC: NB: we should only need to reason about what [genApplyRule]
+   does for the current opcode, since that's the only code that is
+   going to run. *)
+
+
+(* This is def in ../amach/AbstractMachine.v *)
+Hypothesis fetch_rule: OpCode -> AllowModify.
+
+Conjecture genApplyRule_spec_Some:
+  forall l1 l2,
+    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = Some (Some l1, l2) ->
+    forall s0,
+      HT'' (genApplyRule (fetch_rule opcode))
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (        1, handlerLabel) :: (* Model the [Some l1] *)
+                           CData (labToZ l1, handlerLabel) ::
+                           CData (labToZ l2, handlerLabel) :: s0).
+
+Conjecture genApplyRule_spec_None:
+  forall l2,
+    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = Some (None, l2) ->
+    forall s0,
+      HT'' (genApplyRule (fetch_rule opcode))
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (        0, handlerLabel) :: (* Model the [None] *)
+                           CData (labToZ l2, handlerLabel) :: s0).
+
+
 End TMUSpecs. 
