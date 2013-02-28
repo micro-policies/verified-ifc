@@ -590,6 +590,22 @@ Proof.
   eapply ite_spec; eauto.
 Qed.
 
+(* A specialized spec for the [cases] combinator.
+
+   If
+
+   - the conditions don't modify the existing stack or memory,
+     but just push a value onto the stack, and that value is computed as
+     a function of the stack and memory;
+
+   - the different branches have different conclusions.
+
+  Then if [cases] terminates, the conclusion of the first branch whose
+  guard returned non-zero holds.
+
+  Actually, that's what you get if you unfold this definition over a
+  list of [(guard, branch)] pairs; this spec is just one step of
+  unfolding. *)
 Lemma cases_spec_step_specialized: forall c vc b cbs d P Qb Qcbs,
   (* This could be abstracted: code that transforms the stack by
   pushing one value computed from the existing stack and memory *)
@@ -693,5 +709,62 @@ Proof.
   let t := (auto || omega) in
   apply_f_equal @runsToEndDone; rec_f_equal t.
 Qed.
+
+
+(* ================================================================ *)
+(* Fault-handler-specific specs *)
+
+Definition boolToZ (b: bool): Z  := if b then 1 else 0.
+
+Hypothesis genJoin_spec: forall l l' m0 s0,
+  HT'' genJoin
+       (fun m s => m = m0 /\
+                   s = CData (labToZ l, handlerLabel) ::
+                       CData (labToZ l', handlerLabel) :: s0)
+       (fun m s => m = m0 /\               
+                   s = CData (labToZ (join l l'), handlerLabel) :: s0).
+
+(* XXX: we can discharge this by implementing [genFlows] in terms of
+   [genJoin], and using the fact that [flows l l' = true <-> join l l' = l']. *)
+Hypothesis genFlows_spec: forall l l' m0 s0,
+  HT'' genFlows
+       (fun m s => m = m0 /\
+                   s = CData (labToZ l, handlerLabel) ::
+                       CData (labToZ l', handlerLabel) :: s0)
+       (fun m s => m = m0 /\               
+                   s = CData (boolToZ (flows l l'), handlerLabel) :: s0).
+
+(* XXX: NC: Copied from ../mach_exec/TMUFaultRoutine.v. I'm not sure
+how that file relates to ./FaultRoutine.v *)
+Definition handler_initial_mem_matches 
+           (opcode: OpCode)
+           (op1lab: option T) (op2lab:option T) (op3lab:option T) (pclab: T) 
+           (m: memory) : Prop := 
+  index_list_Z addrOpLabel m = Some(opCodeToZ opcode,handlerLabel)
+  /\ (match op1lab with
+      | Some op1 => index_list_Z addrTag1 m = Some (labToZ op1,handlerLabel)
+      |    None=> True
+   end)  
+  /\ (match op2lab with
+      | Some op2 => index_list_Z addrTag2 m = Some (labToZ op2,handlerLabel)
+      | None => True
+      end)
+  /\ (match op3lab with
+      | Some op3 => index_list_Z addrTag3 m = Some (labToZ op3,handlerLabel)
+      | None => True
+      end)
+  /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
+.
+
+Conjecture genVar_spec: forall opcode op1l op2l op3l pcl m0,
+  handler_initial_mem_matches opcode op1l op2l op3l pcl m0 ->
+  forall v l,
+    (mk_eval_var op1l op2l op3l pcl) v = Some l ->
+    forall s0,
+      HT'' (genVar v)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (labToZ l, handlerLabel) :: s0).
 
 End TMUSpecs. 
