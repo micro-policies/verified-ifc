@@ -80,21 +80,27 @@ Fixpoint eval_expr eval_var (e: rule_expr): option T :=
       end
   end.
 
-(** eval_cond : evaluates a side_condition with given values for the argument *)
-Fixpoint eval_cond eval_var (c: rule_scond) :bool:=
-  match c with 
-    | TRUE => true
-    | AND c1 c2 => andb (eval_cond eval_var c1) (eval_cond eval_var c2)
-    | OR c1 c2 => orb (eval_cond eval_var c1) (eval_cond eval_var c2)
-    | LE e1 e2 => 
-      match (eval_expr eval_var e1), (eval_expr eval_var e2) with 
-          | Some v1, Some v2 => flows v1 v2
-          | _ , _ => false 
-      (* DD**: might not be enough if we need to distinguish a condition
-       violation from an ill-formed condition *)
-      end 
-  end.
+Definition lift2 {A B C:Type} 
+  (f: A -> B -> C) (oa: option A) (ob: option B): option C
+:= match oa with
+   | None => None
+   | Some a => match ob with
+               | None => None
+               | Some b => Some (f a b)
+               end
+   end.
 
+(** eval_cond : evaluates a side_condition with given values for the argument *)
+Fixpoint eval_cond eval_var (c: rule_scond) : option bool:=
+  match c with 
+    | TRUE => Some true
+    | AND c1 c2 => lift2 andb (eval_cond eval_var c1)
+                              (eval_cond eval_var c2)
+    | OR c1 c2 => lift2 orb (eval_cond eval_var c1)
+                            (eval_cond eval_var c2)
+    | LE e1 e2 => lift2 flows (eval_expr eval_var e1)
+                              (eval_expr eval_var e2)
+  end.
 
 (** apply_rule applies the allow-modify r to the given parameters.=
     Returns the (optional) result value label and result PC label,
@@ -102,15 +108,31 @@ Fixpoint eval_cond eval_var (c: rule_scond) :bool:=
 Definition apply_rule (r: AllowModify) (op1lab op2lab op3lab: option T) (pclab:T) : option (option T * T) :=
   let eval_var := mk_eval_var op1lab op2lab op3lab pclab in
   match eval_cond eval_var (allow r) with
-    | false => None
-    | true => 
+    | None => None
+    | Some false => None
+    | Some true => 
       match (eval_expr eval_var (labResPC r)) with 
         | None => None
         | Some rpc => 
           match (labRes r) with 
             | Some lres => Some ((eval_expr eval_var lres), rpc)
             | None => Some (None, rpc)
-          (* here is the place where DD** can apply *)
+          (* DD: here is the place where DD** can apply *)
+
+          (* NC: the DD** was a comment above in [eval_cond] that we
+          didn't distinguish between the condition evaluating to false
+          and a call to [eval_var] returning [None]:
+     
+                 DD**: might not be enough if we need to distinguish a
+                 condition violation from an ill-formed condition.
+
+          I don't think my changes to [apply_rule] here are sufficient
+          to address DD's concern, since the first [match] collapses
+          the distinction between [eval_cond] returning [Some false]
+          and [None].
+
+          But, I also don't see why I need to make the distinction to
+          prove [handler_correct] in ../cmach/FaultRoutine.v. *)
           end
       end
   end.

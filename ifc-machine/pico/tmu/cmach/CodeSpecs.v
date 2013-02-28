@@ -786,4 +786,25 @@ Conjecture genExpr_spec: forall (e: rule_expr),
            (fun m s => m = m0 /\
                        s = CData (labToZ l, handlerLabel) :: s0).
 
+(* NC: I had to change the definition of [eval_cond] in
+   ../amach/Rules.v to return [Some bool] instead of [bool] to make
+   this provable.  Before, [eval_cond] returned [false] when
+   [eval_var] returned [None], but now it returns [None] in that case.
+   Without this change we can't distinguish between [eval_var]
+   returning [None] and causing [eval_cond] to return [false], and
+   [eval_cond] to returning [false] because the side condition
+   failed. But, since we don't model the [option T] at the level of
+   memory, we have no control over what [genVar v] returns when
+   [eval_var v] returns [None]. *)
+
+Conjecture genScond_spec: forall (c: rule_scond),
+  forall b,
+    eval_cond eval_var c = Some b ->
+    forall s0,
+      HT'' (genScond c)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (boolToZ b, handlerLabel) :: s0).
+
 End TMUSpecs. 
