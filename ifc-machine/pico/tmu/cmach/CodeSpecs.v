@@ -756,12 +756,31 @@ Definition handler_initial_mem_matches
   /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
 .
 
-Conjecture genVar_spec: forall opcode op1l op2l op3l pcl m0,
-  handler_initial_mem_matches opcode op1l op2l op3l pcl m0 ->
+Parameter (opcode: OpCode).
+Parameter (op1l op2l op3l: option T).
+Parameter (pcl: T).
+Parameter (m0: memory).
+
+Hypothesis initial_mem_matches:
+  handler_initial_mem_matches opcode op1l op2l op3l pcl m0.
+
+Definition eval_var := mk_eval_var op1l op2l op3l pcl.
+
+Conjecture genVar_spec:
   forall v l,
-    (mk_eval_var op1l op2l op3l pcl) v = Some l ->
+    eval_var v = Some l ->
     forall s0,
       HT'' (genVar v)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (labToZ l, handlerLabel) :: s0).
+
+Conjecture genExpr_spec: forall (e: rule_expr),
+  forall l,
+    eval_expr eval_var e = Some l ->
+    forall s0,
+      HT'' (genExpr e)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
