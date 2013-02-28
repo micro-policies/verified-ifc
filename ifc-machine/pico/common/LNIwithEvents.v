@@ -21,7 +21,7 @@ Variable s_succ : S -> Prop.
 Variable e_succ : E -> Prop.
 
 Variable e : S -> E.
-                            
+
 CoInductive sys_trace : S -> trace E -> Prop :=
 | oot_nil : forall s, 
              (forall s', ~ step s s') ->
