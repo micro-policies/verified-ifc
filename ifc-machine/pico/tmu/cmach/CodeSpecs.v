@@ -835,7 +835,7 @@ Hypothesis fetch_rule: OpCode -> AllowModify.
 
 Conjecture genApplyRule_spec_Some:
   forall l1 l2,
-    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = Some (Some l1, l2) ->
+    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = (true,Some (Some l1, l2)) ->
     forall s0,
       HT'' (genApplyRule (fetch_rule opcode))
            (fun m s => m = m0 /\
@@ -847,7 +847,7 @@ Conjecture genApplyRule_spec_Some:
 
 Conjecture genApplyRule_spec_None:
   forall l2,
-    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = Some (None, l2) ->
+    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = (true, Some (None, l2)) ->
     forall s0,
       HT'' (genApplyRule (fetch_rule opcode))
            (fun m s => m = m0 /\

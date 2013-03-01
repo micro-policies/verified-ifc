@@ -94,7 +94,7 @@ Axiom cmach_determ:
     cstep s s' -> 
     cstep s s'' -> 
     s' = s''.
-
+ 
 Require Import LNIwithEvents.
 
 Let aexec_with_trace := sys_trace step_rules success (fun x => x).

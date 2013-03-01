@@ -37,9 +37,14 @@ Definition fetch_rule (opcode:OpCode) : AllowModify :=
 
 (** run_tmr (TMR for Tag Managment Rules): fetches the rule for the
    given opcode and applies it.  *)
+(** DD: Shall we propagate the boolean return code of apply_rule for
+    distinguishing the kind of errors of the machine ?
+    - abort/die abruptly when eval_var is buggy
+    - exception on an IFC violation
+ *)
 Fixpoint run_tmr (opcode: OpCode) (lab1 lab2 lab3: option T) (pc: T):  option (option T * T) :=  
   let r := fetch_rule opcode in
-  apply_rule r lab1 lab2 lab3 pc.
+  snd (apply_rule r lab1 lab2 lab3 pc).
 
 (** * Rule-based abstract machine transition relation *)
 Inductive pop_to_return : list (@StkElmt T) -> list (@StkElmt T) -> Prop := 

@@ -104,19 +104,28 @@ Fixpoint eval_cond eval_var (c: rule_scond) : option bool:=
 
 (** apply_rule applies the allow-modify r to the given parameters.=
     Returns the (optional) result value label and result PC label,
-    or nothing when the side condition fails. *)
-Definition apply_rule (r: AllowModify) (op1lab op2lab op3lab: option T) (pclab:T) : option (option T * T) :=
+    or nothing when the side condition fails. 
+ The addditional bool is used to distinguish the two way for the rule to fail 
+ - true: the allow part is failing
+ - false: the eval_var function does not make sense with the given allow/modify parts
+*)
+
+Definition apply_rule (r: AllowModify) (op1lab op2lab op3lab: option T) (pclab:T) : bool * option (option T * T) :=
   let eval_var := mk_eval_var op1lab op2lab op3lab pclab in
   match eval_cond eval_var (allow r) with
-    | None => None
-    | Some false => None
+    | None => (false, None)
+    | Some false => (true, None)
     | Some true => 
       match (eval_expr eval_var (labResPC r)) with 
-        | None => None
+        | None => (false, None)
         | Some rpc => 
           match (labRes r) with 
-            | Some lres => Some ((eval_expr eval_var lres), rpc)
-            | None => Some (None, rpc)
+            | Some lres => 
+              match (eval_expr eval_var lres) with 
+                  | Some rl => (true, Some (Some rl, rpc))
+                  | None => (false, Some (None, rpc))
+              end 
+            | None => (true, Some (None, rpc))
           (* DD: here is the place where DD** can apply *)
 
           (* NC: the DD** was a comment above in [eval_cond] that we
@@ -132,7 +141,12 @@ Definition apply_rule (r: AllowModify) (op1lab op2lab op3lab: option T) (pclab:T
           and [None].
 
           But, I also don't see why I need to make the distinction to
-          prove [handler_correct] in ../cmach/FaultRoutine.v. *)
+          prove [handler_correct] in ../cmach/FaultRoutine.v. 
+          
+          DD: I also distinguished the case where for eval_expr for labRes
+          - was None because it SHOULD be None (no result expected)
+          - was None because of a bad eval_var   
+           *)
           end
       end
   end.

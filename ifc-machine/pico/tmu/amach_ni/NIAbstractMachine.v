@@ -123,9 +123,10 @@ Proof.
     set (assert2 := addrl \_/ l <: ml) in *.
     case_eq assert1 ; case_eq assert2 ; intros;
     (unfold assert1, assert2 in *);
-    (rewrite H3 in *; rewrite H in *) ; allinv.
+    (rewrite H3 in *; rewrite H in *) ; allinv; 
+    (try solve [simpl in *; allinv]).
     
-    exploit_low. inv H0.
+    exploit_low. simpl in *. allinv. inv H0.
     assert (low_equiv_list (low_equiv_atom o) m' m'0).
     eapply low_equiv_list_update_Z  with (8:= H10) (9:= H13); eauto with lat.
     eapply low_equiv_atom_join_value with (v0:= xv) ; eauto. 
