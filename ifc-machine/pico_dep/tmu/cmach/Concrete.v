@@ -158,7 +158,7 @@ Definition privDataSize := tmuCacheSize. (* must be at least this big, but could
 Definition privInstSize := 1000. (* arbitrary for now, but must be >= size of fault handler code *)
 
 (* Conversion between abstract labels (T) and tags (Z) *)
-Definition opCodeToZ {n:nat} (opcode : OpCode n) : Z :=
+Definition opCodeToZ (opcode : OpCode) : Z :=
 match opcode with 
 | OpNoop => 0
 | OpAdd => 1

@@ -751,7 +751,7 @@ Hypothesis genFlows_spec: forall l l' m0 s0,
 (* XXX: NC: Copied from ../mach_exec/TMUFaultRoutine.v. I'm not sure
 how that file relates to ./FaultRoutine.v *)
 Definition handler_initial_mem_matches 
-           {n:nat } (opcode: OpCode n)
+           (opcode: OpCode)
            (op1lab: option T) (op2lab:option T) (op3lab:option T) (pclab: T) 
            (m: memory) : Prop := 
   index_list_Z addrOpLabel m = Some(opCodeToZ opcode,handlerLabel)
@@ -770,9 +770,9 @@ Definition handler_initial_mem_matches
   /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
 .
 
-Parameter (n:nat).
-Parameter (opcode: OpCode n).
-Parameter (vls: Vector.t T n).
+Parameter (opcode: OpCode).
+Definition n := labelCount opcode. 
+Parameter (vls: Vector.t T n). 
 Parameter (pcl: T).
 Parameter (m0: memory).
 
@@ -848,7 +848,7 @@ Hypothesis genApplyRule:  AllowModify n -> code.
 
 
 (* This is def in ../amach/AbstractMachine.v *)
-Hypothesis fetch_rule: OpCode n -> AllowModify n.
+Hypothesis fetch_rule: OpCode -> AllowModify n.
 
 Conjecture genApplyRule_spec_Some:
   forall l1 l2,

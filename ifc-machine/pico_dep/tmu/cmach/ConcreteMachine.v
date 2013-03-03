@@ -25,7 +25,7 @@ Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity,
 Notation "'__'" := None.
 (* Definition state m i s pc1 pc2 p := ≪ m,i,s, (pc1,pc2) ,p ≫. *)
 
-Definition mvector {n:nat} (opcode: OpCode n) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
+Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
    let optlabToZ optl :=
      match optl with
      | None => labToZ bot
@@ -44,7 +44,7 @@ Definition rvector (tagr:Z) (tagrpc:Z) : T * T := (ZToLab tagr,ZToLab tagrpc).
    - either [s2] has an up to date cache (or a cache that we don't care about) 
    - either [s2] is the privileged state in which the tmu routine should be executed 
 *)
-Inductive check_tags {n:nat} (opcode: OpCode n) (opl1 opl2 opl3:option T) (pcl:T): @CS T -> @CS T -> Prop :=
+Inductive check_tags (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T): @CS T -> @CS T -> Prop :=
 | ct_priv : (* completely ignore cache (as in Haskell code) *)
     forall m i s pc, 
       check_tags opcode opl1 opl2 opl3 pcl (CState m i s pc true) (CState m i s pc true) 
@@ -66,7 +66,7 @@ Inductive check_tags {n:nat} (opcode: OpCode n) (opl1 opl2 opl3:option T) (pcl:T
 
 (* [run_tmu] checks the tags, and potentially execute all the code of the tmu fault handler 
    and goes back to the unprivileged mode. *)
-Inductive run_tmu {n:nat} (Rstep: CS -> CS -> Prop) (opcode: OpCode n) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : @CS T -> Prop :=
+Inductive run_tmu (Rstep: CS -> CS -> Prop) (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : @CS T -> Prop :=
 | rtmu_upriv : 
     forall cs' m' s' p' pc' i',
       priv cs = false ->

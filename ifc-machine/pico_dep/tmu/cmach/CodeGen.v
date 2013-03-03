@@ -167,8 +167,8 @@ Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
   branchIfLocNeq addrOpLabel opcode (Z.of_nat (length body)) ++ body.
 
 
-Definition faultHandler (fetch_rule_impl: forall {n:nat}, OpCode n -> AllowModify n) : code :=
-  let gen {n0:nat} (opcode:OpCode n0) := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
+Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code :=
+  let gen (opcode:OpCode) := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
   gen OpNoop ++
   gen OpAdd ++ 
   gen OpSub ++

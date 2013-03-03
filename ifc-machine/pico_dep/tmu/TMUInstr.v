@@ -27,19 +27,17 @@ to TMU rules.  (If we ever move to having operation groups, we should expect
 one constructor per group.)
 There is no oplabel for Halt, as there is no rule for Halt. *)
 
-Inductive OpCode : nat -> Type :=
-| OpNoop : OpCode 0
-| OpAdd  : OpCode 2
-| OpSub  : OpCode 2
-| OpPush : OpCode 1
-| OpLoad : OpCode 2
-| OpStore : OpCode 3
-| OpJump : OpCode 1
-| OpBranchNZ : OpCode 1
-| OpCall : OpCode 1
-| OpRet : OpCode 1
-| OpVRet : OpCode 2
+Inductive OpCode : Type :=
+| OpNoop 
+| OpAdd  
+| OpSub  
+| OpPush 
+| OpLoad 
+| OpStore
+| OpJump 
+| OpBranchNZ 
+| OpCall
+| OpRet 
+| OpVRet
 .
-
-
 

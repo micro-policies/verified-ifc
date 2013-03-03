@@ -46,9 +46,9 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m
   /\ update_cache_spec_rvec m m'.
 
 Conjecture handler_correct : 
-  forall (fetch_rule_impl : (forall (n:nat), OpCode n -> AllowModify n)),
-  forall {n} opcode vls pcl m retaddr r_stack r_imem,
-    let am := fetch_rule_impl n opcode in
+  forall (fetch_rule_impl : (forall (opcode:OpCode), AllowModify (labelCount opcode))),
+  forall  opcode vls pcl m retaddr r_stack r_imem,
+    let am := fetch_rule_impl opcode in
     let handler := faultHandler fetch_rule_impl in
     let '(op1l,op2l,op3l) := glue vls in 
     cache_hit m (mvector opcode op1l op2l op3l pcl) ->
@@ -68,25 +68,25 @@ Conjecture handler_correct :
 Section HandlerCorrect.
 (* DD: Hopefully easier to parse *)
 
-Variable get_rule : forall {n:nat}, OpCode n -> AllowModify n.
+Variable get_rule : forall (opcode:OpCode), AllowModify (labelCount opcode).
 Definition handler : list (@Instr T) := faultHandler get_rule.
 Definition runHandler : @CS T -> @CS T -> Prop := runsToEscape cstep 0 (Z_of_nat (length handler)).
                
 Conjecture handler_correct_succeed : 
-  forall {n:nat} opcode (vls: Vector.t T n) pcl m raddr s i olr lpc,
+  forall opcode (vls: Vector.t T (labelCount opcode)) pcl m raddr s i olr lpc,
   let '(op1l,op2l,op3l) := glue vls in 
   forall (INPUT: cache_hit m (mvector opcode op1l op2l op3l pcl))
-         (RULE: apply_rule (get_rule _ opcode) vls pcl = Some (olr,lpc)),
+         (RULE: apply_rule (get_rule opcode) vls pcl = Some (olr,lpc)),
     exists m',
     runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
                (CState m' (handler++i) s raddr false) /\
     handler_final_mem_matches' olr lpc m m' false.
               
 Conjecture handler_correct_fail : 
-  forall {n} opcode (vls:Vector.t T n) pcl m raddr s i,
+  forall opcode (vls:Vector.t T (labelCount opcode)) pcl m raddr s i,
   let '(op1l,op2l,op3l) := glue vls in 
   forall (INPUT: cache_hit m (mvector opcode op1l op2l op3l pcl))
-         (RULE: apply_rule (get_rule _ opcode) vls pcl = None),
+         (RULE: apply_rule (get_rule opcode) vls pcl = None),
     exists st,
     runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
                (CState m (handler++i) st (-1,handlerLabel) true).

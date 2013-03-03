@@ -11,6 +11,7 @@ Require Import Rules.
 Require Vector.
 
 Set Implicit Arguments.
+
 Local Open Scope Z_scope.
 
 Section ARuleMachine.
@@ -20,7 +21,7 @@ Context {T: Type}
 
 (** * Rules of the abstract machine *)
 (** Get the "rule" for a given operation. *)
-Definition fetch_rule {n:nat} (opcode:OpCode n) : (AllowModify n) :=
+Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
   match opcode with
     | OpNoop => ≪ TRUE , __ , LabPC ≫ 
     | OpAdd => ≪ TRUE, JOIN Lab1/2 Lab2/2 , LabPC ≫
@@ -45,7 +46,7 @@ Definition fetch_rule {n:nat} (opcode:OpCode n) : (AllowModify n) :=
     - exception on an IFC violation
  *)
 
-Definition run_tmr {n:nat} (opcode: OpCode n) (labs:Vector.t T n) (pc: T):  option (option T * T) :=  
+Definition run_tmr (opcode: OpCode) (labs:Vector.t T (labelCount opcode)) (pc: T):  option (option T * T) :=  
   let r := fetch_rule opcode in
   apply_rule r labs pc.
 
