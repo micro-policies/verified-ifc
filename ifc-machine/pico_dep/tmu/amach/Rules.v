@@ -54,17 +54,29 @@ Inductive LAB (n: nat) : Type :=
 | lab3 : 3 <= n -> LAB n
 | labpc : LAB n. 
 
+(*
 Definition lab1_of_1 : LAB 1 := lab1 (le_n _).  
 Definition lab1_of_2 : LAB 2 := lab1 (le_S _ _ (le_n _)). 
 Definition lab2_of_2 : LAB 2 := lab2 (le_n _).  
 Definition lab1_of_3 : LAB 3 := lab1 (le_S _ _ (le_S _ _ (le_n _))).  
 Definition lab2_of_3 : LAB 3 := lab2 (le_S _ _ (le_n _)).
 Definition lab3_of_3 : LAB 3 := lab3 (le_n _). 
+*)
+
+(* A better alternative... *)
+Fixpoint nlem (n:nat) (m:nat) : n<=(n+m).
+refine
+(match m with
+| O => _ (le_n n)
+| S m' => _ (le_S _ _ (nlem n m'))
+end). 
+intros; omega. 
+intros; zify; omega. 
+Qed.
 
 Inductive rule_expr (n: nat) : Type :=
 | L_Var: LAB n -> rule_expr n
 | L_Join: rule_expr n -> rule_expr n -> rule_expr n. 
-
 
 (** Side conditions for rules: the Allow part *)
 Inductive rule_scond (n : nat) : Type :=
@@ -149,12 +161,17 @@ End Rules.
 Notation "'≪' c1 , e1 , lpc '≫'" := (almod c1 (Some e1) lpc) (at level 95, no associativity).
 Notation "'≪' c1 , '__' , lpc '≫'" := (almod c1 None lpc) (at level 95, no associativity).
 Notation "'LabPC'" := (L_Var (labpc _)).
+Notation "'Lab1'" := (L_Var (lab1 (nlem _ _))).
+Notation "'Lab2'" := (L_Var (lab2 (nlem _ _))).
+Notation "'Lab3'" := (L_Var (lab3 (nlem _ _))).
+(*
 Notation "'Lab1/1'" := (L_Var lab1_of_1).
 Notation "'Lab1/2'" := (L_Var lab1_of_2).
 Notation "'Lab2/2'" := (L_Var lab2_of_2).
 Notation "'Lab1/3'" := (L_Var lab1_of_3).
 Notation "'Lab2/3'" := (L_Var lab2_of_3).
 Notation "'Lab3/3'" := (L_Var lab3_of_3).
+*)
 Notation "'JOIN'" := L_Join.
 Notation "'TRUE'" := (A_True _).
 Notation "'AND'" := A_And.

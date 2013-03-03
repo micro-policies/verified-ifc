@@ -24,18 +24,18 @@ Context {T: Type}
 Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
   match opcode with
     | OpNoop => ≪ TRUE , __ , LabPC ≫ 
-    | OpAdd => ≪ TRUE, JOIN Lab1/2 Lab2/2 , LabPC ≫
-    | OpSub => ≪ TRUE, JOIN Lab1/2 Lab2/2 , LabPC ≫
-    | OpPush => ≪ TRUE, Lab1/1 , LabPC ≫
-    | OpLoad => ≪ TRUE, JOIN Lab1/2 Lab2/2, LabPC ≫
-    | OpStore => ≪ LE (JOIN Lab1/3 LabPC) Lab3/3,  (* addr, new value, old value *)
-                  JOIN Lab1/3 (JOIN Lab2/3 LabPC), 
+    | OpAdd => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫
+    | OpSub => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫
+    | OpPush => ≪ TRUE, Lab1 , LabPC ≫
+    | OpLoad => ≪ TRUE, JOIN Lab1 Lab2, LabPC ≫
+    | OpStore => ≪ LE (JOIN Lab1 LabPC) Lab3,  (* addr, new value, old value *)
+                  JOIN Lab1 (JOIN Lab2 LabPC), 
                   LabPC ≫
-    | OpJump => ≪ TRUE, __ , JOIN Lab1/1 LabPC ≫
-    | OpBranchNZ => ≪ TRUE, __ , JOIN Lab1/1 LabPC ≫
-    | OpCall => ≪ TRUE ,LabPC ,JOIN Lab1/1 LabPC ≫
-    | OpRet => ≪ TRUE, __ , Lab1/1 ≫
-    | OpVRet => ≪ TRUE, JOIN Lab1/2 LabPC, Lab2/2 ≫ (* value, return addr *)
+    | OpJump => ≪ TRUE, __ , JOIN Lab1 LabPC ≫
+    | OpBranchNZ => ≪ TRUE, __ , JOIN Lab1 LabPC ≫
+    | OpCall => ≪ TRUE ,LabPC ,JOIN Lab1 LabPC ≫
+    | OpRet => ≪ TRUE, __ , Lab1 ≫
+    | OpVRet => ≪ TRUE, JOIN Lab1 LabPC, Lab2 ≫ (* value, return addr *)
     end.
 
 (** run_tmr (TMR for Tag Managment Rules): fetches the rule for the
