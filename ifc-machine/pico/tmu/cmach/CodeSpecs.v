@@ -2,7 +2,7 @@ Require Import ZArith.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
-Import ListNotations. (* list notations *)
+Import ListNotations. 
 
 Require Import TMUInstr.
 Require Import Lattices.
@@ -64,20 +64,13 @@ Definition HT
               (P: memory -> stack -> Prop) (* pre-condition *)
               (start_pc end_pc : Z) (* code segment *)
               (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *) :=
-forall mem0 stk0,
-  P mem0 stk0 ->
-  exists mem1 stk1,
-  runsToEnd cstep start_pc end_pc {| mem := mem0;
-                               imem := imem;
-                               stk := stk0;
-                               pc := (start_pc,handlerLabel);
-                               priv := true |}
-                            {| mem := mem1;
-                               imem := imem;
-                               stk := stk1;
-                               pc := (end_pc,handlerLabel);
-                               priv := true |}
-    /\ Q mem1 stk1. 
+forall mem stk0 cache0 fhdl0,
+  P cache0 stk0 ->
+  exists stk1 cache1,
+  runsToEnd cstep_p start_pc end_pc 
+            (CState cache0 mem fhdl0 imem stk0 (start_pc,handlerLabel) true)
+            (CState cache1 mem fhdl0 imem stk1 (end_pc,handlerLabel) true)
+  /\ Q cache1 stk1. 
 
 Lemma HT_compose: forall imem P pc0 pc1 Q pc2 R,
   HT imem P pc0 pc1 Q -> 
@@ -85,37 +78,27 @@ Lemma HT_compose: forall imem P pc0 pc1 Q pc2 R,
   HT imem P pc0 pc2 R. 
 Proof.
   unfold HT in *. intros.
-  edestruct H as [m1 [stk1 [ris1 c1]]]; eauto. clear H. 
-  edestruct H0 as [m2 [stk2 [ris2 c2]]]; eauto. clear H0. 
-  exists m2. exists stk2. split; auto.
+  edestruct H as [stk1 [cache1 [ris1 c1]]]; eauto. clear H. 
+  edestruct H0 as [stk2 [cache2 [ris2 c2]]]; eauto. clear H0. 
+  exists stk2. exists cache2. split; eauto. 
   eapply runs_to_end_compose; eauto. 
 Qed.
 
 (* Hoare triple for a list of instructions *)
 Definition HT'' (c: code)
-                (* pre-condition *)
-                (P: memory -> stack -> Prop)
-                (* post-condition when code "falls through" *)
-                (Q: memory -> stack -> Prop)
-:= forall imem mem0 stk0 n n',
-  code_at n imem c ->
-  P mem0 stk0 ->
+                (P: memory -> stack -> Prop) (* pre-condition *)
+                (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *)
+:= forall imem mem stk0 cache0 fh n n',
+  code_at n fh c ->
+  P cache0 stk0 ->
   n' = n + Z_of_nat (length c) -> 
-  exists mem1 stk1,
+  exists stk1 cache1,
   (* NC: would we gain anything by using projections to specify the
   state? *)
-  Q mem1 stk1 /\
-  runsToEnd' cstep n n' {| mem := mem0;
-                           imem := imem;
-                           stk := stk0;
-                           pc := (n, handlerLabel);
-                           priv := true |}
-                        {| mem := mem1;
-                           imem := imem;
-                           stk := stk1;
-                           pc := (n', handlerLabel);
-                           priv := true |}.
-
+  Q cache1 stk1 /\
+  runsToEnd' cstep_p n n' 
+             (CState cache0 mem fh imem stk0 (n, handlerLabel) true)
+             (CState cache1 mem fh imem stk1 (n', handlerLabel) true).
 
 Lemma HT''_compose: forall c1 c2 P Q R,
   HT'' c1 P Q ->
@@ -123,13 +106,13 @@ Lemma HT''_compose: forall c1 c2 P Q R,
   HT'' (c1 ++ c2) P R.
 Proof.
   unfold HT'' in *.
-  intros c1 c2 P Q R HT1 HT2 imem mem0 stk0 n n' HC12 HP Hn'.
+  intros c1 c2 P Q R HT1 HT2 imem mem0 stk0 cache0 fh0 n n' HC12 HP Hn'.
   subst.
   
-  edestruct HT1 as [mem1 [stk1 [HQ RTE1]]]; eauto.
+  edestruct HT1 as [stk1 [cache1 [HQ RTE1]]]; eauto.
   apply code_at_compose_1 in HC12; eauto.
 
-  edestruct HT2 as [mem2 [stk2 [HR RTE2]]]; eauto.
+  edestruct HT2 as [stk2 [cache2 [HR RTE2]]]; eauto.
   apply code_at_compose_2 in HC12; eauto.
 
   eexists. eexists. intuition. eauto.
@@ -160,29 +143,20 @@ Qed.
    [P sm] to state with [stack * memory] replaced by [Delta sm].
 
  *)
-Definition HT' (c: code)
-               (* pre-condition *)
-               (P: memory -> stack -> Prop)
-               (* post-condition when code "falls through" *)
-               (Q: memory -> stack -> Prop)
-:= forall imem mem0 stk0 n n',
-  code_at n imem c ->
-  P mem0 stk0 ->
+Definition HT' (c: code)            
+               (P: memory -> stack -> Prop) (* pre-condition *)
+               (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *)
+:= forall imem mem stk0 c0 fh n n',
+  code_at n fh c ->
+  P c0 stk0 ->
   n' = n + Z_of_nat (length c) -> 
-  exists mem1 stk1,
+  exists stk1 c1,
   (* NC: would we gain anything by using projections to specify the
   state? *)
-  Q mem1 stk1 /\
-  runsToEnd cstep n n'           {| mem := mem0;
-                               imem := imem;
-                               stk := stk0;
-                               pc := (n, handlerLabel);
-                               priv := true |}
-                            {| mem := mem1;
-                               imem := imem;
-                               stk := stk1;
-                               pc := (n', handlerLabel);
-                               priv := true |}.
+  Q c1 stk1 /\
+  runsToEnd cstep_p n n' 
+            (CState c0 mem fh imem stk0 (n, handlerLabel) true)
+            (CState c1 mem fh imem stk1 (n', handlerLabel) true).
 
 Lemma skipNZ_continuation_spec_NZ: forall c P v l,
   v <> 0 ->
@@ -192,10 +166,9 @@ Lemma skipNZ_continuation_spec_NZ: forall c P v l,
        P.
 Proof.
   intros c P v l Hv.
-  intros imem mem0 stk0 n n' Hcode HP Hn'.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
   destruct HP as [stk1 [H_stkeq HPs']].
-  exists mem0.
-  exists stk1.
+  exists stk1. exists c0. 
   intuition.
 
   (* Load an instruction *)
@@ -205,13 +178,11 @@ Proof.
 
   (* Run an instruction *) 
   eapply runsToEndStep'; eauto. 
-  eapply cstep_branchnz ; eauto. 
-  
+  eapply cp_branchnz ; eauto. 
   simpl. 
-  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).
+  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
   rewrite Hif.
-  econstructor 1.
-  auto.
+  constructor 1; auto.
 Qed.
 
 Lemma skipNZ_spec_Z: forall n P v l,
@@ -222,20 +193,20 @@ Lemma skipNZ_spec_Z: forall n P v l,
        P.
 Proof.
   intros c P v l Hv.
-  intros imem mem0 stk0 n n' Hcode HP Hn'.
+  intros imem mem0 stk0 c0 fh n n' Hcode HP Hn'.
   destruct HP as [stk1 [H_stkeq HPs']].
-  exists mem0.
-  exists stk1.
+  exists stk1. eexists c0.
   intuition.
 
   (* Load an instruction *)
   subst. simpl.
   unfold skipNZ in *.
-  unfold code_at in *. simpl in *. intuition. 
+  unfold code_at in *. simpl in *. 
+  intuition. 
 
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
-  eapply cstep_branchnz ; eauto. 
+  eapply cp_branchnz ; eauto. 
 
   simpl.
   constructor. auto.
@@ -261,7 +232,7 @@ Lemma push_spec: forall v P,
        P.
 Proof.
   intros v P.
-  intros imem mem0 stk0 n n' Hcode HP Hn'.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
   eexists. eexists. intuition. eauto.
   
   (* Load an instruction *)
@@ -271,10 +242,9 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
-  eapply cstep_push ; eauto.
+  eapply cp_push ; eauto.
 
   simpl.
-
   constructor; auto.
 Qed.
 
@@ -285,8 +255,8 @@ Lemma push_spec': forall v P,
                             P m (tail s)).
 Proof.
   intros v P.
-  intros imem mem0 stk0 n n' Hcode HP Hn'.
-  exists mem0. exists (CData (v, handlerLabel) :: stk0).
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
+  exists (CData (v, handlerLabel) :: stk0). eexists c0.
   intuition.
   
   (* Load an instruction *)
@@ -296,7 +266,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
-  eapply cstep_push ; eauto.
+  eapply cp_push ; eauto.
     
   simpl.
   constructor; auto.
@@ -308,7 +278,7 @@ Lemma HT''_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
   HT'' c P' Q.
 Proof.
   intros c P' P Q HTPQ P'__P.
-  intros imem mem0 stk0 n n' Hcode HP' Hn'.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
@@ -318,8 +288,8 @@ Lemma HT''_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
   HT'' c P Q'.
 Proof.
   intros ? ? ? ? HTPQ ?.
-  intros imem mem0 stk0 n n' Hcode HP' Hn'.
-  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
 Qed.
 
 Lemma HT''_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
@@ -345,12 +315,12 @@ Lemma HT''_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
   HT'' c P' Q'.
 Proof.
   intros ? ? ? ? ? HTPQ HPP' HP'QQ'.
-  intros imem mem0 stk0 n n' Hcode HP' Hn'.
-  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
-  eexists. eexists.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
+  eexists. eexists. eexists.
   intuition.
   eapply HP'QQ'; eauto.
-  auto.
+  eauto.
 Qed.
 
 Lemma skip_spec: forall c P,
@@ -363,19 +333,18 @@ Proof.
   rewrite app_ass.  
   eapply HT''_compose.
   eapply push_spec'.
-  eapply HT''_strengthen_premise.
-  eapply skipNZ_continuation_spec_NZ.
-
+  eapply HT''_strengthen_premise. 
+  eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
   (* NC: how to avoid this [Focus]? We need the equality to come later
-  the [skipNZ] spec maybe? *)
-  Focus 2.
+  the [skipNZ] spec maybe? 
+   DD: not sure it's what you're asking for, but giving it as an argument does the job. *)
   intros.
   simpl.
   exists (tl s); intuition.
   destruct s; inversion H0; eauto.
 
   (* Back at the first (blurred) goal, which is now [1 <> 0] :P *)
-  omega.
+  (* omega. *)
 Qed.
 
 Lemma ifNZ_spec_Z: forall v l t f P Q,
@@ -420,7 +389,7 @@ Lemma HT''_decide_join: forall T c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
   HT'' c (fun m s => exists v, (~ D v /\ P1' v m s) \/ (D v /\ P2' v m s)) Q.
 Proof.
   intros ? c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
-  unfold HT''. intros imem mem0 stk0 n n' H_code_at HP neq.
+  unfold HT''. intros imem mem0 stk0 c0 fh0 n n' H_code_at HP neq.
   destruct HP as [v Htovornottov].
   pose (decD v) as dec. intuition.
 
@@ -492,7 +461,7 @@ Lemma HT''_forall_exists: forall T c P Q,
 Proof.
   intros ? c P Q HPQ.
   unfold HT''.
-  intros imem mem0 stk0 n n' Hcode_at [x HPx] neq.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode_at [x HPx] neq.
   eapply HPQ; eauto.
 (*
   (* Annoyingly, we can't use [HT''_strengthen_premise] here, because
@@ -658,7 +627,7 @@ Proof.
   unfold HT'. intros. intuition.
   eexists.
   eexists.
-  intros.
+  eexists.
   intuition. 
 
   (* Load an instruction *)
@@ -669,7 +638,7 @@ Proof.
   eapply runsToEndStep; auto.
   unfold in_bounds.  simpl.  omega. 
 
-  eapply cstep_add ; eauto.
+  eapply cp_add ; eauto.
   
   (* Finish running *)
   eapply runsToEndDone.
@@ -686,7 +655,8 @@ Proof.
   intros.
   unfold HT'. intros. intuition. subst. 
   eexists.
-  eexists. 
+  eexists.
+  eexists.
   intuition. 
 
   (* Load an instruction *)
@@ -697,13 +667,13 @@ Proof.
   eapply runsToEndStep; auto.
   unfold in_bounds; simpl; try omega.
 
-  eapply cstep_add; eauto.
+  eapply cp_add; eauto.
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
 
   unfold in_bounds; simpl.  omega. 
-  eapply cstep_sub; eauto.
+  eapply cp_sub; eauto.
 
   (* Finish running *)
   let t := (auto || omega) in

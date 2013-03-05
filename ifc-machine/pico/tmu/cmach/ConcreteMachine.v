@@ -10,8 +10,7 @@ Require Import Concrete.
 Set Implicit Arguments.
 Local Open Scope Z_scope.
 
-Require Import Coq.Unicode.Utf8. 
-
+(* Require Import Coq.Unicode.Utf8.  *)
 
 Section CMach.
 
@@ -19,12 +18,76 @@ Context {T: Type}
         {CLatt: ConcreteLattice T}.
 
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
-(* Didn't get it to work for some reason *)
-(* Notation "'≪' m , i , s , pc '≫'" := (@CState T m i s pc true) (at level 95, right associativity). *)
-(* Notation "'〈' m , i , s , pc '〉'" := (@CState T m i s pc false) (at level 95, no associativity). *)
 Notation "'__'" := None.
-(* Definition state m i s pc1 pc2 p := ≪ m,i,s, (pc1,pc2) ,p ≫. *)
 
+(* Didn't get it to work for some reason *)
+(* Notation "'≪' c , m , fh , i , s , pc '≫'" := (@CState T c m fh i s pc true) (at level 55, no associativity). *)
+(* Notation "'〈' c, m , fh, i , s , pc '〉'" := (@CState T c m fh i s pc false) (at level 95, no associativity).*)
+(* Definition state c m fh i s pc1 pc2 p := ≪ c , m , fh , i , s , (pc1,pc2) , p ≫. *)
+ 
+(** The concrete machine in privileged mode. *)
+Inductive cstep_p :  @CS T -> @CS T -> Prop := 
+| cp_nop : forall c m fh i s pcv pcl,
+    fh @ pcv # Noop ->
+    cstep_p (CState c m fh i s (pcv,pcl) true) (CState c m fh i s (pcv+1,pcl) true)
+
+| cp_add: forall c m fh i s pcv pcl x1v x1l x2v x2l, 
+    fh @ pcv # Add ->
+    cstep_p (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true)  
+            (CState c m fh i ((x1v+x2v,handlerLabel):::s) (pcv+1,pcl) true)
+
+| cp_sub: forall c m fh i s pcv pcl x1v x1l x2v x2l, 
+    fh @ pcv # Sub ->
+    cstep_p (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true) 
+            (CState c m fh i ((x1v-x2v,handlerLabel):::s) (pcv+1,pcl) true)
+
+| cp_push: forall c m fh i s pcv pcl cv cl, 
+    fh @ pcv # Push (cv,cl) ->
+    cstep_p (CState c m fh i s (pcv,pcl) true) 
+            (CState c m fh i ((cv,cl):::s) (pcv+1,pcl) true)
+
+| cp_load: forall c m fh i s pcv pcl addrv addrl xv xl,
+    fh @ pcv # Load ->
+    read_m addrv c = Some (xv,xl) ->
+    cstep_p (CState c m fh i ((addrv,addrl):::s) (pcv,pcl) true) 
+            (CState c m fh i ((xv,handlerLabel):::s) (pcv+1,pcl) true)
+
+| cp_store: forall c m fh i s pcv pcl c' addrv addrl x, 
+    fh @ pcv # Store ->
+    upd_m addrv x c = Some c' ->
+    cstep_p (CState c m fh i ((addrv,addrl)::: x :::s) (pcv,pcl) true)
+            (CState c' m fh i s (pcv+1,pcl) true)
+
+| cp_jump: forall c m fh i s pcv pcl pcj pcjl,
+    fh @ pcv # Jump ->
+    cstep_p (CState c m fh i ((pcj,pcjl):::s) (pcv,pcl) true) 
+            (CState c m fh i s (pcj,pcjl) true)
+
+| cp_branchnz: forall c m fh i s pcv pcl offv av al,
+    fh @ pcv # BranchNZ offv -> 
+    cstep_p (CState c m fh i ((av,al):::s) (pcv,pcl) true) 
+            (CState c m fh i s (if av =? 0 then pcv+1 else pcv+offv, handlerLabel) true)
+
+| cp_call: forall c m fh i s pcv pcl a r args pcc pccl,
+    fh @ pcv # Call a r -> 
+    length args = a -> (forall a, In a args -> exists d, a = CData d) ->
+    cstep_p (CState c m fh i ((pcc,pccl):::args++s) (pcv,pcl) true) 
+            (CState c m fh i (args++(CRet (pcv+1, pcl) r true)::s) (pcc, pccl) true)
+
+| cp_ret: forall c m fh i s pcv pcl  pcret pcretl s' pret, 
+    fh @ pcv # Ret -> (* can either return to user/priv mode *)
+    c_pop_to_return s ((CRet (pcret,pcretl) false pret)::s') ->
+    cstep_p (CState c m fh i s  (pcv,pcl) true) 
+            (CState c m fh i s' (pcret,pcretl) pret)
+
+| cp_vret: forall c m fh i s pcv pcl s' pcret pcretl pret resv resl, 
+    fh @ pcv # VRet -> (* cannot vreturn to user mode *)
+    c_pop_to_return s ((CRet (pcret,pcretl) true true)::s') ->
+    cstep_p (CState c m fh i ((resv,resl):::s) (pcv,pcl) true) 
+            (CState c m fh i ((resv,resl):::s') (pcret, pcretl) pret).
+
+
+(** Cache handling mechanism *)
 Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
    let optlabToZ optl :=
      match optl with
@@ -35,229 +98,158 @@ Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) :
 
 Definition rvector (tagr:Z) (tagrpc:Z) : T * T := (ZToLab tagr,ZToLab tagrpc). 
 
-(* TMU action on each instruction.  If rule is in the cache (currently
-   just a single entry), leave the state unchanged and return
+(* TMU.  If rule is in the cache (currently just a single entry),
+   leave the state unchanged and return
    Some(result_tag,result_pc_tag); otherwise, set the state to invoke
-   the TMU fault handler code and return None. *)
- 
-(* [check_stags opc opl1 opl2 opl3 pcl s1 s2] holds when:
-   - either [s2] has an up to date cache (or a cache that we don't care about) 
-   - either [s2] is the privileged state in which the tmu routine should be executed 
-*)
+   the TMU fault handler code and return None.  *)
+
+(* [check_stags opc opl1 opl2 opl3 pcl s1 s2] holds when: either [s2]
+has an up to date cache or [s2] is the privileged state in which the
+tmu routine must then be executed *)
 Inductive check_tags (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T): @CS T -> @CS T -> Prop :=
-| ct_priv : (* completely ignore cache (as in Haskell code) *)
-    forall m i s pc, 
-      check_tags opcode opl1 opl2 opl3 pcl (CState m i s pc true) (CState m i s pc true) 
-                 
 | ct_upriv_chit : (* m vector is in the cache *)
-    forall m i s pc,
-    forall (CHIT: cache_hit m (mvector opcode opl1 opl2 opl3 pcl)),      
+    forall c m fh i s pc,
+    forall (CHIT: cache_hit c (mvector opcode opl1 opl2 opl3 pcl)),      
       check_tags opcode opl1 opl2 opl3 pcl 
-                 (CState m i s pc false) (CState m i s pc false)
+                 (CState c m fh i s pc false) (CState c m fh i s pc false)
 
 | ct_upriv_cmiss: (* not in cache: arrange to enter TMU fault handler *)
-    forall m i s pc m' mvec,
+    forall c c' m fh i s pc mvec,
       forall (MVEC: mvec = (mvector opcode opl1 opl2 opl3 pcl))
-             (CMISS: ~ cache_hit m mvec)
-             (C_UPD: cache_hit m' mvec)
-             (M_UPD: update_cache_spec_mvec m m'),
+             (CMISS: ~ cache_hit c mvec)
+             (C_UPD: cache_hit c' mvec),
     check_tags opcode opl1 opl2 opl3 pcl 
-               (CState m i s pc false) (CState m' i ((CRet pc false false)::s) (0,handlerLabel) true).
+               (CState c m fh i s pc false) 
+               (CState c' m fh i ((CRet pc false false)::s) (0,handlerLabel) true).
 
-(* [run_tmu] checks the tags, and potentially execute all the code of the tmu fault handler 
-   and goes back to the unprivileged mode. *)
-Inductive run_tmu (Rstep: CS -> CS -> Prop) (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : @CS T -> Prop :=
-| rtmu_upriv : 
-    forall cs' m' s' p' pc' i',
+(* [run_tmu] checks the tags, and potentially execute all the code of
+   the tmu fault handler and goes back to the unprivileged mode.  We
+   check it does not fail by going ruling out pc (-1,handlerLabel) or
+   demanding priv. bit of resulting state to be false.  If the fault
+   handler fails, the concrete machine just does not step *) 
+Inductive run_tmu (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : @CS T -> Prop :=
+| rtmu_upriv : forall cs' c m s ppc fh i,
       priv cs = false ->
+      pc cs = ppc ->
       check_tags opcode opl1 opl2 opl3 pcl cs cs' ->
-      runsToEscape Rstep 0 privInstSize cs' (CState m' i' s' pc' false) ->    
-      (* and not failing by going to (-1,handlerLabel) or priv. bit of resulting state is false *)
-      run_tmu Rstep opcode opl1 opl2 opl3 pcl cs (CState m' i' s' pc' p')
-| rtmu_priv : 
-    forall cs',
-      priv cs = true ->
-      check_tags opcode opl1 opl2 opl3 pcl cs cs' ->
-      run_tmu Rstep opcode opl1 opl2 opl3 pcl cs cs'.
-
-Inductive c_pop_to_return : list (@CStkElmt T) -> list (@CStkElmt T) -> Prop := 
-| cptr_done: forall a b p s,
-   c_pop_to_return ((CRet a b p)::s) ((CRet a b p)::s)
-| cptr_pop: forall a s s',
-    c_pop_to_return s s' ->
-    c_pop_to_return ((CData a)::s) s'.
-
-Lemma c_pop_to_return_ret : forall s1 s2,
-  c_pop_to_return s1 s2 ->
-  exists a b p s, s2 = (@CRet T a b p)::s.
-Proof.
-  induction 1; intros; simpl; eauto.
-Qed.  
-  
-Lemma c_pop_to_return_spec : forall s1 s2,
-  c_pop_to_return s1 s2 ->
-  exists dstk, exists stk a b p,   
-    s1 = dstk++(CRet a b p)::stk
-    /\ (forall e, In e dstk -> exists a, e = CData a).
-Proof.
-  induction 1; intros; simpl in *. 
-  exists nil ; exists s ; exists a ; exists b ; exists p.
-  simpl ; split ; eauto.
-  intuition.
-
-  destruct IHc_pop_to_return as [dstk [stk [a0 [b0 [p0 [Hs Hdstk]]]]]].
-  subst.
-  exists ((CData a)::dstk).
-  exists stk ; eauto.
-  exists a0 ; exists b0 ; exists p0 ; split ; eauto.
-  intros. inv H0.
-  eauto.
-  eapply Hdstk; auto.
- Qed.
-
-Lemma c_pop_to_return_spec2: forall  s1 s2 p1 p2 b1 b2 a1 a2 dstk,
- c_pop_to_return (dstk ++ CRet a1 b1 p1 :: s2)
-                 (CRet a2 b2 p2 :: s1) ->
- (forall e, In e dstk -> exists a : @Atom T, e = CData a) ->
- CRet a1 b1 p1 =  CRet a2 b2 p2.
-Proof.
-  induction dstk; intros.
-  inv H. auto.
-  simpl in *. 
-  inv H. destruct (H0 (CRet a2 b2 p2)). intuition. inv H.
-  eapply IHdstk; eauto.
-Qed.
-
-Lemma c_pop_to_return_spec3: forall s1 s2 b1 b2 p1 p2 a1 a2 dstk,
- c_pop_to_return (dstk ++ CRet a1 b1 p1 :: s2)
-                 (CRet a2 b2 p2 :: s1) ->
- (forall e, In e dstk -> exists a : @Atom T, e = CData a) ->
- s1 = s2 .
-Proof.
-  induction dstk; intros.
-  inv H. auto.
-  simpl in *. 
-  inv H. destruct (H0 (CRet a2 b2 p2)). intuition. inv H.
-  eapply IHdstk; eauto.
-Qed.
+      runsToEscape cstep_p 0 privInstSize cs' (CState c m fh i s ppc false) ->
+      run_tmu opcode opl1 opl2 opl3 pcl cs (CState c m fh i s ppc false).
 
 
+(** Concrete machine transition relation. Unprivileged mode. *)
 Inductive cstep : @CS T -> @CS T -> Prop := 
-| cstep_nop : forall m i s pcv pcl rl rpcl p m' pcv' pcl' p' i' s',
+| cstep_nop : forall c m fh i s pcv pcl rl rpcl p c' m' pcv' pcl' p' fh' i' s',
     i @ pcv # Noop ->
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpNoop __ __ __  pcl (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv',pcl') p') ->    
-    cache_hit_read m' p' rl rpcl -> 
-    cstep (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv+1,rpcl) p')
+    run_tmu OpNoop __ __ __  pcl 
+            (CState c m fh i s (pcv,pcl) p) 
+            (CState c' m' fh' i' s' (pcv',pcl') p') ->
+    cache_hit_read c' p' rl rpcl -> 
+    cstep (CState c m fh i s (pcv,pcl) p) (CState c' m' fh' i' s' (pcv+1,rpcl) p')
 
-| cstep_add: forall m i s rpcl pcv  pcl p rl x1v x1v' x1l x1l' x2v  x2v' x2l x2l' pcv' pcl' m' p' i' s', 
+| cstep_add: forall c c' fh fh' m i s rpcl pcv  pcl p rl x1v x1v' x1l x1l' x2v  x2v',
+               forall x2l x2l' pcv' pcl' m' p' i' s', 
     i @ pcv # Add ->
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpAdd (Some x1l) (Some x2l) __ pcl 
-            (CState m i (CData (x1v,x1l)::(CData (x2v,x2l))::s) (pcv,pcl) p) 
-            (CState m' i' (CData (x1v',x1l')::(CData (x2v',x2l'))::s') (pcv',pcl') p') ->
-    cache_hit_read m' p' rl rpcl -> 
-    cstep (CState m i (CData (x1v,x1l)::(CData (x2v,x2l))::s) (pcv,pcl) p) 
-          (CState m' i ((CData (x1v'+x2v',rl))::s') (pcv'+1,rpcl) p')
+    run_tmu OpAdd (Some x1l) (Some x2l) __ pcl 
+            (CState c  m  fh  i  ((x1v,x1l):::(x2v,x2l):::s)      (pcv,pcl)   p) 
+            (CState c' m' fh' i' ((x1v',x1l'):::(x2v',x2l'):::s') (pcv',pcl') p') ->
+    cache_hit_read c' p' rl rpcl -> 
+    cstep (CState c  m  fh  i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)     p )  
+          (CState c' m' fh' i ((x1v'+x2v',rl):::s')       (pcv'+1,rpcl) p')
 
-| cstep_sub: forall m i s pcv pcl rpcl p rl x1v x1v' x1l m' x1l' x2v  x2v' x2l x2l' pcv' pcl' p' i' s', 
-    index_list_Z pcv i = Some Sub ->
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpSub (Some x1l) (Some x2l) __ pcl 
-            (CState m i (CData (x1v,x1l)::(CData (x2v,x2l))::s) (pcv,pcl) p)
-            (CState m' i (CData (x1v',x1l')::(CData (x2v',x2l'))::s) (pcv',pcl') p') ->    
-    cache_hit_read m' p' rl rpcl -> 
-    cstep (CState m i (CData (x1v,x1l)::(CData (x2v,x2l))::s) (pcv,pcl) p) 
-          (CState m' i' ((CData (x1v'-x2v',rl))::s') (pcv'+1,rpcl) p')
+| cstep_sub: forall c c' fh fh' m i s pcv pcl rpcl p rl x1v x1v' x1l m' x1l' x2v,
+             forall x2v' x2l x2l' pcv' pcl' p' i' s', 
+    i @ pcv # Sub ->
+    run_tmu OpSub (Some x1l) (Some x2l) __ pcl 
+            (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) p)
+            (CState c' m' fh' i ((x1v',x1l'):::(x2v',x2l'):::s) (pcv',pcl') p') ->    
+    cache_hit_read c' p' rl rpcl -> 
+    cstep (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) p) 
+          (CState c' m' fh' i' ((x1v'-x2v',rl):::s') (pcv'+1,rpcl) p')
 
-| cstep_push: forall m i s cv cl pcv pcl rpcl p rl m' i' s' p' pcv' pcl', 
-    index_list_Z pcv i = Some (Push (cv,cl)) ->
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpPush (Some cl) __ __ pcl (CState m i s (pcv,pcl) p) (CState m' i' s' (pcv',pcl') p') ->  
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i s (pcv,pcl) p) 
-          (CState m' i' ((CData (cv,rl))::s') (pcv'+1,rpcl) p')
+| cstep_push: forall c fh c' fh' m i s cv cl pcv pcl rpcl p rl m' i' s' p' pcv' pcl', 
+    i @ pcv # Push (cv,cl) ->
+    run_tmu OpPush (Some cl) __ __ pcl 
+            (CState c  m fh i s (pcv,pcl) p)
+            (CState c' m' fh' i' s' (pcv',pcl') p') ->  
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i s (pcv,pcl) p) (CState c' m' fh' i' ((cv,rl):::s') (pcv'+1,rpcl) p')
 
-| cstep_load: forall m i s pcv pcl addrv addrl xv xl rl rpcl p m' p' s' i' addrv' addrl' xv' xl' pcl' pcv', 
-    index_list_Z pcv i = Some Load ->
-    check_addr_priv p pcv privInstSize ->
-    index_list_Z addrv m = Some (xv,xl) ->
-    run_tmu cstep OpLoad (Some addrl) (Some xl) __ pcl 
-            (CState m i ((CData (addrv,addrl))::s) (pcv,pcl) p) 
-            (CState m' i' ((CData (addrv',addrl'))::s) (pcv',pcl') p') ->    
-    index_list_Z addrv' m' = Some (xv',xl') ->
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i ((CData (addrv,addrl))::s) (pcv,pcl) p) 
-          (CState m' i' ((CData (xv, rl))::s') (pcv'+1,rpcl) p')
+| cstep_load: forall c c' fh fh' m i s pcv pcl addrv addrl xv xl rl rpcl p m' p' s' i',
+              forall addrv' addrl' xv' xl' pcl' pcv', 
+    i @ pcv # Load ->
+    read_m addrv m = Some (xv,xl) ->
+    run_tmu OpLoad (Some addrl) (Some xl) __ pcl 
+            (CState c m fh i ((addrv,addrl):::s) (pcv,pcl) p) 
+            (CState c' m' fh' i' ((addrv',addrl'):::s) (pcv',pcl') p') ->    
+    read_m addrv' m' = Some (xv',xl') ->
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i ((addrv,addrl):::s) (pcv,pcl) p) 
+          (CState c' m' fh' i' ((xv, rl):::s') (pcv'+1,rpcl) p')
 
-| cstep_store: forall m i i' s pcv pcv' pcl pcl' addrv addrl addrv' addrl' xv xl xv' xl' mv ml mv' ml' rpcl rl p m' m'' s' p', 
-    index_list_Z pcv i = Some Store ->
-    check_addr_priv p pcv privInstSize ->
-    index_list_Z addrv m = Some (mv,ml) ->
-    run_tmu cstep OpStore (Some addrl) (Some xl) (Some ml) pcl 
-            (CState m i ((CData (addrv,addrl))::(CData (xv,xl))::s) (pcv,pcl) p) 
-            (CState m' i' ((CData (addrv',addrl'))::(CData (xv',xl'))::s') (pcv',pcl') p') ->    
-    cache_hit_read m' p' rl rpcl ->     
-    index_list_Z addrv' m' = Some (mv',ml') ->
-    update_list_Z addrv' (xv', rl) m' = Some m'' ->
-    cstep (CState m i ((CData (addrv,addrl))::(CData (xv,xl))::s) (pcv,pcl) p)
-          (CState m'' i' s' (pcv'+1,rpcl) p')
+| cstep_store: forall c c' fh fh' m i i' s pcv pcv' pcl pcl' addrv addrl addrv' addrl',
+               forall xv xl xv' xl' mv ml mv' ml' rpcl rl p m' m'' s' p', 
+    i @ pcv # Store ->
+    read_m addrv m = Some (mv,ml) ->
+    run_tmu OpStore (Some addrl) (Some xl) (Some ml) pcl 
+            (CState c m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl) p) 
+            (CState c' m' fh' i' ((addrv',addrl'):::(xv',xl'):::s') (pcv',pcl') p') ->    
+    cache_hit_read c' p' rl rpcl ->     
+    read_m addrv' m' = Some (mv',ml') ->
+    upd_m addrv' (xv', rl) m' = Some m'' ->
+    cstep (CState c m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl) p) 
+          (CState c' m'' fh' i' s' (pcv'+1,rpcl) p')
 
-| cstep_jump: forall m i i' s pcv pcl pcv' pcl' pcj pcjl rl rpcl m' p p' s' pcj' pcjl',
-    index_list_Z pcv i = Some Jump ->
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpJump (Some pcjl) __ __ pcl 
-            (CState m i ((CData (pcj,pcjl))::s) (pcv,pcl) p) 
-            (CState m' i' ((CData (pcj',pcjl'))::s') (pcv',pcl') p') ->    
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i ((CData (pcj,pcjl))::s) (pcv,pcl) p) 
-          (CState m' i' s' (pcj',rpcl) p')
+| cstep_jump: forall c c' fh fh' m i i' s pcv pcl pcv' pcl' pcj pcjl rl rpcl m' p p' s' pcj' pcjl',
+    i @ pcv # Jump ->
+    run_tmu OpJump (Some pcjl) __ __ pcl 
+            (CState c m fh i ((pcj,pcjl):::s) (pcv,pcl) p) 
+            (CState c' m' fh' i' ((pcj',pcjl'):::s') (pcv',pcl') p') ->    
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i ((pcj,pcjl):::s) (pcv,pcl) p) 
+          (CState c' m' fh' i' s' (pcj',rpcl) p')
                
-| cstep_branchnz: forall m i i' s s' pcv pcl offv av al av' al' rl p rpcl p' m' pcv' pcl',
-    index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep  OpBranchNZ (Some al) __ __ pcl
-            (CState m i ((CData (av,al))::s) (pcv,pcl) p)
-            (CState m' i' ((CData (av',al'))::s') (pcv',pcl') p') ->    
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i ((CData (av,al))::s) (pcv,pcl) p) 
-          (CState m' i' s' (if av' =? 0 then pcv'+1 else pcv'+offv, rpcl) p')
+| cstep_branchnz: forall c c' fh fh' m i i' s s' pcv pcl offv av al av' al' rl p rpcl p' m' pcv' pcl',
+    i @ pcv # BranchNZ offv -> (* relative target *)
+    run_tmu OpBranchNZ (Some al) __ __ pcl
+            (CState c m fh i ((av,al):::s) (pcv,pcl) p)
+            (CState c' m' fh' i' ((av',al'):::s') (pcv',pcl') p') ->    
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i ((av,al):::s) (pcv,pcl) p) 
+          (CState c' m' fh' i' s' (if av' =? 0 then pcv'+1 else pcv'+offv, rpcl) p')
 
-| cstep_call: forall m i s pcv pcl pcv' pcl' rl rpcl args a r p' i' pcc pccl m' p s', 
-              forall pcc' pccl' rpcl' args',
-    index_list_Z pcv i = Some (Call a r) -> 
-    check_addr_priv p pcv privInstSize ->
+| cstep_call: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl args a r p' i',
+              forall pcc pccl m' p s' pcc' pccl' rpcl' args',
+    i @ pcv # Call a r -> 
     length args = a -> (forall a, In a args -> exists d, a = CData d) ->
     length args' = a -> (forall a, In a args' -> exists d, a = CData d) ->
-    run_tmu cstep  OpCall (Some pcl') __ __ pcl
-            (CState m i ((CData (pcc,pccl))::args++s) (pcv,pcl) p) 
-            (CState m' i' ((CData (pcc',pccl'))::args'++s') (pcv',pcl') p')  ->    
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i ((CData (pcc,pccl))::args++s) (pcv,pcl) p) 
-          (CState m' i' (args'++(CRet (pcv'+1,(if p' then pcl' else rl)) r p')::s') 
+    run_tmu OpCall (Some pcl') __ __ pcl
+            (CState c m fh i ((pcc,pccl):::args++s) (pcv,pcl) p) 
+            (CState c' m' fh' i' ((pcc',pccl'):::args'++s') (pcv',pcl') p')  ->    
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i ((pcc,pccl):::args++s) (pcv,pcl) p) 
+          (CState c' m' fh' i' (args'++(CRet (pcv'+1,(if p' then pcl' else rl)) r p')::s') 
                   (pcc', if p' then pccl' else rpcl') p')
 
-| cstep_ret: forall m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl s'' pret, 
-    index_list_Z pcv i = Some Ret -> 
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpRet (Some pcl') __ __ pcl
-            (CState m i s (pcv,pcl) p)
-            (CState m' i' s' (pcv',pcl') p') ->    
+| cstep_ret: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl s'' pret, 
+    i @ pcv # Ret -> 
+    run_tmu OpRet (Some pcl') __ __ pcl
+            (CState c m fh i s (pcv,pcl) p)
+            (CState c' m' fh' i' s' (pcv',pcl') p') ->    
     c_pop_to_return s' ((CRet (pcret,pcretl) false pret)::s'') ->
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i s (pcv,pcl) p) 
-          (CState m' i' s'' (pcret, if p' then pcretl else rpcl) pret)
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i s (pcv,pcl) p) 
+          (CState c' m' fh' i' s'' (pcret, if p' then pcretl else rpcl) pret)
 
-| cstep_vret: forall m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl s'' pret resv resl resv' resl', 
-    index_list_Z pcv i = Some VRet -> 
-    check_addr_priv p pcv privInstSize ->
-    run_tmu cstep OpVRet (Some resl) (Some pcl') __ pcl 
-            (CState m i (CData (resv,resl)::s) (pcv,pcl) p)
-            (CState m' i' (CData (resv',resl')::s') (pcv',pcl') p') ->
+| cstep_vret: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl,
+              forall s'' pret resv resl resv' resl', 
+    i @ pcv # VRet -> 
+    run_tmu OpVRet (Some resl) (Some pcl') __ pcl 
+            (CState c m fh i ((resv,resl):::s) (pcv,pcl) p)
+            (CState c' m' fh' i' ((resv',resl'):::s') (pcv',pcl') p') ->
     c_pop_to_return s' ((CRet (pcret,pcretl) true pret)::s'') ->
-    cache_hit_read m' p' rl rpcl ->     
-    cstep (CState m i (CData (resv,resl)::s) (pcv,pcl) p) 
-          (CState m' i' ((CData (resv',rl))::s'') (pcret, if p' then pcretl else rpcl) pret)
+    cache_hit_read c' p' rl rpcl ->     
+    cstep (CState c m fh i ((resv,resl):::s) (pcv,pcl) p) 
+          (CState c' m' fh' i' ((resv',rl):::s'') (pcret, if p' then pcretl else rpcl) pret)
 .
 
 (* Success is reaching a Halt state in non-privileged mode and address. *)

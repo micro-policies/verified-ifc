@@ -66,17 +66,15 @@ Variable mtyCache : list (@Atom L).
 
 (** Initial state of the concrete machine *)
 Inductive initial_cstate (P: list (@Instr L)) : @CS L -> Prop :=
-| init_cs : forall m, initial_cstate P (CState (mtyCache++m) (faultHandler++P) nil (0,bot) false).
+| init_cs : forall m, initial_cstate P (CState mtyCache m faultHandler P nil (0,bot) false).
 
 (** Aux functions yet to be defined *)
-Variable drop_cache : list (@Atom L) -> list (@Atom L).
-Variable drop_fhandler : list (@Instr L) -> list (@Instr L).
 Variable c_to_a_stack : list (@CStkElmt L) -> list (@StkElmt L). 
 
 (** Observing a concete cache is just projecting it a the abstract level *)
 Let observe_cstate (cs: @CS L) : @AS L := 
   match cs with 
-    | CState m i s pc p => AState (drop_cache m) (drop_fhandler i) (c_to_a_stack s) pc
+    | CState c m fh i s pc p => AState m i (c_to_a_stack s) pc
   end.
   
 Let cexec_with_trace := sys_trace cstep c_success observe_cstate.

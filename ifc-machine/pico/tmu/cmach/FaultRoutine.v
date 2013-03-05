@@ -46,20 +46,20 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m
 
 Conjecture handler_correct : 
   forall (fetch_rule_impl : OpCode -> AllowModify),
-  forall opcode op1l op2l op3l pcl m retaddr r_stack r_imem,
+  forall opcode op1l op2l op3l pcl m retaddr c imem fhdl s,
     let am := fetch_rule_impl opcode in
     let handler := faultHandler fetch_rule_impl in
     cache_hit m (mvector opcode op1l op2l op3l pcl) ->
-    exists m' imem st pc priv, 
-      runsToEscape cstep 
+    exists c' st pc priv, 
+      runsToEscape cstep_p 
                    0 (Z_of_nat (length handler)) 
-                   (CState m (handler++r_imem) (CRet retaddr false false::r_stack) (0,handlerLabel) true)
-                   (CState m' imem st pc priv) /\ 
+                   (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerLabel) true)
+                   (CState c' m fhdl imem st pc priv) /\ 
       match apply_rule am op1l op2l op3l pcl with
-        | (true,Some (olr,lpc)) => handler_final_mem_matches' olr lpc m m' priv 
+        | (true,Some (olr,lpc)) => handler_final_mem_matches' olr lpc c c' priv 
                      /\ pc = retaddr
-                     /\ st = r_stack
-        | (true,None) => m' = m /\ pc = (-1,handlerLabel) 
+                     /\ st = s
+        | (true,None) => c' = c /\ pc = (-1,handlerLabel) 
         | (false,_) => True
     end.
 
@@ -69,24 +69,24 @@ Section HandlerCorrect.
 
 Variable get_rule : OpCode -> AllowModify.
 Definition handler : list (@Instr T) := faultHandler get_rule.
-Definition runHandler : @CS T -> @CS T -> Prop := runsToEscape cstep 0 (Z_of_nat (length handler)).
+Definition runHandler : @CS T -> @CS T -> Prop := runsToEscape cstep_p 0 (Z_of_nat (length handler)).
                
 Conjecture handler_correct_succeed : 
-  forall opcode op1l op2l op3l pcl m raddr s i olr lpc,
-  forall (INPUT: cache_hit m (mvector opcode op1l op2l op3l pcl))
+  forall opcode op1l op2l op3l pcl c m raddr s i olr lpc,
+  forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
          (RULE: apply_rule (get_rule opcode) op1l op2l op3l pcl = (true, Some (olr,lpc))),
-    exists m',
-    runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
-               (CState m' (handler++i) s raddr false) /\
-    handler_final_mem_matches' olr lpc m m' false.
+    exists c',
+    runHandler (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
+               (CState c' m handler i s raddr false) /\
+    handler_final_mem_matches' olr lpc c c' false.
               
 Conjecture handler_correct_fail : 
-  forall opcode op1l op2l op3l pcl m raddr s i,
-  forall (INPUT: cache_hit m (mvector opcode op1l op2l op3l pcl))
+  forall opcode op1l op2l op3l pcl c m raddr s i,
+  forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
          (RULE: apply_rule (get_rule opcode) op1l op2l op3l pcl = (true,None)),
     exists st,
-    runHandler (CState m (handler++i) (CRet raddr false false::s) (0,handlerLabel) true)
-               (CState m (handler++i) st (-1,handlerLabel) true).
+    runHandler (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
+               (CState c m handler i st (-1,handlerLabel) true).
 
 (*  We also have the following: 
     - the handler code terminates DONE
