@@ -233,8 +233,8 @@ Proof.
     inv e. eapply Hid; eauto. eapply H_OTHERS; eauto.
 Qed.
 
-Lemma runsToEnd'_pc_increase {T: Type}: forall (step: @CS T -> @CS T -> Prop) n n' cs cs',
-  runsToEnd' step n n' cs cs'  -> 
+Lemma runsToEnd_pc_increase {T: Type}: forall (step: @CS T -> @CS T -> Prop) n n' cs cs',
+  runsToEnd step n n' cs cs'  -> 
   n <= n' .
 Proof.
   induction 1; intros.
@@ -242,28 +242,28 @@ Proof.
   omega.
 Qed.
 
-Lemma runsToEnd'_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
+Lemma runsToEnd_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
                                   (step_determ: forall s1 s2 s2', step s1 s2 -> step s1 s2' -> s2 = s2')
                                   n n' cs cs',
-   runsToEnd' step n n' cs cs' ->
-   forall  cs'', runsToEnd' step n n' cs cs'' ->
+   runsToEnd step n n' cs cs' ->
+   forall  cs'', runsToEnd step n n' cs cs'' ->
    cs' = cs''.
 Proof.
   induction 2; intros.
   
   inv H0. auto.
-          eapply @runsToEnd'_pc_increase in H5; eauto. zify ; omega.
+          eapply @runsToEnd_pc_increase in H5; eauto. zify ; omega.
 
   inv H3; inv H4.
   zify ; omega.
   
   assert (Heq: cs' = cs''). eapply step_determ; eauto. inv Heq.
-  eapply IHrunsToEnd' ; eauto.  
+  eapply IHrunsToEnd ; eauto.  
 
-  eapply @runsToEnd'_pc_increase in H9; eauto. zify ; omega.
+  eapply @runsToEnd_pc_increase in H9; eauto. zify ; omega.
   
   assert (Heq: cs' = cs'1). eapply step_determ; eauto. inv Heq.
-  eapply IHrunsToEnd' ; eauto.  
+  eapply IHrunsToEnd ; eauto.  
 Qed.
   
 Lemma runsToEscape_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
@@ -275,17 +275,17 @@ Lemma runsToEscape_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
 Proof.
   induction 2 ; intros.
   { inv H. 
-    - assert (Heq: cs'0 = cs') by (eapply runsToEnd'_determ; eauto). inv Heq.
+    - assert (Heq: cs'0 = cs') by (eapply runsToEnd_determ; eauto). inv Heq.
     eapply step_determ; eauto.
   
-    - assert (Heq: cs' = cs'') by (eapply runsToEnd'_determ; eauto). inv Heq.
+    - assert (Heq: cs' = cs'') by (eapply runsToEnd_determ; eauto). inv Heq.
       eelim FAIL ; eauto. 
   }
   { inv H.
-    - assert (Heq: cs'0 = cs') by (eapply runsToEnd'_determ; eauto). inv Heq.
+    - assert (Heq: cs'0 = cs') by (eapply runsToEnd_determ; eauto). inv Heq.
       eelim FAIL ; eauto.
       
-    - eapply runsToEnd'_determ; eauto.
+    - eapply runsToEnd_determ; eauto.
   }
 Qed.  
    

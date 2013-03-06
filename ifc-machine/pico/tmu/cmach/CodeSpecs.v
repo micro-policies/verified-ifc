@@ -72,7 +72,7 @@ Proof.
 Qed.
     
 (* Hoare triple for a list of instructions *)
-Definition HT'' (c: code)
+Definition HT   (c: code)
                 (P: memory -> stack -> Prop) (* pre-condition *)
                 (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *)
 := forall imem mem stk0 cache0 fh n n',
@@ -83,16 +83,16 @@ Definition HT'' (c: code)
   (* NC: would we gain anything by using projections to specify the
   state? *)
   Q cache1 stk1 /\
-  runsToEnd' cstep_p n n' 
+  runsToEnd cstep_p n n' 
              (CState cache0 mem fh imem stk0 (n, handlerLabel) true)
              (CState cache1 mem fh imem stk1 (n', handlerLabel) true).
 
-Lemma HT''_compose: forall c1 c2 P Q R,
-  HT'' c1 P Q ->
-  HT'' c2 Q R ->
-  HT'' (c1 ++ c2) P R.
+Lemma HT_compose: forall c1 c2 P Q R,
+  HT   c1 P Q ->
+  HT   c2 Q R ->
+  HT   (c1 ++ c2) P R.
 Proof.
-  unfold HT'' in *.
+  unfold HT   in *.
   intros c1 c2 P Q R HT1 HT2 imem mem0 stk0 cache0 fh0 n n' HC12 HP Hn'.
   subst.
   
@@ -103,7 +103,7 @@ Proof.
   apply code_at_compose_2 in HC12; eauto.
 
   eexists. eexists. intuition. eauto.
-  eapply runsToEnd'_compose; eauto.
+  eapply runsToEnd_compose; eauto.
 
   (* NC: why is this let-binding necessary ? *)
   let t := (rewrite app_length; zify; omega) in
@@ -123,7 +123,7 @@ Qed.
 
 Lemma skipNZ_continuation_spec_NZ: forall c P v l,
   v <> 0 ->
-  HT'' (skipNZ (length c) ++ c)
+  HT   (skipNZ (length c) ++ c)
        (fun m s => (exists s', s = CData (v,l) :: s' 
                                /\ P m s'))
        P.
@@ -140,7 +140,7 @@ Proof.
   unfold code_at in *. simpl in *. intuition. fold code_at in *.
 
   (* Run an instruction *) 
-  eapply runsToEndStep'; eauto. 
+  eapply runsToEndStep; eauto. 
   eapply cp_branchnz ; eauto. 
   
   simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
@@ -154,7 +154,7 @@ Qed.
 
 Lemma skipNZ_spec_Z: forall n P v l,
   v = 0 ->
-  HT'' (skipNZ n)
+  HT   (skipNZ n)
        (fun m s => (exists s', s = CData (v,l) :: s' 
                                /\ P m s'))
        P.
@@ -172,7 +172,7 @@ Proof.
   intuition. 
 
   (* Run an instruction *)
-  eapply runsToEndStep'; auto.
+  eapply runsToEndStep; auto.
   eapply cp_branchnz ; eauto. 
   simpl. omega.
   simpl.
@@ -181,20 +181,20 @@ Qed.
 
 Lemma skipNZ_continuation_spec_Z: forall c P Q v l,
   v = 0 ->
-  HT'' c P Q  ->
-  HT'' (skipNZ (length c) ++ c)
+  HT   c P Q  ->
+  HT   (skipNZ (length c) ++ c)
        (fun m s => (exists s', s = CData (v,l) :: s' 
                                /\ P m s'))
        Q.
 Proof.
   intros c P Q v l Hv HTc.
-  eapply HT''_compose.
+  eapply HT_compose.
   eapply skipNZ_spec_Z; auto.
   auto.
 Qed.
 
 Lemma push_spec: forall v P,
-  HT'' (push v :: nil)
+  HT   (push v :: nil)
        (fun m s => P m (CData (v,handlerLabel) :: s))
        P.
 Proof.
@@ -208,7 +208,7 @@ Proof.
   unfold code_at in *. simpl in *. intuition. 
 
   (* Run an instruction *)
-  eapply runsToEndStep'; auto.
+  eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
   simpl; omega.
   simpl.
@@ -216,7 +216,7 @@ Proof.
 Qed.
 
 Lemma push_spec': forall v P,
-  HT'' (push v :: nil)
+  HT   (push v :: nil)
        P
        (fun m s => head s = Some (CData (v,handlerLabel)) /\
                             P m (tail s)).
@@ -232,42 +232,42 @@ Proof.
   unfold code_at in *. intuition. 
 
   (* Run an instruction *)
-  eapply runsToEndStep'; auto.
+  eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
   simpl ; omega.
   simpl.
   constructor; auto.
 Qed.
 
-Lemma HT''_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
-  HT'' c P  Q ->
+Lemma HT_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
+  HT   c P  Q ->
   (forall m s, P' m s -> P m s) ->
-  HT'' c P' Q.
+  HT   c P' Q.
 Proof.
   intros c P' P Q HTPQ P'__P.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
-Lemma HT''_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
-  HT'' c P  Q ->
+Lemma HT_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+  HT   c P  Q ->
   (forall m s, Q m s -> Q' m s) ->
-  HT'' c P Q'.
+  HT   c P Q'.
 Proof.
   intros ? ? ? ? HTPQ ?.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
   edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
 Qed.
 
-Lemma HT''_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
-  HT'' c P Q ->
+Lemma HT_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
+  HT   c P Q ->
   (forall m s, P' m s -> P m s) ->
   (forall m s, Q m s -> Q' m s) ->
-  HT'' c P' Q'.
+  HT   c P' Q'.
 Proof.
   intros.
-  eapply HT''_weaken_conclusion; eauto.
-  eapply HT''_strengthen_premise; eauto.
+  eapply HT_weaken_conclusion; eauto.
+  eapply HT_strengthen_premise; eauto.
 Qed.
 
 
@@ -275,11 +275,11 @@ Qed.
    need only be provable under the assumption that [P] is true for
    *some* state.  This lets us utilize any "pure" content in [P] when
    establishing [Q]. *)
-Lemma HT''_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
-  HT'' c P Q ->
+Lemma HT_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
+  HT   c P Q ->
   (forall m s, P' m s -> P m s) ->
   (forall m s, (exists m' s', P' m' s') -> Q m s -> Q' m s) ->
-  HT'' c P' Q'.
+  HT   c P' Q'.
 Proof.
   intros ? ? ? ? ? HTPQ HPP' HP'QQ'.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
@@ -291,16 +291,16 @@ Proof.
 Qed.
 
 Lemma skip_spec: forall c P,
-  HT'' (skip (length c) ++ c)
+  HT   (skip (length c) ++ c)
        P
        P.
 Proof.
   intros c P.
   unfold skip.
   rewrite app_ass.  
-  eapply HT''_compose.
+  eapply HT_compose.
   eapply push_spec'.
-  eapply HT''_strengthen_premise. 
+  eapply HT_strengthen_premise. 
   eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
   (* NC: how to avoid this [Focus]? We need the equality to come later
   the [skipNZ] spec maybe? 
@@ -315,48 +315,48 @@ Proof.
 Qed.
 
 Lemma ifNZ_spec_Z: forall v l t f P Q,
-  HT'' f P Q ->
+  HT   f P Q ->
   v = 0 ->
-  HT'' (ifNZ t f)
+  HT   (ifNZ t f)
        (fun m s => (exists s', s = CData (v,l) :: s' /\ P m s'))
        Q.
 Proof.
   intros v l t f P Q HTf Hveq0.
   unfold ifNZ.
   rewrite app_ass.
-  eapply HT''_compose.
+  eapply HT_compose.
   
   apply skipNZ_spec_Z; auto.
 
-  eapply HT''_compose; eauto.
+  eapply HT_compose; eauto.
 
   apply skip_spec.
 Qed.
 
 Lemma ifNZ_spec_NZ: forall v l t f P Q,
-  HT'' t P Q ->
+  HT   t P Q ->
   v <> 0 ->
-  HT'' (ifNZ t f)
+  HT   (ifNZ t f)
        (fun m s => (exists s', s = CData (v,l) :: s' /\ P m s'))
        Q.
 Proof.
   intros v l t f P Q HTt Hveq0.
   unfold ifNZ.
   rewrite <- app_ass.
-  eapply HT''_compose; eauto.
+  eapply HT_compose; eauto.
   apply skipNZ_continuation_spec_NZ; auto.
 Qed.
 
-Lemma HT''_decide_join: forall T c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
-  (forall v, HT'' c1 P1 Q -> ~ D v -> HT'' c (P1' v) Q) ->
-  (forall v, HT'' c2 P2 Q ->   D v -> HT'' c (P2' v) Q) ->
+Lemma HT_decide_join: forall T c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
+  (forall v, HT   c1 P1 Q -> ~ D v -> HT   c (P1' v) Q) ->
+  (forall v, HT   c2 P2 Q ->   D v -> HT   c (P2' v) Q) ->
   (forall v, ~ D v \/ D v) ->
-  HT'' c1 P1 Q ->
-  HT'' c2 P2 Q ->
-  HT'' c (fun m s => exists v, (~ D v /\ P1' v m s) \/ (D v /\ P2' v m s)) Q.
+  HT   c1 P1 Q ->
+  HT   c2 P2 Q ->
+  HT   c (fun m s => exists v, (~ D v /\ P1' v m s) \/ (D v /\ P2' v m s)) Q.
 Proof.
   intros ? c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
-  unfold HT''. intros imem mem0 stk0 c0 fh0 n n' H_code_at HP neq.
+  unfold HT. intros imem mem0 stk0 c0 fh0 n n' H_code_at HP neq.
   destruct HP as [v Htovornottov].
   pose (decD v) as dec. intuition.
 
@@ -364,33 +364,33 @@ Proof.
   eapply spec2; eauto.
 Qed.
 
-Lemma HT''_decide_join': forall T (v: T) c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
-  (HT'' c1 P1 Q -> ~ D v -> HT'' c P1' Q) ->
-  (HT'' c2 P2 Q ->   D v -> HT'' c P2' Q) ->
+Lemma HT_decide_join': forall T (v: T) c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
+  (HT   c1 P1 Q -> ~ D v -> HT   c P1' Q) ->
+  (HT   c2 P2 Q ->   D v -> HT   c P2' Q) ->
   (forall v, ~ D v \/ D v) ->
-  HT'' c1 P1 Q ->
-  HT'' c2 P2 Q ->
+  HT   c1 P1 Q ->
+  HT   c2 P2 Q ->
   (* Switched to implication here.  I think this is a weaker
      assumption, and it's closer to the form of the [ifNZ] spec I want
    *)
-  HT'' c (fun m s => (~ D v -> P1' m s) /\ (D v -> P2' m s)) Q.
+  HT   c (fun m s => (~ D v -> P1' m s) /\ (D v -> P2' m s)) Q.
 Proof.
   intros ? v c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
-  unfold HT''. intros imem mem0 stk0 n n' H_code_at HP neq.
+  unfold HT. intros imem mem0 stk0 n n' H_code_at HP neq.
   (* destruct HP as [v [[HDv HP1'] | [HnDv HP2']]]. *)
   pose (decD v) as dec. intuition.
 Qed.
 
 Lemma ifNZ_spec_helper: forall v l t f Pt Pf Q,
-  HT'' t Pt Q ->
-  HT'' f Pf Q ->
-  HT'' (ifNZ t f)
+  HT   t Pt Q ->
+  HT   f Pf Q ->
+  HT   (ifNZ t f)
        (fun m s => ((v <> 0 -> exists s', s = CData (v,l) :: s' /\ Pt m s') /\
                     (v =  0 -> exists s', s = CData (v,l) :: s' /\ Pf m s')))
        Q.
 Proof.
   intros v l t f Pt Pf Q HTt HTf.
-  eapply HT''_decide_join' with (D := fun v => v = 0).
+  eapply HT_decide_join' with (D := fun v => v = 0).
   apply ifNZ_spec_NZ.
   apply ifNZ_spec_Z.
   intros; omega.
@@ -399,16 +399,16 @@ Proof.
 Qed.
 
 Lemma ifNZ_spec: forall v l t f Pt Pf Q,
-  HT'' t Pt Q ->
-  HT'' f Pf Q ->
-  HT'' (ifNZ t f)
+  HT   t Pt Q ->
+  HT   f Pf Q ->
+  HT   (ifNZ t f)
        (fun m s => (exists s', s = CData (v,l) :: s' /\
                                    (v <> 0 -> Pt m s') /\
                                    (v =  0 -> Pf m s')))
        Q.
 Proof.
   intros v l t f Pt Pf Q HTt HTf.
-  eapply HT''_strengthen_premise.
+  eapply HT_strengthen_premise.
   eapply ifNZ_spec_helper; eauto.
   intros m s [s' [s_eq [HNZ HZ]]].
   destruct (dec_eq v 0); subst; intuition;
@@ -422,21 +422,21 @@ Qed.
      ((exists x, P x) -> Q)
 
 *)
-Lemma HT''_forall_exists: forall T c P Q,
-  (forall (x:T), HT'' c (P x) Q) ->
-  HT'' c (fun m s => exists (x:T), P x m s) Q.
+Lemma HT_forall_exists: forall T c P Q,
+  (forall (x:T), HT   c (P x) Q) ->
+  HT   c (fun m s => exists (x:T), P x m s) Q.
 Proof.
   intros ? c P Q HPQ.
-  unfold HT''.
+  unfold HT.
   intros imem mem0 stk0 c0 fh0 n n' Hcode_at [x HPx] neq.
   eapply HPQ; eauto.
 (*
-  (* Annoyingly, we can't use [HT''_strengthen_premise] here, because
+  (* Annoyingly, we can't use [HT_strengthen_premise] here, because
      the existential [x] in [exists (x:T), P x m s] is not introduced
      early enough :P.  I'm not alone:
      https://sympa.inria.fr/sympa/arc/coq-club/2013-01/msg00055.html *)
   intros ? c P Q HPQ.
-  eapply HT''_strengthen_premise.
+  eapply HT_strengthen_premise.
   eapply HPQ.
   intros m s [x HPx].
   (* Error: Instance is not well-typed in the environment of ?14322 *)
@@ -447,13 +447,13 @@ Proof.
 Qed.
 
 (* The other direction (which I don't need) is provable from
-   [HT''_strengthen_premise] *)
-Lemma HT''_exists_forall: forall T c P Q,
-  HT'' c (fun m s => exists (x:T), P x m s) Q ->
-  (forall (x:T), HT'' c (P x) Q).
+   [HT_strengthen_premise] *)
+Lemma HT_exists_forall: forall T c P Q,
+  HT   c (fun m s => exists (x:T), P x m s) Q ->
+  (forall (x:T), HT   c (P x) Q).
 Proof.
   intros ? c P Q HPQ x.
-  eapply HT''_strengthen_premise.
+  eapply HT_strengthen_premise.
   eapply HPQ.
   intuition.
   eauto.
@@ -462,18 +462,18 @@ Qed.
 (* I need to existentially bind [v] for the [ite_spec]. May have been
    easier to use existentials from the beginning ... *)
 Lemma ifNZ_spec_existential: forall t f Pt Pf Q,
-  HT'' t Pt Q ->
-  HT'' f Pf Q ->
-  HT'' (ifNZ t f)
+  HT   t Pt Q ->
+  HT   f Pf Q ->
+  HT   (ifNZ t f)
        (fun m s => (exists v l s', s = CData (v,l) :: s' /\
                                    (v <> 0 -> Pt m s') /\
                                    (v =  0 -> Pf m s')))
        Q.
 Proof.
   intros t f Pt Pf Q HTt HTf.
-  eapply HT''_forall_exists.
+  eapply HT_forall_exists.
   intro v.
-  eapply HT''_forall_exists.
+  eapply HT_forall_exists.
   intro l.
   apply ifNZ_spec.
   auto.
@@ -482,23 +482,23 @@ Qed.
 
 (* Might make more sense to make [Qc] be the thing that [Qc] implies
    here.  I.e., this version has an implicit use of
-   [HT''_strengthen_premise] in it, which could always be inserted
+   [HT_strengthen_premise] in it, which could always be inserted
    manually when needed. *)
 Lemma ite_spec: forall c t f P Pt Pf Qc Q,
-  HT'' c P  Qc ->
-  HT'' t Pt Q ->
-  HT'' f Pf Q ->
+  HT   c P  Qc ->
+  HT   t Pt Q ->
+  HT   f Pf Q ->
   (forall m s, Qc m s -> (exists v l s', s = CData (v,l) :: s' /\
                                          (v <> 0 -> Pt m s') /\
                                          (v =  0 -> Pf m s')))
   ->
-  HT'' (ite c t f) P Q.
+  HT   (ite c t f) P Q.
 Proof.
   intros c t f P Pt Pf Qc Q HTc HTt HTf HQcP.
   unfold ite.
-  eapply HT''_compose.
+  eapply HT_compose.
   apply HTc.
-  eapply HT''_strengthen_premise.
+  eapply HT_strengthen_premise.
   Focus 2.
   apply HQcP.
   apply ifNZ_spec_existential.
@@ -507,20 +507,20 @@ Proof.
 Qed.
 
 Lemma cases_spec_base: forall d P Q,
-  HT'' d P Q -> HT'' (cases nil d) P Q.
+  HT   d P Q -> HT   (cases nil d) P Q.
 Proof.
   auto.
 Qed.
 
 Lemma cases_spec_step: forall c b cbs d P Qc Pt Pf Q,
-  HT'' c P Qc ->
-  HT'' b Pt Q ->
-  HT'' (cases cbs d) Pf Q ->
+  HT   c P Qc ->
+  HT   b Pt Q ->
+  HT   (cases cbs d) Pf Q ->
   (forall m s, Qc m s -> (exists v l s', s = CData (v,l) :: s' /\
                                          (v <> 0 -> Pt m s') /\
                                          (v =  0 -> Pf m s')))
   ->
-  HT'' (cases ((c,b)::cbs) d) P Q.
+  HT   (cases ((c,b)::cbs) d) P Q.
 Proof.
   intros.
   eapply ite_spec; eauto.
@@ -546,16 +546,16 @@ Lemma cases_spec_step_specialized: forall c vc b cbs d P Qb Qcbs,
   (* This could be abstracted: code that transforms the stack by
   pushing one value computed from the existing stack and memory *)
   (forall m0 s0,
-     HT'' c (fun m s => P m0 s0 /\
+     HT   c (fun m s => P m0 s0 /\
                         m = m0 /\
                         s = s0)
             (fun m s => P m0 s0 /\
                         m = m0 /\ 
                         s = CData (vc m0 s0, handlerLabel) :: s0)) ->
-  HT'' b P Qb ->
-  HT'' (cases cbs d) P Qcbs ->
+  HT   b P Qb ->
+  HT   (cases cbs d) P Qcbs ->
   (forall m0 s0,
-    HT'' (cases ((c,b)::cbs) d) (fun m s => P m0 s0 /\
+    HT   (cases ((c,b)::cbs) d) (fun m s => P m0 s0 /\
                                             m = m0 /\
                                             s = s0)
                                 (fun m s => (vc m0 s0 <> 0 -> Qb m s) /\
@@ -568,10 +568,10 @@ Proof.
                        (Pf := (fun m s => P m s /\ vc m0 s0 =  0)).
   exact Hcm0s0.
 
-  apply (HT''_consequence' _ _ _ _ _ Hb); intuition.
+  apply (HT_consequence' _ _ _ _ _ Hb); intuition.
   elimtype False; jauto.
 
-  apply (HT''_consequence' _ _ _ _ _ Hcbs); intuition.
+  apply (HT_consequence' _ _ _ _ _ Hcbs); intuition.
   elimtype False; jauto.
 
   intuition.
@@ -585,13 +585,13 @@ Qed.
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
 Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
-  HT'' (Add :: nil)
+  HT   (Add :: nil)
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
       (fun m2 s2 => m2 = m /\ s2 = CData (z1 + z2, handlerLabel) :: s).
 Proof.
   (* Introduce hyps *)
   intros.
-  unfold HT''. intros. intuition.
+  unfold HT. intros. intuition.
   eexists.
   eexists.
   eexists.
@@ -602,24 +602,24 @@ Proof.
   unfold code_at in *. intuition. 
   
   (* Run an instruction *)
-  eapply runsToEndStep'; auto.
+  eapply runsToEndStep; auto.
 
   eapply cp_add ; eauto.
   simpl; omega.
   
   (* Finish running *)
-  eapply runsToEndDone'.
+  eapply runsToEndDone.
   simpl; omega. 
 Qed.
 
 Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
-  HT'' (Add :: Sub :: nil)
+  HT   (Add :: Sub :: nil)
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: CData (z2,l2) :: s)
       (fun m2 s2 => m2 = m /\ s2 = CData (z1, handlerLabel) :: s).
 Proof.
   (* Introduce hyps *)
   intros.
-  unfold HT''. intros. intuition. subst. 
+  unfold HT. intros. intuition. subst. 
   eexists.
   eexists.
   eexists.
@@ -630,20 +630,20 @@ Proof.
   unfold code_at in *. intuition. 
   
   (* Run an instruction *)
-  eapply runsToEndStep'; auto.
+  eapply runsToEndStep; auto.
 
   eapply cp_add; eauto.
   simpl; omega.
   
   (* Run an instruction *)
-  eapply runsToEndStep'; auto.
+  eapply runsToEndStep; auto.
 
   eapply cp_sub; eauto.
   simpl; omega.
 
   (* Finish running *)
   let t := (auto || simpl; omega) in
-  apply_f_equal @runsToEndDone'; rec_f_equal t.
+  apply_f_equal @runsToEndDone; rec_f_equal t.
 Qed.
 
 
@@ -653,7 +653,7 @@ Qed.
 Definition boolToZ (b: bool): Z  := if b then 1 else 0.
 
 Hypothesis genJoin_spec: forall l l' m0 s0,
-  HT'' genJoin
+  HT   genJoin
        (fun m s => m = m0 /\
                    s = CData (labToZ l, handlerLabel) ::
                        CData (labToZ l', handlerLabel) :: s0)
@@ -663,7 +663,7 @@ Hypothesis genJoin_spec: forall l l' m0 s0,
 (* XXX: we can discharge this by implementing [genFlows] in terms of
    [genJoin], and using the fact that [flows l l' = true <-> join l l' = l']. *)
 Hypothesis genFlows_spec: forall l l' m0 s0,
-  HT'' genFlows
+  HT   genFlows
        (fun m s => m = m0 /\
                    s = CData (labToZ l, handlerLabel) ::
                        CData (labToZ l', handlerLabel) :: s0)
@@ -709,7 +709,7 @@ Conjecture genVar_spec:
   forall v l,
     eval_var v = l ->
     forall s0,
-      HT'' (genVar v)
+      HT   (genVar v)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -719,7 +719,7 @@ Conjecture genExpr_spec: forall (e: rule_expr n),
   forall l,
     eval_expr eval_var e = l ->
     forall s0,
-      HT'' (genExpr e)
+      HT   (genExpr e)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -740,7 +740,7 @@ Conjecture genScond_spec: forall (c: rule_scond n),
   forall b,
     eval_cond eval_var c = b ->
     forall s0,
-      HT'' (genScond c)
+      HT   (genScond c)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -776,7 +776,7 @@ Conjecture genApplyRule_spec_Some:
   forall l1 l2,
     apply_rule (fetch_rule opcode) vls pcl = Some (Some l1, l2) ->
     forall s0,
-      HT'' (genApplyRule (fetch_rule opcode))
+      HT   (genApplyRule (fetch_rule opcode))
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -788,7 +788,7 @@ Conjecture genApplyRule_spec_None:
   forall l2,
     apply_rule (fetch_rule opcode) vls pcl = Some (None, l2) ->
     forall s0,
-      HT'' (genApplyRule (fetch_rule opcode))
+      HT   (genApplyRule (fetch_rule opcode))
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\

@@ -57,7 +57,7 @@ Definition skipNZ (n : nat) : code :=
 
 (* Skip the next [n] instructions unconditionally *)
 Definition skip (n : nat) : code :=
-  (* Pointless append here makes it easier to apply [HT''_compose] *)
+  (* Pointless append here makes it easier to apply [HT_compose] *)
   (push 1 :: nil) ++ skipNZ n.
 
 (* Building block for if statement [ite] *)
