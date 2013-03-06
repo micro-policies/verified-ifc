@@ -142,7 +142,7 @@ Inductive runsToEscape : @CS T -> @CS T -> Prop :=
     forall (PRIV: priv cs = true)
            (STAR: star cstep_p cs cs')
            (PRIV: priv cs' = true)
-           (FAIL: fst (pc cs') <= 0), 
+           (FAIL: fst (pc cs') < 0), 
       runsToEscape cs cs'
 | rte_upriv: (* in unpriv. mode, it already escaped *) 
     forall cs,
