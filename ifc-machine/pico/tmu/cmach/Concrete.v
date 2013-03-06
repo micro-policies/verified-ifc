@@ -35,49 +35,6 @@ Record CS  := CState {
   priv : bool
 }.
 
-(** Running a whole piece of code contained in some interval of addresses *)
-Definition in_bounds (start_pc: Z) (end_pc: Z) (cs : CS) : Prop := 
-  start_pc <= fst (pc cs) < end_pc. 
-
-Lemma in_bounds_dec : forall start_pc end_pc (cs: CS),
-  {in_bounds start_pc end_pc cs} + {~ in_bounds start_pc end_pc cs}.
-Proof.
-  intros. unfold in_bounds. 
-  unfold Z.le, Z.lt.
-  destruct (start_pc ?= fst (pc cs)); destruct (fst (pc cs) ?= end_pc) ;
-    try (right; intuition; discriminate); 
-    left; intuition; discriminate. 
-Qed. 
-
-(* More constrained version of the runToEscape predicate. Requires
-code to reach end_pc. This has the desired composition properties. *)
-Inductive runsToEnd (Rstep: CS -> CS -> Prop) (start_pc : Z) (end_pc : Z) : CS -> CS -> Prop :=
-| runsToEndDone : forall cs,
-  start_pc <= end_pc -> (* this is technically useful *)
-  fst (pc cs) = end_pc ->
-  runsToEnd Rstep start_pc end_pc cs cs
-| runsToEndStep: forall cs cs' cs'',
-  in_bounds start_pc end_pc cs ->
-  Rstep cs cs' ->
-  runsToEnd Rstep start_pc end_pc cs' cs'' ->
-  runsToEnd Rstep start_pc end_pc cs cs''.
-
-Lemma runs_to_end_compose : forall Rstep pc0 pc1 s0 s1,
-  runsToEnd Rstep pc0 pc1 s0 s1 ->
-  forall pc2 s2,
-  runsToEnd Rstep pc1 pc2 s1 s2 ->
-  runsToEnd Rstep pc0 pc2 s0 s2.
-Proof.
-  induction 1; intros. 
-    clear H0.  induction H1. 
-      econstructor; eauto. omega. 
-      econstructor; eauto.       
-      unfold in_bounds in *; omega. 
-    econstructor; eauto.
-      assert (pc1 <= pc2). inv H2.  auto. unfold in_bounds in H3; omega. 
-      unfold in_bounds in *; omega. 
-Qed.
-
 (* Self contained code: [runsToEnd' pc1 pc2 cs1 cs2] starts at pc2
 [pc1] and runs until pc [pc2]. *)
 Inductive runsToEnd' (Rstep: CS -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=

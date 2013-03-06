@@ -603,7 +603,6 @@ Proof.
   
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
-  unfold in_bounds.  simpl.
 
   eapply cp_add ; eauto.
   simpl; omega.
@@ -632,7 +631,6 @@ Proof.
   
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
-  unfold in_bounds; simpl; try omega.
 
   eapply cp_add; eauto.
   simpl; omega.
@@ -640,7 +638,6 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
 
-  unfold in_bounds; simpl.
   eapply cp_sub; eauto.
   simpl; omega.
 
