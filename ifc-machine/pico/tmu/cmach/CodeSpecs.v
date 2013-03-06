@@ -179,6 +179,10 @@ Proof.
   (* Run an instruction *) 
   eapply runsToEndStep'; eauto. 
   eapply cp_branchnz ; eauto. 
+  
+  simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
+  rewrite Hif. zify ; omega.
+
   simpl. 
   assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
   rewrite Hif.
@@ -207,9 +211,9 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
   eapply cp_branchnz ; eauto. 
-
+  simpl. omega.
   simpl.
-  constructor. auto.
+  constructor; auto.
 Qed.
 
 Lemma skipNZ_continuation_spec_Z: forall c P Q v l,
@@ -243,7 +247,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
   eapply cp_push ; eauto.
-
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -267,7 +271,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep'; auto.
   eapply cp_push ; eauto.
-    
+  simpl ; omega.
   simpl.
   constructor; auto.
 Qed.

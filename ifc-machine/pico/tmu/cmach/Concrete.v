@@ -89,6 +89,7 @@ Inductive runsToEnd' (Rstep: CS -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=
   fst (pc cs) = n ->
   Rstep cs cs' ->
   fst (pc cs') = n' ->
+  n < n' ->
   runsToEnd' Rstep n' n'' cs' cs'' -> 
   runsToEnd' Rstep n  n'' cs  cs''.
 
@@ -102,7 +103,18 @@ Proof.
   econstructor; eauto.
 Qed.
 
-Parameter runsToEscape : (CS -> CS -> Prop) -> Z -> Z -> CS -> CS -> Prop.
+(* New version, somewhat particularized to our case...  Not sure we
+  need to be more general than that, though  *)
+Inductive runsToEscape (Rstep : (CS -> CS -> Prop)) : Z -> Z -> CS -> CS -> Prop :=
+| rte_success: forall pc_start pc_end cs cs' cs'',
+               forall (TMU: runsToEnd' Rstep pc_start pc_end cs cs')
+                      (SUCC: Rstep cs' cs''),
+                 runsToEscape Rstep pc_start pc_end cs cs''
+| rte_fail: forall pc_start pc_end cs cs',
+               forall (TMU: runsToEnd' Rstep pc_start pc_end cs cs')
+                      (FAIL: forall cs'', ~ Rstep cs' cs''),
+                 runsToEscape Rstep pc_start pc_end cs cs'.
+    
 
 (* Conversion between abstract labels (T) and tags (Z) *)
 Definition opCodeToZ (opcode : OpCode) : Z :=
@@ -138,8 +150,8 @@ Definition privInstSize := 1000.
 
 (** Cache spec when reading from, writing to *)
 Inductive tag_in_mem (m: list (@Atom T)) addr tagv : Prop := 
-| tim_intro : forall l, index_list_Z addr m = Some (tagv,l) ->
-           tag_in_mem m addr tagv.
+| tim_intro : index_list_Z addr m = Some (tagv,handlerLabel) ->
+              tag_in_mem m addr tagv.
   
 Inductive cache_hit (m: list (@Atom T)) : (Z * Z * Z * Z * Z ) -> Prop :=
 | ch_intro: forall m_op m_tag1 m_tag2 m_tag3 m_tagpc,

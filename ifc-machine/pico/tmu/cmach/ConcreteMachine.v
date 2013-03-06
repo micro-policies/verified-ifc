@@ -80,12 +80,51 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
     cstep_p (CState c m fh i s  (pcv,pcl) true) 
             (CState c m fh i s' (pcret,pcretl) pret)
 
-| cp_vret: forall c m fh i s pcv pcl s' pcret pcretl pret resv resl, 
+| cp_vret: forall c m fh i s pcv pcl s' pcret pcretl resv resl, 
     fh @ pcv # VRet -> (* cannot vreturn to user mode *)
     c_pop_to_return s ((CRet (pcret,pcretl) true true)::s') ->
     cstep_p (CState c m fh i ((resv,resl):::s) (pcv,pcl) true) 
-            (CState c m fh i ((resv,resl):::s') (pcret, pcretl) pret).
+            (CState c m fh i ((resv,resl):::s') (pcret, pcretl) true).
 
+
+Lemma cons_not_same (A: Type): forall (s:list A) a, s = a::s -> False.
+Proof.
+  induction s ; congruence.
+Qed.
+
+Lemma c_pop_to_return_length: forall s s' , 
+ @c_pop_to_return T s s' ->
+ (length s' <= length s)%nat.
+Proof.
+  induction 1; intros; simpl; auto.
+Qed.
+
+Lemma cstep_p_non_loop : forall cs, ~ cstep_p cs cs.
+Proof.
+  intros. intro Hcont.
+  inversion Hcont; try omega.
+  eelim cons_not_same; eauto.
+  eelim cons_not_same; eauto.
+
+  generalize H; clear H. clear.
+  generalize args s pcv pcl pcc pccl.
+  induction args0; intros.
+  simpl in *. congruence.
+  simpl in *. inv H. eapply IHargs0; eauto.
+
+  assert (~ c_pop_to_return s (CRet (pcv, pcl) false true :: s)).
+  clear. intro Hcont'. 
+  exploit @c_pop_to_return_length; eauto.
+  intros. simpl in *. zify ; omega.
+  congruence. 
+
+  assert (~ c_pop_to_return s (CRet (pcv, pcl) true true :: s)).
+  clear. intro Hcont'. 
+  exploit @c_pop_to_return_length; eauto.
+  intros. simpl in *. zify ; omega.
+  congruence. 
+Qed.  
+Hint Resolve cstep_p_non_loop.
 
 (** Cache handling mechanism *)
 Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
@@ -117,7 +156,8 @@ Inductive check_tags (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T): @CS T -
     forall c c' m fh i s pc mvec,
       forall (MVEC: mvec = (mvector opcode opl1 opl2 opl3 pcl))
              (CMISS: ~ cache_hit c mvec)
-             (C_UPD: cache_hit c' mvec),
+             (C'HIT: cache_hit c' mvec)
+             (UPD: update_cache_spec_mvec c c'),
     check_tags opcode opl1 opl2 opl3 pcl 
                (CState c m fh i s pc false) 
                (CState c' m fh i ((CRet pc false false)::s) (0,handlerLabel) true).
