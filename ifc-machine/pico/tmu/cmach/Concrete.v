@@ -111,9 +111,12 @@ Inductive runsToEscape (Rstep : (CS -> CS -> Prop)) : Z -> Z -> CS -> CS -> Prop
                       (SUCC: Rstep cs' cs''),
                  runsToEscape Rstep pc_start pc_end cs cs''
 | rte_fail: forall pc_start pc_end cs cs',
-               forall (TMU: runsToEnd' Rstep pc_start pc_end cs cs')
-                      (FAIL: forall cs'', ~ Rstep cs' cs''),
-                 runsToEscape Rstep pc_start pc_end cs cs'.
+            forall (TMU: runsToEnd' Rstep pc_start pc_end cs cs')
+                   (FAIL: forall cs'', ~ Rstep cs' cs''),
+              runsToEscape Rstep pc_start pc_end cs cs'
+| rte_upriv:forall pc_start pc_end cs,
+            forall (UPRIV: priv cs = false),
+              runsToEscape Rstep pc_start pc_end cs cs.
     
 
 (* Conversion between abstract labels (T) and tags (Z) *)

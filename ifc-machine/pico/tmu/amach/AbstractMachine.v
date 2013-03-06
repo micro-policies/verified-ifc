@@ -44,7 +44,10 @@ Definition fetch_rule (opcode:OpCode) : AllowModify :=
  *)
 Fixpoint run_tmr (opcode: OpCode) (lab1 lab2 lab3: option T) (pc: T):  option (option T * T) :=  
   let r := fetch_rule opcode in
-  snd (apply_rule r lab1 lab2 lab3 pc).
+  match apply_rule r lab1 lab2 lab3 pc with 
+      | (true,res) => res
+      | (false,_) => None
+  end.
 
 (** * Rule-based abstract machine transition relation *)
 Inductive pop_to_return : list (@StkElmt T) -> list (@StkElmt T) -> Prop := 
