@@ -163,6 +163,29 @@ Definition genApplyRule {n:nat} (am:AllowModify n): code :=
       )
       none.
 
+Definition sub: code := [Sub].
+
+Definition genTestEqual (c1 c2: code): code :=
+  c1 ++
+  c2 ++
+  sub ++
+  (* If we allow "booleans" other than 0 and 1 we could use [not] here. *)
+  ifNZ (push' 0) (push' 1).
+
+Definition genCheckOp (op:OpCode): code :=
+  genTestEqual (push' (opCodeToZ op)) (loadFrom addrOpLabel).
+
+Definition genFaultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code :=
+  let pair := fun op => (genCheckOp op, genApplyRule (fetch_rule_impl op)) in
+  let cbs := map pair [OpNoop; OpAdd; OpSub; OpPush; OpLoad
+                      ;OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet]
+  in cases cbs none.
+
+(* XXX: Run [genFaultHandler] and then fail or return depending on the result. *)
+Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code.
+Admitted.
+
+(*
 Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
   let (allow, labresopt, labrespc) := am in 
   let body := 
@@ -196,6 +219,7 @@ Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (
   gen OpRet ++
   gen OpVRet ++
   genError.
+*)
 
 
 End TMUCodeGeneration. 
