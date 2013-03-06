@@ -25,6 +25,20 @@ Definition stack : Type := list (@CStkElmt T).
 Definition code := list (@Instr T).
 Definition state := @CS T.
 
+Section Glue.
+
+Import Vector.VectorNotations.
+
+Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
+match vls with
+| [] => (None,None,None)
+| [t1] => (Some t1, None,None)
+| [t1; t2] => (Some t1, Some t2, None)
+| (t1::(t2::(t3::_))) => (Some t1, Some t2, Some t3)
+end. 
+
+End Glue.
+
 (* ---------------------------------------------------------------- *)
 (* Specs for self-contained code *)
 
@@ -731,18 +745,21 @@ Definition handler_initial_mem_matches
 .
 
 Parameter (opcode: OpCode).
-Parameter (op1l op2l op3l: option T).
+Definition n := labelCount opcode. 
+Parameter (vls: Vector.t T n). 
 Parameter (pcl: T).
 Parameter (m0: memory).
 
-Hypothesis initial_mem_matches:
-  handler_initial_mem_matches opcode op1l op2l op3l pcl m0.
 
-Definition eval_var := mk_eval_var op1l op2l op3l pcl.
+Hypothesis initial_mem_matches:
+  let '(opv1,opv2,opv3) := glue vls in 
+  handler_initial_mem_matches opcode opv1 opv2 opv3 pcl m0.
+
+Definition eval_var := mk_eval_var vls pcl.
 
 Conjecture genVar_spec:
   forall v l,
-    eval_var v = Some l ->
+    eval_var v = l ->
     forall s0,
       HT'' (genVar v)
            (fun m s => m = m0 /\
@@ -750,9 +767,9 @@ Conjecture genVar_spec:
            (fun m s => m = m0 /\
                        s = CData (labToZ l, handlerLabel) :: s0).
 
-Conjecture genExpr_spec: forall (e: rule_expr),
+Conjecture genExpr_spec: forall (e: rule_expr n),
   forall l,
-    eval_expr eval_var e = Some l ->
+    eval_expr eval_var e = l ->
     forall s0,
       HT'' (genExpr e)
            (fun m s => m = m0 /\
@@ -771,9 +788,9 @@ Conjecture genExpr_spec: forall (e: rule_expr),
    memory, we have no control over what [genVar v] returns when
    [eval_var v] returns [None]. *)
 
-Conjecture genScond_spec: forall (c: rule_scond),
+Conjecture genScond_spec: forall (c: rule_scond n),
   forall b,
-    eval_cond eval_var c = Some b ->
+    eval_cond eval_var c = b ->
     forall s0,
       HT'' (genScond c)
            (fun m s => m = m0 /\
@@ -796,7 +813,7 @@ Conjecture genScond_spec: forall (c: rule_scond),
    correctness proof easier? *)
 
 (* XXX: def this in ./CodeGen.v *)
-Hypothesis genApplyRule: AllowModify -> code.
+Hypothesis genApplyRule:  AllowModify n -> code.
 
 
 (* NC: NB: we should only need to reason about what [genApplyRule]
@@ -805,11 +822,11 @@ Hypothesis genApplyRule: AllowModify -> code.
 
 
 (* This is def in ../amach/AbstractMachine.v *)
-Hypothesis fetch_rule: OpCode -> AllowModify.
+Hypothesis fetch_rule: OpCode -> AllowModify n.
 
 Conjecture genApplyRule_spec_Some:
   forall l1 l2,
-    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = (true,Some (Some l1, l2)) ->
+    apply_rule (fetch_rule opcode) vls pcl = Some (Some l1, l2) ->
     forall s0,
       HT'' (genApplyRule (fetch_rule opcode))
            (fun m s => m = m0 /\
@@ -821,7 +838,7 @@ Conjecture genApplyRule_spec_Some:
 
 Conjecture genApplyRule_spec_None:
   forall l2,
-    apply_rule (fetch_rule opcode) op1l op2l op3l pcl = (true, Some (None, l2)) ->
+    apply_rule (fetch_rule opcode) vls pcl = Some (None, l2) ->
     forall s0,
       HT'' (genApplyRule (fetch_rule opcode))
            (fun m s => m = m0 /\

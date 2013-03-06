@@ -2,6 +2,7 @@ Require Import ZArith.
 Require Import List.
 Require Import Utils.
 Import ListNotations.
+Require Vector.
 
 Require Import TMUInstr.
 Require Import Lattices.
@@ -45,45 +46,47 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m
   /\ update_cache_spec_rvec m m'.
 
 Conjecture handler_correct : 
-  forall (fetch_rule_impl : OpCode -> AllowModify),
-  forall opcode op1l op2l op3l pcl m retaddr c imem fhdl s,
+  forall (fetch_rule_impl : (forall (opcode:OpCode), AllowModify (labelCount opcode))),
+  forall  opcode vls pcl m retaddr c imem fhdl s,
     let am := fetch_rule_impl opcode in
     let handler := faultHandler fetch_rule_impl in
-    cache_hit m (mvector opcode op1l op2l op3l pcl) ->
+    let '(op1l,op2l,op3l) := glue vls in 
+    cache_hit c (mvector opcode op1l op2l op3l pcl) ->
     exists c' st pc priv, 
       runsToEscape cstep_p 
                    0 (Z_of_nat (length handler)) 
                    (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerLabel) true)
                    (CState c' m fhdl imem st pc priv) /\ 
-      match apply_rule am op1l op2l op3l pcl with
-        | (true,Some (olr,lpc)) => handler_final_mem_matches' olr lpc c c' priv 
+      match apply_rule am vls pcl with
+        | Some (olr,lpc) => handler_final_mem_matches' olr lpc c c' priv 
                      /\ pc = retaddr
                      /\ st = s
-        | (true,None) => c' = c /\ pc = (-1,handlerLabel) 
-        | (false,_) => True
+        | None => c' = c /\ pc = (-1,handlerLabel) 
     end.
 
 
 Section HandlerCorrect.
 (* DD: Hopefully easier to parse *)
 
-Variable get_rule : OpCode -> AllowModify.
+Variable get_rule : forall (opcode:OpCode), AllowModify (labelCount opcode).
 Definition handler : list (@Instr T) := faultHandler get_rule.
 Definition runHandler : @CS T -> @CS T -> Prop := runsToEscape cstep_p 0 (Z_of_nat (length handler)).
                
 Conjecture handler_correct_succeed : 
-  forall opcode op1l op2l op3l pcl c m raddr s i olr lpc,
+  forall opcode (vls: Vector.t T (labelCount opcode)) pcl c m raddr s i olr lpc,
+  let '(op1l,op2l,op3l) := glue vls in 
   forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
-         (RULE: apply_rule (get_rule opcode) op1l op2l op3l pcl = (true, Some (olr,lpc))),
+         (RULE: apply_rule (get_rule opcode) vls pcl = Some (olr,lpc)),
     exists c',
     runHandler (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
                (CState c' m handler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c' false.
               
 Conjecture handler_correct_fail : 
-  forall opcode op1l op2l op3l pcl c m raddr s i,
+  forall opcode (vls:Vector.t T (labelCount opcode)) pcl c m raddr s i,
+  let '(op1l,op2l,op3l) := glue vls in 
   forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
-         (RULE: apply_rule (get_rule opcode) op1l op2l op3l pcl = (true,None)),
+         (RULE: apply_rule (get_rule opcode) vls pcl = None),
     exists st,
     runHandler (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
                (CState c m handler i st (-1,handlerLabel) true).

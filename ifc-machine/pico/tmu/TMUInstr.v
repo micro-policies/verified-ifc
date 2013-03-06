@@ -28,17 +28,16 @@ one constructor per group.)
 There is no oplabel for Halt, as there is no rule for Halt. *)
 
 Inductive OpCode : Type :=
-| OpNoop
-| OpAdd
-| OpSub
-| OpPush
-| OpLoad
+| OpNoop 
+| OpAdd  
+| OpSub  
+| OpPush 
+| OpLoad 
 | OpStore
-| OpJump
-| OpBranchNZ
+| OpJump 
+| OpBranchNZ 
 | OpCall
+| OpRet 
 | OpVRet
-| OpRet.
-
-
+.
 

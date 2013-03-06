@@ -8,7 +8,10 @@ Require Import TMUInstr.
 Require Import Abstract.
 Require Import Rules.
 
+Require Vector.
+
 Set Implicit Arguments.
+
 Local Open Scope Z_scope.
 
 Section ARuleMachine.
@@ -18,21 +21,21 @@ Context {T: Type}
 
 (** * Rules of the abstract machine *)
 (** Get the "rule" for a given operation. *)
-Definition fetch_rule (opcode:OpCode) : AllowModify :=
+Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
   match opcode with
     | OpNoop => ≪ TRUE , __ , LabPC ≫ 
-    | OpAdd => ≪ TRUE, Join Lab1 Lab2 , LabPC ≫
-    | OpSub => ≪ TRUE, Join Lab1 Lab2 , LabPC ≫
+    | OpAdd => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫
+    | OpSub => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫
     | OpPush => ≪ TRUE, Lab1 , LabPC ≫
-    | OpLoad => ≪ TRUE, Join Lab1 Lab2, LabPC ≫
-    | OpStore => ≪ LE (Join Lab1 LabPC) Lab3,  (* addr, new value, old value *)
-                  Join Lab1 (Join Lab2 LabPC), 
+    | OpLoad => ≪ TRUE, JOIN Lab1 Lab2, LabPC ≫
+    | OpStore => ≪ LE (JOIN Lab1 LabPC) Lab3,  (* addr, new value, old value *)
+                  JOIN Lab1 (JOIN Lab2 LabPC), 
                   LabPC ≫
-    | OpJump => ≪ TRUE, __ , Join Lab1 LabPC ≫
-    | OpBranchNZ => ≪ TRUE, __ , Join Lab1 LabPC ≫
-    | OpCall => ≪ TRUE ,LabPC ,Join Lab1 LabPC ≫
+    | OpJump => ≪ TRUE, __ , JOIN Lab1 LabPC ≫
+    | OpBranchNZ => ≪ TRUE, __ , JOIN Lab1 LabPC ≫
+    | OpCall => ≪ TRUE ,LabPC ,JOIN Lab1 LabPC ≫
     | OpRet => ≪ TRUE, __ , Lab1 ≫
-    | OpVRet => ≪ TRUE, Join Lab1 LabPC, Lab2 ≫ (* value, return addr *)
+    | OpVRet => ≪ TRUE, JOIN Lab1 LabPC, Lab2 ≫ (* value, return addr *)
     end.
 
 (** run_tmr (TMR for Tag Managment Rules): fetches the rule for the
@@ -42,12 +45,10 @@ Definition fetch_rule (opcode:OpCode) : AllowModify :=
     - abort/die abruptly when eval_var is buggy
     - exception on an IFC violation
  *)
-Fixpoint run_tmr (opcode: OpCode) (lab1 lab2 lab3: option T) (pc: T):  option (option T * T) :=  
+
+Definition run_tmr (opcode: OpCode) (labs:Vector.t T (labelCount opcode)) (pc: T):  option (option T * T) :=  
   let r := fetch_rule opcode in
-  match apply_rule r lab1 lab2 lab3 pc with 
-      | (true,res) => res
-      | (false,_) => None
-  end.
+  apply_rule r labs pc.
 
 (** * Rule-based abstract machine transition relation *)
 Inductive pop_to_return : list (@StkElmt T) -> list (@StkElmt T) -> Prop := 
@@ -111,34 +112,35 @@ Proof.
   eapply IHdstk; eauto.
 Qed.
    
+
 Inductive step_rules : @AS T -> @AS T -> Prop := 
 | step_nop : forall m i s pcv pcl rpcl rl,
     index_list_Z pcv i = Some Noop ->
-    run_tmr OpNoop None None None pcl = Some (rl,rpcl) ->
+    run_tmr OpNoop <||> pcl = Some (rl,rpcl) ->
     step_rules (AState m i s (pcv,pcl)) (AState m i s (pcv+1,rpcl))
 
 | step_add: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l, 
     index_list_Z pcv i = Some Add ->
-    run_tmr OpAdd (Some x1l) (Some x2l) None pcl = Some (Some rl,rpcl) ->
+    run_tmr OpAdd <|x1l;x2l|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
                (AState m i ((AData (x1v+x2v,rl))::s) (pcv+1,rpcl))
 
 | step_sub: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l, 
     index_list_Z pcv i = Some Sub ->
-    run_tmr OpSub (Some x1l) (Some x2l) None pcl = Some (Some rl,rpcl) ->
+    run_tmr OpSub <|x1l;x2l|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
                (AState m i ((AData (x1v-x2v,rl))::s) (pcv+1,rpcl))
 
 | step_push: forall m i s pcv pcl rpcl rl cv cl,
     index_list_Z pcv i = Some (Push (cv,cl)) ->
-    run_tmr OpPush (Some cl) None None pcl = Some (Some rl,rpcl) ->
+    run_tmr OpPush <|cl|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i s (pcv,pcl)) 
                (AState m i ((AData (cv,rl))::s) (pcv+1,rpcl))
 
 | step_load: forall m i s pcv pcl addrv addrl xv xl rl rpcl, 
     index_list_Z pcv i = Some Load ->
     index_list_Z addrv m = Some (xv,xl) ->
-    run_tmr OpLoad (Some addrl) (Some xl) None pcl = Some (Some rl,rpcl) ->
+    run_tmr OpLoad <|addrl;xl|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (addrv,addrl))::s) (pcv,pcl)) 
                (AState m i ((AData (xv, rl))::s) (pcv+1,rpcl))
 
@@ -146,32 +148,32 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
     index_list_Z pcv i = Some Store ->
     index_list_Z addrv m = Some (mv,ml) ->
     update_list_Z addrv (xv, rl) m = Some m' ->
-    run_tmr OpStore (Some addrl) (Some xl) (Some ml) pcl = Some (Some rl,rpcl) ->
+    run_tmr OpStore <|addrl;xl;ml|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (addrv,addrl))::(AData (xv,xl))::s) (pcv,pcl)) 
                (AState m' i s (pcv+1,rpcl))
 
 | step_jump: forall m i s pcv pcl pcv' pcl' rl rpcl, 
     index_list_Z pcv i = Some Jump ->
-    run_tmr OpJump (Some pcl') None None pcl = Some (rl,rpcl) ->
+    run_tmr OpJump <|pcl'|> pcl = Some (rl,rpcl) ->
     step_rules (AState m i ((AData (pcv',pcl'))::s) (pcv,pcl)) 
                (AState m i s (pcv',rpcl))
                
 | step_branchnz_true: forall m i s pcv pcl offv al rl rpcl,
     index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
-    run_tmr OpBranchNZ (Some al) None None pcl = Some (rl,rpcl) ->
+    run_tmr OpBranchNZ <|al|> pcl = Some (rl,rpcl) ->
     step_rules (AState m i ((AData (0,al))::s) (pcv,pcl)) 
                (AState m i s (pcv+1,rpcl))
 
 | step_branchnz_false: forall m i s pcv pcl offv av al rl rpcl, 
     index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
-    run_tmr OpBranchNZ (Some al) None None pcl = Some (rl,rpcl) ->
+    run_tmr OpBranchNZ <|al|> pcl = Some (rl,rpcl) ->
     av <> 0 ->
     step_rules (AState m i ((AData (av,al))::s) (pcv,pcl)) 
                (AState m i s (pcv+offv,rpcl))
 
 | step_call: forall m i s pcv pcl pcv' pcl' rl rpcl args a r, 
     index_list_Z pcv i = Some (Call a r) -> 
-    run_tmr OpCall (Some pcl') None None pcl = Some (Some rl,rpcl) ->
+    run_tmr OpCall <|pcl'|> pcl = Some (Some rl,rpcl) ->
     length args = a ->
     (forall a, In a args -> exists d, a = AData d) ->
     step_rules (AState m i ((AData (pcv',pcl'))::args++s) (pcv,pcl)) 
@@ -180,14 +182,14 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
 | step_ret: forall m i s pcv pcl pcv' pcl' rl rpcl s' , 
     index_list_Z pcv i = Some Ret -> 
     pop_to_return s ((ARet (pcv',pcl') false)::s') ->
-    run_tmr OpRet (Some pcl') None None pcl = Some (rl,rpcl) ->
+    run_tmr OpRet <|pcl'|> pcl = Some (rl,rpcl) ->
     step_rules (AState m i s  (pcv,pcl)) 
                (AState m i s' (pcv',rpcl))
 
 | step_vret: forall m i s pcv pcl pcv' pcl' rl rpcl resv resl s' , 
     index_list_Z pcv i = Some VRet -> 
     pop_to_return s ((ARet (pcv',pcl') true)::s') ->
-    run_tmr OpVRet (Some resl) (Some pcl') None pcl = Some (Some rl,rpcl) ->
+    run_tmr OpVRet <|resl;pcl'|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i (AData (resv,resl)::s) (pcv,pcl)) 
                (AState m i (AData (resv, rl)::s') (pcv',rpcl)).
 
@@ -251,7 +253,7 @@ Qed.
 
 Ltac step_tmr := 
   match goal with
-    | [ H: run_tmr _ _ _ _ _ = _  |- _ ] => inv H
+    | [ H: run_tmr _ _ _ = _  |- _ ] => inv H
   end. 
 
 Lemma step_rules_non_ret_label_pc: forall m i stk pc l s instr,
@@ -263,14 +265,15 @@ Lemma step_rules_non_ret_label_pc: forall m i stk pc l s instr,
 Proof.
   intros.
   inv H; try step_tmr ; simpl in *; eauto.
-  
-  unfold apply_rule in * ; simpl in *.
+
+  unfold run_tmr, apply_rule  in H3. simpl in H3. 
+  unfold Vector.nth_order in H3. simpl in H3. 
   set (assert1 := addrl \_/ l <: ml) in *.
   case_eq assert1; intros;
-  (unfold assert1 in *);
-  (rewrite H in *; simpl in *) ; allinv.
+  (unfold assert1 in * );
+  (rewrite H in *; simpl in * ) ; allinv.
   eauto.
-  
+
   congruence.
   congruence.
 Qed.

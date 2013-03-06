@@ -26,9 +26,12 @@ Context {Latt: JoinSemiLattice T}.
 (* DD: We need to find a way of having dependence easy to deal with...
    Ltac is not exported outside of sections *)
 Ltac step_tmr := 
-  repeat match goal with
-    | [ H: run_tmr _ _ _ _ _ = _  |- _ ] => inv H
+   match goal with
+    | [ H: run_tmr _ _ _ = _  |- _ ] => inv H
   end. 
+
+Ltac step_tmr2 :=
+  do 2 step_tmr.
 
 Ltac exploit_low :=
     repeat match goal with 
@@ -85,16 +88,16 @@ Proof.
     (inv H2 ; try congruence).
   
   Case "Noop".
-  step_tmr. auto.
+  step_tmr2. auto.
 
   Case "Add".
-    step_tmr.
+    step_tmr2.
     exploit_low.
     constructor 2; auto.
     eapply join_low_equiv_list; eauto.  
 
   Case "Sub".
-    step_tmr.
+    step_tmr2.
     exploit_low.
     constructor 2; auto.
     eapply join_low_equiv_list; eauto.  
@@ -103,7 +106,7 @@ Proof.
     exploit_low. inv LEa.
     
     SCase "Load from low addresses".
-    step_tmr.
+    step_tmr2.
     
     assert (Hmemv: low_equiv_atom o  (xv, xl) (xv0, xl0)).
     (eapply index_list_Z_low_eq with (1 := LEm)  ; eauto).
@@ -113,17 +116,17 @@ Proof.
       constructor ; eauto with lat.
 
     SCase "Load from high addresses".
-    step_tmr.
+    step_tmr2.
     constructor 2 ; auto with lat.
       
   Case "Store".
-    step_tmr. 
-    unfold apply_rule in * ; simpl in *.
+    unfold run_tmr, apply_rule in *; simpl in *. 
+    unfold Vector.nth_order in *; simpl in *. 
     set (assert1 := addrl0 \_/ l <: ml0) in *.
-    set (assert2 := addrl \_/ l <: ml) in *.
-    case_eq assert1 ; case_eq assert2 ; intros;
-    (unfold assert1, assert2 in *);
-    (rewrite H3 in *; rewrite H in *) ; allinv; 
+    set (assert2 := addrl \_/ l <: ml) in *. 
+    case_eq assert1; case_eq assert2 ; intros;
+    (unfold assert1 , assert2 in * ) ;
+    rewrite H in * ; rewrite H1 in * ; allinv; 
     (try solve [simpl in *; allinv]).
     
     exploit_low. simpl in *. allinv. inv H0.
@@ -133,43 +136,43 @@ Proof.
     constructor 2; auto.
     
   Case "Push".
-    step_tmr. 
+    step_tmr2. 
     rewrite H8 in Hinstr2; inv Hinstr2.
     rewrite H9 in Hinstr1; inv Hinstr1.
     constructor 2; eauto.
 
   Case "Jump".
-    exploit_low. inv LEa; step_tmr.    
+    exploit_low. inv LEa; step_tmr2.    
     constructor 2 ; auto with lat. 
     constructor; eauto with lat. 
     apply below_lret_low_equiv; auto.
 
   Case "BranchNZ-1".
-    exploit_low. inv LEa; step_tmr.
+    exploit_low. inv LEa; step_tmr2.
     constructor 2; eauto with lat. 
     constructor; eauto with lat. 
     apply below_lret_low_equiv; auto. 
 
   Case "BranchNZ-2".
-    exploit_low. inv LEa; step_tmr. congruence.
+    exploit_low. inv LEa; step_tmr2. congruence.
     constructor; eauto with lat. 
     apply below_lret_low_equiv; auto. 
 
   Case "BranchNZ-3".
-    exploit_low. inv LEa; step_tmr. congruence.
+    exploit_low. inv LEa; step_tmr2. congruence.
     constructor; eauto with lat. 
     apply below_lret_low_equiv; auto. 
     
   Case "BranchNZ-4".
     rewrite H7 in Hinstr2; inv Hinstr2.
     rewrite H8 in Hinstr1; inv Hinstr1.
-    exploit_low. inv LEa; step_tmr.
+    exploit_low. inv LEa; step_tmr2.
     constructor 2 ; eauto with lat. 
     constructor; eauto with lat. 
     apply below_lret_low_equiv; auto. 
   
   Case "Call".
-     step_tmr. 
+     step_tmr2. 
      exploit_low.  inv LEa.
      SCase "Low Call". 
        constructor 2; auto. eapply join_minimal; eauto.
@@ -197,7 +200,7 @@ Proof.
        intros HspecRet.
 
        exploit_low.
-       step_tmr.
+       step_tmr2.
        simpl in *. 
        inv LEa.
        constructor 2 ; eauto.
@@ -207,7 +210,7 @@ Proof.
    Case "VRet". 
        spec_pop_return.
        spec_pop_return.
-       step_tmr. exploit_low.
+       step_tmr2. exploit_low.
 
        exploit low_equiv_step_pop_to_return; eauto.
        intros HspecRet.  exploit_low. inv H0.
@@ -236,7 +239,8 @@ Proof.
   clear H. inv H0; step_tmr; eauto with lat. 
 
   Case "Store".
-    unfold apply_rule in * ; simpl in *.
+    unfold run_tmr, apply_rule in * ; simpl in *.
+    unfold Vector.nth_order in *; simpl in *. 
     set (assert1 := addrl \_/ t <: ml) in *.
     case_eq assert1; intros;
     (unfold assert1 in *);
@@ -259,10 +263,11 @@ Proof.
     simpl. rewrite H2; auto.
        
    Case "Ret".
+    unfold Vector.nth_order in *; simpl in *. 
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto. intros. inv H0.
     exploit @pop_to_return_spec3; eauto. intros. inv H0.
-    destruct (flows_dec rpcl o) ; auto. eelim H1. 
+    destruct (flows_dec pcl' o) ; auto. eelim H1. 
         eelim H1 ; unfold low_pc ; simpl ; auto.
         
         constructor ; eauto. 
@@ -271,11 +276,12 @@ Proof.
         auto. 
 
    Case "VRet".
+    unfold Vector.nth_order in *; simpl in *. 
     spec_pop_return. 
     exploit @pop_to_return_spec2; eauto. intros. inv H0.
     exploit @pop_to_return_spec3; eauto. intros. inv H0.
     
-    destruct (flows_dec rpcl o); auto.
+    destruct (flows_dec pcl' o); auto.
     eelim H1 ; unfold low_pc ; simpl ; auto. 
     (constructor; eauto). simpl.
     rewrite below_lret_adata; eauto.  simpl.
@@ -338,7 +344,7 @@ Proof.
           exploit @pop_to_return_spec2; eauto. intros H1. inv H1.
           exploit @pop_to_return_spec3; eauto. intros H1. inv H1.
           intros. clear H12 H10.
-          step_tmr. 
+          step_tmr2. unfold Vector.nth_order in *; simpl in *. 
           rewrite below_lret_adata in LEsH; eauto.
           rewrite below_lret_adata in LEsH; eauto.
           
@@ -357,7 +363,7 @@ Proof.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
           clear H12 H10.
-          step_tmr. 
+          step_tmr2. unfold Vector.nth_order in *; simpl in *. 
           rewrite below_lret_adata in LEsH; eauto. simpl in LEsH.
           inv H2. rewrite H3 in *. 
           rewrite below_lret_adata in LEsH; eauto. simpl in LEsH.
@@ -387,7 +393,7 @@ Proof.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
           clear H12 H10.
-          step_tmr. 
+          step_tmr2.  unfold Vector.nth_order in *; simpl in *. 
           rewrite below_lret_adata in LEsH; eauto.
           simpl in LEsH.  rewrite below_lret_adata in LEsH; eauto.
           simpl in LEsH.  
@@ -407,7 +413,7 @@ Proof.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
           clear H12 H10.
-          step_tmr. 
+          step_tmr2. unfold Vector.nth_order in *; simpl in *. 
 
           simpl in LEsH. rewrite below_lret_adata in LEsH; eauto.
           rewrite below_lret_adata in LEsH; eauto.

@@ -5,6 +5,7 @@ Require Import Lattices.
 Require Import TMUInstr.
 Require Import Monad.
 Require Import Coq.Unicode.Utf8. 
+Require Import Vector. 
 Local Open Scope monad_scope.
 Set Implicit Arguments.
 
@@ -22,6 +23,22 @@ Set Implicit Arguments.
 
 *)
 
+
+Definition labelCount (c:OpCode) : nat :=
+match c with
+| OpNoop => 0
+| OpAdd  => 2
+| OpSub  => 2
+| OpPush => 1
+| OpLoad => 2
+| OpStore => 3
+| OpJump => 1
+| OpBranchNZ => 1
+| OpCall => 1
+| OpRet => 1
+| OpVRet => 2
+end.
+
 Section Rules.
 
 Context {T: Type}.
@@ -31,37 +48,61 @@ Context {Latt: JoinSemiLattice T}.
 (** * Label expressions *)
 
 (** Labels variables *)
-Inductive LAB:= lab1 | lab2 | lab3 | labpc.
+Inductive LAB (n: nat) : Type :=
+| lab1 : 1 <= n -> LAB n
+| lab2 : 2 <= n -> LAB n
+| lab3 : 3 <= n -> LAB n
+| labpc : LAB n. 
 
-(** Expressions *)
-Inductive rule_expr :=
-| Var: LAB -> rule_expr
-| Join: rule_expr -> rule_expr -> rule_expr.
+(*
+Definition lab1_of_1 : LAB 1 := lab1 (le_n _).  
+Definition lab1_of_2 : LAB 2 := lab1 (le_S _ _ (le_n _)). 
+Definition lab2_of_2 : LAB 2 := lab2 (le_n _).  
+Definition lab1_of_3 : LAB 3 := lab1 (le_S _ _ (le_S _ _ (le_n _))).  
+Definition lab2_of_3 : LAB 3 := lab2 (le_S _ _ (le_n _)).
+Definition lab3_of_3 : LAB 3 := lab3 (le_n _). 
+*)
+
+(* A better alternative... *)
+Fixpoint nlem (n:nat) (m:nat) : n<=(n+m).
+refine
+(match m with
+| O => _ (le_n n)
+| S m' => _ (le_S _ _ (nlem n m'))
+end). 
+intros; omega. 
+intros; zify; omega. 
+Qed.
+
+Inductive rule_expr (n: nat) : Type :=
+| L_Var: LAB n -> rule_expr n
+| L_Join: rule_expr n -> rule_expr n -> rule_expr n. 
 
 (** Side conditions for rules: the Allow part *)
-Inductive rule_scond: Type :=
-| TRUE: rule_scond 
-| LE: rule_expr  -> rule_expr  -> rule_scond 
-| AND: rule_scond -> rule_scond -> rule_scond
-| OR: rule_scond -> rule_scond -> rule_scond.
+Inductive rule_scond (n : nat) : Type :=
+| A_True: @rule_scond n
+| A_LE:  rule_expr n -> rule_expr n -> @rule_scond n 
+| A_And: @rule_scond n -> @rule_scond n -> @rule_scond n
+| A_Or: @rule_scond n -> @rule_scond n -> @rule_scond n
+.
+
 
 (** * Rules *)    
 (** The allow-modify part of a rule *)
-Record AllowModify := almod  {
-   allow  : rule_scond;
-   labRes : option rule_expr; (* The label of the result value *)
-   labResPC : rule_expr       (* The label of the result PC *)
+Record AllowModify (n:nat) := almod  {
+   allow  : rule_scond n;
+   labRes : option (rule_expr n); (* The label of the result value *)
+   labResPC : rule_expr n       (* The label of the result PC *)
 }.
 
 (** * Rule evaluation *)
 
-
 (** * Rules Evaluation *)    
 
-(* eval_var is a mapping from abstract label names to concrete label
+(*(* eval_var is a mapping from abstract label names to concrete label
 values (a context).  The function [apply_rule] below uses this context
 to evaluate the rule ([AllowModify]).  *)
-Definition mk_eval_var (v1 v2 v3: option T) (pc: T) : LAB -> option T :=
+Definition mk_eval_var (n:nat) (v1 v2 v3: option T) (pc: T) : LAB n -> T :=
   fun lv => 
     match lv with 
         | lab1 => v1
@@ -69,112 +110,75 @@ Definition mk_eval_var (v1 v2 v3: option T) (pc: T) : LAB -> option T :=
         | lab3 => v3
         | labpc => Some pc
     end.
+********)
 
-Fixpoint eval_expr eval_var (e: rule_expr): option T :=
-  match e with 
-    | Var labv => eval_var labv
-    | Join e1 e2 => 
-      match (eval_expr eval_var e1), (eval_expr eval_var e2) with 
-        | Some v1, Some v2 => Some (join v1 v2)
-        | _, _ => None
-      end
-  end.
 
-Definition lift2 {A B C:Type} 
-  (f: A -> B -> C) (oa: option A) (ob: option B): option C
-:= match oa with
-   | None => None
-   | Some a => match ob with
-               | None => None
-               | Some b => Some (f a b)
-               end
-   end.
+Definition mk_eval_var {n:nat} (vs:Vector.t T n) (pc:T) : LAB n -> T := 
+fun lv => 
+    match lv with 
+     | lab1 p => nth_order vs p 
+     | lab2 p => nth_order vs p
+     | lab3 p => nth_order vs p
+     | labpc => pc
+    end.
+
+Fixpoint eval_expr {n:nat} (eval_var:LAB n -> T) (e: rule_expr n) : T :=
+match e with
+  | L_Var labv => eval_var labv
+  | L_Join e1 e2 => join (eval_expr eval_var e1) (eval_expr eval_var e2)
+end. 
 
 (** eval_cond : evaluates a side_condition with given values for the argument *)
-Fixpoint eval_cond eval_var (c: rule_scond) : option bool:=
-  match c with 
-    | TRUE => Some true
-    | AND c1 c2 => lift2 andb (eval_cond eval_var c1)
-                              (eval_cond eval_var c2)
-    | OR c1 c2 => lift2 orb (eval_cond eval_var c1)
-                            (eval_cond eval_var c2)
-    | LE e1 e2 => lift2 flows (eval_expr eval_var e1)
-                              (eval_expr eval_var e2)
-  end.
+Fixpoint eval_cond {n:nat} (eval_var:LAB n -> T) (c: rule_scond n) : bool :=
+match c with 
+  | A_True => true
+  | A_And c1 c2 => andb (eval_cond eval_var c1) (eval_cond eval_var c2)
+  | A_Or c1 c2 =>  orb (eval_cond eval_var c1) (eval_cond eval_var c2)
+  | A_LE e1 e2 => flows (eval_expr eval_var e1) (eval_expr eval_var e2)
+end.
 
 (** apply_rule applies the allow-modify r to the given parameters.=
     Returns the (optional) result value label and result PC label,
-    or nothing when the side condition fails. 
- The addditional bool is used to distinguish the two way for the rule to fail 
- - true: the allow part is failing
- - false: the eval_var function does not make sense with the given allow/modify parts
-*)
-
-Definition apply_rule (r: AllowModify) (op1lab op2lab op3lab: option T) (pclab:T) : bool * option (option T * T) :=
-  let eval_var := mk_eval_var op1lab op2lab op3lab pclab in
+    or nothing when the side condition fails. *)
+Definition apply_rule {n:nat} (r: AllowModify n) 
+  (vlabs: Vector.t T n) (pclab:T) : option (option T * T) :=
+let eval_var := mk_eval_var vlabs pclab in
   match eval_cond eval_var (allow r) with
-    | None => (false, None)
-    | Some false => (true, None)
-    | Some true => 
-      match (eval_expr eval_var (labResPC r)) with 
-        | None => (false, None)
-        | Some rpc => 
-          match (labRes r) with 
-            | Some lres => 
-              match (eval_expr eval_var lres) with 
-                  | Some rl => (true, Some (Some rl, rpc))
-                  | None => (false, Some (None, rpc))
-              end 
-            | None => (true, Some (None, rpc))
-          (* DD: here is the place where DD** can apply *)
-
-          (* NC: the DD** was a comment above in [eval_cond] that we
-          didn't distinguish between the condition evaluating to false
-          and a call to [eval_var] returning [None]:
-     
-                 DD**: might not be enough if we need to distinguish a
-                 condition violation from an ill-formed condition.
-
-          I don't think my changes to [apply_rule] here are sufficient
-          to address DD's concern, since the first [match] collapses
-          the distinction between [eval_cond] returning [Some false]
-          and [None].
-
-          But, I also don't see why I need to make the distinction to
-          prove [handler_correct] in ../cmach/FaultRoutine.v. 
-          
-          DD: I also distinguished the case where for eval_expr for labRes
-          - was None because it SHOULD be None (no result expected)
-          - was None because of a bad eval_var   
-           *)
-          end
-      end
-  end.
-
-(** APT: Moved to TMUArules, so that it can pick up the definition of fetch_rule
-(also so that this file no longer depends on TMUAbstact.)
-An alternative would be to pass in fetch_rule as a parameter.
-
-(** run_tmr : (TMR for Tag Managment Rules) fetches the rule 
-   for the given opcode and applies it.  *)
-Fixpoint run_tmr (opcode: OpCode) (lab1 lab2 lab3: option T) (pc: T):  @AMach T (option T * T) :=  
-  let r := fetch_rule opcode in
-  match apply_rule r lab1 lab2 lab3 pc with
-    | None => error_
-    | Some rv => ret rv
-  end.
-*)
-
+    | false => None
+    | true => 
+      let rpc := eval_expr eval_var (labResPC r) in 
+      let rres := 
+        match (labRes r) with 
+        | Some lres => Some (eval_expr eval_var lres)
+        | None => None 
+        end in 
+      Some (rres, rpc)
+   end.
 
 End Rules.
 
-(** * Cosmetic notations for writing rules *)
+(** * Cosmetic notations for writing and applying rules *)
 Notation "'≪' c1 , e1 , lpc '≫'" := (almod c1 (Some e1) lpc) (at level 95, no associativity).
 Notation "'≪' c1 , '__' , lpc '≫'" := (almod c1 None lpc) (at level 95, no associativity).
-Notation "'LabPC'" := (Var labpc).
-Notation "'Lab1'" := (Var lab1).
-Notation "'Lab2'" := (Var lab2).
-Notation "'Lab3'" := (Var lab3).
+Notation "'LabPC'" := (L_Var (labpc _)).
+Notation "'Lab1'" := (L_Var (lab1 (nlem _ _))).
+Notation "'Lab2'" := (L_Var (lab2 (nlem _ _))).
+Notation "'Lab3'" := (L_Var (lab3 (nlem _ _))).
+(*
+Notation "'Lab1/1'" := (L_Var lab1_of_1).
+Notation "'Lab1/2'" := (L_Var lab1_of_2).
+Notation "'Lab2/2'" := (L_Var lab2_of_2).
+Notation "'Lab1/3'" := (L_Var lab1_of_3).
+Notation "'Lab2/3'" := (L_Var lab2_of_3).
+Notation "'Lab3/3'" := (L_Var lab3_of_3).
+*)
+Notation "'JOIN'" := L_Join.
+Notation "'TRUE'" := (A_True _).
+Notation "'AND'" := A_And.
+Notation "'OR'" := A_Or.
+Notation "'LE'" := A_LE. 
+Notation "<||>" := (Vector.nil _).
+Notation " <| x ; .. ; y |> " := (Vector.cons _ x _ .. (Vector.cons _ y _ (Vector.nil _)) ..).
 
 
 (* OLD VERSION OF FETCH_RULE. KEEP IT FOR THE RECORD. *)

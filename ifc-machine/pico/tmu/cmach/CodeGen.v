@@ -124,31 +124,31 @@ while working on it ... *)
 Definition genError :=
   [push (-1); Jump].
 
-Definition genVar (l:LAB) :=
+Definition genVar {n:nat} (l:LAB n) :=
   match l with
   (* NC: We assume the operand labels are stored at these memory
      addresses when the fault handler runs. *)
-  | lab1 => loadFrom addrTag1
-  | lab2 => loadFrom addrTag2
-  | lab3 => loadFrom addrTag3
+  | lab1 _ => loadFrom addrTag1
+  | lab2 _ => loadFrom addrTag2
+  | lab3 _ => loadFrom addrTag3
   | labpc => loadFrom addrTagPC
   end.
 
-Fixpoint genExpr (e: rule_expr) :=
+Fixpoint genExpr {n:nat} (e: rule_expr n) :=
   match e with
-  | Var l => genVar l
-  | Join e1 e2 => genExpr e1 ++ genExpr e2 ++ genJoin
+  | L_Var l => genVar l
+  | L_Join e1 e2 => genExpr e1 ++ genExpr e2 ++ genJoin
  end.
 
-Fixpoint genScond (s: rule_scond) : code :=
+Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
   match s with
-  | TRUE => genTrue
-  | LE e1 e2 => genExpr e1 ++ genExpr e2 ++ genFlows
-  | AND s1 s2 => genScond s1 ++ genScond s2 ++ genAnd 
-  | OR s1 s2 => genScond s1 ++ genScond s2 ++ genOr 
+  | A_True => genTrue
+  | A_LE e1 e2 => genExpr e1 ++ genExpr e2 ++ genFlows
+  | A_And s1 s2 => genScond s1 ++ genScond s2 ++ genAnd 
+  | A_Or s1 s2 => genScond s1 ++ genScond s2 ++ genOr 
   end.
 
-Definition genRule (am:AllowModify) opcode : code :=
+Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
   let (allow, labresopt, labrespc) := am in 
   let body := 
     genScond allow ++
@@ -167,8 +167,8 @@ Definition genRule (am:AllowModify) opcode : code :=
   branchIfLocNeq addrOpLabel opcode (Z.of_nat (length body)) ++ body.
 
 
-Definition faultHandler (fetch_rule_impl:OpCode -> AllowModify) : code :=
-  let gen opcode := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
+Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code :=
+  let gen (opcode:OpCode) := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
   gen OpNoop ++
   gen OpAdd ++ 
   gen OpSub ++
