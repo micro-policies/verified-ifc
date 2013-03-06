@@ -148,6 +148,21 @@ Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
   | A_Or s1 s2 => genScond s1 ++ genScond s2 ++ genOr 
   end.
 
+Definition push' v := [push v].
+Definition some c: code := c ++ push' 1.
+Definition none:   code := push' 0.
+
+Definition genApplyRule {n:nat} (am:AllowModify n): code :=
+  ite (genScond (allow am))
+      ((genExpr (labResPC am)) ++
+       some
+         match (labRes am) with
+         | Some lres => some (genExpr lres)
+         | None      => none
+         end
+      )
+      none.
+
 Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
   let (allow, labresopt, labrespc) := am in 
   let body := 

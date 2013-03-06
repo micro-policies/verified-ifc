@@ -725,17 +725,6 @@ Conjecture genExpr_spec: forall (e: rule_expr n),
            (fun m s => m = m0 /\
                        s = CData (labToZ l, handlerLabel) :: s0).
 
-(* NC: I had to change the definition of [eval_cond] in
-   ../amach/Rules.v to return [Some bool] instead of [bool] to make
-   this provable.  Before, [eval_cond] returned [false] when
-   [eval_var] returned [None], but now it returns [None] in that case.
-   Without this change we can't distinguish between [eval_var]
-   returning [None] and causing [eval_cond] to return [false], and
-   [eval_cond] to returning [false] because the side condition
-   failed. But, since we don't model the [option T] at the level of
-   memory, we have no control over what [genVar v] returns when
-   [eval_var v] returns [None]. *)
-
 Conjecture genScond_spec: forall (c: rule_scond n),
   forall b,
     eval_cond eval_var c = b ->
@@ -772,7 +761,7 @@ Hypothesis genApplyRule:  AllowModify n -> code.
 (* This is def in ../amach/AbstractMachine.v *)
 Hypothesis fetch_rule: OpCode -> AllowModify n.
 
-Conjecture genApplyRule_spec_Some:
+Conjecture genApplyRule_spec_Some_Some:
   forall l1 l2,
     apply_rule (fetch_rule opcode) vls pcl = Some (Some l1, l2) ->
     forall s0,
@@ -780,11 +769,12 @@ Conjecture genApplyRule_spec_Some:
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (        1, handlerLabel) :: (* Model the [Some l1] *)
+                       s = CData (        1, handlerLabel) :: (* [Some (...)] *)
+                           CData (        1, handlerLabel) :: (* [Some l1] *)
                            CData (labToZ l1, handlerLabel) ::
                            CData (labToZ l2, handlerLabel) :: s0).
 
-Conjecture genApplyRule_spec_None:
+Conjecture genApplyRule_spec_Some_None:
   forall l2,
     apply_rule (fetch_rule opcode) vls pcl = Some (None, l2) ->
     forall s0,
@@ -792,8 +782,17 @@ Conjecture genApplyRule_spec_None:
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (        0, handlerLabel) :: (* Model the [None] *)
+                       s = CData (        1, handlerLabel) :: (* [Some (...)] *)
+                           CData (        0, handlerLabel) :: (* [None] *)
                            CData (labToZ l2, handlerLabel) :: s0).
 
+Conjecture genApplyRule_spec_None:
+    apply_rule (fetch_rule opcode) vls pcl = None ->
+    forall s0,
+      HT   (genApplyRule (fetch_rule opcode))
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (0, handlerLabel) :: s0). (* [None] *)
 
 End TMUSpecs.
