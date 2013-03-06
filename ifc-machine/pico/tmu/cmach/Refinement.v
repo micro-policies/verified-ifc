@@ -23,7 +23,8 @@ Context {L: Type}
         {CLatt: ConcreteLattice L}.
 
 (** The fault handler code *)
-Definition faultHandler := CodeGen.faultHandler fetch_rule.
+(*Definition faultHandler := CodeGen.faultHandler fetch_rule.
+*)
 
 Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
 | ms_nil : match_stacks nil nil
@@ -233,6 +234,7 @@ Proof.
     inv e. eapply Hid; eauto. eapply H_OTHERS; eauto.
 Qed.
 
+(*
 Lemma runsToEnd_pc_increase {T: Type}: forall (step: @CS T -> @CS T -> Prop) n n' cs cs',
   runsToEnd step n n' cs cs'  -> 
   n <= n' .
@@ -265,28 +267,86 @@ Proof.
   assert (Heq: cs' = cs'1). eapply step_determ; eauto. inv Heq.
   eapply IHrunsToEnd ; eauto.  
 Qed.
+*)
   
-Lemma runsToEscape_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
-                                  (step_determ: forall s1 s2 s2', step s1 s2 -> step s1 s2' -> s2 = s2')
-                                  n n' cs cs' cs'',
-   runsToEscape step n n' cs cs' ->
-   runsToEscape step n n' cs cs'' ->
-   cs' = cs''.
+Lemma no_unpriv_step : forall s1, priv s1 = false -> forall s2, ~cstep_p s1 s2.
 Proof.
-  induction 2 ; intros.
-  { inv H. 
-    - assert (Heq: cs'0 = cs') by (eapply runsToEnd_determ; eauto). inv Heq.
-    eapply step_determ; eauto.
-  
-    - assert (Heq: cs' = cs'') by (eapply runsToEnd_determ; eauto). inv Heq.
-      eelim FAIL ; eauto. 
-  }
-  { inv H.
-    - assert (Heq: cs'0 = cs') by (eapply runsToEnd_determ; eauto). inv Heq.
-      eelim FAIL ; eauto.
-      
-    - eapply runsToEnd_determ; eauto.
-  }
+  intros. intro S; induction S; simpl in H; try congruence. 
+Qed.
+
+Lemma unpriv_star_step : forall s1, priv s1 = false -> forall s2, star cstep_p s1 s2 -> s1 = s2. 
+Proof.
+  intros.
+  inv H0. 
+   auto.
+   exfalso; eapply no_unpriv_step; eauto.
+Qed.
+
+Lemma no_negpc_step : forall s1, fst (pc s1) < 0 -> forall s2, ~cstep_p s1 s2.
+Proof.
+  intros. intro S; induction S; simpl in H; unfold read_m in *; 
+    case_eq (pcv <? 0); intro C; pose proof (Zlt_cases pcv 0) as Q; try rewrite C in *;
+      congruence.
+Qed.
+
+Lemma negpc_star_step: forall s1, fst (pc s1) < 0 -> forall s2, star cstep_p s1 s2 -> s1 = s2. 
+Proof.
+  intros.
+  inv H0.
+    auto.
+    exfalso; eapply no_negpc_step; eauto.
+Qed.
+
+Lemma runsToEscape_determ: forall cs cs' cs'',
+   runsToEscape cs cs' ->
+   runsToEscape cs cs'' ->
+   cs' = cs''.
+Proof.  (* very tedious. there must be some better lemmas lurking. *)
+  intros. inv H.
+  inv H0. 
+     generalize UPRIV0, STAR0, PRIV0.  clear UPRIV0 STAR0 PRIV0. 
+     induction STAR; intros. 
+       congruence.
+       inv STAR0. 
+         congruence.
+         pose proof (cmach_priv_determ H H0). subst s4.
+         case_eq (priv s2); intros. 
+           eapply IHSTAR; eauto.
+           pose proof (unpriv_star_step H2 STAR). pose proof (unpriv_star_step H2 H1). subst; auto. 
+     generalize FAIL, PRIV1, STAR0, PRIV0.  clear FAIL PRIV1 STAR0 PRIV0.
+     induction STAR; intros.
+       congruence.
+       inv STAR0.
+         exfalso; eapply no_negpc_step; eauto.
+         pose proof (cmach_priv_determ H H0). subst s4.
+         case_eq (priv s2); intros.
+           eapply IHSTAR; eauto. 
+           pose proof (unpriv_star_step H2 STAR). pose proof (unpriv_star_step H2 H1). subst; auto. 
+     congruence.              
+  inv H0. 
+    generalize UPRIV, STAR0, PRIV1, FAIL. clear UPRIV STAR0 PRIV1 FAIL. 
+    induction STAR; intros. 
+      eapply negpc_star_step; eauto.
+      inv STAR0. 
+        congruence.
+         pose proof (cmach_priv_determ H H0). subst s4.
+         case_eq (priv s2); intros. 
+           eapply IHSTAR; eauto. 
+           pose proof (unpriv_star_step H2 STAR). pose proof (unpriv_star_step H2 H1). subst; auto. 
+     generalize FAIL0, PRIV2, STAR0, PRIV1.  clear FAIL0 PRIV2 STAR0 PRIV1.
+     induction STAR; intros.
+       eapply negpc_star_step; eauto. 
+       inv STAR0.
+         exfalso; eapply (no_negpc_step FAIL0); eauto.
+         pose proof (cmach_priv_determ H H0). subst s4.
+         case_eq (priv s2); intros.
+           eapply IHSTAR; eauto. 
+           pose proof (unpriv_star_step H2 STAR). pose proof (unpriv_star_step H2 H1). subst; auto.  
+     congruence.           
+  inv H0. 
+     congruence.
+     congruence.
+     auto.
 Qed.  
    
 Lemma run_tmu_determ: forall opcode op1 op2 op3 pcl cs cs' cs'',
@@ -297,7 +357,6 @@ Proof.
   induction 1; intros; inv H3.
   replace cs'0 with cs' in * by (eapply check_cache_determ ; eauto).
   eapply runsToEscape_determ; eauto.
-  eapply cmach_priv_determ; eauto.
 Qed.
 
 Lemma cmach_determ: 
