@@ -31,8 +31,7 @@ Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': me
   (match olr with
    | Some lr => tag_in_mem m' addrTagRes (labToZ lr)
    | None => index_list_Z addrTagRes m' = index_list_Z addrTagRes m 
-   (* DD: not sure we need that precision for the None case.  Any
-      label could be there. The machine is not to use it anyway. *)
+   (* DD: not sure we need that precision for the None case.  *)
    end) 
   /\ tag_in_mem m' addrTagResPC (labToZ lpc)
   /\ update_cache_spec_rvec m m'.
@@ -49,13 +48,11 @@ Conjecture handler_correct :
   forall (fetch_rule_impl : (forall (opcode:OpCode), AllowModify (labelCount opcode))),
   forall  opcode vls pcl m retaddr c imem fhdl s,
     let am := fetch_rule_impl opcode in
-    let handler := faultHandler fetch_rule_impl in
+    let handler := @faultHandler T fetch_rule_impl in (* DD: Strange. Never had to specify T before... *)
     let '(op1l,op2l,op3l) := glue vls in 
     cache_hit c (mvector opcode op1l op2l op3l pcl) ->
     exists c' st pc priv, 
-      runsToEscape cstep_p 
-                   0 (Z_of_nat (length handler)) 
-                   (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerLabel) true)
+      runsToEscape (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerLabel) true)
                    (CState c' m fhdl imem st pc priv) /\ 
       match apply_rule am vls pcl with
         | Some (olr,lpc) => handler_final_mem_matches' olr lpc c c' priv 
@@ -64,13 +61,13 @@ Conjecture handler_correct :
         | None => c' = c /\ pc = (-1,handlerLabel) 
     end.
 
+(* TODO for Nathan: relate [runsToEscape] to [runsToEnd].*)
 
 Section HandlerCorrect.
 (* DD: Hopefully easier to parse *)
 
 Variable get_rule : forall (opcode:OpCode), AllowModify (labelCount opcode).
 Definition handler : list (@Instr T) := faultHandler get_rule.
-Definition runHandler : @CS T -> @CS T -> Prop := runsToEscape cstep_p 0 (Z_of_nat (length handler)).
                
 Conjecture handler_correct_succeed : 
   forall opcode (vls: Vector.t T (labelCount opcode)) pcl c m raddr s i olr lpc,
@@ -78,8 +75,8 @@ Conjecture handler_correct_succeed :
   forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
          (RULE: apply_rule (get_rule opcode) vls pcl = Some (olr,lpc)),
     exists c',
-    runHandler (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
-               (CState c' m handler i s raddr false) /\
+    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
+                 (CState c' m handler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c' false.
               
 Conjecture handler_correct_fail : 
@@ -88,8 +85,8 @@ Conjecture handler_correct_fail :
   forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
          (RULE: apply_rule (get_rule opcode) vls pcl = None),
     exists st,
-    runHandler (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
-               (CState c m handler i st (-1,handlerLabel) true).
+    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
+                 (CState c m handler i st (-1,handlerLabel) true).
 
 (*  We also have the following: 
     - the handler code terminates DONE

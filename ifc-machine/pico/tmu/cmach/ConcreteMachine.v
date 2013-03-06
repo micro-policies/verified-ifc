@@ -19,11 +19,6 @@ Context {T: Type}
 
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
 Notation "'__'" := None.
-
-(* Didn't get it to work for some reason *)
-(* Notation "'≪' c , m , fh , i , s , pc '≫'" := (@CState T c m fh i s pc true) (at level 55, no associativity). *)
-(* Notation "'〈' c, m , fh, i , s , pc '〉'" := (@CState T c m fh i s pc false) (at level 95, no associativity).*)
-(* Definition state c m fh i s pc1 pc2 p := ≪ c , m , fh , i , s , (pc1,pc2) , p ≫. *)
  
 (** The concrete machine in privileged mode. *)
 Inductive cstep_p :  @CS T -> @CS T -> Prop := 
@@ -86,47 +81,9 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
     cstep_p (CState c m fh i ((resv,resl):::s) (pcv,pcl) true) 
             (CState c m fh i ((resv,resl):::s') (pcret, pcretl) true).
 
+(** * Cache handling mechanism *)
 
-Lemma cons_not_same (A: Type): forall (s:list A) a, s = a::s -> False.
-Proof.
-  induction s ; congruence.
-Qed.
-
-Lemma c_pop_to_return_length: forall s s' , 
- @c_pop_to_return T s s' ->
- (length s' <= length s)%nat.
-Proof.
-  induction 1; intros; simpl; auto.
-Qed.
-
-Lemma cstep_p_non_loop : forall cs, ~ cstep_p cs cs.
-Proof.
-  intros. intro Hcont.
-  inversion Hcont; try omega.
-  eelim cons_not_same; eauto.
-  eelim cons_not_same; eauto.
-
-  generalize H; clear H. clear.
-  generalize args s pcv pcl pcc pccl.
-  induction args0; intros.
-  simpl in *. congruence.
-  simpl in *. inv H. eapply IHargs0; eauto.
-
-  assert (~ c_pop_to_return s (CRet (pcv, pcl) false true :: s)).
-  clear. intro Hcont'. 
-  exploit @c_pop_to_return_length; eauto.
-  intros. simpl in *. zify ; omega.
-  congruence. 
-
-  assert (~ c_pop_to_return s (CRet (pcv, pcl) true true :: s)).
-  clear. intro Hcont'. 
-  exploit @c_pop_to_return_length; eauto.
-  intros. simpl in *. zify ; omega.
-  congruence. 
-Qed.  
-Hint Resolve cstep_p_non_loop.
-
-(** Cache handling mechanism *)
+(** Conversion from labels to integers *)
 Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
    let optlabToZ optl :=
      match optl with
@@ -137,7 +94,8 @@ Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) :
 
 Definition rvector (tagr:Z) (tagrpc:Z) : T * T := (ZToLab tagr,ZToLab tagrpc). 
 
-(* TMU.  If rule is in the cache (currently just a single entry),
+
+(** TMU. If rule is in the cache (currently just a single entry),
    leave the state unchanged and return
    Some(result_tag,result_pc_tag); otherwise, set the state to invoke
    the TMU fault handler code and return None.  *)
@@ -162,6 +120,36 @@ Inductive check_tags (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T): @CS T -
                (CState c m fh i s pc false) 
                (CState c' m fh i ((CRet pc false false)::s) (0,handlerLabel) true).
 
+(* New version decoupled from runsToEnd  *)
+
+(** Reflexive transitive closure. *)
+Inductive star (S: Type) (Rstep: S -> S -> Prop): S -> S -> Prop :=
+  | star_refl: forall s,
+      star Rstep s s
+  | star_step: forall s1 s2 s3,
+      Rstep s1 s2 -> star Rstep s2 s3 -> 
+      star Rstep s1 s3.
+
+Inductive runsToEscape : @CS T -> @CS T -> Prop :=
+| rte_success: (* executing until a return to user mode *)
+    forall cs cs',
+    forall (PRIV:  priv cs = true)
+           (STAR:  star cstep_p cs cs')
+           (UPRIV: priv cs' = false), 
+      runsToEscape cs cs'
+| rte_fail : (* executing the tmu until it fails at a neg. pc in priv mode *)
+    forall cs cs',
+    forall (PRIV: priv cs = true)
+           (STAR: star cstep_p cs cs')
+           (PRIV: priv cs' = true)
+           (FAIL: fst (pc cs') <= 0), 
+      runsToEscape cs cs'
+| rte_upriv: (* in unpriv. mode, it already escaped *) 
+    forall cs,
+    forall (UPRIV: priv cs = false),
+      runsToEscape cs cs.
+
+
 (* [run_tmu] checks the tags, and potentially execute all the code of
    the tmu fault handler and goes back to the unprivileged mode.  We
    check it does not fail by going ruling out pc (-1,handlerLabel) or
@@ -172,9 +160,9 @@ Inductive run_tmu (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : 
       priv cs = false ->
       pc cs = ppc ->
       check_tags opcode opl1 opl2 opl3 pcl cs cs' ->
-      runsToEscape cstep_p 0 privInstSize cs' (CState c m fh i s ppc false) ->
+      runsToEscape cs' (CState c m fh i s ppc false) ->
       run_tmu opcode opl1 opl2 opl3 pcl cs (CState c m fh i s ppc false).
-
+(* TODO DD: MAYBE RUNS_TO_ESCAPE ONLY IF CHECK_TAG *)
 
 (** Concrete machine transition relation. Unprivileged mode. *)
 Inductive cstep : @CS T -> @CS T -> Prop := 
@@ -299,10 +287,74 @@ Definition c_success (cs : @CS T) : Prop :=
   | _ => False
   end.
 
+
+(* COMMENTING OUT THIS FOR NOW 
+
+Lemma cons_not_same (A: Type): forall (s:list A) a, s = a::s -> False.
+Proof.
+  induction s ; congruence.
+Qed.
+
+Lemma c_pop_to_return_length: forall s s' , 
+ @c_pop_to_return T s s' ->
+ (length s' <= length s)%nat.
+Proof.
+  induction 1; intros; simpl; auto.
+Qed.
+
+Lemma cstep_p_non_loop : forall cs, ~ cstep_p cs cs.
+Proof.
+  intros. intro Hcont.
+  inversion Hcont; try omega.
+  eelim cons_not_same; eauto.
+  eelim cons_not_same; eauto.
+
+  generalize H; clear H. clear.
+  generalize args s pcv pcl pcc pccl.
+  induction args0; intros.
+  simpl in *. congruence.
+  simpl in *. inv H. eapply IHargs0; eauto.
+
+  assert (~ c_pop_to_return s (CRet (pcv, pcl) false true :: s)).
+  clear. intro Hcont'. 
+  exploit @c_pop_to_return_length; eauto.
+  intros. simpl in *. zify ; omega.
+  congruence. 
+
+  assert (~ c_pop_to_return s (CRet (pcv, pcl) true true :: s)).
+  clear. intro Hcont'. 
+  exploit @c_pop_to_return_length; eauto.
+  intros. simpl in *. zify ; omega.
+  congruence. 
+Qed.  
+Hint Resolve cstep_p_non_loop.
+ *)
+
 End CMach.
 
 Hint Constructors check_tags run_tmu.
 
+(*
+(* New version particularized to cstep_p...  Don't think we
+  need to be more general than that  *)
+(* DEFINED MULTI_STEP TRANSITION IN PRIVILEGED MODE *)
+Inductive runsToEscape : Z -> Z -> Z -> @CS T -> @CS T -> Prop :=
+| rte_success: forall pc_start pc_end pc_fail cs cs' cs'',
+               forall (PRIV: priv cs = true)
+                      (TMU:  runsToEnd cstep_p pc_start pc_end cs cs')
+                      (RET:  cstep_p cs' cs'') (* executing the return *)
+                      (SUCC: priv cs'' = false), (* to user mode *)
+                 runsToEscape pc_start pc_end pc_fail cs cs''
+| rte_fail: forall pc_start pc_end pc_fail cs cs' cs'',
+            forall (PRIV: priv cs = true)
+                   (TMU:  runsToEnd cstep_p pc_start pc_fail cs cs')
+                   (JMP:  cstep_p cs' cs''), (* executing jump -1 *)
+                   (FAIL: handler_fails cs'') (* and being blocked in priv mode *)
+              runsToEscape pc_start pc_end pc_fail cs cs''
+| rte_upriv:forall pc_start pc_end pc_fail cs,
+            forall (UPRIV: priv cs = false),
+              runsToEscape pc_start pc_end pc_fail cs cs.
+*)
 
 (* DD: Not sure we need all that... *)
 (* Ltac break_c_success_goal := *)

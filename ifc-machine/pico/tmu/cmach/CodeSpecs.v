@@ -70,6 +70,32 @@ Proof.
   intuition.
   apply_f_equal IHc1; eauto; zify; omega.
 Qed.
+
+(* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
+[pc1] and runs until pc [pc2]. *)
+Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> @CS T -> @CS T -> Prop :=
+| runsToEndDone : forall n cs,
+  fst (pc cs) = n -> 
+  runsToEnd Rstep n n cs cs
+  (* NC: do we need to worry about [n <= n' <= n'']? *)
+| runsToEndStep: forall n n' n'' cs cs' cs'',
+  fst (pc cs) = n ->
+  Rstep cs cs' ->
+  fst (pc cs') = n' ->
+  (* DD: I just comment out these for now, as the new hyp breaks composition lemma below *)
+  (* n <> n'' -> *)   (* OR: n < n'' -> *)  (* BEFORE: n < n' -> *)
+  runsToEnd Rstep n' n'' cs' cs'' -> 
+  runsToEnd Rstep n  n'' cs  cs''.
+
+Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
+  runsToEnd step pc0 pc1 s0 s1 ->
+  forall pc2 s2,
+  runsToEnd step pc1 pc2 s1 s2 ->
+  runsToEnd step pc0 pc2 s0 s2.
+Proof.
+  induction 1; intros; eauto.
+  econstructor; eauto.
+Qed.
     
 (* Hoare triple for a list of instructions *)
 Definition HT   (c: code)
@@ -142,12 +168,8 @@ Proof.
   (* Run an instruction *) 
   eapply runsToEndStep; eauto. 
   eapply cp_branchnz ; eauto. 
-  
-  simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
-  rewrite Hif. zify ; omega.
 
-  simpl. 
-  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
+  simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
   rewrite Hif.
   constructor 1; auto.
 Qed.
@@ -174,7 +196,6 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_branchnz ; eauto. 
-  simpl. omega.
   simpl.
   constructor; auto.
 Qed.
@@ -210,7 +231,6 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
-  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -234,7 +254,6 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
-  simpl ; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -603,13 +622,10 @@ Proof.
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-
   eapply cp_add ; eauto.
-  simpl; omega.
   
   (* Finish running *)
-  eapply runsToEndDone.
-  simpl; omega. 
+  eapply runsToEndDone; auto.
 Qed.
 
 Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
@@ -631,15 +647,11 @@ Proof.
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-
   eapply cp_add; eauto.
-  simpl; omega.
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-
   eapply cp_sub; eauto.
-  simpl; omega.
 
   (* Finish running *)
   let t := (auto || simpl; omega) in

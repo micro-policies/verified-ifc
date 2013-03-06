@@ -35,47 +35,6 @@ Record CS  := CState {
   priv : bool
 }.
 
-(* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
-[pc1] and runs until pc [pc2]. *)
-Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=
-| runsToEndDone : forall n cs,
-  fst (pc cs) = n -> 
-  runsToEnd Rstep n n cs cs
-  (* NC: do we need to worry about [n <= n' <= n'']? *)
-| runsToEndStep: forall n n' n'' cs cs' cs'',
-  fst (pc cs) = n ->
-  Rstep cs cs' ->
-  fst (pc cs') = n' ->
-  n < n' ->
-  runsToEnd Rstep n' n'' cs' cs'' -> 
-  runsToEnd Rstep n  n'' cs  cs''.
-
-Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
-  runsToEnd step pc0 pc1 s0 s1 ->
-  forall pc2 s2,
-  runsToEnd step pc1 pc2 s1 s2 ->
-  runsToEnd step pc0 pc2 s0 s2.
-Proof.
-  induction 1; intros; eauto.
-  econstructor; eauto.
-Qed.
-
-(* New version, somewhat particularized to our case...  Not sure we
-  need to be more general than that, though  *)
-Inductive runsToEscape (Rstep : (CS -> CS -> Prop)) : Z -> Z -> CS -> CS -> Prop :=
-| rte_success: forall pc_start pc_end cs cs' cs'',
-               forall (TMU: runsToEnd Rstep pc_start pc_end cs cs')
-                      (SUCC: Rstep cs' cs''),
-                 runsToEscape Rstep pc_start pc_end cs cs''
-| rte_fail: forall pc_start pc_end cs cs',
-            forall (TMU: runsToEnd Rstep pc_start pc_end cs cs')
-                   (FAIL: forall cs'', ~ Rstep cs' cs''),
-              runsToEscape Rstep pc_start pc_end cs cs'
-| rte_upriv:forall pc_start pc_end cs,
-            forall (UPRIV: priv cs = false),
-              runsToEscape Rstep pc_start pc_end cs cs.
-    
-
 (* Conversion between abstract labels (T) and tags (Z) *)
 Definition opCodeToZ (opcode : OpCode) : Z :=
 match opcode with 
@@ -105,9 +64,8 @@ Definition tmuCacheSize := 7.
 Definition privInstSize := 1000. 
 (* APT: arbitrary for now, but must be >= size of fault handler code 
    DD: If we use this for specifying the complete execution of the fault handler, 
-   I suspect we want to give the exact size. *)
+   I suspect we want to give the exact size? *)
   
-
 (** Cache spec when reading from, writing to *)
 Inductive tag_in_mem (m: list (@Atom T)) addr tagv : Prop := 
 | tim_intro : index_list_Z addr m = Some (tagv,handlerLabel) ->

@@ -61,7 +61,7 @@ Qed.
 Context {CLatt: ConcreteLattice L}.
 
 (** The fault handler code *)
-Definition faultHandler := CodeGen.faultHandler fetch_rule.
+Definition faultHandler := @CodeGen.faultHandler L fetch_rule.
 Variable mtyCache : list (@Atom L).
 
 (** Initial state of the concrete machine *)
