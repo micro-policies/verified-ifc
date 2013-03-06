@@ -71,33 +71,6 @@ Proof.
   apply_f_equal IHc1; eauto; zify; omega.
 Qed.
     
-(* Here's a possible definition of "total correctness" Hoare triples on segments of code
-that always "fall through." *)
-Definition HT 
-              (imem: imemory) 
-              (P: memory -> stack -> Prop) (* pre-condition *)
-              (start_pc end_pc : Z) (* code segment *)
-              (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *) :=
-forall mem stk0 cache0 fhdl0,
-  P cache0 stk0 ->
-  exists stk1 cache1,
-  runsToEnd cstep_p start_pc end_pc 
-            (CState cache0 mem fhdl0 imem stk0 (start_pc,handlerLabel) true)
-            (CState cache1 mem fhdl0 imem stk1 (end_pc,handlerLabel) true)
-  /\ Q cache1 stk1. 
-
-Lemma HT_compose: forall imem P pc0 pc1 Q pc2 R,
-  HT imem P pc0 pc1 Q -> 
-  HT imem Q pc1 pc2 R -> 
-  HT imem P pc0 pc2 R. 
-Proof.
-  unfold HT in *. intros.
-  edestruct H as [stk1 [cache1 [ris1 c1]]]; eauto. clear H. 
-  edestruct H0 as [stk2 [cache2 [ris2 c2]]]; eauto. clear H0. 
-  exists stk2. exists cache2. split; eauto. 
-  eapply runs_to_end_compose; eauto. 
-Qed.
-
 (* Hoare triple for a list of instructions *)
 Definition HT'' (c: code)
                 (P: memory -> stack -> Prop) (* pre-condition *)
@@ -147,30 +120,6 @@ Proof.
 
    *)
 Qed.
-
-(* NC: is there a way to give specifications as state transformers?
-   The tricky part seems to be specifying the transformer arguments in
-   terms of the needed stack "shape".
-
-   Instead [HT c P Q], we'd have [HT c P Delta], and the meaning would
-   be that code [c] takes state with [sm: stack * memory] satisfying
-   [P sm] to state with [stack * memory] replaced by [Delta sm].
-
- *)
-Definition HT' (c: code)            
-               (P: memory -> stack -> Prop) (* pre-condition *)
-               (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *)
-:= forall imem mem stk0 c0 fh n n',
-  code_at n fh c ->
-  P c0 stk0 ->
-  n' = n + Z_of_nat (length c) -> 
-  exists stk1 c1,
-  (* NC: would we gain anything by using projections to specify the
-  state? *)
-  Q c1 stk1 /\
-  runsToEnd cstep_p n n' 
-            (CState c0 mem fh imem stk0 (n, handlerLabel) true)
-            (CState c1 mem fh imem stk1 (n', handlerLabel) true).
 
 Lemma skipNZ_continuation_spec_NZ: forall c P v l,
   v <> 0 ->
@@ -636,13 +585,13 @@ Qed.
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
 Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
-  HT' (Add :: nil)
+  HT'' (Add :: nil)
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
       (fun m2 s2 => m2 = m /\ s2 = CData (z1 + z2, handlerLabel) :: s).
 Proof.
   (* Introduce hyps *)
   intros.
-  unfold HT'. intros. intuition.
+  unfold HT''. intros. intuition.
   eexists.
   eexists.
   eexists.
@@ -653,25 +602,25 @@ Proof.
   unfold code_at in *. intuition. 
   
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
-  unfold in_bounds.  simpl.  omega. 
+  eapply runsToEndStep'; auto.
+  unfold in_bounds.  simpl.
 
   eapply cp_add ; eauto.
+  simpl; omega.
   
   (* Finish running *)
-  eapply runsToEndDone.
-  omega. 
-  auto.
+  eapply runsToEndDone'.
+  simpl; omega. 
 Qed.
 
 Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
-  HT' (Add :: Sub :: nil)
+  HT'' (Add :: Sub :: nil)
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: CData (z2,l2) :: s)
       (fun m2 s2 => m2 = m /\ s2 = CData (z1, handlerLabel) :: s).
 Proof.
   (* Introduce hyps *)
   intros.
-  unfold HT'. intros. intuition. subst. 
+  unfold HT''. intros. intuition. subst. 
   eexists.
   eexists.
   eexists.
@@ -682,20 +631,22 @@ Proof.
   unfold code_at in *. intuition. 
   
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
+  eapply runsToEndStep'; auto.
   unfold in_bounds; simpl; try omega.
 
   eapply cp_add; eauto.
+  simpl; omega.
   
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
+  eapply runsToEndStep'; auto.
 
-  unfold in_bounds; simpl.  omega. 
+  unfold in_bounds; simpl.
   eapply cp_sub; eauto.
+  simpl; omega.
 
   (* Finish running *)
-  let t := (auto || omega) in
-  apply_f_equal @runsToEndDone; rec_f_equal t.
+  let t := (auto || simpl; omega) in
+  apply_f_equal @runsToEndDone'; rec_f_equal t.
 Qed.
 
 
@@ -848,4 +799,4 @@ Conjecture genApplyRule_spec_None:
                            CData (labToZ l2, handlerLabel) :: s0).
 
 
-End TMUSpecs. 
+End TMUSpecs.
