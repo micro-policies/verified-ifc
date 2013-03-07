@@ -139,9 +139,9 @@ Fixpoint genExpr {n:nat} (e: rule_expr n) :=
 Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
   match s with
   | A_True => genTrue
-  | A_LE e1 e2 => genExpr e1 ++ genExpr e2 ++ genFlows
-  | A_And s1 s2 => genScond s1 ++ genScond s2 ++ genAnd 
-  | A_Or s1 s2 => genScond s1 ++ genScond s2 ++ genOr 
+  | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
+  | A_And s1 s2 => genScond s2 ++ genScond s1 ++ genAnd 
+  | A_Or s1 s2 => genScond s2 ++ genScond s1 ++ genOr 
   end.
 
 Definition some c: code := c ++ push' 1.

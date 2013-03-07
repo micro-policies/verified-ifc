@@ -1025,7 +1025,7 @@ Hypothesis genFlows_spec: forall l l' m0 s0,
        (fun m s => m = m0 /\
                    s = CData (boolToZ (flows l l'), handlerLabel) :: s0).
 
-Conjecture genScond_spec: forall (c: rule_scond n),
+Lemma genScond_spec: forall (c: rule_scond n),
   forall b,
     eval_cond eval_var c = b ->
     forall s0,
@@ -1034,6 +1034,40 @@ Conjecture genScond_spec: forall (c: rule_scond n),
                        s = s0)
            (fun m s => m = m0 /\
                        s = CData (boolToZ b, handlerLabel) :: s0).
+Proof.
+  induction c; intros; simpl;
+    try (simpl in H); subst.
+
+  (* True *)
+  eapply push_spec''.
+
+  (* Flows *)
+  eapply HT_compose.
+  eapply genExpr_spec.
+  eauto.
+  eapply HT_compose.
+  eapply genExpr_spec.
+  eauto.
+  eapply genFlows_spec.
+
+  (* And *)
+  eapply HT_compose.
+  eapply IHc2.
+  eauto.
+  eapply HT_compose.
+  eapply IHc1.
+  eauto.
+  eapply genAnd_spec.
+
+  (* Or *)
+  eapply HT_compose.
+  eapply IHc2.
+  eauto.
+  eapply HT_compose.
+  eapply IHc1.
+  eauto.
+  eapply genOr_spec.
+Qed.
 
 (* XXX: Need to change the definition of [genRule] for this: it should
    take an AllowModify, but not an opcode, since that check will be
