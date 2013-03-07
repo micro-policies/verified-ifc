@@ -175,14 +175,14 @@ Definition genTestEqual (c1 c2: code): code :=
 Definition genCheckOp (op:OpCode): code :=
   genTestEqual (push' (opCodeToZ op)) (loadFrom addrOpLabel).
 
-Definition genFaultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code :=
-  let pair := fun op => (genCheckOp op, genApplyRule (fetch_rule_impl op)) in
+Definition genFaultHandler (fetch_rule_impl: forall (opcode:OpCode),  {n:nat & AllowModify n}) : code :=
+  let pair := fun op => (genCheckOp op, genApplyRule (projT2 (fetch_rule_impl op))) in
   let cbs := map pair [OpNoop; OpAdd; OpSub; OpPush; OpLoad
                       ;OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet]
   in cases cbs none.
 
 (* XXX: Run [genFaultHandler] and then fail or return depending on the result. *)
-Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code.
+Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  {n:nat & AllowModify n}) : code.
 Admitted.
 
 (*

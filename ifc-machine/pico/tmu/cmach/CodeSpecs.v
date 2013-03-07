@@ -83,9 +83,22 @@ Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> @CS T -> @CS T -> Prop
   Rstep cs cs' ->
   fst (pc cs') = n' ->
   (* DD: I just comment out these for now, as the new hyp breaks composition lemma below *)
-  (* n <> n'' -> *)   (* OR: n < n'' -> *)  (* BEFORE: n < n' -> *)
+  (* n <> n'' -> *)  (* OR:  n < n'' -> *) (* BEFORE: n < n' -> *) 
   runsToEnd Rstep n' n'' cs' cs'' -> 
   runsToEnd Rstep n  n'' cs  cs''.
+
+(* APT: With second option above ( n < n'') it is
+   easy enough to prove the following two lemmas.
+   But at the moment, Nathan and I don't see any
+   strong reason to include this restriction...
+
+Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1, 
+  runsToEnd step pc0 pc1 s0 s1 -> pc0 <= pc1. 
+Proof.
+  intros.  inv H. 
+  omega.
+omega.
+Qed.
 
 Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
   runsToEnd step pc0 pc1 s0 s1 ->
@@ -93,10 +106,27 @@ Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
   runsToEnd step pc1 pc2 s1 s2 ->
   runsToEnd step pc0 pc2 s0 s2.
 Proof.
-  induction 1; intros; eauto.
+  induction 1. 
+  intros; auto.
+  intros. 
+  econstructor; eauto.
+  apply runsToEnd_bounded in H4. 
+  omega.
+Qed.
+*)
+
+Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
+  runsToEnd step pc0 pc1 s0 s1 ->
+  forall pc2 s2,
+  runsToEnd step pc1 pc2 s1 s2 ->
+  runsToEnd step pc0 pc2 s0 s2.
+Proof.
+  induction 1. 
+  intros; auto.
+  intros. 
   econstructor; eauto.
 Qed.
-    
+
 (* Hoare triple for a list of instructions *)
 Definition HT   (c: code)
                 (P: memory -> stack -> Prop) (* pre-condition *)

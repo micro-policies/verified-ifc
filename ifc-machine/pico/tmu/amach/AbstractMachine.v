@@ -12,6 +12,21 @@ Require Vector.
 
 Set Implicit Arguments.
 
+Definition labelCount (c:OpCode) : nat :=
+match c with
+| OpNoop => 0
+| OpAdd  => 2
+| OpSub  => 2
+| OpPush => 1
+| OpLoad => 2
+| OpStore => 3
+| OpJump => 1
+| OpBranchNZ => 1
+| OpCall => 1
+| OpRet => 1
+| OpVRet => 2
+end.
+
 Local Open Scope Z_scope.
 
 Section ARuleMachine.
