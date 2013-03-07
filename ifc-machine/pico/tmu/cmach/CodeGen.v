@@ -24,6 +24,7 @@ Definition code := list (@Instr T).
 Definition pop := (@BranchNZ T) 1. 
 
 Definition push v := Push (v,handlerLabel).
+Definition push' v := [push v].
 
 (* For multi-instruction operations that include an offset
    parameter, we adjust the offset if negative. 
@@ -43,8 +44,8 @@ Definition branch ofs :=
 Definition storeAt loc :=
   [push loc; Store].
 
-Definition loadFrom loc :=
-  [push loc; Load].
+Definition loadFrom loc: code :=
+  push' loc ++ [Load].
 
 (* ---------------------------------------------------------------- *)
 (* Code generation with ease of proof in mind *)
@@ -58,7 +59,7 @@ Definition skipNZ (n : nat) : code :=
 (* Skip the next [n] instructions unconditionally *)
 Definition skip (n : nat) : code :=
   (* Pointless append here makes it easier to apply [HT_compose] *)
-  (push 1 :: nil) ++ skipNZ n.
+  push' 1 ++ skipNZ n.
 
 (* Building block for if statement [ite] *)
 Definition ifNZ t f :=
@@ -148,7 +149,6 @@ Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
   | A_Or s1 s2 => genScond s1 ++ genScond s2 ++ genOr 
   end.
 
-Definition push' v := [push v].
 Definition some c: code := c ++ push' 1.
 Definition none:   code := push' 0.
 

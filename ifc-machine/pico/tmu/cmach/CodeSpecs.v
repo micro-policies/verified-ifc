@@ -286,6 +286,34 @@ Proof.
   constructor; auto.
 Qed.
 
+(* Ghost variable style *)
+(* NC: to write a generic instruction-verification tactic, it seems we
+   may only need to factor out the specific unfoldings (here [push'])
+   and the specific step lemmas (here [cp_push]). *)
+Lemma push_spec'': forall v, forall m0 s0,
+  HT (push' v)
+     (fun m s => m = m0 /\ s = s0)
+     (fun m s => m = m0 /\ s = CData (v,handlerLabel) :: s0).
+Proof.
+  intros.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  eexists.
+  eexists.
+  intuition.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold skipNZ in *.
+  unfold push', code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_push; eauto.
+  simpl ; omega.
+  simpl.
+  constructor; auto.
+Qed.
+
 Lemma load_spec: forall a al v vl, forall m0 s0,
   index_list_Z a m0 = Some (v,vl) ->
   HT [Load]
@@ -309,6 +337,19 @@ Proof.
   simpl ; omega.
   simpl.
   constructor; auto.
+Qed.
+
+Lemma loadFrom_spec: forall a v vl, forall m0 s0,
+  index_list_Z a m0 = Some (v,vl) ->
+  HT (loadFrom a)
+     (fun m s => m = m0 /\ s = s0)
+     (fun m s => m = m0 /\ s = CData (v,handlerLabel) :: s0).
+Proof.
+  intros.
+  eapply HT_compose.
+  eapply push_spec''.
+  eapply load_spec.
+  eauto.
 Qed.
 
 Lemma HT_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
