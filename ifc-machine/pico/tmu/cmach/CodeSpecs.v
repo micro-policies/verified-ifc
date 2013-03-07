@@ -781,6 +781,56 @@ Proof.
   intuition; subst; auto.
 Qed.
 
+Definition genTrue_spec  := push_spec''.
+Definition genFalse_spec := push_spec''.
+
+Lemma genAnd_spec: forall b1 b2, forall m0 s0,
+  HT genAnd
+     (* We need [handlerLabel] on [b2] because [genAnd] returns [b2] when
+        [b1] is [true]. *)
+     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerLabel) ::
+                               CData (boolToZ b2,handlerLabel) :: s0)
+     (fun m s => m = m0 /\ s = CData (boolToZ (andb b1 b2),handlerLabel) :: s0).
+Proof.
+  intros.
+  unfold genAnd.
+  destruct b1; eapply HT_strengthen_premise.
+    eapply ifNZ_spec_NZ with (v:=1).
+    apply nop_spec.
+    omega.
+    simpl; jauto.
+
+    eapply ifNZ_spec_Z with (v:=0).
+    eapply HT_compose.
+    eapply pop_spec.
+    eapply genFalse_spec.
+    reflexivity.
+    simpl; jauto.
+Qed.
+
+Lemma genOr_spec: forall b1 b2, forall m0 s0,
+  HT genOr
+     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerLabel) ::
+                               CData (boolToZ b2,handlerLabel) :: s0)
+     (fun m s => m = m0 /\ s = CData (boolToZ (orb b1 b2),handlerLabel) :: s0).
+Proof.
+  intros.
+  unfold genOr.
+  destruct b1; eapply HT_strengthen_premise.
+
+    eapply ifNZ_spec_NZ with (v:=1).
+    eapply HT_compose.
+    eapply pop_spec.
+    eapply genTrue_spec.
+    omega.
+    simpl; jauto.
+
+    eapply ifNZ_spec_Z with (v:=0).
+    apply nop_spec.
+    reflexivity.
+    simpl; jauto.
+Qed.
+
 
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
