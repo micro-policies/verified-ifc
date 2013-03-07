@@ -89,7 +89,7 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
 Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
    let optlabToZ optl :=
      match optl with
-     | None => labToZ (@bot T Latt)
+     | None => labToZ bot
      | Some l => labToZ l 
      end in
    (opCodeToZ opcode, optlabToZ op1lab, optlabToZ op2lab, optlabToZ op3lab, labToZ pclab).
