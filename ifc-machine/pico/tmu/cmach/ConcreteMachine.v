@@ -15,7 +15,9 @@ Local Open Scope Z_scope.
 Section CMach.
 
 Context {T: Type}
+        {Latt : JoinSemiLattice T}
         {CLatt: ConcreteLattice T}.
+
 
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
 Notation "'__'" := None.
@@ -87,7 +89,7 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
 Definition mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
    let optlabToZ optl :=
      match optl with
-     | None => labToZ bot
+     | None => labToZ (@bot T Latt)
      | Some l => labToZ l 
      end in
    (opCodeToZ opcode, optlabToZ op1lab, optlabToZ op2lab, optlabToZ op3lab, labToZ pclab).

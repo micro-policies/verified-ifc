@@ -33,7 +33,7 @@ Import Vector.VectorNotations.
 
 Local Open Scope nat_scope.
 
-(* XXX: remove this? *)
+(* Old definition; replaced below. 
 Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
 match vls with
 | [] => (None,None,None)
@@ -41,6 +41,7 @@ match vls with
 | [t1; t2] => (Some t1, Some t2, None)
 | (t1::(t2::(t3::_))) => (Some t1, Some t2, Some t3)
 end. 
+*)
 
 Definition nth_order_option {n:nat} (vls: Vector.t T n) (m:nat): option T :=
   match le_lt_dec n m with
@@ -85,6 +86,9 @@ Proof.
   proof irrelevance! *)
   erewrite nth_order_proof_irrel; eauto.
 Qed.
+
+Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
+(nth_order_option vls 0, nth_order_option vls 1, nth_order_option vls 2).
 
 End Glue.
 
@@ -826,6 +830,32 @@ Definition handler_initial_mem_matches
       end)
   /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
 .
+
+(* APT: Just a little sanity check that these definitions are somewhat coherent. *)
+Lemma init_init: forall m op t1 t2 t3 tpc, @cache_hit T CLatt m (opCodeToZ op,labToZ t1,labToZ t2,labToZ t3,labToZ tpc) ->
+handler_initial_mem_matches op (Some t1) (Some t2) (Some t3) tpc m.
+Proof.
+  intros.
+  inv H. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
+  econstructor; eauto.
+Qed.
+
+(* Connecting to the definition used in FaultRoutine.v : *)
+Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
+    let '(op1l,op2l,op3l) := glue vls in
+    cache_hit m (mvector opcode op1l op2l op3l pcl) ->
+    handler_initial_mem_matches 
+      opcode
+      (nth_order_option vls 0)
+      (nth_order_option vls 1)
+      (nth_order_option vls 2)
+      pcl m.
+Proof.
+  intros. unfold glue. intro. 
+  destruct (nth_order_option vls 0); destruct (nth_order_option vls 1);
+    destruct (nth_order_option vls 2); unfold mvector in H; apply init_init in H;
+    auto; unfold handler_initial_mem_matches in *; intuition. 
+Qed.
 
 Parameter (opcode: OpCode).
 Definition n := labelCount opcode. 
