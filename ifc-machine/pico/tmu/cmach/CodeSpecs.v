@@ -403,6 +403,42 @@ Proof.
   eauto.
 Qed.
 
+Lemma pop_spec: forall v vl, forall m0 s0,
+  HT pop
+     (fun m s => m = m0 /\ s = CData (v,vl) :: s0)
+     (fun m s => m = m0 /\ s = s0).
+Proof.
+  unfold HT.
+  intros.
+  eexists.
+  eexists.
+  intuition.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold pop, code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_branchnz; eauto.
+  simpl.
+  destruct (v =? 0); constructor; auto.
+Qed.
+
+Lemma nop_spec: forall m0 s0,
+  HT nop
+     (fun m s => m = m0 /\ s = s0)
+     (fun m s => m = m0 /\ s = s0).
+Proof.
+  unfold HT.
+  intros.
+  exists s0.
+  exists m0.
+  intuition.
+  simpl in H1; subst.
+  apply_f_equal @runsToEndDone; rec_f_equal ltac:(try (zify; omega); auto).
+Qed.
+
 Lemma HT_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
   HT   c P  Q ->
   (forall m s, P' m s -> P m s) ->
