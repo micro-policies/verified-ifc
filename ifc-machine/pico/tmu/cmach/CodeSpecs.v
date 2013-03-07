@@ -804,24 +804,6 @@ Qed.
 
 Definition boolToZ (b: bool): Z  := if b then 1 else 0.
 
-Hypothesis genJoin_spec: forall l l' m0 s0,
-  HT   genJoin
-       (fun m s => m = m0 /\
-                   s = CData (labToZ l, handlerLabel) ::
-                       CData (labToZ l', handlerLabel) :: s0)
-       (fun m s => m = m0 /\               
-                   s = CData (labToZ (join l l'), handlerLabel) :: s0).
-
-(* XXX: we can discharge this by implementing [genFlows] in terms of
-   [genJoin], and using the fact that [flows l l' = true <-> join l l' = l']. *)
-Hypothesis genFlows_spec: forall l l' m0 s0,
-  HT   genFlows
-       (fun m s => m = m0 /\
-                   s = CData (labToZ l, handlerLabel) ::
-                       CData (labToZ l', handlerLabel) :: s0)
-       (fun m s => m = m0 /\               
-                   s = CData (boolToZ (flows l l'), handlerLabel) :: s0).
-
 (* XXX: NC: Copied from ../mach_exec/TMUFaultRoutine.v. I'm not sure
 how that file relates to ./FaultRoutine.v *)
 Definition handler_initial_mem_matches 
@@ -889,7 +871,15 @@ Proof.
   eauto.
 Qed.
 
-Conjecture genExpr_spec: forall (e: rule_expr n),
+Hypothesis genJoin_spec: forall l l' m0 s0,
+  HT   genJoin
+       (fun m s => m = m0 /\
+                   s = CData (labToZ l, handlerLabel) ::
+                       CData (labToZ l', handlerLabel) :: s0)
+       (fun m s => m = m0 /\
+                   s = CData (labToZ (join l l'), handlerLabel) :: s0).
+
+Lemma genExpr_spec: forall (e: rule_expr n),
   forall l,
     eval_expr eval_var e = l ->
     forall s0,
@@ -898,6 +888,27 @@ Conjecture genExpr_spec: forall (e: rule_expr n),
                        s = s0)
            (fun m s => m = m0 /\
                        s = CData (labToZ l, handlerLabel) :: s0).
+Proof.
+  induction e as [l0 | ? ?]; intros l Heval_expr s0;
+    simpl; simpl in Heval_expr.
+  eapply genVar_spec; eauto.
+  eapply HT_compose.
+  eapply IHe2; eauto.
+  eapply HT_compose.
+  eapply IHe1; eauto.
+  rewrite <- Heval_expr.
+  eapply genJoin_spec.
+Qed.
+
+(* XXX: we can discharge this by implementing [genFlows] in terms of
+   [genJoin], and using the fact that [flows l l' = true <-> join l l' = l']. *)
+Hypothesis genFlows_spec: forall l l' m0 s0,
+  HT   genFlows
+       (fun m s => m = m0 /\
+                   s = CData (labToZ l, handlerLabel) ::
+                       CData (labToZ l', handlerLabel) :: s0)
+       (fun m s => m = m0 /\
+                   s = CData (boolToZ (flows l l'), handlerLabel) :: s0).
 
 Conjecture genScond_spec: forall (c: rule_scond n),
   forall b,

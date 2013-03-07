@@ -138,7 +138,8 @@ Definition genVar {n:nat} (l:LAB n) :=
 Fixpoint genExpr {n:nat} (e: rule_expr n) :=
   match e with
   | L_Var l => genVar l
-  | L_Join e1 e2 => genExpr e1 ++ genExpr e2 ++ genJoin
+  (* NC: push the arguments in reverse order. *)
+  | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
  end.
 
 Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
