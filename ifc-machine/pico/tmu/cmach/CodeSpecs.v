@@ -136,8 +136,6 @@ Definition HT   (c: code)
   P cache0 stk0 ->
   n' = n + Z_of_nat (length c) -> 
   exists stk1 cache1,
-  (* NC: would we gain anything by using projections to specify the
-  state? *)
   Q cache1 stk1 /\
   runsToEnd cstep_p n n' 
              (CState cache0 mem fh imem stk0 (n, handlerLabel) true)
@@ -284,6 +282,31 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
+  simpl.
+  constructor; auto.
+Qed.
+
+Lemma load_spec: forall a al v vl, forall m0 s0,
+  index_list_Z a m0 = Some (v,vl) ->
+  HT [Load]
+     (fun m s => m = m0 /\ s = CData (a,al) :: s0)
+     (fun m s => m = m0 /\ s = CData (v,handlerLabel) :: s0).
+Proof.
+  intros a al v vl m0 s0  Hmem.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  eexists.
+  eexists.
+  intuition.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold skipNZ in *.
+  unfold code_at in *. intuition. 
+
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_load; eauto.
+  simpl ; omega.
   simpl.
   constructor; auto.
 Qed.

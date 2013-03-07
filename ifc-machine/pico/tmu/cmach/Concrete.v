@@ -28,7 +28,7 @@ Inductive CStkElmt :=
 Record CS  := CState {
   cache: list (@Atom T);
   mem : list (@Atom T);
-  fhdl:  list (@Instr T);
+  fhdl:  list (@Instr T); (* NC: ??? *)
   imem : list (@Instr T);
   stk : list CStkElmt;
   pc : @Atom T;
