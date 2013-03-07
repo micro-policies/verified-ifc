@@ -16,6 +16,7 @@ Require Import Coq.Arith.Compare_dec.
 Section TMUSpecs.
 Local Open Scope Z_scope.
 
+
 Context {T: Type}
         {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}.
