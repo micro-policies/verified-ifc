@@ -309,7 +309,6 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push; eauto.
-  simpl ; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -334,7 +333,6 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_load; eauto.
-  simpl ; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -854,7 +852,6 @@ Proof.
 
   (* XXX: ... these are similar *)
   Admitted.
-Qed.
 
 Conjecture genExpr_spec: forall (e: rule_expr n),
   forall l,
