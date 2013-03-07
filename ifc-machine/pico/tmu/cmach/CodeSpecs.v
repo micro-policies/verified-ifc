@@ -805,13 +805,32 @@ Parameter (pcl: T).
 Parameter (m0: memory).
 
 
+(* XXX: define this ... or find it in the std lib *)
+Conjecture getSome: forall {n:nat} (vls: Vector.t T n) (m:nat), option T.
+
+Hypothesis getSome_Some: forall (n:nat) (vls: Vector.t T n) m,
+  forall (lt: (m < n)%nat),
+  getSome vls m = Some (Vector.nth_order vls lt).
+
+Hypothesis getSome_None: forall (n:nat) (vls: Vector.t T n) m,
+  (m >= n)%nat -> getSome vls m = None.
+
+(*
 Hypothesis initial_mem_matches:
   let '(opv1,opv2,opv3) := glue vls in 
   handler_initial_mem_matches opcode opv1 opv2 opv3 pcl m0.
+*)
+Hypothesis initial_mem_matches:
+  handler_initial_mem_matches
+    opcode
+    (getSome vls 0)
+    (getSome vls 1)
+    (getSome vls 2)
+    pcl m0.
 
 Definition eval_var := mk_eval_var vls pcl.
 
-Conjecture genVar_spec:
+Lemma genVar_spec:
   forall v l,
     eval_var v = l ->
     forall s0,
@@ -820,6 +839,22 @@ Conjecture genVar_spec:
                        s = s0)
            (fun m s => m = m0 /\
                        s = CData (labToZ l, handlerLabel) :: s0).
+Proof.
+  intros v l Heval_var s0.
+  destruct v; simpl; eapply loadFrom_spec.
+
+  (* Do the first case, the rest are similar ... *)
+  simpl in *.
+  unfold handler_initial_mem_matches in *.
+  assert (0 < n)%nat by omega.
+  erewrite (getSome_Some n vls 0) with (lt:=l0) in *.
+  intuition.  
+  subst; auto.
+  eauto.
+
+  (* XXX: ... these are similar *)
+  Admitted.
+Qed.
 
 Conjecture genExpr_spec: forall (e: rule_expr n),
   forall l,
