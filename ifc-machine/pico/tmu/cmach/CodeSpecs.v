@@ -11,6 +11,7 @@ Require Import Rules.
 Require Import CodeGen.
 Require Import CLattices.
 Require Import ConcreteMachine.
+Require Import Coq.Arith.Compare_dec.
 
 Section TMUSpecs.
 Local Open Scope Z_scope.
@@ -29,6 +30,9 @@ Section Glue.
 
 Import Vector.VectorNotations.
 
+Local Open Scope nat_scope.
+
+(* XXX: remove this? *)
 Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
 match vls with
 | [] => (None,None,None)
@@ -36,6 +40,50 @@ match vls with
 | [t1; t2] => (Some t1, Some t2, None)
 | (t1::(t2::(t3::_))) => (Some t1, Some t2, Some t3)
 end. 
+
+Definition nth_order_option {n:nat} (vls: Vector.t T n) (m:nat): option T :=
+  match le_lt_dec n m with
+  | left _ => None
+  | right p => Some (Vector.nth_order vls p)
+  end.
+
+Lemma of_nat_lt_proof_irrel:
+  forall (m n: nat) (p q: m < n),
+    Fin.of_nat_lt p = Fin.of_nat_lt q.
+Proof.
+  induction m; intros.
+    destruct n.
+      false; omega.
+      reflexivity.
+    destruct n.
+      false; omega.
+      simpl; erewrite IHm; eauto.
+Qed.
+
+(* NC: this took a few tries ... *)
+Lemma nth_order_proof_irrel:
+  forall (m n: nat) (v: Vector.t T n) (p q: m < n),
+    Vector.nth_order v p = Vector.nth_order v q.
+Proof.
+  intros.
+  unfold Vector.nth_order.
+  erewrite of_nat_lt_proof_irrel; eauto.
+Qed.
+
+Lemma nth_order_option_Some: forall (n:nat) (vls: Vector.t T n) m,
+  forall (lt: m < n),
+  nth_order_option vls m = Some (Vector.nth_order vls lt).
+Proof.
+  intros.
+  unfold nth_order_option.
+  destruct (le_lt_dec n m).
+  false; omega.
+  (* NC: Interesting: here we have two different proofs [m < n0] being
+  used as arguments to [nth_order], and we need to know that the
+  result of [nth_order] is the same in both cases.  I.e., we need
+  proof irrelevance! *)
+  erewrite nth_order_proof_irrel; eauto.
+Qed.
 
 End Glue.
 
@@ -802,28 +850,12 @@ Parameter (vls: Vector.t T n).
 Parameter (pcl: T).
 Parameter (m0: memory).
 
-
-(* XXX: define this ... or find it in the std lib *)
-Conjecture getSome: forall {n:nat} (vls: Vector.t T n) (m:nat), option T.
-
-Hypothesis getSome_Some: forall (n:nat) (vls: Vector.t T n) m,
-  forall (lt: (m < n)%nat),
-  getSome vls m = Some (Vector.nth_order vls lt).
-
-Hypothesis getSome_None: forall (n:nat) (vls: Vector.t T n) m,
-  (m >= n)%nat -> getSome vls m = None.
-
-(*
-Hypothesis initial_mem_matches:
-  let '(opv1,opv2,opv3) := glue vls in 
-  handler_initial_mem_matches opcode opv1 opv2 opv3 pcl m0.
-*)
 Hypothesis initial_mem_matches:
   handler_initial_mem_matches
     opcode
-    (getSome vls 0)
-    (getSome vls 1)
-    (getSome vls 2)
+    (nth_order_option vls 0)
+    (nth_order_option vls 1)
+    (nth_order_option vls 2)
     pcl m0.
 
 Definition eval_var := mk_eval_var vls pcl.
@@ -839,19 +871,23 @@ Lemma genVar_spec:
                        s = CData (labToZ l, handlerLabel) :: s0).
 Proof.
   intros v l Heval_var s0.
-  destruct v; simpl; eapply loadFrom_spec.
+  destruct v; simpl; eapply loadFrom_spec;
+  simpl in *; unfold handler_initial_mem_matches in *.
 
-  (* Do the first case, the rest are similar ... *)
-  simpl in *.
-  unfold handler_initial_mem_matches in *.
-  assert (0 < n)%nat by omega.
-  erewrite (getSome_Some n vls 0) with (lt:=l0) in *.
-  intuition.  
+  (* Most of the cases are very similar ... *)
+  Ltac nth_order_case k :=
+    erewrite (nth_order_option_Some n vls k) in *;
+    intuition;
+    subst; auto;
+    eauto.
+  nth_order_case 0%nat.
+  nth_order_case 1%nat.
+  nth_order_case 2%nat.
+
+  intuition.
   subst; auto.
   eauto.
-
-  (* XXX: ... these are similar *)
-  Admitted.
+Qed.
 
 Conjecture genExpr_spec: forall (e: rule_expr n),
   forall l,
