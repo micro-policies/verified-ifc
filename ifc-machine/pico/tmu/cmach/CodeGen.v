@@ -21,10 +21,10 @@ Context
 Definition code := list (@Instr T).
 
 (* Utility operations *)
-Definition pop := (@BranchNZ T) 1. 
-
+Definition pop: code := [(@BranchNZ T) 1].
+Definition nop: code := [].
 Definition push v := Push (v,handlerLabel).
-Definition push' v := [push v].
+Definition push' v: code := [push v].
 
 (* For multi-instruction operations that include an offset
    parameter, we adjust the offset if negative. 
@@ -91,28 +91,22 @@ Fixpoint cases (cbs : list (code * code)) (default: code) : code :=
 (* Operations on booleans.  Not all of these are currently used. *)
 (* Encoding of booleans: 0 = False, <> 0 = True *)
 
+Definition boolToZ (b: bool): Z  := if b then 1 else 0.
+
 Definition genFalse :=
-  [push 0].
+  push' (boolToZ false).
 
 Definition genTrue :=
-  [push 1].
+  push' (boolToZ true).
 
 Definition genAnd :=
-  [BranchNZ 3;
-   pop;
-   push 0].
+  ifNZ nop (pop ++ genFalse).
 
 Definition genOr :=
-  [BranchNZ 3] ++
-   branch 3 ++  (* length 2 *)
-  [pop;
-   push 1].
+  ifNZ (pop ++ genTrue) nop.
 
 Definition genNot :=
-  [BranchNZ 4;
-   push 1] ++
-   branch 2 ++ (* length 2 *)
-  [push 0].
+  ifNZ genFalse genTrue.
 
 (* --------------------- TMU Fault Handler code ----------------------------------- *)
 

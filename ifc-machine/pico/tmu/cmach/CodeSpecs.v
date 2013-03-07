@@ -807,8 +807,6 @@ Qed.
 (* ================================================================ *)
 (* Fault-handler-specific specs *)
 
-Definition boolToZ (b: bool): Z  := if b then 1 else 0.
-
 (* XXX: NC: Copied from ../mach_exec/TMUFaultRoutine.v. I'm not sure
 how that file relates to ./FaultRoutine.v *)
 Definition handler_initial_mem_matches 
@@ -920,7 +918,7 @@ Lemma genExpr_spec: forall (e: rule_expr n),
            (fun m s => m = m0 /\
                        s = CData (labToZ l, handlerLabel) :: s0).
 Proof.
-  induction e as [l0 | ? ?]; intros l Heval_expr s0;
+  induction e; intros ? Heval_expr ?;
     simpl; simpl in Heval_expr.
   eapply genVar_spec; eauto.
   eapply HT_compose.
