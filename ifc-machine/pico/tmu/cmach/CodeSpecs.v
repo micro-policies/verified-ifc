@@ -830,6 +830,7 @@ Proof.
   eapply push_spec''.
 Qed.
 
+Definition none_spec     := push_spec''.
 Definition genTrue_spec  := push_spec''.
 Definition genFalse_spec := push_spec''.
 
@@ -1171,7 +1172,7 @@ Proof.
     intros; false; omega.
 Qed.
 
-Conjecture genApplyRule_spec_Some_None:
+Lemma genApplyRule_spec_Some_None:
   forall l2,
     apply_rule (fetch_rule opcode) vls pcl = Some (None, l2) ->
     forall s0,
@@ -1182,8 +1183,30 @@ Conjecture genApplyRule_spec_Some_None:
                        s = CData (        1, handlerLabel) :: (* [Some (...)] *)
                            CData (        0, handlerLabel) :: (* [None] *)
                            CData (labToZ l2, handlerLabel) :: s0).
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+  cases (labRes (fetch_rule opcode)); try (solve [false; auto]).
+  inversion Happly; subst.
 
-Conjecture genApplyRule_spec_None:
+  eapply ite_spec_specialized with (v:=boolToZ true).
+    eapply genScond_spec; auto.
+
+    intros.
+    eapply HT_compose.
+
+      apply genExpr_spec.
+      eauto.
+
+      eapply some_spec.
+      eapply none_spec.
+
+    intros; false; omega.
+Qed.
+
+Lemma genApplyRule_spec_None:
     apply_rule (fetch_rule opcode) vls pcl = None ->
     forall s0,
       HT   (genApplyRule (fetch_rule opcode))
@@ -1191,5 +1214,19 @@ Conjecture genApplyRule_spec_None:
                        s = s0)
            (fun m s => m = m0 /\
                        s = CData (0, handlerLabel) :: s0). (* [None] *)
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+
+  eapply ite_spec_specialized with (v:=boolToZ false); intros.
+    eapply genScond_spec; auto.
+
+    unfold boolToZ in *; false; omega.
+
+    apply none_spec.
+Qed.
+
 
 End TMUSpecs.
