@@ -814,6 +814,22 @@ Proof.
   intuition; subst; auto.
 Qed.
 
+(* NC: this might be a way to do "transformer" style ... *)
+Lemma some_spec: forall c, forall m0 s0 s1,
+  HT c 
+     (fun m s => m = m0 /\ s = s0)
+     (fun m s => m = m0 /\ s = s1) ->
+  HT (some c)
+     (fun m s => m = m0 /\ s = s0)
+     (fun m s => m = m0 /\ s = (1,handlerLabel) ::: s1).
+Proof.
+  introv HTc.
+  unfold some.
+  eapply HT_compose.
+  eauto.
+  eapply push_spec''.
+Qed.
+
 Definition genTrue_spec  := push_spec''.
 Definition genFalse_spec := push_spec''.
 
@@ -1102,11 +1118,6 @@ Proof.
   eapply genOr_spec.
 Qed.
 
-(* XXX: Need to change the definition of [genRule] for this: it should
-   take an AllowModify, but not an opcode, since that check will be
-   part of the fault handler (a [cases] construct). The modified
-   [genRule] will be called [genApplyRule]. *)
-
 (* XXX: how to best model [option]s and monadic sequencing in the code
    gens?  E.g., for [genApplyRule_spec], I need to handle both [Some
    (Some l1, l2)] and [Some (None, l2)].  Do I do different things to
@@ -1116,19 +1127,14 @@ Qed.
    Also, modeling [option]s in the generated code might make the
    correctness proof easier? *)
 
-(* XXX: def this in ./CodeGen.v *)
-Hypothesis genApplyRule:  AllowModify n -> code.
-
-
-(* NC: NB: we should only need to reason about what [genApplyRule]
-   does for the current opcode, since that's the only code that is
-   going to run. *)
-
+(* NC: Nota bene: we should only need to reason about what
+   [genApplyRule] does for the current opcode, since that's the only
+   code that is going to run. *)
 
 (* This is def in ../amach/AbstractMachine.v *)
 Hypothesis fetch_rule: OpCode -> AllowModify n.
 
-Conjecture genApplyRule_spec_Some_Some:
+Lemma genApplyRule_spec_Some_Some:
   forall l1 l2,
     apply_rule (fetch_rule opcode) vls pcl = Some (Some l1, l2) ->
     forall s0,
@@ -1140,6 +1146,30 @@ Conjecture genApplyRule_spec_Some_Some:
                            CData (        1, handlerLabel) :: (* [Some l1] *)
                            CData (labToZ l1, handlerLabel) ::
                            CData (labToZ l2, handlerLabel) :: s0).
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+  cases (labRes (fetch_rule opcode)); try (solve [false; auto]).
+  inversion Happly; subst.
+
+  eapply ite_spec_specialized with (v:=boolToZ true).
+    eapply genScond_spec; auto.
+
+    intros.
+    eapply HT_compose.
+
+      apply genExpr_spec.
+      eauto.
+
+      eapply some_spec.
+      eapply some_spec.
+      eapply genExpr_spec.
+      eauto.
+
+    intros; false; omega.
+Qed.
 
 Conjecture genApplyRule_spec_Some_None:
   forall l2,
