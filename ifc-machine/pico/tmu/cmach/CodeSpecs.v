@@ -706,6 +706,39 @@ Proof.
   auto.
 Qed.
 
+Lemma HT_fold_constant_premise: forall (C:Prop) c P Q ,
+  (C -> HT c P Q) ->
+  HT c (fun m s => C /\ P m s) Q.
+Proof.
+  unfold HT.
+  iauto.
+Qed.
+
+(* A version of [ite_spec] that restricts the effect of the condition
+   code [c] to pushing one value to the stack.
+
+   In [genApplyRule_spec] we are considering a particular memory,
+   [m0], so, here it helps to make the memory a parameter. *)
+Lemma ite_spec_specialized: forall v c t f Q, forall m0 s0,
+  let P := fun m s => m = m0 /\ s = s0 in
+  HT c (fun m s => m = m0 /\ s = s0)
+       (fun m s => m = m0 /\ s = (v,handlerLabel) ::: s0) ->
+  (v <> 0 -> HT t P Q) ->
+  (v =  0 -> HT f P Q) ->
+  HT (ite c t f) P Q.
+Proof.
+  introv HTc HZ HNZ.
+  eapply ite_spec with (Pt := fun m s => v <> 0 /\ m = m0 /\ s = s0)
+                       (Pf := fun m s => v =  0 /\ m = m0 /\ s = s0).
+  eauto.
+  eapply HT_fold_constant_premise; auto.
+  eapply HT_fold_constant_premise; auto.
+
+  introv Heq.
+  simpl in Heq.
+  jauto.
+Qed.
+
 Lemma cases_spec_base: forall d P Q,
   HT   d P Q -> HT   (cases nil d) P Q.
 Proof.
