@@ -1228,5 +1228,48 @@ Proof.
     apply none_spec.
 Qed.
 
+Definition listify_apply_rule
+  (ar: option (option T * T)) (s0: stack): stack
+:=
+  match ar with
+  | None               => CData (0, handlerLabel) :: s0
+  | Some (None, l2)    => CData (1, handlerLabel) ::
+                          CData (0, handlerLabel) ::
+                          CData (labToZ l2, handlerLabel) :: s0
+  | Some (Some l1, l2) => CData (1, handlerLabel) ::
+                          CData (1, handlerLabel) ::
+                          CData (labToZ l1, handlerLabel) ::
+                          CData (labToZ l2, handlerLabel) :: s0
+  end.
+(*
+  match ar with
+  | None => CData (0, handlerLabel) :: s0
+  | Some (op, l2) => [ CData (1, handlerLabel) ] ++
+                     match op with
+                     | None    => [ CData (0, handlerLabel) ]
+                     | Some l1 => [ CData (1, handlerLabel)
+                                  , CData (labToZ l1, handlerLabel) ]
+                     end ++
+                     CData (labToZ l2, handlerLabel) :: s0
+  end.
+*)
+
+Lemma genApplyRule_spec:
+  forall ar,
+    apply_rule (fetch_rule opcode) vls pcl = ar ->
+    forall s0,
+      HT   (genApplyRule (fetch_rule opcode))
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = listify_apply_rule ar s0).
+Proof.
+  intros.
+  case_eq ar; intros p ?; subst.
+  - destruct p as [o l2]; case_eq o; intros l1 ?; subst.
+    + eapply genApplyRule_spec_Some_Some; eauto.
+    + eapply genApplyRule_spec_Some_None; eauto.
+  - eapply genApplyRule_spec_None; eauto.
+Qed.
 
 End TMUSpecs.
