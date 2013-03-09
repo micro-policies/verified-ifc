@@ -991,8 +991,10 @@ Proof.
     auto; unfold handler_initial_mem_matches in *; intuition. 
 Qed.
 
+Parameter fetch_rule_impl: fetch_rule_impl_type.
 Parameter (opcode: OpCode).
-Definition n := labelCount opcode. 
+Definition n := projT1 (fetch_rule_impl opcode).
+Definition am := projT2 (fetch_rule_impl opcode).
 Parameter (vls: Vector.t T n). 
 Parameter (pcl: T).
 Parameter (m0: memory).
@@ -1132,14 +1134,20 @@ Qed.
    [genApplyRule] does for the current opcode, since that's the only
    code that is going to run. *)
 
-(* This is def in ../amach/AbstractMachine.v *)
-Hypothesis fetch_rule: OpCode -> AllowModify n.
+(* XXX: could factor out all the [apply_rule] assumptions
+   below as:
+
+     Parameter ar.
+     Hypothesis apply_rule_eq: apply_rule am vls pcl = ar.
+
+   and then use [ar] in place of [apply_rule am vls pcl] everywhere.
+*)
 
 Lemma genApplyRule_spec_Some_Some:
   forall l1 l2,
-    apply_rule (fetch_rule opcode) vls pcl = Some (Some l1, l2) ->
+    apply_rule am vls pcl = Some (Some l1, l2) ->
     forall s0,
-      HT   (genApplyRule (fetch_rule opcode))
+      HT   (genApplyRule am)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -1152,7 +1160,7 @@ Proof.
   unfold genApplyRule.
   unfold apply_rule in Happly.
   cases_if in Happly.
-  cases (labRes (fetch_rule opcode)); try (solve [false; auto]).
+  cases (labRes am); try (solve [false; auto]).
   inversion Happly; subst.
 
   eapply ite_spec_specialized with (v:=boolToZ true).
@@ -1174,9 +1182,9 @@ Qed.
 
 Lemma genApplyRule_spec_Some_None:
   forall l2,
-    apply_rule (fetch_rule opcode) vls pcl = Some (None, l2) ->
+    apply_rule am vls pcl = Some (None, l2) ->
     forall s0,
-      HT   (genApplyRule (fetch_rule opcode))
+      HT   (genApplyRule am)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -1188,7 +1196,7 @@ Proof.
   unfold genApplyRule.
   unfold apply_rule in Happly.
   cases_if in Happly.
-  cases (labRes (fetch_rule opcode)); try (solve [false; auto]).
+  cases (labRes am); try (solve [false; auto]).
   inversion Happly; subst.
 
   eapply ite_spec_specialized with (v:=boolToZ true).
@@ -1207,9 +1215,9 @@ Proof.
 Qed.
 
 Lemma genApplyRule_spec_None:
-    apply_rule (fetch_rule opcode) vls pcl = None ->
+    apply_rule am vls pcl = None ->
     forall s0,
-      HT   (genApplyRule (fetch_rule opcode))
+      HT   (genApplyRule am)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -1256,9 +1264,9 @@ Definition listify_apply_rule
 
 Lemma genApplyRule_spec:
   forall ar,
-    apply_rule (fetch_rule opcode) vls pcl = ar ->
+    apply_rule am vls pcl = ar ->
     forall s0,
-      HT   (genApplyRule (fetch_rule opcode))
+      HT   (genApplyRule am)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
