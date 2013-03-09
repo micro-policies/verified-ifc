@@ -995,6 +995,45 @@ Proof.
   - cases b; auto.
 Qed.
 
+(* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
+   to propositional equality. *)
+Lemma genTestEqual_spec: forall c1 c2, forall v1 v2,
+  (forall m0 s0,
+     HT c1
+        (fun m s => m = m0 /\ s = s0)
+        (fun m s => m = m0 /\ s = (v1,handlerLabel) ::: s0)) ->
+  (forall m0 s0,
+     HT c2
+        (fun m s => m = m0 /\ s = s0)
+        (fun m s => m = m0 /\ s = (v2,handlerLabel) ::: s0)) ->
+  (forall m0 s0,
+     HT (genTestEqual c1 c2)
+        (fun m s => m = m0 /\ s = s0)
+        (fun m s => m = m0 /\ s = (boolToZ (v1 =? v2),handlerLabel) ::: s0)).
+Proof.
+  intros.
+  unfold genTestEqual.
+  eapply HT_compose; eauto.
+  eapply HT_compose; eauto.
+  eapply HT_compose.
+  eapply sub_spec.
+  eapply HT_weaken_conclusion.
+  eapply genNot_spec_general.
+
+  (*
+  Z.eqb_eq: forall n m : Z, (n =? m) = true <-> n = m
+  Z.eqb_neq: forall x y : Z, (x =? y) = false <-> x <> y
+  *)
+  Lemma basic_arithmetic:
+    forall v1 v2, (v2 - v1 =? 0) = (v1 =? v2).
+  Proof.
+    intuition; cases (v1 =? v2);
+    try (rewrite Z.eqb_eq in *); try (rewrite Z.eqb_neq in *); omega.
+  Qed.
+
+  rewrite basic_arithmetic in *; intuition.
+Qed.
+
 (* ================================================================ *)
 (* Fault-handler-specific specs *)
 

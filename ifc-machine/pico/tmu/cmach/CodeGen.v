@@ -164,8 +164,7 @@ Definition genTestEqual (c1 c2: code): code :=
   c1 ++
   c2 ++
   sub ++
-  (* If we allow "booleans" other than 0 and 1 we could use [not] here. *)
-  ifNZ (push' 0) (push' 1).
+  genNot.
 
 Definition genCheckOp (op:OpCode): code :=
   genTestEqual (push' (opCodeToZ op)) (loadFrom addrOpLabel).
