@@ -95,6 +95,9 @@ End Glue.
 (* ---------------------------------------------------------------- *)
 (* Specs for self-contained code *)
 
+(* ================================================================ *)
+(* Hoare Triples *)
+
 (* Instruction memory contains code [c] starting at address [pc]. *)
 Fixpoint code_at (pc: Z) (im: imemory) (c: code): Prop :=
   match c with
@@ -228,71 +231,203 @@ Proof.
    *)
 Qed.
 
-Lemma skipNZ_continuation_spec_NZ: forall c P v l,
-  v <> 0 ->
-  HT   (skipNZ (length c) ++ c)
-       (fun m s => (exists s', s = CData (v,l) :: s' 
-                               /\ P m s'))
-       P.
+(* ================================================================ *)
+(* Lemmas on Hoare Triples *)
+
+Lemma HT_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
+  HT   c P  Q ->
+  (forall m s, P' m s -> P m s) ->
+  HT   c P' Q.
 Proof.
-  intros c P v l Hv.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
-  destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. exists c0. 
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *. intuition. fold code_at in *.
-
-  (* Run an instruction *) 
-  eapply runsToEndStep; eauto. 
-  eapply cp_branchnz ; eauto. 
-
-  simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
-  rewrite Hif.
-  constructor 1; auto.
+  intros c P' P Q HTPQ P'__P.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
-Lemma skipNZ_spec_Z: forall n P v l,
-  v = 0 ->
-  HT   (skipNZ n)
-       (fun m s => (exists s', s = CData (v,l) :: s' 
-                               /\ P m s'))
-       P.
+Lemma HT_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+  HT   c P  Q ->
+  (forall m s, Q m s -> Q' m s) ->
+  HT   c P Q'.
 Proof.
-  intros c P v l Hv.
-  intros imem mem0 stk0 c0 fh n n' Hcode HP Hn'.
-  destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. eexists c0.
-  intuition.
+  intros ? ? ? ? HTPQ ?.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
+Qed.
 
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *. 
+Lemma HT_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
+  HT   c P Q ->
+  (forall m s, P' m s -> P m s) ->
+  (forall m s, Q m s -> Q' m s) ->
+  HT   c P' Q'.
+Proof.
+  intros.
+  eapply HT_weaken_conclusion; eauto.
+  eapply HT_strengthen_premise; eauto.
+Qed.
+
+(* A strengthened rule of consequence that takes into account that [Q]
+   need only be provable under the assumption that [P] is true for
+   *some* state.  This lets us utilize any "pure" content in [P] when
+   establishing [Q]. *)
+Lemma HT_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
+  HT   c P Q ->
+  (forall m s, P' m s -> P m s) ->
+  (forall m s, (exists m' s', P' m' s') -> Q m s -> Q' m s) ->
+  HT   c P' Q'.
+Proof.
+  intros ? ? ? ? ? HTPQ HPP' HP'QQ'.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
+  edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
+  eexists. eexists. eexists.
+  intuition.
+  eapply HP'QQ'; eauto.
+  eauto.
+Qed.
+
+Lemma HT_decide_join: forall T c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
+  (forall v, HT   c1 P1 Q -> ~ D v -> HT   c (P1' v) Q) ->
+  (forall v, HT   c2 P2 Q ->   D v -> HT   c (P2' v) Q) ->
+  (forall v, ~ D v \/ D v) ->
+  HT   c1 P1 Q ->
+  HT   c2 P2 Q ->
+  HT   c (fun m s => exists v, (~ D v /\ P1' v m s) \/ (D v /\ P2' v m s)) Q.
+Proof.
+  intros ? c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
+  unfold HT. intros imem mem0 stk0 c0 fh0 n n' H_code_at HP neq.
+  destruct HP as [v Htovornottov].
+  pose (decD v) as dec. intuition.
+
+  eapply spec1; eauto.
+  eapply spec2; eauto.
+Qed.
+
+Lemma HT_decide_join': forall T (v: T) c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
+  (HT   c1 P1 Q -> ~ D v -> HT   c P1' Q) ->
+  (HT   c2 P2 Q ->   D v -> HT   c P2' Q) ->
+  (forall v, ~ D v \/ D v) ->
+  HT   c1 P1 Q ->
+  HT   c2 P2 Q ->
+  (* Switched to implication here.  I think this is a weaker
+     assumption, and it's closer to the form of the [ifNZ] spec I want
+   *)
+  HT   c (fun m s => (~ D v -> P1' m s) /\ (D v -> P2' m s)) Q.
+Proof.
+  intros ? v c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
+  unfold HT. intros imem mem0 stk0 n n' H_code_at HP neq.
+  (* destruct HP as [v [[HDv HP1'] | [HnDv HP2']]]. *)
+  pose (decD v) as dec. intuition.
+Qed.
+
+(* Hoare triples are implications, and so this corresponds to the
+   quantifier juggling lemma:
+
+     (forall x, (P x -> Q)) ->
+     ((exists x, P x) -> Q)
+
+*)
+Lemma HT_forall_exists: forall T c P Q,
+  (forall (x:T), HT   c (P x) Q) ->
+  HT   c (fun m s => exists (x:T), P x m s) Q.
+Proof.
+  intros ? c P Q HPQ.
+  unfold HT.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode_at [x HPx] neq.
+  eapply HPQ; eauto.
+(*
+  (* Annoyingly, we can't use [HT_strengthen_premise] here, because
+     the existential [x] in [exists (x:T), P x m s] is not introduced
+     early enough :P.  I'm not alone:
+     https://sympa.inria.fr/sympa/arc/coq-club/2013-01/msg00055.html *)
+  intros ? c P Q HPQ.
+  eapply HT_strengthen_premise.
+  eapply HPQ.
+  intros m s [x HPx].
+  (* Error: Instance is not well-typed in the environment of ?14322 *)
+  (* instantiate (1:=x). *)
+  (* And similar problems with: *)
+  (* exact HPx. *)
+*)
+Qed.
+
+(* The other direction (which I don't need) is provable from
+   [HT_strengthen_premise] *)
+Lemma HT_exists_forall: forall T c P Q,
+  HT   c (fun m s => exists (x:T), P x m s) Q ->
+  (forall (x:T), HT   c (P x) Q).
+Proof.
+  intros ? c P Q HPQ x.
+  eapply HT_strengthen_premise.
+  eapply HPQ.
+  intuition.
+  eauto.
+Qed.
+
+Lemma HT_fold_constant_premise: forall (C:Prop) c P Q ,
+  (C -> HT c P Q) ->
+  HT c (fun m s => C /\ P m s) Q.
+Proof.
+  unfold HT.
+  iauto.
+Qed.
+
+(* ================================================================ *)
+(* Specs for concrete code *)
+
+(* Simplest example: the specification of a single instruction run in
+privileged mode *)
+Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
+  HT  [Add]
+      (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
+      (fun m2 s2 => m2 = m /\ s2 = CData (z1 + z2, handlerLabel) :: s).
+Proof.
+  (* Introduce hyps *)
+  intros.
+  unfold HT. intros. intuition.
+  eexists.
+  eexists.
+  eexists.
   intuition. 
 
+  (* Load an instruction *)
+  subst. simpl.
+  unfold code_at in *. intuition. 
+  
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_branchnz ; eauto. 
-  simpl.
-  constructor; auto.
+  eapply cp_add ; eauto.
+  
+  (* Finish running *)
+  eapply runsToEndDone; auto.
 Qed.
 
-Lemma skipNZ_continuation_spec_Z: forall c P Q v l,
-  v = 0 ->
-  HT   c P Q  ->
-  HT   (skipNZ (length c) ++ c)
-       (fun m s => (exists s', s = CData (v,l) :: s' 
-                               /\ P m s'))
-       Q.
+Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
+  HT   (Add :: Sub :: nil)
+      (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: CData (z2,l2) :: s)
+      (fun m2 s2 => m2 = m /\ s2 = CData (z1, handlerLabel) :: s).
 Proof.
-  intros c P Q v l Hv HTc.
-  eapply HT_compose.
-  eapply skipNZ_spec_Z; auto.
-  auto.
+  (* Introduce hyps *)
+  intros.
+  unfold HT. intros. intuition. subst. 
+  eexists.
+  eexists.
+  eexists.
+  intuition. 
+
+  (* Load an instruction *)
+  simpl.
+  unfold code_at in *. intuition. 
+  
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_add; eauto.
+  
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_sub; eauto.
+
+  (* Finish running *)
+  let t := (auto || simpl; omega) in
+  apply_f_equal @runsToEndDone; rec_f_equal t.
 Qed.
 
 Lemma sub_spec: forall z1 l1 z2 l2, forall m0 s0,
@@ -461,55 +596,71 @@ Proof.
   apply_f_equal @runsToEndDone; rec_f_equal ltac:(try (zify; omega); auto).
 Qed.
 
-Lemma HT_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
-  HT   c P  Q ->
-  (forall m s, P' m s -> P m s) ->
-  HT   c P' Q.
+Lemma skipNZ_continuation_spec_NZ: forall c P v l,
+  v <> 0 ->
+  HT   (skipNZ (length c) ++ c)
+       (fun m s => (exists s', s = CData (v,l) :: s' 
+                               /\ P m s'))
+       P.
 Proof.
-  intros c P' P Q HTPQ P'__P.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
-  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
-Qed.
-
-Lemma HT_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
-  HT   c P  Q ->
-  (forall m s, Q m s -> Q' m s) ->
-  HT   c P Q'.
-Proof.
-  intros ? ? ? ? HTPQ ?.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
-  edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
-Qed.
-
-Lemma HT_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
-  HT   c P Q ->
-  (forall m s, P' m s -> P m s) ->
-  (forall m s, Q m s -> Q' m s) ->
-  HT   c P' Q'.
-Proof.
-  intros.
-  eapply HT_weaken_conclusion; eauto.
-  eapply HT_strengthen_premise; eauto.
-Qed.
-
-
-(* A strengthened rule of consequence that takes into account that [Q]
-   need only be provable under the assumption that [P] is true for
-   *some* state.  This lets us utilize any "pure" content in [P] when
-   establishing [Q]. *)
-Lemma HT_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
-  HT   c P Q ->
-  (forall m s, P' m s -> P m s) ->
-  (forall m s, (exists m' s', P' m' s') -> Q m s -> Q' m s) ->
-  HT   c P' Q'.
-Proof.
-  intros ? ? ? ? ? HTPQ HPP' HP'QQ'.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
-  edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
-  eexists. eexists. eexists.
+  intros c P v l Hv.
+  intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
+  destruct HP as [stk1 [H_stkeq HPs']].
+  exists stk1. exists c0. 
   intuition.
-  eapply HP'QQ'; eauto.
-  eauto.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold skipNZ in *.
+  unfold code_at in *. simpl in *. intuition. fold code_at in *.
+
+  (* Run an instruction *) 
+  eapply runsToEndStep; eauto. 
+  eapply cp_branchnz ; eauto. 
+
+  simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
+  rewrite Hif.
+  constructor 1; auto.
+Qed.
+
+Lemma skipNZ_spec_Z: forall n P v l,
+  v = 0 ->
+  HT   (skipNZ n)
+       (fun m s => (exists s', s = CData (v,l) :: s' 
+                               /\ P m s'))
+       P.
+Proof.
+  intros c P v l Hv.
+  intros imem mem0 stk0 c0 fh n n' Hcode HP Hn'.
+  destruct HP as [stk1 [H_stkeq HPs']].
+  exists stk1. eexists c0.
+  intuition.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold skipNZ in *.
+  unfold code_at in *. simpl in *. 
+  intuition. 
+
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_branchnz ; eauto. 
+  simpl.
+  constructor; auto.
+Qed.
+
+Lemma skipNZ_continuation_spec_Z: forall c P Q v l,
+  v = 0 ->
+  HT   c P Q  ->
+  HT   (skipNZ (length c) ++ c)
+       (fun m s => (exists s', s = CData (v,l) :: s' 
+                               /\ P m s'))
+       Q.
+Proof.
+  intros c P Q v l Hv HTc.
+  eapply HT_compose.
+  eapply skipNZ_spec_Z; auto.
+  auto.
 Qed.
 
 Lemma skip_spec: forall c P,
@@ -569,40 +720,6 @@ Proof.
   apply skipNZ_continuation_spec_NZ; auto.
 Qed.
 
-Lemma HT_decide_join: forall T c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
-  (forall v, HT   c1 P1 Q -> ~ D v -> HT   c (P1' v) Q) ->
-  (forall v, HT   c2 P2 Q ->   D v -> HT   c (P2' v) Q) ->
-  (forall v, ~ D v \/ D v) ->
-  HT   c1 P1 Q ->
-  HT   c2 P2 Q ->
-  HT   c (fun m s => exists v, (~ D v /\ P1' v m s) \/ (D v /\ P2' v m s)) Q.
-Proof.
-  intros ? c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
-  unfold HT. intros imem mem0 stk0 c0 fh0 n n' H_code_at HP neq.
-  destruct HP as [v Htovornottov].
-  pose (decD v) as dec. intuition.
-
-  eapply spec1; eauto.
-  eapply spec2; eauto.
-Qed.
-
-Lemma HT_decide_join': forall T (v: T) c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
-  (HT   c1 P1 Q -> ~ D v -> HT   c P1' Q) ->
-  (HT   c2 P2 Q ->   D v -> HT   c P2' Q) ->
-  (forall v, ~ D v \/ D v) ->
-  HT   c1 P1 Q ->
-  HT   c2 P2 Q ->
-  (* Switched to implication here.  I think this is a weaker
-     assumption, and it's closer to the form of the [ifNZ] spec I want
-   *)
-  HT   c (fun m s => (~ D v -> P1' m s) /\ (D v -> P2' m s)) Q.
-Proof.
-  intros ? v c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
-  unfold HT. intros imem mem0 stk0 n n' H_code_at HP neq.
-  (* destruct HP as [v [[HDv HP1'] | [HnDv HP2']]]. *)
-  pose (decD v) as dec. intuition.
-Qed.
-
 Lemma ifNZ_spec_helper: forall v l t f Pt Pf Q,
   HT   t Pt Q ->
   HT   f Pf Q ->
@@ -635,50 +752,6 @@ Proof.
   intros m s [s' [s_eq [HNZ HZ]]].
   destruct (dec_eq v 0); subst; intuition;
     eexists; intuition.
-Qed.
-
-(* Hoare triples are implications, and so this corresponds to the
-   quantifier juggling lemma:
-
-     (forall x, (P x -> Q)) ->
-     ((exists x, P x) -> Q)
-
-*)
-Lemma HT_forall_exists: forall T c P Q,
-  (forall (x:T), HT   c (P x) Q) ->
-  HT   c (fun m s => exists (x:T), P x m s) Q.
-Proof.
-  intros ? c P Q HPQ.
-  unfold HT.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode_at [x HPx] neq.
-  eapply HPQ; eauto.
-(*
-  (* Annoyingly, we can't use [HT_strengthen_premise] here, because
-     the existential [x] in [exists (x:T), P x m s] is not introduced
-     early enough :P.  I'm not alone:
-     https://sympa.inria.fr/sympa/arc/coq-club/2013-01/msg00055.html *)
-  intros ? c P Q HPQ.
-  eapply HT_strengthen_premise.
-  eapply HPQ.
-  intros m s [x HPx].
-  (* Error: Instance is not well-typed in the environment of ?14322 *)
-  (* instantiate (1:=x). *)
-  (* And similar problems with: *)
-  (* exact HPx. *)
-*)
-Qed.
-
-(* The other direction (which I don't need) is provable from
-   [HT_strengthen_premise] *)
-Lemma HT_exists_forall: forall T c P Q,
-  HT   c (fun m s => exists (x:T), P x m s) Q ->
-  (forall (x:T), HT   c (P x) Q).
-Proof.
-  intros ? c P Q HPQ x.
-  eapply HT_strengthen_premise.
-  eapply HPQ.
-  intuition.
-  eauto.
 Qed.
 
 (* I need to existentially bind [v] for the [ite_spec]. May have been
@@ -726,14 +799,6 @@ Proof.
   apply ifNZ_spec_existential.
   auto.
   auto.
-Qed.
-
-Lemma HT_fold_constant_premise: forall (C:Prop) c P Q ,
-  (C -> HT c P Q) ->
-  HT c (fun m s => C /\ P m s) Q.
-Proof.
-  unfold HT.
-  iauto.
 Qed.
 
 (* A version of [ite_spec] that restricts the effect of the condition
@@ -901,64 +966,6 @@ Proof.
     apply nop_spec.
     reflexivity.
     simpl; jauto.
-Qed.
-
-
-(* Simplest example: the specification of a single instruction run in
-privileged mode *)
-Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
-  HT   (Add :: nil)
-      (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
-      (fun m2 s2 => m2 = m /\ s2 = CData (z1 + z2, handlerLabel) :: s).
-Proof.
-  (* Introduce hyps *)
-  intros.
-  unfold HT. intros. intuition.
-  eexists.
-  eexists.
-  eexists.
-  intuition. 
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition. 
-  
-  (* Run an instruction *)
-  eapply runsToEndStep; auto.
-  eapply cp_add ; eauto.
-  
-  (* Finish running *)
-  eapply runsToEndDone; auto.
-Qed.
-
-Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
-  HT   (Add :: Sub :: nil)
-      (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: CData (z2,l2) :: s)
-      (fun m2 s2 => m2 = m /\ s2 = CData (z1, handlerLabel) :: s).
-Proof.
-  (* Introduce hyps *)
-  intros.
-  unfold HT. intros. intuition. subst. 
-  eexists.
-  eexists.
-  eexists.
-  intuition. 
-
-  (* Load an instruction *)
-  simpl.
-  unfold code_at in *. intuition. 
-  
-  (* Run an instruction *)
-  eapply runsToEndStep; auto.
-  eapply cp_add; eauto.
-  
-  (* Run an instruction *)
-  eapply runsToEndStep; auto.
-  eapply cp_sub; eauto.
-
-  (* Finish running *)
-  let t := (auto || simpl; omega) in
-  apply_f_equal @runsToEndDone; rec_f_equal t.
 Qed.
 
 Lemma genNot_spec_general: forall v, forall m0 s0,
