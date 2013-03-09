@@ -961,6 +961,39 @@ Proof.
   apply_f_equal @runsToEndDone; rec_f_equal t.
 Qed.
 
+Lemma genNot_spec_general: forall v, forall m0 s0,
+  HT genNot
+     (fun m s => m = m0 /\ s = CData (v, handlerLabel) :: s0)
+     (fun m s => m = m0 /\ 
+                 s = CData (boolToZ (v =? 0),handlerLabel) :: s0).
+Proof.
+  intros.
+  unfold genNot.
+  cases (v =? 0) as Heq.
+  - apply Z.eqb_eq in Heq.
+    eapply HT_strengthen_premise.
+    + eapply ifNZ_spec_Z.
+      * eapply genTrue_spec.
+      * eauto.
+    + jauto.
+  - apply Z.eqb_neq in Heq.
+    eapply HT_strengthen_premise.
+    + eapply ifNZ_spec_NZ.
+      * eapply genFalse_spec.
+      * eauto.
+    + jauto.
+Qed.
+
+Lemma genNot_spec: forall b, forall m0 s0,
+  HT genNot
+     (fun m s => m = m0 /\ s = (boolToZ b, handlerLabel) ::: s0)
+     (fun m s => m = m0 /\ s = (boolToZ (negb b), handlerLabel) ::: s0).
+Proof.
+  intros.
+  eapply HT_weaken_conclusion.
+  - eapply genNot_spec_general.
+  - cases b; auto.
+Qed.
 
 (* ================================================================ *)
 (* Fault-handler-specific specs *)
