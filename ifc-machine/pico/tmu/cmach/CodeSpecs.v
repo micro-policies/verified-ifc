@@ -295,6 +295,28 @@ Proof.
   auto.
 Qed.
 
+Lemma sub_spec: forall z1 l1 z2 l2, forall m0 s0,
+  HT [Sub]
+     (fun m s => m = m0 /\ s = (z1,l1) ::: (z2,l2) ::: s0)
+     (fun m s => m = m0 /\ s = (z1 - z2,handlerLabel) ::: s0).
+Proof.
+  unfold HT; intros.
+  eexists.
+  eexists.
+  intuition.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold skipNZ in *.
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_sub; eauto.
+  simpl.
+  constructor; auto.
+Qed.
+
 Lemma push_spec: forall v P,
   HT   (push v :: nil)
        (fun m s => P m (CData (v,handlerLabel) :: s))
