@@ -472,3 +472,27 @@ Proof.
   destruct (a <? 0)%Z.  congruence.
   eapply update_list_spec; eauto. 
 Qed.
+
+Lemma app_same_length_eq (T: Type): forall (l1 l2 l3 l4: list T), 
+  l1++l2 = l3++l4 -> 
+  length l1 = length l3 ->
+  l1 = l3.
+Proof.
+  induction l1; intros; simpl in *.
+  destruct l3; auto. inv H0.
+  destruct l3. inv H0. simpl in *.
+  inv H. erewrite IHl1 ; eauto.
+Qed.  
+
+Lemma app_same_length_eq_rest (T: Type): forall (l1 l2 l3 l4: list T), 
+  l1++l2 = l3++l4 -> 
+  length l1 = length l3 ->
+  l2 = l4.
+Proof.
+  intros.
+  exploit app_same_length_eq; eauto.
+  intro Heq ; inv Heq.
+  gdep l3. induction l3 ; intros; auto.
+  simpl in *.
+  inv H. eauto.
+Qed.

@@ -164,6 +164,7 @@ Inductive run_tmu (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : 
       check_tags opcode opl1 opl2 opl3 pcl cs cs' ->
       runsToEscape cs' (CState c m fh i s ppc false) ->
       run_tmu opcode opl1 opl2 opl3 pcl cs (CState c m fh i s ppc false).
+
 (* TODO DD: MAYBE RUNS_TO_ESCAPE ONLY IF CHECK_TAG *)
 
 (** Concrete machine transition relation. Unprivileged mode. *)

@@ -22,10 +22,26 @@ Context {L: Type}
         {Latt: JoinSemiLattice L}
         {CLatt: ConcreteLattice L}.
 
-(** The fault handler code *)
-(*Definition faultHandler := CodeGen.faultHandler fetch_rule.
-*)
+(** The fault handler code and its correctness *)
+Definition fetch_rule_withsig := (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
+Definition faultHandler := @CodeGen.faultHandler L fetch_rule_withsig.
 
+(* Bit more glue *)
+Lemma our_handler_correct_succeed : 
+  forall m i s raddr c opcode vls  pcl  olr lpc op1l op2l op3l,
+  forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+         (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc))
+         (GLUE: glue vls = (op1l, op2l, op3l)),
+    exists c',
+    runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerLabel) true)
+                 (CState c' m faultHandler i s raddr false) /\
+    handler_final_mem_matches' olr lpc c c' false.
+Proof.
+  intros. 
+  exploit (@handler_correct_succeed _ _ _ fetch_rule_withsig opcode); eauto.
+  unfold glue in *. inv GLUE. auto. 
+Qed.  
+               
 Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
 | ms_nil : match_stacks nil nil
 | ms_cons_data: forall a s cs, 
@@ -36,10 +52,10 @@ Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
                   match_stacks (ARet a r:: s) (CRet a r false:: cs).
 
 Inductive match_states : @AS L -> @CS L -> Prop :=
-|  ms: forall m i astk cstk pc tmuc fh
+|  ms: forall m i astk tmuc cstk pc
               (STKS: match_stacks astk cstk),
          match_states (AState m i astk pc)
-                      (CState tmuc m fh i cstk pc false)
+                      (CState tmuc m faultHandler i cstk pc false)
 .
 
 (** Aux functions yet to be defined - or specified at least *)
@@ -48,26 +64,61 @@ Variable c_to_a_stack : list (@CStkElmt L) -> list (@StkElmt L).
 Axiom match_stacks_obs : forall s s', 
     match_stacks s s' ->
     c_to_a_stack s' = s.
+Hint Rewrite match_stacks_obs.
 
 (** Observing a concete cache is just projecting it a the abstract level *)
 Definition observe_cstate (cs: @CS L) : @AS L := 
   match cs with 
     | CState c m fh i s pc p => AState m i (c_to_a_stack s) pc
   end.
-
-(* DD: Don't be tempted to add success s1 as a hyothesis... *)
+           
+(* DD: Don't be tempted to add success s1 as a hypothesis... *)
 Axiom final_step_preserved: 
   forall s1 s2,
     (forall s1', ~ step_rules s1 s1') ->
     (match_states s1 s2) ->
     (forall s2', ~ cstep s2 s2')
     /\ s1 = observe_cstate s2.
-     
-Axiom step_preserved: 
+
+Lemma handler_cache_hit_read: forall rl m rpcl tmuc,
+                                handler_final_mem_matches' (Some rl) rpcl m tmuc false ->
+                                cache_hit_read tmuc false rl rpcl. 
+Proof.
+  intros; inv H ; auto.
+Qed.
+
+Lemma step_preserved: 
   forall s1 s1' s2,
     step_rules s1 s1' ->
     match_states s1 s2 ->
     s1 = observe_cstate s2 /\ (exists s2', cstep s2 s2' /\ match_states s1' s2').
+Proof.
+  intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch. 
+  split.
+  - Case "match_states".
+    simpl; erewrite match_stacks_obs; eauto.
+  - Case "cstep". 
+    unfold run_tmr in H0.
+    destruct (classic (cache_hit tmuc (mvector OpNoop None None None pcl))) as [CHIT | CMISS].
+    * exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false). 
+      split.
+      eapply cstep_nop with (pcv':= pcv) (pcl':= pcl) (rl0:= rpcl) ; eauto. 
+      econstructor  ; eauto. econstructor 3 ; eauto. 
+      admit. (* DD: in  MS if cache_hit and apply rule, then the result is in cache-read *)
+      inv H0. eapply ms ; eauto.
+    * 
+(*      exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc) ; eauto.
+      intros [c [Hruns Hmfinal]].
+      destruct rl. eapply handler_cache_hit_read in Hmfinal; eauto.
+      inv Hruns. clear UPRIV PRIV.
+      exists (CState c m faultHandler i cstk (pcv+1, pcl) false). 
+      split.
+      eapply cstep_nop with  ; eauto. 
+      econstructor  ; eauto. econstructor 3 ; eauto. simpl ; eauto.
+      econstructor 3 ; eauto. admit. (* if cache_hit then cache-read in MS *)
+      inv H2. eapply ms ; eauto.
+*)
+Admitted.
 
 Axiom succ_preserved: 
   forall s1 s2, 
@@ -81,30 +132,6 @@ Ltac allinv' :=
            H2:  ?f _ _ = _ |- _ ] => rewrite H1 in H2 ; inv H2
      end).
   
-
-Lemma app_same_length_eq (T: Type): forall (l1 l2 l3 l4: list T), 
-  l1++l2 = l3++l4 -> 
-  length l1 = length l3 ->
-  l1 = l3.
-Proof.
-  induction l1; intros; simpl in *.
-  destruct l3; auto. inv H0.
-  destruct l3. inv H0. simpl in *.
-  inv H. erewrite IHl1 ; eauto.
-Qed.  
-
-Lemma app_same_length_eq_rest (T: Type): forall (l1 l2 l3 l4: list T), 
-  l1++l2 = l3++l4 -> 
-  length l1 = length l3 ->
-  l2 = l4.
-Proof.
-  intros.
-  exploit app_same_length_eq; eauto.
-  intro Heq ; inv Heq.
-  gdep l3. induction l3 ; intros; auto.
-  simpl in *.
-  inv H. eauto.
-Qed.
   
 Lemma cmach_priv_determ: 
   forall s s' s'', 
@@ -244,6 +271,7 @@ Proof.
   omega.
 Qed.
 
+
 Lemma runsToEnd_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
                                   (step_determ: forall s1 s2 s2', step s1 s2 -> step s1 s2' -> s2 = s2')
                                   n n' cs cs',
@@ -370,6 +398,7 @@ Proof.
     | [HH: cstep _ _ |- _ ] => inv HH; try congruence; auto
   end;
     (allinv'; try reflexivity).
+  assert (Heq:= run_tmu_determ H13 H0); eauto. inv Heq.
 Admitted.
 
 
