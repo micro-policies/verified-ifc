@@ -953,6 +953,53 @@ Proof.
   intuition; subst; auto.
 Qed.
 
+Section IndexedCasesSpec.
+
+Parameter cnil: code.
+Parameter Qnil: GProp.
+Parameter I: Type.
+Parameter genC genB: I -> code.
+Parameter genQ: I -> GProp.
+Parameter genV: I -> HFun.
+
+(* XXX: make these folds ? *)
+Definition indexed_post: (list I) -> GProp :=
+  fix f (indices: list I) :=
+    fun m0 s0 m s =>
+      match indices with
+      | []            => Qnil m0 s0 m s
+      | i :: indices' => (genV i m0 s0 <> 0 -> genQ i m0 s0 m s) /\
+                         (genV i m0 s0 =  0 -> f indices' m0 s0 m s)
+      end.
+
+Parameter P: HProp.
+Definition indexed_hyps: (list I) -> Prop :=
+  fix f (indices: list I) :=
+    match indices with
+    | []            => True
+    | i :: indices' => GT_push_v (genC i) P (genV i) /\
+                       GT (genB i) P (genQ i) /\
+                       f indices'
+    end.
+
+Definition indexed_cases(indices: list I): code :=
+  cases (map (fun i => (genC i, genB i)) indices) cnil.
+
+Lemma indexed_cases_spec: forall is,
+  GT cnil P Qnil ->
+  indexed_hyps is ->
+  GT (indexed_cases is)
+     P
+     (indexed_post is).
+Proof.
+  induction is; intros.
+  - eapply cases_spec_base_GT_specialized; eauto.
+  - simpl in *.
+    eapply cases_spec_step_GT_specialized; iauto.
+Qed.
+
+End IndexedCasesSpec.
+
 (* NC: this might be a way to do "transformer" style ... *)
 Lemma some_spec: forall c, forall m0 s0 s1,
   HT c 
