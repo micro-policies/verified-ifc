@@ -51,12 +51,23 @@ Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
                   match_stacks s cs ->
                   match_stacks (ARet a r:: s) (CRet a r false:: cs).
 
+Definition cache_up2date tmuc :=
+  forall opcode vls pcl rl rpcl,
+  forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
+  forall  op1l op2l op3l, 
+  forall (CHIT: cache_hit tmuc (mvector opcode op1l op2l op3l pcl))
+         (GLUE: glue vls = (op1l, op2l, op3l)),
+    match rl with 
+        | Some l => cache_hit_read tmuc false l rpcl
+        | None => exists l', cache_hit_read tmuc false l' rpcl
+    end.
+
 Inductive match_states : @AS L -> @CS L -> Prop :=
 |  ms: forall m i astk tmuc cstk pc
+              (CACHE: cache_up2date tmuc)
               (STKS: match_stacks astk cstk),
          match_states (AState m i astk pc)
-                      (CState tmuc m faultHandler i cstk pc false)
-.
+                      (CState tmuc m faultHandler i cstk pc false).
 
 (** Aux functions yet to be defined - or specified at least *)
 Variable c_to_a_stack : list (@CStkElmt L) -> list (@StkElmt L). 
@@ -73,6 +84,7 @@ Definition observe_cstate (cs: @CS L) : @AS L :=
   end.
            
 (* DD: Don't be tempted to add success s1 as a hypothesis... *)
+(* DD: Need to be updated later when we add proper behaviors to programs *)
 Axiom final_step_preserved: 
   forall s1 s2,
     (forall s1', ~ step_rules s1 s1') ->
@@ -80,11 +92,218 @@ Axiom final_step_preserved:
     (forall s2', ~ cstep s2 s2')
     /\ s1 = observe_cstate s2.
 
-Lemma handler_cache_hit_read: forall rl m rpcl tmuc,
-                                handler_final_mem_matches' (Some rl) rpcl m tmuc false ->
-                                cache_hit_read tmuc false rl rpcl. 
+Lemma handler_cache_hit_read_some: 
+  forall rl m rpcl tmuc,
+    handler_final_mem_matches' (Some rl) rpcl m tmuc false ->
+    cache_hit_read tmuc false rl rpcl. 
 Proof.
   intros; inv H ; auto.
+Qed.
+
+Lemma handler_cache_hit_read_none: 
+  forall m rpcl tmuc,
+    handler_final_mem_matches' None rpcl m tmuc false ->
+    exists rl, cache_hit_read tmuc false rl rpcl. 
+Proof.
+  intros; inv H ; auto.
+Qed.
+
+Ltac allinv' :=
+  allinv ; 
+    (match goal with 
+       | [ H1:  ?f _ _ = _ , 
+           H2:  ?f _ _ = _ |- _ ] => rewrite H1 in H2 ; inv H2
+     end).
+
+Definition optionlabToZ (ol: option L) : Z := 
+      match ol with 
+          | None => labToZ bot
+          | Some l => labToZ l
+      end.
+
+Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (op1 op2 op3: option L) (pcl: L):=
+  match upd_m addrOpLabel ((opCodeToZ opcode),handlerLabel) tmuc with 
+    | None => tmuc
+    | Some tmuc1 => 
+      match upd_m addrTag1 ((optionlabToZ op1),handlerLabel) tmuc1  with 
+        | None => tmuc
+        | Some tmuc2 => 
+          match upd_m addrTag2 ((optionlabToZ op2),handlerLabel) tmuc2 with 
+              | None => tmuc
+              | Some tmuc3 =>
+                match upd_m addrTag3 ((optionlabToZ op3),handlerLabel) tmuc3  with 
+                  | None => tmuc
+                  | Some tmuc4 => 
+                    match upd_m addrTagPC ((labToZ pcl),handlerLabel) tmuc4 with
+                        | None => tmuc
+                        | Some tmuc5 => tmuc5
+                    end
+                end
+          end
+      end
+  end.
+
+Axiom update_cache_spec : 
+  forall tmuc opcode op1 op2 op3 pcl,
+    update_cache_spec_mvec tmuc (update_cache tmuc opcode op1 op2 op3 pcl).
+
+Axiom update_cache_hit : 
+  forall tmuc opcode op1 op2 op3 pcl,
+    cache_hit (update_cache tmuc opcode op1 op2 op3 pcl)
+              (mvector opcode op1 op2 op3 pcl).
+Hint Resolve update_cache_hit update_cache_spec.
+
+Lemma handler_final_cache_hit_preserved: 
+  forall tmuc tmuc' rl opcode op1 op2 op3 rpcl pcl,
+    handler_final_mem_matches' rl rpcl tmuc tmuc' false ->
+    cache_hit tmuc  (mvector opcode op1 op2 op3 pcl) ->
+    cache_hit tmuc' (mvector opcode op1 op2 op3 pcl).
+Admitted. 
+  (* automation needed here. provable anyway... *)
+  (* intros until 0. intros Hfinal HCHIT. inv HCHIT. *)
+  (* inv Hfinal. unfold update_cache_spec_rvec in *. *)
+  (* constructor. *)
+  (* - admit. *)
+  (*   destruct op1; (constructor; auto); *)
+  (*   (inv Hinv; rewrite <- H1);  *)
+  (*   (rewrite H0 ; eauto);  *)
+  (*   match goal with  *)
+  (*         | [ |- ?l1 <> ?l2 ] => unfold l1, l2; congruence *)
+  (*   end *)
+
+Axiom labToZ_inj: forall l1 l2, labToZ l1 = labToZ l2 -> l1 = l2.
+Lemma opCodeToZ_inj: forall o1 o2, opCodeToZ o1 = opCodeToZ o2 -> o1 = o2.
+Proof.
+  intros o1 o2 Heq.
+  destruct o1, o2; inv Heq; try congruence.
+Qed.
+
+Lemma glue_cons_hd: forall n0 a v0 b v3,
+  S n0 <= 3 ->
+  glue (Vector.cons L a n0 v0) = glue (Vector.cons L b n0 v3) ->
+  a = b.
+Proof.
+  intros.
+  inv H0.
+  unfold nth_order_option in H3, H4. 
+  unfold Vector.nth_order in H2. simpl in H2. auto. 
+Qed.
+
+Lemma nth_order_option_cons:
+  forall nth n a v,
+    nth_order_option (Vector.cons L a n v) (S nth) 
+    = nth_order_option v nth.
+Proof.
+  induction n; intros.
+  - unfold nth_order_option. 
+    case_eq (le_lt_dec (S n) 1); case_eq (le_lt_dec n 0); intros; auto;
+    try (zify ; omega).
+  - unfold nth_order_option.
+    case_eq (le_lt_dec (S (S n)) (S nth)); case_eq (le_lt_dec (S n) nth); intros; auto;
+    try (zify ; omega).
+    unfold Vector.nth_order. simpl. symmetry.
+    erewrite of_nat_lt_proof_irrel ; eauto.
+Qed.
+    
+Lemma glue_cons_tail: 
+  forall n0 a v0 b v3,
+    (n0 <= 2)%nat ->
+    glue (Vector.cons L a n0 v0) = glue (Vector.cons L b n0 v3) ->
+    glue v0 = glue v3.
+Proof.
+  intros. inv H0.
+  unfold glue. 
+  repeat (rewrite nth_order_option_cons in H3). inv H3. clear H1.
+  repeat (rewrite nth_order_option_cons in H4). inv H4. clear H1.
+  replace (nth_order_option v0 2) with (nth_order_option v3 2). 
+  auto.
+  unfold nth_order_option. 
+  case_eq (le_lt_dec n0 2); intros; auto.
+  zify ; omega.
+Qed.
+  
+Lemma glue_inj: forall n (v1 v2: Vector.t L n), n <= 3 -> glue v1 = glue v2 -> v1 = v2.
+Proof.
+  intros n v1 v2.
+  set (P:= fun n (v1 v2: Vector.t L n) => n <= 3 -> glue v1 = glue v2 -> v1 = v2) in *.
+  eapply Vector.rect2 with (P0:= P); eauto.
+  unfold P. auto.
+  intros.
+  unfold P in *. intros. 
+  exploit glue_cons_hd; eauto. intros Heq ; inv Heq.
+  eapply glue_cons_tail in H1; eauto. 
+  exploit H ; eauto. zify; omega.
+  intros Heq. inv Heq.
+  reflexivity. zify ; omega.
+Qed.  
+
+Lemma cache_hit_unique_opcode_pc : 
+  forall c opcode opcode' pcl pcl' op1l op1l' op2l op2l' op3l op3l',
+  forall
+    (CHIT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+    (CHIT': cache_hit c (mvector opcode' op1l' op2l' op3l' pcl')),
+    pcl = pcl' /\ opcode = opcode'.
+Proof.
+  intros. inv CHIT; inv CHIT'. split.
+  - inv TAGPC; inv TAGPC0. allinv'. 
+    eapply labToZ_inj; auto.
+  - inv OP; inv OP0. allinv'.
+    eapply opCodeToZ_inj ; auto.
+Qed.
+
+Lemma cache_hit_unique_ops opcode : 
+  forall c  vls vls' op1l op1l' op2l op2l' op3l op3l' rl rl' rpcl rpcl' pcl,
+  forall
+    (CHIT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+    (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
+    (GLUE: glue vls = (op1l, op2l, op3l))
+    
+    (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
+    (CHIT': cache_hit c (mvector opcode op1l' op2l' op3l' pcl))
+    (GLUE': glue vls' = (op1l', op2l', op3l')),
+
+    (op1l = op1l') /\ (op2l = op2l') /\ (op3l = op3l').
+Proof.
+  intros. 
+  destruct op1l, op1l', op2l, op2l', op3l, op3l'; simpl in *;
+  (unfold glue, nth_order_option in GLUE, GLUE';
+  destruct (le_lt_dec (labelCount opcode) 0); 
+    destruct (le_lt_dec (labelCount opcode) 1); 
+    destruct (le_lt_dec (labelCount opcode) 2); 
+    try congruence);  
+  (inv GLUE; inv GLUE'); repeat (split ; auto);
+  unfold mvector in CHIT, CHIT'; simpl in *;
+  (inv CHIT; inv CHIT';  
+  (match goal with 
+    | [H1: tag_in_mem c _ (labToZ ?v1), 
+       H2: tag_in_mem c _ (labToZ ?v2) |- Some ?v1 = Some ?v2 ] => inv H1; inv H2; allinv'
+   end;
+   match goal with 
+     | [ HH: labToZ _ = labToZ _ |- _] => 
+       (eapply labToZ_inj in HH; eauto); 
+     inv HH; auto
+   end)).
+Qed.
+
+Lemma cache_hit_unique opcode : 
+  forall c  vls vls' op1l op1l' op2l op2l' op3l op3l' rl rl' rpcl rpcl' pcl,
+  forall
+    (CHIT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+    (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
+    (GLUE: glue vls = (op1l, op2l, op3l))
+    
+    (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
+    (CHIT': cache_hit c (mvector opcode op1l' op2l' op3l' pcl))
+    (GLUE': glue vls' = (op1l', op2l', op3l')),
+
+    vls = vls'.
+Proof.
+  intros.
+  assert (HH:= cache_hit_unique_ops CHIT RULE GLUE RULE' CHIT' GLUE'); eauto.
+  decompose [and] HH. inv H. clear HH.
+  eapply glue_inj; eauto.
+  destruct opcode; simpl; omega. 
+  congruence.
 Qed.
 
 Lemma step_preserved: 
@@ -93,45 +312,63 @@ Lemma step_preserved:
     match_states s1 s2 ->
     s1 = observe_cstate s2 /\ (exists s2', cstep s2 s2' /\ match_states s1' s2').
 Proof.
-  intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch. 
+  intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
   split.
   - Case "match_states".
     simpl; erewrite match_stacks_obs; eauto.
-  - Case "cstep". 
+  - Case "Nop". 
     unfold run_tmr in H0.
     destruct (classic (cache_hit tmuc (mvector OpNoop None None None pcl))) as [CHIT | CMISS].
     * exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false). 
       split.
-      eapply cstep_nop with (pcv':= pcv) (pcl':= pcl) (rl0:= rpcl) ; eauto. 
+      destruct rl; [inv H0|].
+      unfold cache_up2date in CACHE. 
+      assert (exists l' : L, cache_hit_read tmuc false l' rpcl).
+      eapply CACHE with (1:= H0); eauto. destruct H1 as [ll Hll].
+      eapply cstep_nop with (pcv':= pcv) (pcl':= pcl) (rl:= ll) ; eauto. 
       econstructor  ; eauto. econstructor 3 ; eauto. 
-      admit. (* DD: in  MS if cache_hit and apply rule, then the result is in cache-read *)
-      inv H0. eapply ms ; eauto.
-    * 
-(*      exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc) ; eauto.
+      inv H0. auto. 
+      inv H0. apply ms ; auto.
+    * set (tmuc':= (update_cache tmuc OpNoop None None None pcl)) in *.
+      assert (CHIT' : cache_hit tmuc' (mvector OpNoop None None None pcl))
+      by (eapply update_cache_hit; eauto).
+      exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc'); eauto.
       intros [c [Hruns Hmfinal]].
-      destruct rl. eapply handler_cache_hit_read in Hmfinal; eauto.
-      inv Hruns. clear UPRIV PRIV.
-      exists (CState c m faultHandler i cstk (pcv+1, pcl) false). 
-      split.
-      eapply cstep_nop with  ; eauto. 
-      econstructor  ; eauto. econstructor 3 ; eauto. simpl ; eauto.
-      econstructor 3 ; eauto. admit. (* if cache_hit then cache-read in MS *)
-      inv H2. eapply ms ; eauto.
-*)
+      { destruct rl; exists (CState c m faultHandler i cstk (pcv+1, rpcl) false).
+        - split.
+             + eapply cstep_nop with (pcv':= pcv) (pcl':= pcl)   ; eauto. 
+               eapply handler_cache_hit_read_some; eauto.
+             + econstructor ; eauto. 
+               unfold cache_up2date; intros. 
+               exploit handler_final_cache_hit_preserved; eauto. intros.
+               assert (opcode = OpNoop). (eapply cache_hit_unique_opcode_pc; eauto). inv H2.
+               assert (pcl0 = pcl). (eapply cache_hit_unique_opcode_pc; eauto).  inv H2.
+               assert (vls = <||>).                
+               eapply cache_hit_unique with (1:= CHIT) (5:= H1); eauto. inv H2. 
+               unfold glue, nth_order_option in GLUE; simpl in GLUE. inv GLUE.
+               allinv'. inv H0.
+       -  split.
+             + destruct Hmfinal as [[ll Hll] Hspec].
+               eapply cstep_nop with (pcv':= pcv) (pcl':= pcl) ; eauto.                
+             + econstructor ; eauto. 
+               unfold cache_up2date; intros. 
+               exploit handler_final_cache_hit_preserved; eauto. intros.
+               assert (opcode = OpNoop). (eapply cache_hit_unique_opcode_pc; eauto). inv H2.
+               assert (pcl0 = pcl). (eapply cache_hit_unique_opcode_pc; eauto).  inv H2.
+               assert (vls = <||>).
+               eapply cache_hit_unique with (1:= CHIT); eauto. inv H2. 
+               unfold glue, nth_order_option in GLUE; simpl in GLUE. inv GLUE.
+               allinv'. 
+               inversion H0. rewrite <- H3 in *. 
+               eapply handler_cache_hit_read_none; eauto.
+      }
+  - Case "Add".
 Admitted.
 
 Axiom succ_preserved: 
   forall s1 s2, 
     match_states s1 s2 -> 
     success s1 <-> c_success s2.
-
-Ltac allinv' :=
-  allinv ; 
-    (match goal with 
-       | [ H1:  ?f _ _ = _ , 
-           H2:  ?f _ _ = _ |- _ ] => rewrite H1 in H2 ; inv H2
-     end).
-  
   
 Lemma cmach_priv_determ: 
   forall s s' s'', 
@@ -260,43 +497,7 @@ Proof.
     inv e. eapply Hid; eauto. destruct (Z_eq_dec i0 addrTagPC).
     inv e. eapply Hid; eauto. eapply H_OTHERS; eauto.
 Qed.
-
-(*
-Lemma runsToEnd_pc_increase {T: Type}: forall (step: @CS T -> @CS T -> Prop) n n' cs cs',
-  runsToEnd step n n' cs cs'  -> 
-  n <= n' .
-Proof.
-  induction 1; intros.
-  omega.
-  omega.
-Qed.
-
-
-Lemma runsToEnd_determ {T: Type}: forall (step: @CS T -> @CS T -> Prop)
-                                  (step_determ: forall s1 s2 s2', step s1 s2 -> step s1 s2' -> s2 = s2')
-                                  n n' cs cs',
-   runsToEnd step n n' cs cs' ->
-   forall  cs'', runsToEnd step n n' cs cs'' ->
-   cs' = cs''.
-Proof.
-  induction 2; intros.
-  
-  inv H0. auto.
-          eapply @runsToEnd_pc_increase in H5; eauto. zify ; omega.
-
-  inv H3; inv H4.
-  zify ; omega.
-  
-  assert (Heq: cs' = cs''). eapply step_determ; eauto. inv Heq.
-  eapply IHrunsToEnd ; eauto.  
-
-  eapply @runsToEnd_pc_increase in H9; eauto. zify ; omega.
-  
-  assert (Heq: cs' = cs'1). eapply step_determ; eauto. inv Heq.
-  eapply IHrunsToEnd ; eauto.  
-Qed.
-*)
-  
+ 
 Lemma no_unpriv_step : forall s1, priv s1 = false -> forall s2, ~cstep_p s1 s2.
 Proof.
   intros. intro S; induction S; simpl in H; try congruence. 
@@ -382,7 +583,7 @@ Lemma run_tmu_determ: forall opcode op1 op2 op3 pcl cs cs' cs'',
   run_tmu opcode op1 op2 op3 pcl cs cs'' ->
   cs' = cs''.
 Proof.
-  induction 1; intros; inv H3.
+  induction 1; intros. inv H2.
   replace cs'0 with cs' in * by (eapply check_cache_determ ; eauto).
   eapply runsToEscape_determ; eauto.
 Qed.

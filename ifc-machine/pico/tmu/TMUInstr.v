@@ -16,7 +16,8 @@ Inductive Instr {Label: Type}:=
   | Call : nat -> bool -> Instr 
     (* Call n b : call to a function with n arguments, the boolean
        indicates a value or void returning function DD: do we really
-       need the boolean flag? *) 
+       need the boolean flag? 
+     DD: YES WE NEED IT !! *) 
   | Ret: Instr 
   | VRet : Instr 
   | Halt : Instr .
@@ -40,4 +41,3 @@ Inductive OpCode : Type :=
 | OpRet 
 | OpVRet
 .
-

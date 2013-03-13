@@ -160,7 +160,7 @@ Inductive runsToEscape : @CS T -> @CS T -> Prop :=
 Inductive run_tmu (opcode: OpCode) (opl1 opl2 opl3:option T) (pcl:T) (cs: CS) : @CS T -> Prop :=
 | rtmu_upriv : forall cs' c m s ppc fh i,
       priv cs = false ->
-      pc cs = ppc ->
+      (* DD: Not sure we need this: (pc cs = ppc) *)
       check_tags opcode opl1 opl2 opl3 pcl cs cs' ->
       runsToEscape cs' (CState c m fh i s ppc false) ->
       run_tmu opcode opl1 opl2 opl3 pcl cs (CState c m fh i s ppc false).

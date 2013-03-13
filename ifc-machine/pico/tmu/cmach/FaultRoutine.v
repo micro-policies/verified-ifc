@@ -90,10 +90,12 @@ Conjecture handler_correct_fail :
 
 (*  We also have the following: 
     - the handler code terminates DONE
-    - it does not modifies the user program UPCOMING
-    - it preserves the handler code itself UPCOMING
-In fact, preservation of all code (user and handler) is actually a universal property of the machines,
-and should really be built into their definition, i.e. imem should not be part of the state. 
+    - it does not modifies the user program DONE (* SEE COMMENT BELOW *)
+    - it preserves the handler code itself DONE  (* SEE COMMENT BELOW *)
+
+   In fact, preservation of all code (user and handler) is actually a
+   universal property of the machines, and should really be built into
+   their definition, i.e. imem should not be part of the state.
 *)
 
 End HandlerCorrect.
