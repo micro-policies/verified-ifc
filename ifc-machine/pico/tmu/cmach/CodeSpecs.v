@@ -982,13 +982,10 @@ Definition indexed_hyps: (list I) -> Prop :=
                        f indices'
     end.
 
-Definition indexed_cases(indices: list I): code :=
-  cases (map (fun i => (genC i, genB i)) indices) cnil.
-
 Lemma indexed_cases_spec: forall is,
   GT cnil P Qnil ->
   indexed_hyps is ->
-  GT (indexed_cases is)
+  GT (indexed_cases cnil genC genB is)
      P
      (indexed_post is).
 Proof.

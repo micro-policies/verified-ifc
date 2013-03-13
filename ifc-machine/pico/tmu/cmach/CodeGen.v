@@ -88,6 +88,9 @@ Fixpoint cases (cbs : list (code * code)) (default: code) : code :=
   | (c,b) :: cbs' => ite c b (cases cbs' default)
   end.
 
+Definition indexed_cases {I} (cnil: code) (genC genB: I -> code) (indices: list I): code :=
+  cases (map (fun i => (genC i, genB i)) indices) cnil.
+
 (* Operations on booleans.  Not all of these are currently used. *)
 (* Encoding of booleans: 0 = False, <> 0 = True *)
 
@@ -166,19 +169,24 @@ Definition genTestEqual (c1 c2: code): code :=
   sub ++
   genNot.
 
+Section FaultHandler.
+
 Definition genCheckOp (op:OpCode): code :=
   genTestEqual (push' (opCodeToZ op)) (loadFrom addrOpLabel).
 
 Definition fetch_rule_impl_type: Type := forall (opcode:OpCode),  {n:nat & AllowModify n}.
-Definition genFaultHandler (fetch_rule_impl: fetch_rule_impl_type) : code :=
-  let pair := fun op => (genCheckOp op, genApplyRule (projT2 (fetch_rule_impl op))) in
-  let cbs := map pair [OpNoop; OpAdd; OpSub; OpPush; OpLoad
-                      ;OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet]
-  in cases cbs none.
+Variable fetch_rule_impl: fetch_rule_impl_type.
+Definition opcodes := 
+  [OpNoop; OpAdd; OpSub; OpPush; OpLoad; OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet].
+Definition genApplyRule' op := genApplyRule (projT2 (fetch_rule_impl op)).
+Definition genFaultHandler: code :=
+  indexed_cases nop genCheckOp genApplyRule' opcodes.
 
 (* XXX: Run [genFaultHandler] and then fail or return depending on the result. *)
-Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  {n:nat & AllowModify n}) : code.
+Definition faultHandler: fetch_rule_impl_type -> code.
 Admitted.
+
+End FaultHandler.
 
 (*
 Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
