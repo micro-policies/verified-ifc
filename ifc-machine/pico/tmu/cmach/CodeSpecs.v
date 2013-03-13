@@ -1004,16 +1004,16 @@ Qed.
 
 (* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
    to propositional equality. *)
-Lemma genTestEqual_spec: forall c1 c2, forall v1 v2,
-  (forall m0 s0,
+Lemma genTestEqual_spec: forall c1 c2, forall v1 v2, forall m0,
+  (forall s0,
      HT c1
         (fun m s => m = m0 /\ s = s0)
         (fun m s => m = m0 /\ s = (v1,handlerLabel) ::: s0)) ->
-  (forall m0 s0,
+  (forall s0,
      HT c2
         (fun m s => m = m0 /\ s = s0)
         (fun m s => m = m0 /\ s = (v2,handlerLabel) ::: s0)) ->
-  (forall m0 s0,
+  (forall s0,
      HT (genTestEqual c1 c2)
         (fun m s => m = m0 /\ s = s0)
         (fun m s => m = m0 /\ s = (boolToZ (v1 =? v2),handlerLabel) ::: s0)).
@@ -1379,6 +1379,25 @@ Proof.
     + eapply genApplyRule_spec_Some_Some; eauto.
     + eapply genApplyRule_spec_Some_None; eauto.
   - eapply genApplyRule_spec_None; eauto.
+Qed.
+
+Lemma genCheckOp_spec:
+  forall opcode', forall s0,
+    HT (genCheckOp opcode')
+      (fun m s => m = m0 /\
+                  s = s0)
+      (fun m s => m = m0 /\
+                  s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
+                      ,handlerLabel) ::: s0).
+Proof.
+  intros.
+  unfold genCheckOp.
+  eapply genTestEqual_spec.
+  eapply push_spec''.
+  intros.
+  eapply loadFrom_spec.
+  unfold handler_initial_mem_matches in *.
+  iauto.
 Qed.
 
 End TMUSpecs.
