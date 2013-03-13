@@ -1400,4 +1400,23 @@ Proof.
   iauto.
 Qed.
 
+(* XXX: probably need a lemma like
+
+     forall o o', boolToZ (opCodeToZ o =? opCodeToZ o') <> 0 <-> o = o'
+
+   which follows from the [eqb_eq] and [eqb_neq] lemmas, and the
+   injectivity of [opCodeToZ]. *)
+
+(* Under our assumptions, [genFaultHandler] just runs the appropriate
+   [genApplyRule]: *)
+Conjecture genFaultHandler_spec:
+  forall ar,
+  apply_rule am vls pcl = ar ->
+    forall s0,
+      HT   (genFaultHandler fetch_rule_impl)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = listify_apply_rule ar s0).
+
 End TMUSpecs.
