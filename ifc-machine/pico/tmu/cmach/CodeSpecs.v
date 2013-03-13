@@ -901,6 +901,58 @@ Proof.
   intuition; subst; auto.
 Qed.
 
+(* XXX: move some of these defs up *)
+Definition HProp := memory -> stack -> Prop.
+(* [HProp] with ghost variables *)
+Definition GProp := memory -> stack -> HProp.
+(* Ghost prop Hoare triple *)
+Definition GT (c: code) (P: HProp) (Q: GProp) := forall m0 s0,
+  HT c (fun m s => P m0 s0 /\ m = m0 /\ s = s0)
+       (Q m0 s0).
+Definition HFun  := memory -> stack -> Z.
+
+Lemma cases_spec_base_GT_specialized: forall cnil P Qnil,
+  GT cnil P Qnil ->
+  GT (cases [] cnil) P Qnil.
+Proof.
+unfold GT; intros; eapply cases_spec_base.
+  eapply HT_strengthen_premise; eauto.
+Qed.
+
+Definition GT_push_v (c: code) (P: HProp) (v: HFun): Prop :=
+  GT c P (fun m0 s0 m s => P m0 s0 /\
+                           m = m0 /\
+                           s = CData (v m0 s0, handlerLabel) :: s0).
+Lemma cases_spec_step_GT_specialized: forall c v b cbs cnil P Qb Qcbs,
+  GT_push_v c P v ->
+  GT b P Qb ->
+  GT (cases cbs cnil) P Qcbs ->
+  GT (cases ((c,b)::cbs) cnil)
+     P
+     (fun m0 s0 m s => (v m0 s0 <> 0 -> Qb m0 s0 m s) /\
+                       (v m0 s0 = 0 -> Qcbs m0 s0 m s)).
+Proof.
+  intros c vc b cbs d P Qb Qcbs Hc Hb Hcbs.
+  intros m0 s0.
+  pose (Hc m0 s0) as Hcm0s0.
+  eapply ite_spec with (Pt := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 <> 0))
+                       (Pf := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 =  0)).
+  exact Hcm0s0.
+
+  apply (HT_consequence' _ _ _ _ _ (Hb m0 s0)); intuition.
+  elimtype False; jauto.
+
+  fold cases.
+  apply (HT_consequence' _ _ _ _ _ (Hcbs m0 s0)); intuition.
+  elimtype False; jauto.
+
+  intuition.
+  exists (vc m0 s0).
+  exists handlerLabel.
+  exists s0.
+  intuition; subst; auto.
+Qed.
+
 (* NC: this might be a way to do "transformer" style ... *)
 Lemma some_spec: forall c, forall m0 s0 s1,
   HT c 
