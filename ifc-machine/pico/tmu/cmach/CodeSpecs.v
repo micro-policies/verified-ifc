@@ -909,6 +909,18 @@ Definition GProp := memory -> stack -> HProp.
 Definition GT (c: code) (P: HProp) (Q: GProp) := forall m0 s0,
   HT c (fun m s => P m0 s0 /\ m = m0 /\ s = s0)
        (Q m0 s0).
+
+Lemma GT_consequence':
+  forall (c : code) (P' P: HProp) (Q Q': GProp),
+    GT c P Q ->
+    (forall m s, P' m s -> P m s) ->
+    (forall m0 s0 m s, P m0 s0 -> Q m0 s0 m s -> Q' m0 s0 m s) ->
+    GT c P' Q'.
+Proof.
+  unfold GT; intros.
+  eapply HT_consequence'; jauto.
+Qed.
+
 Definition HFun  := memory -> stack -> Z.
 
 Lemma cases_spec_base_GT_specialized: forall cnil P Qnil,
@@ -1536,6 +1548,82 @@ Qed.
    which follows from the [eqb_eq] and [eqb_neq] lemmas, and the
    injectivity of [opCodeToZ]. *)
 
+Section FaultHandlerSpec.
+
+Variable ar: option (option T * T).
+Hypothesis H_apply_rule: apply_rule am vls pcl = ar.
+
+
+(* Don't really need to specify [Qnil] since it will never run *)
+Definition Qnil: GProp := fun m0' s0 m s => True.
+Definition genV: OpCode -> HFun :=
+  fun i _ _ => boolToZ (opCodeToZ i =? opCodeToZ opcode).
+Definition genC: OpCode -> code := genCheckOp.
+Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl.
+(*
+Definition genQ: OpCode -> GProp :=
+         (fun i m0' s0 m s => i = opcode ->
+                              m = m0 /\
+                              s = listify_apply_rule ar s0).
+*)
+Definition genQ: OpCode -> GProp :=
+         (fun i m0' s0 m s => m = m0 /\
+                              s = listify_apply_rule ar s0).
+
+
+Lemma genCheckOp_spec_GT_push_v:
+  forall opcode',
+    GT_push_v (genC opcode')
+              (fun m s => m = m0)
+              (genV opcode').
+Proof.
+  intros; eapply GT_consequence'.
+  eapply genCheckOp_spec_GT.
+  eauto.
+  intuition (subst; intuition).
+Qed.
+
+
+Conjecture dec_eq_OpCode: forall (o o': OpCode),
+  o = o' \/ o <> o'. (* {o = o'} + {o <> o'}. *)
+
+Conjecture labToZ_inj: forall opcode opcode',
+  (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode) <> 0) ->
+  opcode' = opcode.
+
+Lemma genApplyRule'_spec_GT_guard_v:
+  forall opcode',
+    GT_guard_v (genB opcode')
+               (fun m s => m = m0)
+               (genV opcode')
+               (genQ opcode').
+Proof.
+  (* NC: This proof is ugly ... not sure where I've gone wrong, but I
+  have ... *)
+  intros.
+  cases (dec_eq_OpCode opcode' opcode) as Eq; clear Eq.
+  - eapply GT_consequence'.
+    + unfold genB, genApplyRule'.
+      subst opcode'.
+      fold am.
+      eapply genApplyRule_spec_GT; eauto.
+    + iauto.
+    + iauto.
+  - unfold GT_guard_v, GT, HT.
+    intros.
+    unfold genV in *.
+    pose (labToZ_inj opcode opcode').
+    false; intuition.
+Qed.
+
+Lemma H_indexed_hyps: indexed_hyps _ genC genB genQ genV (fun m s => m = m0) opcodes.
+Proof.
+  simpl.
+  intuition; solve
+    [ eapply genCheckOp_spec_GT_push_v
+    | eapply genApplyRule'_spec_GT_guard_v ].
+Qed.
+
 (* Under our assumptions, [genFaultHandler] just runs the appropriate
    [genApplyRule]: *)
 Conjecture genFaultHandler_spec:
@@ -1547,5 +1635,6 @@ Conjecture genFaultHandler_spec:
                        s = s0)
            (fun m s => m = m0 /\
                        s = listify_apply_rule ar s0).
+End FaultHandlerSpec.
 
 End TMUSpecs.
