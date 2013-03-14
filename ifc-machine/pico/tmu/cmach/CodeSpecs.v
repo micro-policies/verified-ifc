@@ -1624,17 +1624,53 @@ Proof.
     | eapply genApplyRule'_spec_GT_guard_v ].
 Qed.
 
+Lemma genFaultHandler_spec_GT:
+  GT (genFaultHandler fetch_rule_impl)
+     (fun m s => m = m0)
+     (fun m0' s0 m s => m = m0 /\
+                        s = listify_apply_rule ar s0).
+Proof.
+  intros.
+  eapply GT_consequence'.
+  unfold genFaultHandler.
+  eapply indexed_cases_spec with (Qnil:=Qnil).
+  - Case "default case that we never reach".
+    unfold GT; intros.
+    eapply HT_consequence.
+    eapply nop_spec.
+    iauto.
+    unfold Qnil; iauto.
+  - exact H_indexed_hyps.
+  - iauto.
+  - Case "untangle post condition".
+    simpl.
+    assert (0 = 0) by reflexivity.
+    assert (1 <> 0) by omega.
+    (* NC: Otherwise [cases] fails.  Thankfully, [cases] tells us this
+    is the problematic lemma, whereas [destruct] just spits out a huge
+    term and says it's ill typed *)
+    clear H_apply_rule.
+    cases opcode;
+      unfold genV, genQ; subst; simpl; intuition.
+Qed.
+
 (* Under our assumptions, [genFaultHandler] just runs the appropriate
    [genApplyRule]: *)
-Conjecture genFaultHandler_spec:
-  forall ar,
-  apply_rule am vls pcl = ar ->
+Lemma genFaultHandler_spec:
     forall s0,
       HT   (genFaultHandler fetch_rule_impl)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
                        s = listify_apply_rule ar s0).
+Proof.
+  intros.
+  eapply HT_consequence'.
+  eapply genFaultHandler_spec_GT.
+  iauto.
+  simpl; iauto.
+Qed.
+
 End FaultHandlerSpec.
 
 End TMUSpecs.
