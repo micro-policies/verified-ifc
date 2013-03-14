@@ -1480,6 +1480,21 @@ Proof.
   - eapply genApplyRule_spec_None; eauto.
 Qed.
 
+Lemma genApplyRule_spec_GT:
+  forall ar,
+    apply_rule am vls pcl = ar ->
+      GT (genApplyRule am)
+         (fun m s => m = m0)
+         (fun m0' s0 m s => m = m0 /\
+                            s = listify_apply_rule ar s0).
+Proof.
+  unfold GT; intros.
+  eapply HT_consequence; eauto.
+  - eapply genApplyRule_spec; eauto.
+  - simpl; intuition (subst; eauto).
+  - simpl; intuition (subst; eauto).
+Qed.
+
 Lemma genCheckOp_spec:
   forall opcode', forall s0,
     HT (genCheckOp opcode')
@@ -1497,6 +1512,21 @@ Proof.
   eapply loadFrom_spec.
   unfold handler_initial_mem_matches in *.
   iauto.
+Qed.
+
+Lemma genCheckOp_spec_GT:
+  forall opcode',
+    GT (genCheckOp opcode')
+       (fun m s => m = m0)
+       (fun m0' s0 m s => m = m0 /\
+                          s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
+                               ,handlerLabel) ::: s0).
+Proof.
+  unfold GT; intros.
+  eapply HT_consequence; eauto.
+  - eapply genCheckOp_spec; eauto.
+  - simpl; intuition (subst; eauto).
+  - simpl; intuition (subst; eauto).
 Qed.
 
 (* XXX: probably need a lemma like
