@@ -958,12 +958,12 @@ Qed.
 
 Section IndexedCasesSpec.
 
-Parameter cnil: code.
-Parameter Qnil: GProp.
-Parameter I: Type.
-Parameter genC genB: I -> code.
-Parameter genQ: I -> GProp.
-Parameter genV: I -> HFun.
+Variable cnil: code.
+Variable Qnil: GProp.
+Variable I: Type.
+Variable genC genB: I -> code.
+Variable genQ: I -> GProp.
+Variable genV: I -> HFun.
 
 (* XXX: make these folds ? *)
 Definition indexed_post: (list I) -> GProp :=
@@ -1191,13 +1191,13 @@ Proof.
     auto; unfold handler_initial_mem_matches in *; intuition. 
 Qed.
 
-Parameter fetch_rule_impl: fetch_rule_impl_type.
-Parameter (opcode: OpCode).
+Variable fetch_rule_impl: fetch_rule_impl_type.
+Variable (opcode: OpCode).
 Definition n := projT1 (fetch_rule_impl opcode).
 Definition am := projT2 (fetch_rule_impl opcode).
-Parameter (vls: Vector.t T n). 
-Parameter (pcl: T).
-Parameter (m0: memory).
+Variable (vls: Vector.t T n).
+Variable (pcl: T).
+Variable (m0: memory).
 
 Hypothesis initial_mem_matches:
   handler_initial_mem_matches
