@@ -923,9 +923,12 @@ Definition GT_push_v (c: code) (P: HProp) (v: HFun): Prop :=
   GT c P (fun m0 s0 m s => P m0 s0 /\
                            m = m0 /\
                            s = CData (v m0 s0, handlerLabel) :: s0).
+Definition GT_guard_v (b: code) (P: HProp) (v: HFun) (Q: GProp): Prop :=
+  GT b (fun m s => P m s /\ v m s <> 0) Q.
+
 Lemma cases_spec_step_GT_specialized: forall c v b cbs cnil P Qb Qcbs,
   GT_push_v c P v ->
-  GT b P Qb ->
+  GT_guard_v b P v Qb ->
   GT (cases cbs cnil) P Qcbs ->
   GT (cases ((c,b)::cbs) cnil)
      P
@@ -972,13 +975,13 @@ Definition indexed_post: (list I) -> GProp :=
                          (genV i m0 s0 =  0 -> f indices' m0 s0 m s)
       end.
 
-Parameter P: HProp.
+Variable P: HProp.
 Definition indexed_hyps: (list I) -> Prop :=
   fix f (indices: list I) :=
     match indices with
     | []            => True
     | i :: indices' => GT_push_v (genC i) P (genV i) /\
-                       GT (genB i) P (genQ i) /\
+                       GT_guard_v (genB i) P (genV i) (genQ i) /\
                        f indices'
     end.
 
