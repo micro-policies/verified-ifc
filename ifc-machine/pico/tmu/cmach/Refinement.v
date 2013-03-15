@@ -158,20 +158,25 @@ Lemma handler_final_cache_hit_preserved:
     handler_final_mem_matches' rl rpcl tmuc tmuc' false ->
     cache_hit tmuc  (mvector opcode op1 op2 op3 pcl) ->
     cache_hit tmuc' (mvector opcode op1 op2 op3 pcl).
-Admitted. 
-  (* automation needed here. provable anyway... *)
-  (* intros until 0. intros Hfinal HCHIT. inv HCHIT. *)
-  (* inv Hfinal. unfold update_cache_spec_rvec in *. *)
-  (* constructor. *)
-  (* - admit. *)
-  (*   destruct op1; (constructor; auto); *)
-  (*   (inv Hinv; rewrite <- H1);  *)
-  (*   (rewrite H0 ; eauto);  *)
-  (*   match goal with  *)
-  (*         | [ |- ?l1 <> ?l2 ] => unfold l1, l2; congruence *)
-  (*   end *)
+Proof. 
+  intros until 0. intros Hfinal HCHIT. inv HCHIT.
+  inv Hfinal. unfold update_cache_spec_rvec in *. clear H.
+  constructor;
+  constructor;
+  match goal with 
+    | [HTAG: tag_in_mem _ ?addr _
+       |- read_m ?addr _ = Some _  ] => 
+      (rewrite <- H0 ; eauto); 
+      (inv HTAG; eauto);
+      (match goal with 
+         | [ |- ?a <> ?b ] => try (unfold a, b ; congruence)
+       end)
+   end.
+Qed.
 
+(* Shall we move this directly on the ConcreteLattice class? *)
 Axiom labToZ_inj: forall l1 l2, labToZ l1 = labToZ l2 -> l1 = l2.
+
 Lemma opCodeToZ_inj: forall o1 o2, opCodeToZ o1 = opCodeToZ o2 -> o1 = o2.
 Proof.
   intros o1 o2 Heq.
@@ -196,7 +201,7 @@ Lemma nth_order_option_cons:
 Proof.
   induction n; intros.
   - unfold nth_order_option. 
-    case_eq (le_lt_dec (S n) 1); case_eq (le_lt_dec n 0); intros; auto;
+    case_eq (le_lt_dec (S nth) 1); case_eq (le_lt_dec nth 0); intros; auto;
     try (zify ; omega).
   - unfold nth_order_option.
     case_eq (le_lt_dec (S (S n)) (S nth)); case_eq (le_lt_dec (S n) nth); intros; auto;
@@ -306,6 +311,38 @@ Proof.
   congruence.
 Qed.
 
+Hint Constructors cstep run_tmu runsToEscape match_stacks match_states.
+
+Ltac res_label :=
+  match goal with 
+    | [Hrule: apply_rule _ _ _ = Some (?rl,_) |- _ ] =>
+      destruct rl; 
+        try (solve [inv Hrule])
+  end.
+
+Ltac inv_cache_update :=
+  (unfold cache_up2date; intros);
+  (exploit handler_final_cache_hit_preserved; eauto);
+  intros;              
+  match goal with 
+    |  [H1 : apply_rule (fetch_rule ?opcode1) ?v1 ?pc1 = _ ,
+        H2 : apply_rule (fetch_rule ?opcode2) ?v2 ?pc2 = _ ,
+        CHIT: cache_hit _ (mvector _ _ _ _ _) ,
+        GLUE: glue _ = _ |- _ ] => 
+  (assert (Hopcode: opcode1 = opcode2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hopcode;
+   assert (Hpcl: pc1 = pc2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hpcl;
+   assert (Hvec: v2 = v1) by (eapply cache_hit_unique with (1:= CHIT); eauto); inv Hvec;
+   (unfold glue, nth_order_option in GLUE; simpl in GLUE; inv GLUE);
+   allinv')
+  end;
+  try match goal with 
+    | [RULE1: apply_rule _ _ _ = _ , 
+       RULE2: apply_rule _ _ _ = _  |- _ ] => rewrite RULE1 in RULE2 ; inv RULE2
+  end;
+  try solve [eapply handler_cache_hit_read_none; eauto
+            |eapply handler_cache_hit_read_some; eauto]
+.
+
 Lemma step_preserved: 
   forall s1 s1' s2,
     step_rules s1 s1' ->
@@ -313,63 +350,68 @@ Lemma step_preserved:
     s1 = observe_cstate s2 /\ (exists s2', cstep s2 s2' /\ match_states s1' s2').
 Proof.
   intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
-  split.
-  - Case "match_states".
-    simpl; erewrite match_stacks_obs; eauto.
-  - Case "Nop". 
-    unfold run_tmr in H0.
-    destruct (classic (cache_hit tmuc (mvector OpNoop None None None pcl))) as [CHIT | CMISS].
-    * exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false). 
-      split.
-      destruct rl; [inv H0|].
-      unfold cache_up2date in CACHE. 
-      assert (exists l' : L, cache_hit_read tmuc false l' rpcl).
-      eapply CACHE with (1:= H0); eauto. destruct H1 as [ll Hll].
-      eapply cstep_nop with (pcv':= pcv) (pcl':= pcl) (rl:= ll) ; eauto. 
-      econstructor  ; eauto. econstructor 3 ; eauto. 
-      inv H0. auto. 
-      inv H0. apply ms ; auto.
-    * set (tmuc':= (update_cache tmuc OpNoop None None None pcl)) in *.
-      assert (CHIT' : cache_hit tmuc' (mvector OpNoop None None None pcl))
-      by (eapply update_cache_hit; eauto).
-      exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc'); eauto.
-      intros [c [Hruns Hmfinal]].
-      { destruct rl; exists (CState c m faultHandler i cstk (pcv+1, rpcl) false).
-        - split.
-             + eapply cstep_nop with (pcv':= pcv) (pcl':= pcl)   ; eauto. 
-               eapply handler_cache_hit_read_some; eauto.
-             + econstructor ; eauto. 
-               unfold cache_up2date; intros. 
-               exploit handler_final_cache_hit_preserved; eauto. intros.
-               assert (opcode = OpNoop). (eapply cache_hit_unique_opcode_pc; eauto). inv H2.
-               assert (pcl0 = pcl). (eapply cache_hit_unique_opcode_pc; eauto).  inv H2.
-               assert (vls = <||>).                
-               eapply cache_hit_unique with (1:= CHIT) (5:= H1); eauto. inv H2. 
-               unfold glue, nth_order_option in GLUE; simpl in GLUE. inv GLUE.
-               allinv'. inv H0.
-       -  split.
-             + destruct Hmfinal as [[ll Hll] Hspec].
-               eapply cstep_nop with (pcv':= pcv) (pcl':= pcl) ; eauto.                
-             + econstructor ; eauto. 
-               unfold cache_up2date; intros. 
-               exploit handler_final_cache_hit_preserved; eauto. intros.
-               assert (opcode = OpNoop). (eapply cache_hit_unique_opcode_pc; eauto). inv H2.
-               assert (pcl0 = pcl). (eapply cache_hit_unique_opcode_pc; eauto).  inv H2.
-               assert (vls = <||>).
-               eapply cache_hit_unique with (1:= CHIT); eauto. inv H2. 
-               unfold glue, nth_order_option in GLUE; simpl in GLUE. inv GLUE.
-               allinv'. 
-               inversion H0. rewrite <- H3 in *. 
-               eapply handler_cache_hit_read_none; eauto.
-      }
-  - Case "Add".
+  - Case "Noop".
+  {split.
+    - SCase "match_states".
+      simpl; erewrite match_stacks_obs; eauto.
+    - SCase "step".
+      unfold run_tmr in H0.
+      destruct (classic (cache_hit tmuc (mvector OpNoop None None None pcl))) as [CHIT | CMISS].
+      * exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false).
+        res_label. split.
+        unfold cache_up2date in CACHE. 
+        assert (exists l' : L, cache_hit_read tmuc false l' rpcl).
+        eapply CACHE with (1:= H0); eauto. destruct H1 as [ll Hll].
+        inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
+        inv H0; eauto.
+
+     * set (tmuc':= (update_cache tmuc OpNoop None None None pcl)) in *.
+       assert (CHIT' : cache_hit tmuc' (mvector OpNoop None None None pcl))
+         by (eauto using update_cache_hit).
+       exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc'); eauto.
+       intros [c [Hruns Hmfinal]].  res_label.
+       exists (CState c m faultHandler i cstk (pcv+1, rpcl) false). split.
+          + destruct Hmfinal as [[ll Hll] Hspec].
+            eapply cstep_nop with _ pcv pcl; eauto.               
+          + econstructor ; eauto. 
+            inv_cache_update.
+  }
+ - Case "Add".
+  {split.
+    - SCase "match_states".
+      inv Hmatch. simpl; erewrite match_stacks_obs; eauto.
+    - SCase "step".
+      unfold run_tmr in H0. inv Hmatch.
+      destruct (classic (cache_hit tmuc (mvector OpAdd (Some x1l) (Some x2l) None pcl))) as
+          [CHIT | CMISS].
+      * inv STKS. inv H4. 
+        exists (CState tmuc m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false).
+        split; eauto.
+        unfold cache_up2date in CACHE. 
+        eapply cstep_add with x1l x2l pcl i ; eauto.        
+        eapply CACHE with (1:= H0); eauto.
+        
+     * set (tmuc':= (update_cache tmuc OpAdd (Some x1l) (Some x2l) None pcl)) in *.
+       assert (CHIT' : cache_hit tmuc' (mvector OpAdd (Some x1l) (Some x2l) None pcl))
+         by (eauto using update_cache_hit).
+       exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc'); eauto.
+       intros [c [Hruns Hmfinal]]. 
+       inv STKS. inv H4.
+       exists (CState c m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false). split.
+          + destruct Hmfinal as [Hll Hspec].
+            eapply cstep_add with _ _ pcl _ ; eauto.                
+          + econstructor ; eauto. 
+            inv_cache_update.
+  }
 Admitted.
 
 Axiom succ_preserved: 
   forall s1 s2, 
     match_states s1 s2 -> 
     success s1 <-> c_success s2.
-  
+
+
+(** The concrete machine is deterministic *)
 Lemma cmach_priv_determ: 
   forall s s' s'', 
     cstep_p s s' -> 
@@ -430,49 +472,6 @@ Proof.
   inv TAGPC ; inv TAGPC0; congruence.
 Qed.  
 
-Lemma index_list_cons (T: Type): forall n a (l:list T),
- index_list n l = index_list (n+1) (a :: l).
-Proof.
-  intros.
-  replace ((n+1)%nat) with (S n) by omega. 
-  gdep n. induction n; intros.
-  destruct l ; simpl; auto.
-  destruct l. auto. 
-  simpl. eauto.
-Qed. 
-
-Lemma index_list_Z_cons (T: Type): forall i (l1: list T) a, 
-  i >= 0 ->
-  index_list_Z i l1 = index_list_Z (i+1) (a::l1).
-Proof.
-  induction i; intros.
-  auto.
-  simpl. unfold read_m. simpl. 
-  replace (Pos.to_nat (p + 1)) with ((Pos.to_nat p)+1)%nat by (zify; omega).
-  eapply index_list_cons ; eauto. 
-  zify; omega.
-Qed. 
-  
-Lemma index_list_Z_eq (T: Type) : forall (l1 l2: list T), 
-  (forall i, index_list_Z i l1 = index_list_Z i l2) ->
-  l1 = l2.
-Proof.
-  induction l1; intros.
-  destruct l2 ; auto.
-  assert (HCont:= H 0). unfold read_m in HCont. inv HCont. 
-  destruct l2.
-  assert (HCont:= H 0). unfold read_m in HCont. inv HCont. 
-  assert (a = t). 
-  assert (Helper:= H 0). unfold read_m in Helper. inv Helper. auto.
-  inv H0. 
-  erewrite IHl1 ; eauto.
-  intros. destruct i.
-  erewrite index_list_Z_cons with (a:= t); eauto; try omega.
-  erewrite H ; eauto.  
-  erewrite index_list_Z_cons with (a:= t); eauto; try (zify ; omega).
-  erewrite H ; eauto. symmetry. eapply index_list_Z_cons; eauto. zify; omega.
-  destruct l1, l2 ; auto.
-Qed.
   
 Lemma check_cache_determ: forall opcode op1 op2 op3 pcl cs cs' cs'',
   check_tags opcode op1 op2 op3 pcl cs cs' ->

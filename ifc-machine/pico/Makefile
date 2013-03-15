@@ -14,7 +14,8 @@ TMU_A:=	Abstract Rules AbstractMachine
 TMU_ANI := AbstractObsEquiv NIAbstractMachine
 
 TMU_C := CLattices Concrete ConcreteMachine \
-	CodeGen CodeSpecs FaultRoutine
+	CodeGen CodeSpecs FaultRoutine\
+	Refinement
 
 
 

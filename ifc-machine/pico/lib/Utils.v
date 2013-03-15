@@ -404,6 +404,51 @@ Proof.
   intros. unfold index_list_Z in *. destruct (i <? 0)%Z. congruence. auto.
 Qed.
 
+
+Lemma index_list_cons (T: Type): forall n a (l:list T),
+ index_list n l = index_list (n+1)%nat (a :: l).
+Proof.
+  intros.
+  replace ((n+1)%nat) with (S n) by omega. 
+  gdep n. induction n; intros.
+  destruct l ; simpl; auto.
+  destruct l. auto. 
+  simpl. eauto.
+Qed. 
+
+Lemma index_list_Z_cons (T: Type): forall i (l1: list T) a, 
+  (i >= 0)%Z ->
+  index_list_Z i l1 = index_list_Z (i+1) (a::l1).
+Proof.
+  induction i; intros.
+  auto.
+  unfold index_list_Z. simpl. 
+  replace (Pos.to_nat (p + 1)) with ((Pos.to_nat p)+1)%nat by (zify; omega).
+  eapply index_list_cons with (l:= l1) (a:= a) ; eauto. 
+  zify; omega.
+Qed. 
+  
+Lemma index_list_Z_eq (T: Type) : forall (l1 l2: list T), 
+  (forall i, index_list_Z i l1 = index_list_Z i l2) ->
+  l1 = l2.
+Proof.
+  induction l1; intros.
+  destruct l2 ; auto.
+  assert (HCont:= H 0%Z). inv HCont. 
+  destruct l2.
+  assert (HCont:= H 0%Z). inv HCont. 
+  assert (a = t). 
+  assert (Helper:= H 0%Z). inv Helper. auto.
+  inv H0. 
+  erewrite IHl1 ; eauto.
+  intros. destruct i.
+  erewrite index_list_Z_cons with (a:= t); eauto; try omega.
+  erewrite H ; eauto.  
+  erewrite index_list_Z_cons with (a:= t); eauto; try (zify ; omega).
+  erewrite H ; eauto. symmetry. eapply index_list_Z_cons; eauto. zify; omega.
+  destruct l1, l2 ; auto.
+Qed.
+
 Fixpoint update_list A (n : nat) (y : A) (xs : list A) : option (list A) :=
   match xs, n with
   | nil, _ => None
