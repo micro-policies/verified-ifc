@@ -12,6 +12,7 @@ Class ConcreteLattice (T: Type) :=
 ; ZToLab :  Z -> T
 ; genJoin : list (@Instr T)
 ; genFlows : list (@Instr T)
+; labToZ_inj: forall l1 l2, labToZ l1 = labToZ l2 -> l1 = l2
 }.
 
 Require Import LatticeHL. 
@@ -46,6 +47,9 @@ Instance TMUHL : ConcreteLattice Lab :=
      [Push (1,H) ; BranchNZ 2] ++  (* branch 2 *)
      [Push (0,H)]
 }.
+Proof.
+  - intros. destruct l1, l2 ; simpl ; congruence.
+Defined.
 
 (*
 Module HL : TMULattice.  
