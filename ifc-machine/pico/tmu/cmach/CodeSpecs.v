@@ -609,6 +609,14 @@ Lemma update_list_Some (T': Type): forall (v: T') l a,
 Proof.
   Admitted.
 
+(* This is the other half of the [update_list_spec] in Utils.v *)
+Lemma update_list_spec' (T': Type): forall (v: T) l a a' l',
+  a <> a' ->
+  update_list a v l = Some l' ->
+  index_list a l' = index_list a l.
+Proof.
+  Admitted.
+
 End MoveThisToUtils.
 
 Definition valid_address a (m: memory) :=
@@ -1729,6 +1737,57 @@ Proof.
   eapply genFaultHandlerStack_spec_GT.
   iauto.
   simpl; iauto.
+Qed.
+
+(* NC: [valid_address a m0] implies [upd_m] succeeds *)
+Conjecture storeAt_spec_wp: forall a vl Q,
+  forall m s,
+  HT (storeAt a)
+     (fun m0 s0 => s0 = vl ::: s /\
+                   upd_m a vl m0 = Some m /\
+                   Q m s)
+     Q.
+
+Lemma HT_compose_bwd:
+  forall (c1 c2 : code) (P Q R : memory -> stack -> Prop),
+    HT c2 Q R -> HT c1 P Q -> HT (c1 ++ c2) P R.
+Proof.
+  intros; eapply HT_compose; eauto.
+Qed.
+
+Conjecture valid_address_upd: forall a a' vl m m',
+  valid_address a m ->
+  upd_m a' vl m = Some m' ->
+  valid_address a m'.
+
+Lemma store_twice_test: forall a1 a2 vl1 vl2,
+  a1 <> a2 ->
+  forall m s,
+  valid_address a1 m ->
+  valid_address a2 m ->
+  HT (storeAt a1 ++ storeAt a2)
+     (fun m0 s0 => m0 = m /\
+                   s0 = CData vl1 :: CData vl2 :: s)
+     (fun m1 s1 => s1 = s /\
+                   exists m', upd_m a1 vl1 m = Some m' /\
+                              upd_m a2 vl2 m' = Some m1).
+Proof.
+  introv Hneq Hvalid1 Hvalid2; intros.
+
+  eapply valid_store in Hvalid1.
+  destruct Hvalid1 as [m' ?]; eauto.
+
+  eapply valid_address_upd with (m':=m') in Hvalid2.
+  eapply valid_store in Hvalid2.
+  destruct Hvalid2; eauto.
+
+  eapply HT_compose_bwd.
+  apply storeAt_spec_wp.
+  eapply HT_strengthen_premise.
+  apply storeAt_spec_wp.
+
+  intuition; subst; eauto.
+  eauto.
 Qed.
 
 End FaultHandlerSpec.

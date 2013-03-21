@@ -24,7 +24,7 @@ Context {L: Type}
 
 (** The fault handler code and its correctness *)
 Definition fetch_rule_withsig := (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
-Definition faultHandler := @CodeGen.faultHandler L fetch_rule_withsig.
+Definition faultHandler := CodeGen.faultHandler fetch_rule_withsig.
 
 (* Bit more glue *)
 Lemma our_handler_correct_succeed : 
