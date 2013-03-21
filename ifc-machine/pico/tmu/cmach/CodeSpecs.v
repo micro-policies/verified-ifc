@@ -1790,6 +1790,67 @@ Proof.
   eauto.
 Qed.
 
+(* Follow from a more general [push'_spec_wp]. *)
+Conjecture genTrue_spec_wp: forall Q,
+  HT genTrue
+     (fun m s => Q m ((1,handlerLabel):::s))
+     Q.
+
+Conjecture genFalse_spec_wp: forall Q,
+  HT genFalse
+     (fun m s => Q m ((0,handlerLabel):::s))
+     Q.
+
+Lemma nop_spec_wp: forall Q,
+  HT nop Q Q.
+Proof.
+  unfold nop, HT; simpl; intros.
+  eexists; eexists; intuition eauto.
+  apply_f_equal runsToEndDone; rec_f_equal ltac:(try omega; eauto).
+Qed.
+
+(* XXX: NC: not sure which spec I'm supposed to prove, but
+[handler_final_mem_matches] (no prime) looks strongest, and close to
+what I have. *)
+
+Lemma genFaultHandlerMem_spec_Some_None: forall lpc,
+  valid_address addrTagResPC m0 ->
+  ar = Some (None, lpc) ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => upd_m addrTagResPC (labToZ lpc,handlerLabel) m0 =
+                     Some m /\
+                   s = (1,handlerLabel) ::: s0).
+Proof.
+  introv Hvalid Har_eq; intros.
+  unfold listify_apply_rule.
+  rewrite Har_eq.
+  unfold genFaultHandlerMem.
+
+  (* Need to exploit early so that existentials can be unified against
+  vars introduced here *)
+  exploit valid_store; eauto.
+  intro H; destruct H.
+
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
+  eapply genTrue_spec_wp.
+  eapply storeAt_spec_wp.
+  eapply ifNZ_spec_Z with (v:=0).
+  eapply nop_spec_wp.
+
+  omega.
+  omega.
+  simpl; intuition; subst; jauto.
+
+
+
+Qed.
+
 End FaultHandlerSpec.
 
 End TMUSpecs.
