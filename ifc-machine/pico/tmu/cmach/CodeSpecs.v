@@ -1846,9 +1846,54 @@ Proof.
   omega.
   omega.
   simpl; intuition; subst; jauto.
+Qed.
 
+Lemma genFaultHandlerMem_spec_Some_Some: forall lr lpc,
+  valid_address addrTagRes m0 ->
+  valid_address addrTagResPC m0 ->
+  ar = Some (Some lr, lpc) ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s =>
+        (exists m', upd_m addrTagRes (labToZ lr,handlerLabel) m0
+                    = Some m'
+                 /\ upd_m addrTagResPC (labToZ lpc,handlerLabel) m'
+                    = Some m)
+        /\ s = (1,handlerLabel) ::: s0).
+(*
+       (fun m s => handler_final_mem_matches rv m0 m /\
+                   s = (1,handlerLabel) ::: s0).
+*)
+Proof.
+  introv HvalidRes HvalidResPC Har_eq; intros.
+  unfold listify_apply_rule.
+  rewrite Har_eq.
+  unfold genFaultHandlerMem.
 
+  (* Need to exploit early so that existentials can be unified against
+  vars introduced here *)
+  eapply valid_store in HvalidRes.
+  destruct HvalidRes as [m' ?].
 
+  eapply valid_address_upd with (m':=m') in HvalidResPC.
+  eapply valid_store in HvalidResPC.
+  destruct HvalidResPC as [m'' ?]; eauto.
+
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
+  eapply genTrue_spec_wp.
+  eapply storeAt_spec_wp.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply storeAt_spec_wp.
+
+  omega.
+  omega.
+  simpl; intuition; subst; jauto.
+  eauto.
 Qed.
 
 End FaultHandlerSpec.
