@@ -48,7 +48,7 @@ Conjecture handler_correct :
   forall (fetch_rule_impl : (forall (opcode:OpCode), {n:nat & AllowModify n})),
   forall  opcode vls pcl m retaddr c imem fhdl s,
     let am := fetch_rule_impl opcode in
-    let handler := @faultHandler T fetch_rule_impl in (* DD: Strange. Never had to specify T before... *)
+    let handler := faultHandler fetch_rule_impl in
     let '(op1l,op2l,op3l) := glue vls in 
     cache_hit c (mvector opcode op1l op2l op3l pcl) ->
     exists c' st pc priv, 

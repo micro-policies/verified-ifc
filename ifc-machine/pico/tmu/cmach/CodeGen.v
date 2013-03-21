@@ -183,8 +183,7 @@ Definition genFaultHandler: code :=
   indexed_cases nop genCheckOp genApplyRule' opcodes.
 
 (* XXX: Run [genFaultHandler] and then fail or return depending on the result. *)
-Definition faultHandler: fetch_rule_impl_type -> code.
-Admitted.
+Definition faultHandler: code := genFaultHandler. (* THIS IS A STUB *)
 
 End FaultHandler.
 
