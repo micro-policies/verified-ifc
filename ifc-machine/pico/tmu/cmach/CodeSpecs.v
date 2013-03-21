@@ -596,6 +596,87 @@ Proof.
   apply_f_equal @runsToEndDone; rec_f_equal ltac:(try (zify; omega); auto).
 Qed.
 
+
+(* Move this to the place in Utils.v with related lemmas once it's
+proven. *)
+Section MoveThisToUtils.
+
+Local Open Scope nat_scope.
+
+Lemma update_list_Some (T': Type): forall (v: T') l a,
+  a < length l ->
+  exists l', update_list a v l = Some l'.
+Proof.
+  Admitted.
+
+End MoveThisToUtils.
+
+Definition valid_address a (m: memory) :=
+  (0 <= a) /\ (Z.to_nat a < length m)%nat.
+
+Lemma valid_store: forall a v m,
+  valid_address a m ->
+  exists m', upd_m a v m = Some m'.
+Proof.
+  intros.
+  unfold valid_address in *.
+  unfold upd_m.
+  assert (a <? 0 = false) as Heq.
+  { unfold "<?", "?=".
+    induction a; simpl; try reflexivity.
+    false; zify; omega. }
+  rewrite Heq.
+  eapply update_list_Some.
+  intuition.
+Qed.
+
+Lemma store_spec: forall a al v vl m s,
+  HT [Store]
+     (fun m0 s0 => m0 = m /\
+                   s0 = (a,al) ::: (v,vl) ::: s /\
+                   valid_address a m) (* NC: better to move this outside? *)
+     (fun m1 s1 => s1 = s /\
+                   upd_m a (v,vl) m = Some m1).
+Proof.
+  unfold HT.
+  intros.
+  edestruct valid_store.
+  iauto.
+  eexists.
+  eexists.
+  intuition; subst.
+  eauto.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply runsToEndStep; auto.
+  eapply cp_store; eauto.
+
+  constructor; eauto.
+Qed.
+
+Lemma storeAt_spec: forall a v vl m s,
+  HT (storeAt a)
+     (fun m0 s0 => m0 = m /\
+                   s0 = (v,vl) ::: s /\
+                   valid_address a m)
+     (fun m1 s1 => s1 = s /\
+                   upd_m a (v,vl) m = Some m1).
+Proof.
+  intros.
+  eapply HT_compose.
+  eapply HT_consequence'.
+  eapply push_spec''.
+  intuition; eauto.
+  intuition; eauto.
+  Focus 2. (* Eeek! *)
+  eapply store_spec.
+  intuition; eauto.
+  jauto.
+Qed.
+
 Lemma skipNZ_continuation_spec_NZ: forall c P v l,
   v <> 0 ->
   HT   (skipNZ (length c) ++ c)

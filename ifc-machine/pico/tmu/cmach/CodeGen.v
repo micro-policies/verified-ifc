@@ -42,7 +42,7 @@ Definition branch ofs :=
    BranchNZ (if ofs >=? 0 then ofs else ofs - 1 )]. 
 
 Definition storeAt loc :=
-  [push loc; Store].
+  push' loc ++ [Store].
 
 Definition loadFrom loc: code :=
   push' loc ++ [Load].
