@@ -179,11 +179,21 @@ Variable fetch_rule_impl: fetch_rule_impl_type.
 Definition opcodes := 
   [OpNoop; OpAdd; OpSub; OpPush; OpLoad; OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet].
 Definition genApplyRule' op := genApplyRule (projT2 (fetch_rule_impl op)).
-Definition genFaultHandler: code :=
+(* Fault handler that puts results on stack. *)
+Definition genFaultHandlerStack: code :=
   indexed_cases nop genCheckOp genApplyRule' opcodes.
 
-(* XXX: Run [genFaultHandler] and then fail or return depending on the result. *)
-Definition faultHandler: code := genFaultHandler. (* THIS IS A STUB *)
+(* Write fault handler results to memory. *)
+Definition genFaultHandlerMem: code :=
+  ifNZ (ifNZ (storeAt addrTagRes) nop ++
+        storeAt addrTagResPC ++
+        genTrue)
+       genFalse.
+
+Definition faultHandler: code :=
+  genFaultHandlerStack ++
+  genFaultHandlerMem ++
+  ifNZ [Ret] genError.
 
 End FaultHandler.
 

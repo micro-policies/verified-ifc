@@ -1603,15 +1603,15 @@ Proof.
     | eapply genApplyRule'_spec_GT_guard_v ].
 Qed.
 
-Lemma genFaultHandler_spec_GT:
-  GT (genFaultHandler fetch_rule_impl)
+Lemma genFaultHandlerStack_spec_GT:
+  GT (genFaultHandlerStack fetch_rule_impl)
      (fun m s => m = m0)
      (fun m0' s0 m s => m = m0 /\
                         s = listify_apply_rule ar s0).
 Proof.
   intros.
   eapply GT_consequence'.
-  unfold genFaultHandler.
+  unfold genFaultHandlerStack.
   eapply indexed_cases_spec with (Qnil:=Qnil).
   - Case "default case that we never reach".
     unfold GT; intros.
@@ -1633,11 +1633,11 @@ Proof.
       unfold genV, genQ; subst; simpl; intuition.
 Qed.
 
-(* Under our assumptions, [genFaultHandler] just runs the appropriate
+(* Under our assumptions, [genFaultHandlerStack] just runs the appropriate
    [genApplyRule]: *)
-Lemma genFaultHandler_spec:
+Lemma genFaultHandlerStack_spec:
     forall s0,
-      HT   (genFaultHandler fetch_rule_impl)
+      HT   (genFaultHandlerStack fetch_rule_impl)
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -1645,7 +1645,7 @@ Lemma genFaultHandler_spec:
 Proof.
   intros.
   eapply HT_consequence'.
-  eapply genFaultHandler_spec_GT.
+  eapply genFaultHandlerStack_spec_GT.
   iauto.
   simpl; iauto.
 Qed.
