@@ -1556,13 +1556,19 @@ Proof.
   intuition (subst; intuition).
 Qed.
 
+Lemma dec_eq_OpCode: forall (o o': OpCode),
+  o = o' \/ o <> o'.
+Proof.
+  destruct o; destruct o'; solve [ left; reflexivity | right; congruence ].
+Qed.
 
-Conjecture dec_eq_OpCode: forall (o o': OpCode),
-  o = o' \/ o <> o'. (* {o = o'} + {o <> o'}. *)
-
-Conjecture labToZ_inj: forall opcode opcode',
+Lemma labToZ_inj: forall opcode opcode',
   (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode) <> 0) ->
   opcode' = opcode.
+Proof.
+  intros o o'.
+  destruct o; destruct o'; simpl; solve [ auto | intros; false; omega ].
+Qed.
 
 Lemma genApplyRule'_spec_GT_guard_v:
   forall opcode',
