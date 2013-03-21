@@ -1452,27 +1452,15 @@ Definition listify_apply_rule
   (ar: option (option T * T)) (s0: stack): stack
 :=
   match ar with
-  | None               => CData (0, handlerLabel) :: s0
-  | Some (None, l2)    => CData (1, handlerLabel) ::
-                          CData (0, handlerLabel) ::
-                          CData (labToZ l2, handlerLabel) :: s0
-  | Some (Some l1, l2) => CData (1, handlerLabel) ::
-                          CData (1, handlerLabel) ::
-                          CData (labToZ l1, handlerLabel) ::
-                          CData (labToZ l2, handlerLabel) :: s0
+  | None                => CData (0, handlerLabel) :: s0
+  | Some (None,    lpc) => CData (1, handlerLabel) ::
+                           CData (0, handlerLabel) ::
+                           CData (labToZ lpc, handlerLabel) :: s0
+  | Some (Some lr, lpc) => CData (1, handlerLabel) ::
+                           CData (1, handlerLabel) ::
+                           CData (labToZ lr, handlerLabel) ::
+                           CData (labToZ lpc, handlerLabel) :: s0
   end.
-(*
-  match ar with
-  | None => CData (0, handlerLabel) :: s0
-  | Some (op, l2) => [ CData (1, handlerLabel) ] ++
-                     match op with
-                     | None    => [ CData (0, handlerLabel) ]
-                     | Some l1 => [ CData (1, handlerLabel)
-                                  , CData (labToZ l1, handlerLabel) ]
-                     end ++
-                     CData (labToZ l2, handlerLabel) :: s0
-  end.
-*)
 
 Lemma genApplyRule_spec:
   forall ar,
@@ -1541,18 +1529,10 @@ Proof.
   - simpl; intuition (subst; eauto).
 Qed.
 
-(* XXX: probably need a lemma like
-
-     forall o o', boolToZ (opCodeToZ o =? opCodeToZ o') <> 0 <-> o = o'
-
-   which follows from the [eqb_eq] and [eqb_neq] lemmas, and the
-   injectivity of [opCodeToZ]. *)
-
 Section FaultHandlerSpec.
 
 Variable ar: option (option T * T).
 Hypothesis H_apply_rule: apply_rule am vls pcl = ar.
-
 
 (* Don't really need to specify [Qnil] since it will never run *)
 Definition Qnil: GProp := fun m0' s0 m s => True.
@@ -1560,16 +1540,9 @@ Definition genV: OpCode -> HFun :=
   fun i _ _ => boolToZ (opCodeToZ i =? opCodeToZ opcode).
 Definition genC: OpCode -> code := genCheckOp.
 Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl.
-(*
-Definition genQ: OpCode -> GProp :=
-         (fun i m0' s0 m s => i = opcode ->
-                              m = m0 /\
-                              s = listify_apply_rule ar s0).
-*)
 Definition genQ: OpCode -> GProp :=
          (fun i m0' s0 m s => m = m0 /\
                               s = listify_apply_rule ar s0).
-
 
 Lemma genCheckOp_spec_GT_push_v:
   forall opcode',
