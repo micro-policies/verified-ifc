@@ -11,6 +11,7 @@ Require Import Rules.
 Require Import CodeGen.
 Require Import CLattices.
 Require Import ConcreteMachine.
+Require Import Concrete. (* [update_cache_spec_rvec] *)
 Require Import Coq.Arith.Compare_dec.
 
 Section TMUSpecs.
@@ -609,11 +610,13 @@ Lemma update_list_Some (T': Type): forall (v: T') l a,
 Proof.
   Admitted.
 
-(* This is the other half of the [update_list_spec] in Utils.v *)
-Lemma update_list_spec' (T': Type): forall (v: T) l a a' l',
+(* This is the other half of the [update_list_spec] in Utils.v ...
+   except that I use [upd_m] and [read_m] instead. *)
+
+Lemma update_list_spec' (X: Type): forall (x: X) l a a' l',
   a <> a' ->
-  update_list a v l = Some l' ->
-  index_list a l' = index_list a l.
+  upd_m a' x l = Some l' ->
+  read_m a l = read_m a l'.
 Proof.
   Admitted.
 
@@ -1889,6 +1892,77 @@ Proof.
   omega.
   simpl; intuition; subst; jauto.
   eauto.
+Qed.
+
+Lemma genFaultHandlerMem_spec_None:
+  ar = None ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => m = m0 /\
+                   s = (0,handlerLabel) ::: s0).
+Proof.
+  introv Har_eq; intros.
+  unfold listify_apply_rule.
+  rewrite Har_eq.
+  unfold genFaultHandlerMem.
+
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_Z with (v:=0).
+  eapply genFalse_spec.
+
+  reflexivity.
+  jauto.
+Qed.
+
+(* The irrelevant memory never changes *)
+Lemma genFaultHandlerMem_update_cache_spec_rvec:
+  valid_address addrTagRes m0 ->
+  valid_address addrTagResPC m0 ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => update_cache_spec_rvec m0 m).
+Proof.
+  intros.
+  unfold update_cache_spec_rvec in *.
+
+  cases ar as Eq_ar.
+  destruct p.
+  cases o.
+
+  + eapply HT_weaken_conclusion;
+    rewrite <- Eq_ar in *.
+
+    eapply genFaultHandlerMem_spec_Some_Some; eauto.
+
+    simpl.
+    intros;
+
+    jauto_set_hyps; intros.
+    eapply transitivity.
+    eapply update_list_spec' with (a' := addrTagRes); eauto.
+    eapply update_list_spec' with (a' := addrTagResPC); eauto.
+
+  + eapply HT_weaken_conclusion;
+    rewrite <- Eq_ar in *.
+
+    eapply genFaultHandlerMem_spec_Some_None; eauto.
+
+    simpl.
+    intros;
+
+    jauto_set_hyps; intros.
+    eapply update_list_spec' with (a' := addrTagResPC); eauto.
+
+  + eapply HT_weaken_conclusion;
+    rewrite <- Eq_ar in *.
+
+    eapply genFaultHandlerMem_spec_None; eauto.
+
+    simpl; intuition; subst; auto.
 Qed.
 
 End FaultHandlerSpec.
