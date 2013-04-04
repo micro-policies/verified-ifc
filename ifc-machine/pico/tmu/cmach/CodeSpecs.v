@@ -619,6 +619,10 @@ Proof.
 
 End MoveThisToUtils.
 
+(* NC: to prove that addresses are valid per this definition, we just
+   need to know that that the memory is at least as large as the
+   [tmuCacheSize] defined in Concrete.v, since we only use
+   [valid_address] assumptions for [addrTag*]. *)
 Definition valid_address a (m: memory) :=
   (0 <= a) /\ (Z.to_nat a < length m)%nat.
 
@@ -764,16 +768,11 @@ Proof.
   eapply push_spec'.
   eapply HT_strengthen_premise. 
   eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
-  (* NC: how to avoid this [Focus]? We need the equality to come later
-  the [skipNZ] spec maybe? 
-   DD: not sure it's what you're asking for, but giving it as an argument does the job. *)
+
   intros.
   simpl.
   exists (tl s); intuition.
   destruct s; inversion H0; eauto.
-
-  (* Back at the first (blurred) goal, which is now [1 <> 0] :P *)
-  (* omega. *)
 Qed.
 
 Lemma ifNZ_spec_Z: forall v l t f P Q,
@@ -1810,8 +1809,8 @@ Proof.
 Qed.
 
 (* XXX: NC: not sure which spec I'm supposed to prove, but
-[handler_final_mem_matches] (no prime) looks strongest, and close to
-what I have. *)
+[handler_final_mem_matches'] is the only one used, so try to get there
+first? *)
 
 Lemma genFaultHandlerMem_spec_Some_None: forall lpc,
   valid_address addrTagResPC m0 ->
@@ -1862,10 +1861,6 @@ Lemma genFaultHandlerMem_spec_Some_Some: forall lr lpc,
                  /\ upd_m addrTagResPC (labToZ lpc,handlerLabel) m'
                     = Some m)
         /\ s = (1,handlerLabel) ::: s0).
-(*
-       (fun m s => handler_final_mem_matches rv m0 m /\
-                   s = (1,handlerLabel) ::: s0).
-*)
 Proof.
   introv HvalidRes HvalidResPC Har_eq; intros.
   unfold listify_apply_rule.

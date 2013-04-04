@@ -72,7 +72,7 @@ Definition ifNZ t f :=
 Definition ite (c t f : code) : code :=
   c ++ ifNZ t f.
 
-(* Case statement w/o default:
+(* Case statement:
 
    (* cbs = (c1,bs) :: (c2,b2) :: ... *)
    if c1 then b1 else
@@ -88,6 +88,13 @@ Fixpoint cases (cbs : list (code * code)) (default: code) : code :=
   | (c,b) :: cbs' => ite c b (cases cbs' default)
   end.
 
+(* Version of [cases] with branches generated uniformly from
+   indices:
+
+   - [genC] generates branch guards.
+   - [genB] generates branch bodies.
+
+*)
 Definition indexed_cases {I} (cnil: code) (genC genB: I -> code) (indices: list I): code :=
   cases (map (fun i => (genC i, genB i)) indices) cnil.
 
@@ -194,6 +201,13 @@ Definition faultHandler: code :=
   genFaultHandlerStack ++
   genFaultHandlerMem ++
   ifNZ [Ret] genError.
+
+(* NC: or
+
+   ite (genFaultHandlerStack ++ genFaultHandlerMem)
+        [Ret]
+        genError.
+*)
 
 End FaultHandler.
 

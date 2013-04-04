@@ -10,7 +10,7 @@ Require Import Concrete.
 Require Import ConcreteMachine.
 Require Import Rules.
 Require Import CLattices.
-Require Import CodeSpecs.
+Require Import CodeSpecs. (* For [memory] *)
 Require Import CodeGen.
 
 (* Specification of the handler code *)
@@ -37,11 +37,13 @@ Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': me
   /\ update_cache_spec_rvec m m'.
 
 (* DD: yet another version *)
+(* NC: used in [handler_correct_succeed] below. *)
 Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m': @memory T) (p: bool): Prop :=
   (match olr with
      | Some lr => cache_hit_read m' p lr lpc
      | None => exists l, cache_hit_read m' p l lpc
-   end) 
+   end)
+  (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
 
 Conjecture handler_correct : 
@@ -68,7 +70,9 @@ Section HandlerCorrect.
 
 Variable get_rule : forall (opcode:OpCode), {n:nat & AllowModify n}.
 Definition handler : list (@Instr T) := faultHandler get_rule.
-               
+
+(* NC: appears this is the currently used conjecture, so prove this
+first. *)
 Conjecture handler_correct_succeed : 
   forall opcode vls pcl c m raddr s i olr lpc,
   let '(op1l,op2l,op3l) := glue vls in 
@@ -103,4 +107,3 @@ End HandlerCorrect.
 
 
 End TMU.
-
