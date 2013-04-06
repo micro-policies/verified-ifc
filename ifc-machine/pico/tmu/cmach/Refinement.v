@@ -28,18 +28,16 @@ Definition faultHandler := CodeGen.faultHandler fetch_rule_withsig.
 
 (* Bit more glue *)
 Lemma our_handler_correct_succeed : 
-  forall m i s raddr c opcode vls  pcl  olr lpc op1l op2l op3l,
-  forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
-         (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc))
-         (GLUE: glue vls = (op1l, op2l, op3l)),
+  forall m i s raddr c opcode vls  pcl  olr lpc,
+  forall (INPUT: cache_hit c opcode (glue vls) pcl)
+         (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc)),
     exists c',
     runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerLabel) true)
                  (CState c' m faultHandler i s raddr false) /\
-    handler_final_mem_matches' olr lpc c c' false.
+    handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros. 
   exploit (@handler_correct_succeed _ _ _ fetch_rule_withsig opcode); eauto.
-  unfold glue in *. inv GLUE. auto. 
 Qed.  
                
 Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
@@ -52,17 +50,16 @@ Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
                   match_stacks (ARet a r:: s) (CRet a r false:: cs).
 
 Definition cache_up2date tmuc :=
-  forall opcode vls pcl rl rpcl op1l op2l op3l,
+  forall opcode vls pcl rl rpcl,
   forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
-  forall (CHIT: cache_hit tmuc (mvector opcode op1l op2l op3l pcl))
-         (GLUE: glue vls = (op1l, op2l, op3l)),
+  forall (CHIT: cache_hit tmuc opcode (glue vls) pcl),
     match rl with 
-        | Some l => cache_hit_read tmuc false l rpcl
-        | None => exists l', cache_hit_read tmuc false l' rpcl
+        | Some l => cache_hit_read tmuc l rpcl
+        | None => exists l', cache_hit_read tmuc l' rpcl
     end.
 
 Inductive match_states : @AS L -> @CS L -> Prop :=
-|  ms: forall m i astk tmuc cstk pc
+ ms: forall m i astk tmuc cstk pc
               (CACHE: cache_up2date tmuc)
               (STKS: match_stacks astk cstk),
          match_states (AState m i astk pc)
@@ -94,16 +91,16 @@ Definition observe_cstate (cs: @CS L) : @AS L :=
            
 Lemma handler_cache_hit_read_some: 
   forall rl m rpcl tmuc,
-    handler_final_mem_matches' (Some rl) rpcl m tmuc false ->
-    cache_hit_read tmuc false rl rpcl. 
+    handler_final_mem_matches' (Some rl) rpcl m tmuc ->
+    cache_hit_read tmuc rl rpcl. 
 Proof.
   intros; inv H ; auto.
 Qed.
 
 Lemma handler_cache_hit_read_none: 
   forall m rpcl tmuc,
-    handler_final_mem_matches' None rpcl m tmuc false ->
-    exists rl, cache_hit_read tmuc false rl rpcl. 
+    handler_final_mem_matches' None rpcl m tmuc ->
+    exists rl, cache_hit_read tmuc rl rpcl. 
 Proof.
   intros; inv H ; auto.
 Qed.
@@ -121,7 +118,8 @@ Definition optionlabToZ (ol: option L) : Z :=
           | Some l => labToZ l
       end.
 
-Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (op1 op2 op3: option L) (pcl: L):=
+Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (opls: option L * option L * option L) (pcl: L):=
+  let '(op1,op2,op3) := opls in
   match upd_m addrOpLabel ((opCodeToZ opcode),handlerLabel) tmuc with 
     | None => tmuc
     | Some tmuc1 => 
@@ -143,24 +141,25 @@ Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (op1 op2 op3: op
       end
   end.
 
-Axiom update_cache_spec : forall tmuc opcode op1 op2 op3 pcl,
-    update_cache_spec_mvec tmuc (update_cache tmuc opcode op1 op2 op3 pcl).
+Axiom update_cache_spec : forall tmuc opcode opls pcl,
+    update_cache_spec_mvec tmuc (update_cache tmuc opcode opls pcl).
   
 Axiom update_cache_hit : 
-  forall tmuc opcode op1 op2 op3 pcl,
-    cache_hit (update_cache tmuc opcode op1 op2 op3 pcl)
-              (mvector opcode op1 op2 op3 pcl).
+  forall tmuc opcode opls pcl,
+    cache_hit (update_cache tmuc opcode opls pcl)
+              opcode opls pcl.
 Hint Resolve update_cache_hit update_cache_spec.
 
 Lemma handler_final_cache_hit_preserved: 
-  forall tmuc tmuc' rl opcode op1 op2 op3 rpcl pcl,
-    handler_final_mem_matches' rl rpcl tmuc tmuc' false ->
-    cache_hit tmuc  (mvector opcode op1 op2 op3 pcl) ->
-    cache_hit tmuc' (mvector opcode op1 op2 op3 pcl).
+  forall tmuc tmuc' rl opcode opls rpcl pcl,
+    handler_final_mem_matches' rl rpcl tmuc tmuc' ->
+    cache_hit tmuc  opcode opls pcl ->
+    cache_hit tmuc' opcode opls pcl.
 Proof. 
   intros until 0. intros Hfinal HCHIT. inv HCHIT.
   inv Hfinal. unfold update_cache_spec_rvec in *. clear H.
-  constructor;
+  destruct opls as [[op1 op2] op3] . inv MVEC. destruct op1; destruct op2; destruct op3;
+  econstructor;
   constructor;
   match goal with 
     | [HTAG: tag_in_mem _ ?addr _
@@ -239,13 +238,14 @@ Proof.
 Qed.  
 
 Lemma cache_hit_unique_opcode_pc : 
-  forall c opcode opcode' pcl pcl' op1l op1l' op2l op2l' op3l op3l',
+  forall c opcode opcode' pcl pcl' opls opls',
   forall
-    (CHIT: cache_hit c (mvector opcode op1l op2l op3l pcl))
-    (CHIT': cache_hit c (mvector opcode' op1l' op2l' op3l' pcl')),
+    (CHIT: cache_hit c opcode opls pcl)
+    (CHIT': cache_hit c opcode' opls' pcl'),
     pcl = pcl' /\ opcode = opcode'.
 Proof.
-  intros. inv CHIT; inv CHIT'. split.
+  intros. inv CHIT; inv CHIT'. destruct opls as [[? ?] ?]; inv MVEC. 
+  destruct opls' as [[? ?] ?]; inv MVEC0. split. 
   - inv TAGPC; inv TAGPC0.
     allinv'.  
     eapply CLattices.labToZ_inj ; eauto.
@@ -253,20 +253,23 @@ Proof.
     eapply opCodeToZ_inj ; auto.
 Qed.
 
+(* NOT YET CHANGED OVER TO TRIPLES *)
 Lemma cache_hit_unique_ops opcode : 
   forall c  vls vls' op1l op1l' op2l op2l' op3l op3l' rl rl' rpcl rpcl' pcl,
   forall
-    (CHIT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+    (CHIT: cache_hit c opcode (op1l,op2l,op3l) pcl)
     (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
     (GLUE: glue vls = (op1l, op2l, op3l))
     
     (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
-    (CHIT': cache_hit c (mvector opcode op1l' op2l' op3l' pcl))
+    (CHIT': cache_hit c opcode (op1l',op2l',op3l') pcl)
     (GLUE': glue vls' = (op1l', op2l', op3l')),
 
     (op1l = op1l') /\ (op2l = op2l') /\ (op3l = op3l').
 Proof.
-  intros. 
+Admitted.
+(*  APT: needs updating, but should be ok
+  intros.  
   destruct op1l, op1l', op2l, op2l', op3l, op3l'; simpl in *;
   (unfold glue, nth_order_option in GLUE, GLUE';
   destruct (le_lt_dec (labelCount opcode) 0); 
@@ -274,7 +277,8 @@ Proof.
     destruct (le_lt_dec (labelCount opcode) 2); 
     try congruence);  
   (inv GLUE; inv GLUE'); repeat (split ; auto);
-  unfold mvector in CHIT, CHIT'; simpl in *;
+  unfold mvector in CHIT, CHIT'; simpl in *.
+  inv CHIT. inv CHIT'. 
   (inv CHIT; inv CHIT';  
   (match goal with 
     | [H1: tag_in_mem c _ (labToZ ?v1), 
@@ -286,16 +290,18 @@ Proof.
      inv HH; auto
    end)).
 Qed.
+*)
 
+(* NOT YET CHANGED OVER TO TRIPLES *)
 Lemma cache_hit_unique opcode : 
   forall c  vls vls' op1l op1l' op2l op2l' op3l op3l' rl rl' rpcl rpcl' pcl,
   forall
-    (CHIT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+    (CHIT: cache_hit c opcode (op1l,op2l,op3l) pcl)
     (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
     (GLUE: glue vls = (op1l, op2l, op3l))
     
     (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
-    (CHIT': cache_hit c (mvector opcode op1l' op2l' op3l' pcl))
+    (CHIT': cache_hit c opcode (op1l',op2l',op3l') pcl)
     (GLUE': glue vls' = (op1l', op2l', op3l')),
 
     vls = vls'.
@@ -316,7 +322,7 @@ Ltac res_label :=
       destruct rl; 
         try (solve [inv Hrule])
   end.
-
+ 
 Ltac inv_cache_update :=
   (unfold cache_up2date; intros);
   (exploit handler_final_cache_hit_preserved; eauto);
@@ -324,14 +330,11 @@ Ltac inv_cache_update :=
   match goal with 
     |  [H1 : apply_rule (fetch_rule ?opcode1) ?v1 ?pc1 = _ ,
         H2 : apply_rule (fetch_rule ?opcode2) ?v2 ?pc2 = _ ,
-        CHIT: cache_hit _ (mvector _ _ _ _ _) ,
-        GLUE: glue _ = _ |- _ ] => 
+        CHIT: cache_hit _ _ _ _ |- _] => 
   (assert (Hopcode: opcode1 = opcode2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hopcode;
    assert (Hpcl: pc1 = pc2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hpcl;
-   assert (Hvec: v2 = v1) by (eapply cache_hit_unique with (1:= CHIT); eauto); inv Hvec;
-   (unfold glue, nth_order_option in GLUE; simpl in GLUE; inv GLUE);
-   allinv')
-  end;
+   assert (Hvec: v2 = v1) by (eapply cache_hit_unique with (1:= CHIT); eauto); inv Hvec) end;
+  allinv'; 
   try match goal with 
     | [RULE1: apply_rule _ _ _ = _ , 
        RULE2: apply_rule _ _ _ = _  |- _ ] => rewrite RULE1 in RULE2 ; inv RULE2
@@ -358,48 +361,52 @@ Lemma step_preserved:
 Proof.
   intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
   - Case "Noop".
-  { unfold run_tmr in H0.
-    destruct (classic (cache_hit tmuc (mvector OpNoop None None None pcl))) as [CHIT | CMISS].
-    * exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false).
+  { set (opls := glue (<||>: Vector.t L _)). 
+    unfold run_tmr in H0.
+    destruct (classic (cache_hit tmuc OpNoop opls pcl)) as [CHIT | CMISS].
+    + exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false).
       res_label. split.
       unfold cache_up2date in CACHE. 
-      assert (exists l' : L, cache_hit_read tmuc false l' rpcl).
-      eapply CACHE with (1:= H0); eauto. destruct H1 as [ll Hll].
+      assert (exists l' : L, cache_hit_read tmuc l' rpcl).
+         eapply CACHE with (1:= H0); eauto. 
+      destruct H1 as [ll Hll].
       inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
-      inv H0; eauto.
+      inv H0; eauto. 
 
-     * set (tmuc':= (update_cache tmuc OpNoop None None None pcl)) in *.
-       assert (CHIT' : cache_hit tmuc' (mvector OpNoop None None None pcl))
+     + set (tmuc':= (update_cache tmuc OpNoop opls pcl)) in *.
+       assert (CHIT' : cache_hit tmuc' OpNoop opls pcl)
          by (eauto using update_cache_hit).
-       exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc'); eauto.
-       intros [c [Hruns Hmfinal]].  res_label.
+       edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]]. 
+       exact CHIT'. (* ARGH: eauto should work *) eauto.
+       res_label.
        exists (CState c m faultHandler i cstk (pcv+1, rpcl) false). split.
-          + destruct Hmfinal as [[ll Hll] Hspec].
+          * destruct Hmfinal as [[ll Hll] Hspec].
             eapply cstep_nop with _ pcv pcl; eauto.               
-          + econstructor ; eauto. 
+          * econstructor ; eauto. 
             inv_cache_update.
   }
  - Case "Add".
-  {unfold run_tmr in H0. inv Hmatch.
-      destruct (classic (cache_hit tmuc (mvector OpAdd (Some x1l) (Some x2l) None pcl))) as
+  { set (opls := glue (<|x1l; x2l |>)). 
+    unfold run_tmr in H0. inv Hmatch.
+      destruct (classic (cache_hit tmuc OpAdd opls pcl)) as
           [CHIT | CMISS].
-      * inv STKS. inv H4. 
+      + inv STKS. inv H4. 
         exists (CState tmuc m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false).
         split; eauto.
         unfold cache_up2date in CACHE. 
         eapply cstep_add with x1l x2l pcl i ; eauto.        
         eapply CACHE with (1:= H0); eauto.
         
-     * set (tmuc':= (update_cache tmuc OpAdd (Some x1l) (Some x2l) None pcl)) in *.
-       assert (CHIT' : cache_hit tmuc' (mvector OpAdd (Some x1l) (Some x2l) None pcl))
+     + set (tmuc':= (update_cache tmuc OpAdd opls pcl)) in *.
+       assert (CHIT' : cache_hit tmuc' OpAdd opls pcl)
          by (eauto using update_cache_hit).
-       exploit (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc'); eauto.
-       intros [c [Hruns Hmfinal]]. 
+       edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]].
+       exact CHIT'. eauto.
        inv STKS. inv H4.
        exists (CState c m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false). split.
-          + destruct Hmfinal as [Hll Hspec].
+          * destruct Hmfinal as [Hll Hspec].
             eapply cstep_add with _ _ pcl _ ; eauto.                
-          + econstructor ; eauto. 
+          * econstructor ; eauto. 
             inv_cache_update.
   }
 Admitted.
@@ -475,14 +482,15 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma cache_hit_same_content (T: Type): forall opcode op1 op2 op3 pcl c c',
-  cache_hit c (mvector opcode op1 op2 op3 pcl) ->
-  cache_hit c' (mvector opcode op1 op2 op3 pcl) ->
+Lemma cache_hit_same_content (T: Type): forall opcode opls pcl c c',
+  cache_hit c opcode opls pcl ->
+  cache_hit c' opcode opls pcl ->
   forall a, 
     (a = addrOpLabel \/ a = addrTag1 \/ a = addrTag2 \/ a = addrTag3 \/ a = addrTagPC) ->
     index_list_Z a c = index_list_Z a c'.
 Proof.
   intros. inv H; inv H0. 
+  destruct opls as [[op1 op2] op3]. 
   intuition; match goal with | [HH: a = _ |- _ ] => inv HH end.
   inv OP0. inv OP. congruence.
   destruct op1; inv TAG1 ; inv TAG0; congruence.
@@ -491,10 +499,9 @@ Proof.
   inv TAGPC ; inv TAGPC0; congruence.
 Qed.  
 
-  
-Lemma check_cache_determ: forall opcode op1 op2 op3 pcl cs cs' cs'',
-  check_tags opcode op1 op2 op3 pcl cs cs' ->
-  check_tags opcode op1 op2 op3 pcl cs cs'' ->
+Lemma check_cache_determ: forall opcode opls pcl cs cs' cs'',
+  check_tags opcode opls pcl cs cs' ->
+  check_tags opcode opls pcl cs cs'' ->
   cs' = cs''.
 Proof.
   induction 1 ; intros; inv H; auto; try (solve [ intuition]).
@@ -606,6 +613,40 @@ Proof.
   eapply runsToEscape_determ; eauto.
 Qed.
 
+
+Lemma cache_hit_read_determ: forall c rl1 rpcl1 rl2 rpcl2,
+  cache_hit_read c rl1 rpcl1 -> 
+  cache_hit_read c rl2 rpcl2 ->
+  rl1 = rl2 /\ rpcl1 = rpcl2. 
+Proof.
+  intros. inv H. inv TAG_Res. inv TAG_ResPC. 
+  inv H0. inv TAG_Res. inv TAG_ResPC. 
+  allinv'. allinv'. intuition.
+Qed.
+
+
+Lemma app_lengths_eq1: forall A (xs1 xs2 ys1 ys2 : list A),
+             xs1 ++ xs2 = ys1 ++ ys2 -> length xs1 = length ys1 -> xs1 = ys1. 
+Proof.
+induction xs1; intros.  
+  - destruct ys1. auto.
+    inv H0. 
+  - simpl in H0. destruct ys1. inv H0. 
+    simpl in H0. inv H0. simpl in H. inv H. 
+    f_equal.  eauto.
+Qed.
+
+Lemma app_lengths_eq2: forall A (xs1 xs2 ys1 ys2 : list A),
+             xs1 ++ xs2 = ys1 ++ ys2 -> length xs1 = length ys1 -> xs2 = ys2. 
+Proof.
+induction xs1; intros. 
+ - destruct ys1. simpl in H. auto.
+   inv H0. 
+ - simpl in H0. destruct ys1. inv H0. 
+   simpl in H0. inv H0. simpl in H.  inv H. eauto.
+Qed.
+
+
 Lemma cmach_determ: 
   forall s s' s'', 
     cstep s s' -> 
@@ -616,9 +657,70 @@ Proof.
   match goal with 
     | [HH: cstep _ _ |- _ ] => inv HH; try congruence; auto
   end;
-    (allinv'; try reflexivity).
-  assert (Heq:= run_tmu_determ H13 H0); eauto. inv Heq.
-Admitted.
+    (allinv'; try reflexivity);
+  try match goal with
+    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
+       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
+      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
+  end;
+  try match goal with 
+    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
+       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
+      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
+  end;                               
+  try allinv'; 
+  try reflexivity.   (* hmm: something fishy here *)
+idtac.
+try rewrite H13 in *.
+  try match goal with
+    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
+       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
+      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
+  end;
+  try match goal with 
+    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
+       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
+      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
+  end;                               
+  try allinv' .
+assert (args' = args'0). eapply app_lengths_eq1; eauto. intuition. subst.
+assert (s' = s'0). eapply app_lengths_eq2 ; eauto. intuition.  subst.
+reflexivity.
+assert (pcretl = pcretl0). admit. 
+assert (pret = pret0). admit.
+assert (pcret = pcret0). admit.
+assert (s''0 = s''1). admit.
+ subst.
+  try match goal with
+    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
+       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
+      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
+  end;
+  try match goal with 
+    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
+       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
+      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
+  end;                               
+  try allinv';
+  reflexivity.
+assert (pcretl = pcretl0). admit. 
+assert (pret = pret0). admit.
+assert (pcret = pcret0). admit.
+assert (s''0 = s''1). admit.
+ subst.
+  try match goal with
+    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
+       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
+      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
+  end;
+  try match goal with 
+    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
+       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
+      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
+  end;                               
+  try allinv';
+  reflexivity.
+Qed.
 
 
 Require Import LNIwithEvents.

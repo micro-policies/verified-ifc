@@ -28,12 +28,14 @@ Inductive CStkElmt :=
 Record CS  := CState {
   cache: list (@Atom T);
   mem : list (@Atom T);
-  fhdl:  list (@Instr T); (* NC: ??? *)
+  fhdl:  list (@Instr T); (* fault handler code *)
   imem : list (@Instr T);
   stk : list CStkElmt;
   pc : @Atom T;
   priv : bool
 }.
+
+(** * Cache handling mechanism *)
 
 (* Conversion between abstract labels (T) and tags (Z) *)
 Definition opCodeToZ (opcode : OpCode) : Z :=
@@ -60,33 +62,55 @@ Definition addrTagPC    := 4.
 Definition addrTagRes   := 5.
 Definition addrTagResPC := 6.
 
+(* 
+APT: non longer relevant, now that we have split memories.
 Definition tmuCacheSize := 7.
 Definition privInstSize := 1000. 
-(* APT: arbitrary for now, but must be >= size of fault handler code 
+  APT: arbitrary for now, but must be >= size of fault handler code 
    DD: If we use this for specifying the complete execution of the fault handler, 
-   I suspect we want to give the exact size? *)
-  
+   I suspect we want to give the exact size? 
+*)
+
+
+(** Conversion from labels to integers *)
+Definition to_mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
+   let optlabToZ optl :=
+     match optl with
+     | None => labToZ bot
+     | Some l => labToZ l 
+     end in
+   (opCodeToZ opcode, optlabToZ op1lab, optlabToZ op2lab, optlabToZ op3lab, labToZ pclab).
+
+(*
+Definition from_rvector (tags: Z * Z)  T * T := 
+  let (tagr, tagrpc) := tags in
+  (ZToLab tagr,ZToLab tagrpc). 
+*)
+
 (** Cache spec when reading from, writing to *)
 Inductive tag_in_mem (m: list (@Atom T)) addr tagv : Prop := 
 | tim_intro : index_list_Z addr m = Some (tagv,handlerLabel) ->
               tag_in_mem m addr tagv.
-  
-Inductive cache_hit (m: list (@Atom T)) : (Z * Z * Z * Z * Z ) -> Prop :=
+
+(* Tests the cache line *)  
+Inductive cache_hit (m: list (@Atom T)) opcode oplabs pclab : Prop := 
 | ch_intro: forall m_op m_tag1 m_tag2 m_tag3 m_tagpc,
-              forall (OP: tag_in_mem m addrOpLabel m_op)
+              forall (MVEC:  let '(op1lab,op2lab,op3lab) := oplabs in 
+                             to_mvector opcode op1lab op2lab op3lab pclab = 
+                            (m_op, m_tag1, m_tag2, m_tag3, m_tagpc))
+                     (OP: tag_in_mem m addrOpLabel m_op)
                      (TAG1: tag_in_mem m addrTag1 m_tag1)
                      (TAG2: tag_in_mem m addrTag2 m_tag2)
                      (TAG3: tag_in_mem m addrTag3 m_tag3)
                      (TAGPC: tag_in_mem m addrTagPC m_tagpc),
-                cache_hit m (m_op, m_tag1, m_tag2, m_tag3, m_tagpc).
+                cache_hit m opcode oplabs pclab. 
 
-(* Reads the cache line in non privileged mode, or ignore it in priv mode *)
-Inductive cache_hit_read (m: list (@Atom T)) : bool -> T -> T -> Prop :=
+(* Reads the cache line *)
+Inductive cache_hit_read (m: list (@Atom T)) : T -> T -> Prop :=
 | chr_uppriv: forall m_tagr m_tagrpc,
               forall (TAG_Res: tag_in_mem m addrTagRes m_tagr)
                      (TAG_ResPC: tag_in_mem m addrTagResPC m_tagrpc),
-                cache_hit_read m false (ZToLab m_tagr) (ZToLab m_tagrpc)
-| chr_ppriv: cache_hit_read m true handlerLabel handlerLabel.
+                cache_hit_read m (ZToLab m_tagr) (ZToLab m_tagrpc).
 
 Definition update_cache_spec_mvec (m m': list (@Atom T)) := 
   forall addr, 

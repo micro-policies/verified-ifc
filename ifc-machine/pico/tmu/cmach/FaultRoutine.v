@@ -38,10 +38,10 @@ Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': me
 
 (* DD: yet another version *)
 (* NC: used in [handler_correct_succeed] below. *)
-Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m': @memory T) (p: bool): Prop :=
+Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m': @memory T) :Prop :=
   (match olr with
-     | Some lr => cache_hit_read m' p lr lpc
-     | None => exists l, cache_hit_read m' p l lpc
+     | Some lr => cache_hit_read m' lr lpc
+     | None => exists l, cache_hit_read m' l lpc
    end)
   (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
@@ -51,16 +51,16 @@ Conjecture handler_correct :
   forall  opcode vls pcl m retaddr c imem fhdl s,
     let am := fetch_rule_impl opcode in
     let handler := faultHandler fetch_rule_impl in
-    let '(op1l,op2l,op3l) := glue vls in 
-    cache_hit c (mvector opcode op1l op2l op3l pcl) ->
+    cache_hit c opcode (glue vls) pcl ->
     exists c' st pc priv, 
       runsToEscape (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerLabel) true)
                    (CState c' m fhdl imem st pc priv) /\ 
       match apply_rule (projT2 am) vls pcl with
-        | Some (olr,lpc) => handler_final_mem_matches' olr lpc c c' priv 
+        | Some (olr,lpc) => handler_final_mem_matches' olr lpc c c' 
                      /\ pc = retaddr
                      /\ st = s
-        | None => c' = c /\ pc = (-1,handlerLabel) 
+                     /\ priv = false
+        | None => c' = c /\ pc = (-1,handlerLabel) /\ priv = true
     end.
 
 (* TODO for Nathan: relate [runsToEscape] to [runsToEnd].*)
@@ -75,18 +75,16 @@ Definition handler : list (@Instr T) := faultHandler get_rule.
 first. *)
 Conjecture handler_correct_succeed : 
   forall opcode vls pcl c m raddr s i olr lpc,
-  let '(op1l,op2l,op3l) := glue vls in 
-  forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+  forall (INPUT: cache_hit c opcode (glue vls) pcl)
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = Some (olr,lpc)),
     exists c',
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
                  (CState c' m handler i s raddr false) /\
-    handler_final_mem_matches' olr lpc c c' false.
+    handler_final_mem_matches' olr lpc c c'.
               
 Conjecture handler_correct_fail : 
   forall opcode vls pcl c m raddr s i,
-  let '(op1l,op2l,op3l) := glue vls in 
-  forall (INPUT: cache_hit c (mvector opcode op1l op2l op3l pcl))
+  forall (INPUT: cache_hit c opcode (glue vls) pcl)
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = None),
     exists st,
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)

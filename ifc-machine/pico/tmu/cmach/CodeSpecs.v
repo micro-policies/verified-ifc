@@ -91,6 +91,19 @@ Qed.
 Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
 (nth_order_option vls 0, nth_order_option vls 1, nth_order_option vls 2).
 
+Definition glue3 (vls : Vector.t T 3) : (T * T * T).
+refine
+  (@Vector.nth_order T 3 vls 0 _,
+   @Vector.nth_order T 3 vls 1 _,
+   @Vector.nth_order T 3 vls 2 _); omega.
+Defined.
+
+Inductive glued : forall {n: nat}, (Vector.t T n) -> (option T * option T * option T) -> Prop :=
+| glued0 : forall lop1 lop2 lop3, glued [] (lop1,lop2,lop3)
+| glued1 : forall l1 lop2 lop3, glued [l1] (Some l1,lop2,lop3)
+| glued2 : forall l1 l2 lop3, glued [l1;l2] (Some l1,Some l2,lop3)
+| glued3 : forall l1 l2 l3, glued [l1;l2;l3] (Some l1,Some l2,Some l3). 
+
 End Glue.
 
 (* ---------------------------------------------------------------- *)
@@ -1269,18 +1282,19 @@ Definition handler_initial_mem_matches
 .
 
 (* APT: Just a little sanity check that these definitions are somewhat coherent. *)
-Lemma init_init: forall m op t1 t2 t3 tpc, @cache_hit T CLatt m (opCodeToZ op,labToZ t1,labToZ t2,labToZ t3,labToZ tpc) ->
-handler_initial_mem_matches op (Some t1) (Some t2) (Some t3) tpc m.
+Lemma init_init: forall m op ts tpc, @cache_hit T CLatt m op ts tpc ->
+let '(op1lab,op2lab,op3lab) := ts in
+handler_initial_mem_matches op op1lab op2lab op3lab tpc m.
 Proof.
   intros.
-  inv H. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
-  econstructor; eauto.
+  inv H. destruct ts as [[t1 t2] t3]. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
+  econstructor; destruct t1; destruct t2; destruct t3; eauto.
 Qed.
 
 (* Connecting to the definition used in FaultRoutine.v : *)
-Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
-    let '(op1l,op2l,op3l) := glue vls in
-    cache_hit m (mvector opcode op1l op2l op3l pcl) ->
+Lemma init_enough0: forall {n} (vls:Vector.t T n) m opcode opls pcl,
+    glued vls opls ->                      
+    cache_hit m opcode opls pcl ->
     handler_initial_mem_matches 
       opcode
       (nth_order_option vls 0)
@@ -1288,11 +1302,30 @@ Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
       (nth_order_option vls 2)
       pcl m.
 Proof.
-  intros. unfold glue. intro. 
+  intros. 
+  inv H0. destruct opls as [[? ?] ?]. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC.  
+  inv H;
+    match goal with H: existT _ _ _ = existT _ _ _ |- _ => apply inj_pair2 in H end; subst;  
+    (* inj_pair2 is an axiom !!!!!!! *)
+  unfold handler_initial_mem_matches; simpl; intuition. 
+Qed.
+
+(* Connecting to the definition used in FaultRoutine.v : *)
+Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
+    cache_hit m opcode (glue vls) pcl ->
+    handler_initial_mem_matches 
+      opcode
+      (nth_order_option vls 0)
+      (nth_order_option vls 1)
+      (nth_order_option vls 2)
+      pcl m.
+Proof.
+  intros. unfold glue in H. 
   destruct (nth_order_option vls 0); destruct (nth_order_option vls 1);
-    destruct (nth_order_option vls 2); unfold mvector in H; apply init_init in H;
+    destruct (nth_order_option vls 2); apply init_init in H; 
     auto; unfold handler_initial_mem_matches in *; intuition. 
 Qed.
+
 
 Variable fetch_rule_impl: fetch_rule_impl_type.
 Variable (opcode: OpCode).
