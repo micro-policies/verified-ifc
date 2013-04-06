@@ -647,6 +647,17 @@ induction xs1; intros.
 Qed.
 
 
+Lemma c_pop_to_return_determ : 
+  forall s s1 s2,
+    @c_pop_to_return L s s1 -> 
+    c_pop_to_return s s2 -> 
+    s1 = s2. 
+Proof. 
+  induction 1; intros.
+  - inv H. reflexivity.
+  - inv H0. eauto.
+Qed.
+
 Lemma cmach_determ: 
   forall s s' s'', 
     cstep s s' -> 
@@ -657,71 +668,29 @@ Proof.
   match goal with 
     | [HH: cstep _ _ |- _ ] => inv HH; try congruence; auto
   end;
-    (allinv'; try reflexivity);
-  try match goal with
+  repeat (try match goal with
+    | [H1: c_pop_to_return ?S ?S1,
+       H2: c_pop_to_return ?S ?S2 |- _ ] =>
+      let H := fresh in (pose proof (c_pop_to_return_determ H1 H2) as H; eauto; inv H; clear H1 H2)
     | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
        H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
-      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
-  end;
-  try match goal with 
+      let H := fresh in (pose proof (run_tmu_determ H1 H2) as H; eauto; inv H; clear H1 H2)
     | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
        H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
-      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
-  end;                               
-  try allinv'; 
-  try reflexivity.   (* hmm: something fishy here *)
-idtac.
-try rewrite H13 in *.
-  try match goal with
-    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
-       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
-      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
+      let H3 := fresh in let H4 := fresh in 
+         (destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst; clear H1 H2)
   end;
-  try match goal with 
-    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
-       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
-      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
-  end;                               
-  try allinv' .
-assert (args' = args'0). eapply app_lengths_eq1; eauto. intuition. subst.
-assert (s' = s'0). eapply app_lengths_eq2 ; eauto. intuition.  subst.
-reflexivity.
-assert (pcretl = pcretl0). admit. 
-assert (pret = pret0). admit.
-assert (pcret = pcret0). admit.
-assert (s''0 = s''1). admit.
- subst.
-  try match goal with
-    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
-       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
-      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
-  end;
-  try match goal with 
-    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
-       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
-      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
-  end;                               
-  try allinv';
-  reflexivity.
-assert (pcretl = pcretl0). admit. 
-assert (pret = pret0). admit.
-assert (pcret = pcret0). admit.
-assert (s''0 = s''1). admit.
- subst.
-  try match goal with
-    | [H1: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S2,
-       H2: run_tmu ?OP ?L1 ?L2 ?L3 ?LPC ?S1 ?S3 |- _] => 
-      let H := fresh in pose proof (run_tmu_determ H1 H2) as H; eauto; inv H
-  end;
-  try match goal with 
-    | [H1: cache_hit_read ?C ?RL1 ?RPCL1,
-       H2: cache_hit_read ?C ?RL2 ?RPCL2 |- _] =>
-      let H3 := fresh in let H4 := fresh in destruct (cache_hit_read_determ H1 H2) as [H3 H4]; eauto; subst
-  end;                               
-  try allinv';
+  try allinv'); 
+  try reflexivity.  
+  (* One remaining case: Call *)
+  Case "call".  
+  try rewrite H13 in *.
+  pose proof (run_tmu_determ H4 H23) as H; eauto; inv H. 
+  destruct (cache_hit_read_determ H5 H24) as [E1 E2]; eauto; subst. 
+  assert (args' = args'0). eapply app_lengths_eq1; eauto. intuition. subst.
+  assert (s' = s'0). eapply app_lengths_eq2 ; eauto. intuition.  subst.
   reflexivity.
 Qed.
-
 
 Require Import LNIwithEvents.
 

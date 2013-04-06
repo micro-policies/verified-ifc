@@ -236,8 +236,8 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
     cstep (CState c m fh i ((av,al):::s) (pcv,pcl) p) 
           (CState c' m' fh' i' s' (if av' =? 0 then pcv'+1 else pcv'+offv, rpcl) p')
 
-| cstep_call: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl args a r p' i',
-              forall pcc pccl m' p s' pcc' pccl' args',
+| cstep_call: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl args a r p' i'
+                     pcc pccl m' p s' pcc' pccl' args',
     i @ pcv # Call a r -> 
     length args = a -> (forall a, In a args -> exists d, a = CData d) ->
     length args' = a -> (forall a, In a args' -> exists d, a = CData d) ->
@@ -249,26 +249,29 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
           (CState c' m' fh' i' (args'++(CRet (pcv'+1,(if p' then pcl' else rl)) r p')::s') 
                   (pcc', if p' then pccl' else rpcl) p')  (* APT: mod *)
 
-| cstep_ret: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl s'' pret, 
+| cstep_ret: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' 
+                    pcret pcret' pcretl pcretl' s0 s0' pret pret', 
     i @ pcv # Ret -> 
+    c_pop_to_return s ((CRet (pcret,pcretl) false pret)::s0) ->  (* APT: mod *)
     run_tmu OpRet (Some pcretl) __ __ pcl  (* APT: mod *)
             (CState c m fh i s (pcv,pcl) p)
             (CState c' m' fh' i' s' (pcv',pcl') p') ->    
-    c_pop_to_return s' ((CRet (pcret,pcretl) false pret)::s'') ->
+    c_pop_to_return s' ((CRet (pcret',pcretl') false pret')::s0') ->
     cache_hit_read c' rl rpcl ->     
     cstep (CState c m fh i s (pcv,pcl) p) 
-          (CState c' m' fh' i' s'' (pcret, if p' then pcretl else rpcl) pret)
+          (CState c' m' fh' i' s0' (pcret', if p' then pcretl' else rpcl) pret')
 
-| cstep_vret: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcretl,
-              forall s'' pret resv resl resv' resl', 
+| cstep_vret: forall c c' fh fh' m i s pcv pcl pcv' pcl' rl rpcl p' i' m' p s' pcret pcret' 
+                     pcretl pcretl' s0 s0' pret pret' resv resl resv' resl' , 
     i @ pcv # VRet -> 
+    c_pop_to_return s ((CRet (pcret,pcretl) false pret)::s0) ->  (* APT: mod *)
     run_tmu OpVRet (Some resl) (Some pcretl) __ pcl   (* APT: mod *)
             (CState c m fh i ((resv,resl):::s) (pcv,pcl) p)
             (CState c' m' fh' i' ((resv',resl'):::s') (pcv',pcl') p') ->
-    c_pop_to_return s' ((CRet (pcret,pcretl) true pret)::s'') ->
+    c_pop_to_return s' ((CRet (pcret',pcretl') true pret')::s0') ->
     cache_hit_read c' rl rpcl ->     
     cstep (CState c m fh i ((resv,resl):::s) (pcv,pcl) p) 
-          (CState c' m' fh' i' ((resv',rl):::s'') (pcret, if p' then pcretl else rpcl) pret)
+          (CState c' m' fh' i' ((resv',rl):::s0') (pcret', if p' then pcretl' else rpcl) pret')
 .
 
 (* Success is reaching a Halt state in non-privileged mode and valid address. *)
