@@ -141,13 +141,75 @@ Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (opls: option L 
       end
   end.
 
-Axiom update_cache_spec : forall tmuc opcode opls pcl,
+(* Belongs in Utils.v *)
+
+Lemma update_list_spec2 (T:Type) : forall (v:T) l n n' l',
+  update_list n v l = Some l' ->
+  n <> n' ->
+  index_list n' l = index_list n' l'.
+Proof.
+  induction l; intros.
+  destruct n; simpl in *; inv H.  
+  destruct n. 
+    destruct n'. 
+      exfalso; omega. 
+      destruct l'; inv H. 
+      simpl. auto.
+    destruct n'. 
+      destruct l'; inv H. 
+        destruct (update_list n v l); inv H2. 
+        destruct (update_list n v l); inv H2. 
+        auto.
+      destruct l'; inv H.  
+        destruct (update_list n v l); inv H2. 
+        simpl. 
+        destruct  (update_list n v l) eqn:?; inv H2.  
+        eapply IHl; eauto. 
+Qed.  
+
+
+Lemma update_list_Z_spec2 (T:Type) : forall (v:T) l a a' l',
+  update_list_Z a v l = Some l' ->
+  a' <> a ->
+  index_list_Z a' l = index_list_Z a' l'.
+Proof.
+  unfold update_list_Z, index_list_Z. intros.
+  destruct (a <? 0)%Z eqn:?. congruence.
+  destruct (a' <? 0)%Z eqn:?. auto.
+  eapply update_list_spec2; eauto. 
+  apply Z.ltb_ge in Heqb. 
+  apply Z.ltb_ge in Heqb0. 
+  intro. apply H0. apply Z2Nat.inj; eauto.
+Qed.
+
+Lemma update_cache_spec : forall tmuc opcode opls pcl,
     update_cache_spec_mvec tmuc (update_cache tmuc opcode opls pcl).
-  
-Axiom update_cache_hit : 
+Proof.
+  unfold update_cache_spec_mvec. intros.
+  destruct opls as [[opl1 opl2] opl3]. unfold update_cache. 
+  unfold addrOpLabel, addrTagPC, addrTag1, addrTag2,addrTag3 in *. 
+  repeat
+  match goal with
+    | |- context [match ?M with _ => _ end] => destruct M eqn:?; auto
+  end. 
+  unfold Atom in *.  (* argh! *)
+  rewrite (update_list_Z_spec2 _ _ Heqo H). 
+  rewrite (update_list_Z_spec2 _ _ Heqo0 H1). 
+  rewrite (update_list_Z_spec2 _ _ Heqo1 H2). 
+  rewrite (update_list_Z_spec2 _ _ Heqo2 H3). 
+  rewrite (update_list_Z_spec2 _ _ Heqo3 H0). 
+  auto.
+Qed.
+
+Lemma update_cache_hit : 
   forall tmuc opcode opls pcl,
     cache_hit (update_cache tmuc opcode opls pcl)
               opcode opls pcl.
+Admitted. 
+(* APT: Actually, I don't think this is true unless we guarantee
+that tmuc is large enough to start with. *)
+
+
 Hint Resolve update_cache_hit update_cache_spec.
 
 Lemma handler_final_cache_hit_preserved: 
@@ -253,62 +315,58 @@ Proof.
     eapply opCodeToZ_inj ; auto.
 Qed.
 
-(* NOT YET CHANGED OVER TO TRIPLES *)
 Lemma cache_hit_unique_ops opcode : 
-  forall c  vls vls' op1l op1l' op2l op2l' op3l op3l' rl rl' rpcl rpcl' pcl,
+  forall c  vls vls' opls opls' rl rl' rpcl rpcl' pcl,
   forall
-    (CHIT: cache_hit c opcode (op1l,op2l,op3l) pcl)
+    (CHIT: cache_hit c opcode opls pcl)
     (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
-    (GLUE: glue vls = (op1l, op2l, op3l))
+    (GLUE: glue vls = opls)
     
+    (CHIT': cache_hit c opcode opls' pcl)
     (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
-    (CHIT': cache_hit c opcode (op1l',op2l',op3l') pcl)
-    (GLUE': glue vls' = (op1l', op2l', op3l')),
+    (GLUE': glue vls' = opls'),
 
-    (op1l = op1l') /\ (op2l = op2l') /\ (op3l = op3l').
-Proof.
-Admitted.
-(*  APT: needs updating, but should be ok
+    opls = opls'.
+Proof.  (* painfully slow *)
   intros.  
+  destruct opls as [[op1l op2l] op3l]. 
+  destruct opls' as [[op1l' op2l'] op3l'].
+  f_equal; f_equal; 
   destruct op1l, op1l', op2l, op2l', op3l, op3l'; simpl in *;
   (unfold glue, nth_order_option in GLUE, GLUE';
   destruct (le_lt_dec (labelCount opcode) 0); 
     destruct (le_lt_dec (labelCount opcode) 1); 
     destruct (le_lt_dec (labelCount opcode) 2); 
-    try congruence);  
-  (inv GLUE; inv GLUE'); repeat (split ; auto);
-  unfold mvector in CHIT, CHIT'; simpl in *.
-  inv CHIT. inv CHIT'. 
-  (inv CHIT; inv CHIT';  
-  (match goal with 
+    try congruence);
+  (inv GLUE; inv GLUE'); repeat (split ; auto); simpl in *; 
+  inv CHIT; inv CHIT';  unfold to_mvector in *;  inv MVEC; inv MVEC0;
+  match goal with 
     | [H1: tag_in_mem c _ (labToZ ?v1), 
        H2: tag_in_mem c _ (labToZ ?v2) |- Some ?v1 = Some ?v2 ] => inv H1; inv H2; allinv'
-   end;
+   end; 
    match goal with 
      | [ HH: labToZ _ = labToZ _ |- _] => 
        (eapply CLattices.labToZ_inj in HH; eauto); 
      inv HH; auto
-   end)).
+   end.
 Qed.
-*)
 
-(* NOT YET CHANGED OVER TO TRIPLES *)
+
 Lemma cache_hit_unique opcode : 
-  forall c  vls vls' op1l op1l' op2l op2l' op3l op3l' rl rl' rpcl rpcl' pcl,
+  forall c  vls vls' opls opls' rl rl' rpcl rpcl' pcl,
   forall
-    (CHIT: cache_hit c opcode (op1l,op2l,op3l) pcl)
+    (CHIT: cache_hit c opcode opls pcl)
     (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
-    (GLUE: glue vls = (op1l, op2l, op3l))
+    (GLUE: glue vls = opls)
     
     (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
-    (CHIT': cache_hit c opcode (op1l',op2l',op3l') pcl)
-    (GLUE': glue vls' = (op1l', op2l', op3l')),
+    (CHIT': cache_hit c opcode opls' pcl)
+    (GLUE': glue vls' = opls'),
 
     vls = vls'.
 Proof.
   intros.
-  assert (HH:= cache_hit_unique_ops CHIT RULE GLUE RULE' CHIT' GLUE'); eauto.
-  decompose [and] HH. inv H. clear HH.
+  assert (HH:= cache_hit_unique_ops CHIT RULE GLUE CHIT' RULE' GLUE'); eauto.
   eapply glue_inj; eauto.
   destruct opcode; simpl; omega. 
   congruence.
@@ -324,9 +382,8 @@ Ltac res_label :=
   end.
  
 Ltac inv_cache_update :=
-  (unfold cache_up2date; intros);
-  (exploit handler_final_cache_hit_preserved; eauto);
-  intros;              
+  (unfold cache_up2date; intros); 
+  (exploit handler_final_cache_hit_preserved; eauto); intros; 
   match goal with 
     |  [H1 : apply_rule (fetch_rule ?opcode1) ?v1 ?pc1 = _ ,
         H2 : apply_rule (fetch_rule ?opcode2) ?v2 ?pc2 = _ ,
@@ -334,14 +391,10 @@ Ltac inv_cache_update :=
   (assert (Hopcode: opcode1 = opcode2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hopcode;
    assert (Hpcl: pc1 = pc2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hpcl;
    assert (Hvec: v2 = v1) by (eapply cache_hit_unique with (1:= CHIT); eauto); inv Hvec) end;
-  allinv'; 
-  try match goal with 
-    | [RULE1: apply_rule _ _ _ = _ , 
-       RULE2: apply_rule _ _ _ = _  |- _ ] => rewrite RULE1 in RULE2 ; inv RULE2
-  end;
+  allinv';
   try solve [eapply handler_cache_hit_read_none; eauto
-            |eapply handler_cache_hit_read_some; eauto]
-.
+            |eapply handler_cache_hit_read_some; eauto].
+
 
 Lemma match_observe: 
   forall s1 s2,
@@ -376,8 +429,8 @@ Proof.
      + set (tmuc':= (update_cache tmuc OpNoop opls pcl)) in *.
        assert (CHIT' : cache_hit tmuc' OpNoop opls pcl)
          by (eauto using update_cache_hit).
-       edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]]. 
-       exact CHIT'. (* ARGH: eauto should work *) eauto.
+       edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]]; 
+         [exact CHIT' | exact H0 |].  (* ARGH: eauto should work *)
        res_label.
        exists (CState c m faultHandler i cstk (pcv+1, rpcl) false). split.
           * destruct Hmfinal as [[ll Hll] Hspec].
@@ -625,28 +678,6 @@ Proof.
 Qed.
 
 
-Lemma app_lengths_eq1: forall A (xs1 xs2 ys1 ys2 : list A),
-             xs1 ++ xs2 = ys1 ++ ys2 -> length xs1 = length ys1 -> xs1 = ys1. 
-Proof.
-induction xs1; intros.  
-  - destruct ys1. auto.
-    inv H0. 
-  - simpl in H0. destruct ys1. inv H0. 
-    simpl in H0. inv H0. simpl in H. inv H. 
-    f_equal.  eauto.
-Qed.
-
-Lemma app_lengths_eq2: forall A (xs1 xs2 ys1 ys2 : list A),
-             xs1 ++ xs2 = ys1 ++ ys2 -> length xs1 = length ys1 -> xs2 = ys2. 
-Proof.
-induction xs1; intros. 
- - destruct ys1. simpl in H. auto.
-   inv H0. 
- - simpl in H0. destruct ys1. inv H0. 
-   simpl in H0. inv H0. simpl in H.  inv H. eauto.
-Qed.
-
-
 Lemma c_pop_to_return_determ : 
   forall s s1 s2,
     @c_pop_to_return L s s1 -> 
@@ -687,8 +718,8 @@ Proof.
   try rewrite H13 in *.
   pose proof (run_tmu_determ H4 H23) as H; eauto; inv H. 
   destruct (cache_hit_read_determ H5 H24) as [E1 E2]; eauto; subst. 
-  assert (args' = args'0). eapply app_lengths_eq1; eauto. intuition. subst.
-  assert (s' = s'0). eapply app_lengths_eq2 ; eauto. intuition.  subst.
+  assert (args' = args'0). eapply app_same_length_eq; eauto. intuition. subst.
+  assert (s' = s'0). eapply app_same_length_eq_rest; eauto. intuition.  subst.
   reflexivity.
 Qed.
 
