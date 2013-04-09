@@ -73,7 +73,8 @@ Definition privInstSize := 1000.
 
 
 (** Conversion from labels to integers *)
-Definition to_mvector (opcode: OpCode) (op1lab op2lab op3lab:option T) (pclab: T) : Z * Z * Z * Z * Z :=
+Definition to_mvector (opcode: OpCode) (oplabs: option T * option T * option T)  (pclab: T) : Z * Z * Z * Z * Z :=
+   let '(op1lab,op2lab,op3lab) := oplabs in 
    let optlabToZ optl :=
      match optl with
      | None => labToZ bot
@@ -87,6 +88,20 @@ Definition from_rvector (tags: Z * Z)  T * T :=
   (ZToLab tagr,ZToLab tagrpc). 
 *)
 
+(* Build the cache line from mvector parameters. 
+NB: Ordering of parameters in memory must match addr* definitions above. *)
+
+Section WithListNotations.
+
+Import ListNotations.
+
+Definition build_cache (opcode: OpCode) (oplabs: option T * option T * option T) (pcl:T): list (@Atom T) := 
+let '(optag,tag1,tag2,tag3,pctag) := to_mvector opcode oplabs pcl in
+[(optag,handlerLabel); (tag1,handlerLabel); (tag2,handlerLabel); (tag3,handlerLabel); 
+ (pctag,handlerLabel); (0,handlerLabel); (0,handlerLabel)]. 
+
+End WithListNotations.
+
 (** Cache spec when reading from, writing to *)
 Inductive tag_in_mem (m: list (@Atom T)) addr tagv : Prop := 
 | tim_intro : index_list_Z addr m = Some (tagv,handlerLabel) ->
@@ -95,8 +110,7 @@ Inductive tag_in_mem (m: list (@Atom T)) addr tagv : Prop :=
 (* Tests the cache line *)  
 Inductive cache_hit (m: list (@Atom T)) opcode oplabs pclab : Prop := 
 | ch_intro: forall m_op m_tag1 m_tag2 m_tag3 m_tagpc,
-              forall (MVEC:  let '(op1lab,op2lab,op3lab) := oplabs in 
-                             to_mvector opcode op1lab op2lab op3lab pclab = 
+              forall (MVEC: to_mvector opcode oplabs pclab = 
                             (m_op, m_tag1, m_tag2, m_tag3, m_tagpc))
                      (OP: tag_in_mem m addrOpLabel m_op)
                      (TAG1: tag_in_mem m addrTag1 m_tag1)
@@ -104,6 +118,16 @@ Inductive cache_hit (m: list (@Atom T)) opcode oplabs pclab : Prop :=
                      (TAG3: tag_in_mem m addrTag3 m_tag3)
                      (TAGPC: tag_in_mem m addrTagPC m_tagpc),
                 cache_hit m opcode oplabs pclab. 
+
+Lemma build_cache_hit: forall opcode oplabs pclab,
+     cache_hit (build_cache opcode oplabs pclab) opcode oplabs pclab.                          
+Proof.
+  intros. unfold build_cache. 
+  destruct (to_mvector opcode oplabs pclab) as [[[[optag tag1] tag2] tag3] pctag] eqn:?. 
+  econstructor; eauto; 
+  try unfold addrOpLabel; try unfold addrTag1; try unfold addrTag2; try unfold addrTag3;
+  try unfold addrTagPC; unfold index_list_Z; econstructor; reflexivity. 
+Qed.
 
 (* Reads the cache line *)
 Inductive cache_hit_read (m: list (@Atom T)) : T -> T -> Prop :=

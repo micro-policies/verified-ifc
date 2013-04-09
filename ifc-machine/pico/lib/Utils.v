@@ -518,6 +518,45 @@ Proof.
   eapply update_list_spec; eauto. 
 Qed.
 
+Lemma update_list_spec2 (T:Type) : forall (v:T) l n n' l',
+  update_list n v l = Some l' ->
+  n <> n' ->
+  index_list n' l = index_list n' l'.
+Proof.
+  induction l; intros.
+  destruct n; simpl in *; inv H.  
+  destruct n. 
+    destruct n'. 
+      exfalso; omega. 
+      destruct l'; inv H. 
+      simpl. auto.
+    destruct n'. 
+      destruct l'; inv H. 
+        destruct (update_list n v l); inv H2. 
+        destruct (update_list n v l); inv H2. 
+        auto.
+      destruct l'; inv H.  
+        destruct (update_list n v l); inv H2. 
+        simpl. 
+        destruct  (update_list n v l) eqn:?; inv H2.  
+        eapply IHl; eauto. 
+Qed.  
+
+
+Lemma update_list_Z_spec2 (T:Type) : forall (v:T) l a a' l',
+  update_list_Z a v l = Some l' ->
+  a' <> a ->
+  index_list_Z a' l = index_list_Z a' l'.
+Proof.
+  unfold update_list_Z, index_list_Z. intros.
+  destruct (a <? 0)%Z eqn:?. congruence.
+  destruct (a' <? 0)%Z eqn:?. auto.
+  eapply update_list_spec2; eauto. 
+  apply Z.ltb_ge in Heqb. 
+  apply Z.ltb_ge in Heqb0. 
+  intro. apply H0. apply Z2Nat.inj; eauto.
+Qed.
+
 Lemma app_same_length_eq (T: Type): forall (l1 l2 l3 l4: list T), 
   l1++l2 = l3++l4 -> 
   length l1 = length l3 ->

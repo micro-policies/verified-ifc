@@ -89,7 +89,9 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
    Some(result_tag,result_pc_tag); otherwise, set the state to invoke
    the TMU fault handler code and return None.  *)
 
-(* [check_stags opc opl1 opl2 opl3 pcl s1 s2] holds when: either [s2]
+
+
+(* [check_stags opc oplabs pcl s1 s2] holds when: either [s2]
 has an up to date cache or [s2] is the privileged state in which the
 tmu routine must then be executed *)
 Inductive check_tags (opcode: OpCode) (oplabs: option T * option T * option T) (pcl:T): @CS T -> @CS T -> Prop :=
@@ -98,15 +100,12 @@ Inductive check_tags (opcode: OpCode) (oplabs: option T * option T * option T) (
     forall (CHIT: cache_hit c opcode oplabs pcl),      
       check_tags opcode oplabs pcl 
                  (CState c m fh i s pc false) (CState c m fh i s pc false)
-
 | ct_upriv_cmiss: (* not in cache: arrange to enter TMU fault handler *)
-    forall c c' m fh i s pc,
-      forall (CMISS: ~ cache_hit c opcode oplabs pcl)
-             (C'HIT: cache_hit c' opcode oplabs pcl)
-             (UPD: update_cache_spec_mvec c c'),
+    forall c m fh i s pc,
+      forall (CMISS: ~ cache_hit c opcode oplabs pcl),
     check_tags opcode oplabs pcl 
                (CState c m fh i s pc false) 
-               (CState c' m fh i ((CRet pc false false)::s) (0,handlerLabel) true).
+               (CState (build_cache opcode oplabs pcl) m fh i ((CRet pc false false)::s) (0,handlerLabel) true).
 
 (* New version decoupled from runsToEnd  *)
 

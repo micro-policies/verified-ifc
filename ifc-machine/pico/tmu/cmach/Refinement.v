@@ -118,6 +118,8 @@ Definition optionlabToZ (ol: option L) : Z :=
           | Some l => labToZ l
       end.
 
+(* Following is now dead; we use build_cache instead.
+
 Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (opls: option L * option L * option L) (pcl: L):=
   let '(op1,op2,op3) := opls in
   match upd_m addrOpLabel ((opCodeToZ opcode),handlerLabel) tmuc with 
@@ -141,46 +143,6 @@ Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (opls: option L 
       end
   end.
 
-(* Belongs in Utils.v *)
-
-Lemma update_list_spec2 (T:Type) : forall (v:T) l n n' l',
-  update_list n v l = Some l' ->
-  n <> n' ->
-  index_list n' l = index_list n' l'.
-Proof.
-  induction l; intros.
-  destruct n; simpl in *; inv H.  
-  destruct n. 
-    destruct n'. 
-      exfalso; omega. 
-      destruct l'; inv H. 
-      simpl. auto.
-    destruct n'. 
-      destruct l'; inv H. 
-        destruct (update_list n v l); inv H2. 
-        destruct (update_list n v l); inv H2. 
-        auto.
-      destruct l'; inv H.  
-        destruct (update_list n v l); inv H2. 
-        simpl. 
-        destruct  (update_list n v l) eqn:?; inv H2.  
-        eapply IHl; eauto. 
-Qed.  
-
-
-Lemma update_list_Z_spec2 (T:Type) : forall (v:T) l a a' l',
-  update_list_Z a v l = Some l' ->
-  a' <> a ->
-  index_list_Z a' l = index_list_Z a' l'.
-Proof.
-  unfold update_list_Z, index_list_Z. intros.
-  destruct (a <? 0)%Z eqn:?. congruence.
-  destruct (a' <? 0)%Z eqn:?. auto.
-  eapply update_list_spec2; eauto. 
-  apply Z.ltb_ge in Heqb. 
-  apply Z.ltb_ge in Heqb0. 
-  intro. apply H0. apply Z2Nat.inj; eauto.
-Qed.
 
 Lemma update_cache_spec : forall tmuc opcode opls pcl,
     update_cache_spec_mvec tmuc (update_cache tmuc opcode opls pcl).
@@ -209,8 +171,9 @@ Admitted.
 (* APT: Actually, I don't think this is true unless we guarantee
 that tmuc is large enough to start with. *)
 
-
 Hint Resolve update_cache_hit update_cache_spec.
+
+*)
 
 Lemma handler_final_cache_hit_preserved: 
   forall tmuc tmuc' rl opcode opls rpcl pcl,
@@ -381,6 +344,7 @@ Ltac res_label :=
         try (solve [inv Hrule])
   end.
  
+
 Ltac inv_cache_update :=
   (unfold cache_up2date; intros); 
   (exploit handler_final_cache_hit_preserved; eauto); intros; 
@@ -426,15 +390,15 @@ Proof.
       inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
       inv H0; eauto. 
 
-     + set (tmuc':= (update_cache tmuc OpNoop opls pcl)) in *.
+     + set (tmuc':= build_cache OpNoop opls pcl).  
        assert (CHIT' : cache_hit tmuc' OpNoop opls pcl)
-         by (eauto using update_cache_hit).
+         by (eauto using build_cache_hit). 
        edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]]; 
          [exact CHIT' | exact H0 |].  (* ARGH: eauto should work *)
        res_label.
        exists (CState c m faultHandler i cstk (pcv+1, rpcl) false). split.
           * destruct Hmfinal as [[ll Hll] Hspec].
-            eapply cstep_nop with _ pcv pcl; eauto.               
+            eapply cstep_nop with _ pcv pcl; eauto. 
           * econstructor ; eauto. 
             inv_cache_update.
   }
@@ -450,9 +414,9 @@ Proof.
         eapply cstep_add with x1l x2l pcl i ; eauto.        
         eapply CACHE with (1:= H0); eauto.
         
-     + set (tmuc':= (update_cache tmuc OpAdd opls pcl)) in *.
+     + set (tmuc':= build_cache OpAdd opls pcl).
        assert (CHIT' : cache_hit tmuc' OpAdd opls pcl)
-         by (eauto using update_cache_hit).
+         by (eauto using build_cache_hit).
        edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]].
        exact CHIT'. eauto.
        inv STKS. inv H4.
@@ -558,22 +522,6 @@ Lemma check_cache_determ: forall opcode opls pcl cs cs' cs'',
   cs' = cs''.
 Proof.
   induction 1 ; intros; inv H; auto; try (solve [ intuition]).
-  unfold update_cache_spec_mvec in *.
-  assert (H_OTHERS: forall addr,  addr <> addrOpLabel ->  addr <> addrTagPC -> 
-                        addr <> addrTag1 -> addr <> addrTag2 -> addr <> addrTag3 ->
-                        read_m addr c' = read_m addr c'0) by
-      (intros; rewrite <- UPD; auto).
-  generalize (cache_hit_same_content L C'HIT C'HIT0). intros Hid.
-  cut (c' = c'0). intros Heq ; inv Heq. auto.
-
-  eapply index_list_Z_eq ; eauto.
-  intros. 
-  destruct (Z_eq_dec i0 addrOpLabel).
-    inv e. eauto. destruct (Z_eq_dec i0 addrTag1).
-    inv e. eauto. destruct (Z_eq_dec i0 addrTag2).
-    inv e. eauto. destruct (Z_eq_dec i0 addrTag3).
-    inv e. eapply Hid; eauto. destruct (Z_eq_dec i0 addrTagPC).
-    inv e. eapply Hid; eauto. eapply H_OTHERS; eauto.
 Qed.
  
 Lemma no_unpriv_step : forall s1, priv s1 = false -> forall s2, ~cstep_p s1 s2.
