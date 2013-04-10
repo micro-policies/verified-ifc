@@ -4,15 +4,14 @@ Import ListNotations.
 
 Require Import TMUInstr.
 Require Import Lattices.
+Require Import CodeGen.
 
 (* Lattice-dependent parameters *)
 Class ConcreteLattice (T: Type) :=
-{ handlerLabel : T (* Label to use for internal handler data. *)
-; labToZ :  T -> Z
+{ labToZ :  T -> Z
 ; ZToLab :  Z -> T
 ; genJoin : list (@Instr T)
 ; genFlows : list (@Instr T)
-; labToZ_inj: forall l1 l2, labToZ l1 = labToZ l2 -> l1 = l2
 }.
 
 Require Import LatticeHL. 
@@ -32,24 +31,14 @@ Instance TMUHL : ConcreteLattice Lab :=
       | _ => H
     end
 
-  ;handlerLabel := H 
+  ;genJoin := 
+    ifNZ (pop ++ push' 1) nop  (* same as genOr *)
 
-  ;genJoin :=
-    [BranchNZ 3] ++
-    [Push (1, H) ; BranchNZ 3] ++  (* branch 3 *)
-    [BranchNZ 1  ; 
-    Push (1, H)]
-
-  ;genFlows := (* l2 is on top of stack, l1 underneath *)
-    [BranchNZ 2;
-     BranchNZ 4;
-     Push (1, H)] ++
-     [Push (1,H) ; BranchNZ 2] ++  (* branch 2 *)
-     [Push (0,H)]
+  ;genFlows := (* l1 is on top of stack, l2 underneath *)
+    ifNZ nop (pop ++ genTrue) (* punning in true branch *)
 }.
-Proof.
-  - intros. destruct l1, l2 ; simpl ; congruence.
-Defined.
+
+
 
 (*
 Module HL : TMULattice.  

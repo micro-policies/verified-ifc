@@ -12,6 +12,7 @@ Local Open Scope Z_scope.
 Section CMach.
 
 Context {T: Type}
+        {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}.
 
 (** Definition of states for the concrete machine *)
@@ -87,6 +88,8 @@ Definition from_rvector (tags: Z * Z)  T * T :=
   let (tagr, tagrpc) := tags in
   (ZToLab tagr,ZToLab tagrpc). 
 *)
+
+Definition handlerLabel := bot.
 
 (* Build the cache line from mvector parameters. 
 NB: Ordering of parameters in memory must match addr* definitions above. *)

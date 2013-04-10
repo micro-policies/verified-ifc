@@ -1,3 +1,5 @@
+(** Generic support for writing (privileged) concrete machine programs. *)
+
 Require Import ZArith.
 Require Import List.
 Require Import Utils.
@@ -5,18 +7,20 @@ Import ListNotations. (* list notations *)
 
 Require Import TMUInstr.
 Require Import Lattices.
-Require Import Concrete.
-Require Import CLattices.
+(* Require Import Concrete.*)
 Require Import Rules.
 
 Local Open Scope Z_scope. 
 Set Implicit Arguments. 
 
-Section TMUCodeGeneration.
+Section CodeGeneration.
 
 Context 
   {T: Type}
-  {CLatt: ConcreteLattice T}.
+  {Latt : JoinSemiLattice T}
+.
+
+Definition handlerLabel := bot.
 
 Definition code := list (@Instr T).
 
@@ -118,55 +122,8 @@ Definition genOr :=
 Definition genNot :=
   ifNZ genFalse genTrue.
 
-(* --------------------- TMU Fault Handler code ----------------------------------- *)
-
-(* XXX: NC: this Fault Handler specific code may belong back in
-TMUFaultRoutine.v, but it will be easier to have it all in one place
-while working on it ... *)
-
-(* Compilation of rules *)
-
-Definition genError :=
-  [push (-1); Jump].
-
-Definition genVar {n:nat} (l:LAB n) :=
-  match l with
-  (* NC: We assume the operand labels are stored at these memory
-     addresses when the fault handler runs. *)
-  | lab1 _ => loadFrom addrTag1
-  | lab2 _ => loadFrom addrTag2
-  | lab3 _ => loadFrom addrTag3
-  | labpc => loadFrom addrTagPC
-  end.
-
-Fixpoint genExpr {n:nat} (e: rule_expr n) :=
-  match e with
-  | L_Var l => genVar l
-  (* NC: push the arguments in reverse order. *)
-  | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
- end.
-
-Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
-  match s with
-  | A_True => genTrue
-  | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
-  | A_And s1 s2 => genScond s2 ++ genScond s1 ++ genAnd 
-  | A_Or s1 s2 => genScond s2 ++ genScond s1 ++ genOr 
-  end.
-
 Definition some c: code := c ++ push' 1.
 Definition none:   code := push' 0.
-
-Definition genApplyRule {n:nat} (am:AllowModify n): code :=
-  ite (genScond (allow am))
-      ((genExpr (labResPC am)) ++
-       some
-         match (labRes am) with
-         | Some lres => some (genExpr lres)
-         | None      => none
-         end
-      )
-      none.
 
 Definition sub: code := [Sub].
 
@@ -176,76 +133,4 @@ Definition genTestEqual (c1 c2: code): code :=
   sub ++
   genNot.
 
-Section FaultHandler.
-
-Definition genCheckOp (op:OpCode): code :=
-  genTestEqual (push' (opCodeToZ op)) (loadFrom addrOpLabel).
-
-Definition fetch_rule_impl_type: Type := forall (opcode:OpCode),  {n:nat & AllowModify n}.
-Variable fetch_rule_impl: fetch_rule_impl_type.
-Definition opcodes := 
-  [OpNoop; OpAdd; OpSub; OpPush; OpLoad; OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet].
-Definition genApplyRule' op := genApplyRule (projT2 (fetch_rule_impl op)).
-(* Fault handler that puts results on stack. *)
-Definition genFaultHandlerStack: code :=
-  indexed_cases nop genCheckOp genApplyRule' opcodes.
-
-(* Write fault handler results to memory. *)
-Definition genFaultHandlerMem: code :=
-  ifNZ (ifNZ (storeAt addrTagRes) nop ++
-        storeAt addrTagResPC ++
-        genTrue)
-       genFalse.
-
-Definition faultHandler: code :=
-  genFaultHandlerStack ++
-  genFaultHandlerMem ++
-  ifNZ [Ret] genError.
-
-(* NC: or
-
-   ite (genFaultHandlerStack ++ genFaultHandlerMem)
-        [Ret]
-        genError.
-*)
-
-End FaultHandler.
-
-(*
-Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
-  let (allow, labresopt, labrespc) := am in 
-  let body := 
-    genScond allow ++
-    [BranchNZ (Z.of_nat(length(genError)) +1)] ++
-    genError ++ 
-    genExpr labrespc ++
-    storeAt addrTagResPC ++ 
-    match labresopt with 
-    | Some labres =>
-      genExpr labres ++
-      storeAt addrTagRes
-    | None => []
-    end ++
-    [Ret] in
-  (* test if correct opcode; if not, jump to end to fall through *)    
-  branchIfLocNeq addrOpLabel opcode (Z.of_nat (length body)) ++ body.
-
-
-Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code :=
-  let gen (opcode:OpCode) := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
-  gen OpNoop ++
-  gen OpAdd ++ 
-  gen OpSub ++
-  gen OpPush ++
-  gen OpLoad ++
-  gen OpStore ++
-  gen OpJump ++
-  gen OpBranchNZ ++
-  gen OpCall ++
-  gen OpRet ++
-  gen OpVRet ++
-  genError.
-*)
-
-
-End TMUCodeGeneration. 
+End CodeGeneration. 

@@ -4,18 +4,17 @@ Require Import Utils.
 Import ListNotations.
 Require Vector.
 
+Require Import LibTactics.
 Require Import TMUInstr.
 Require Import Lattices.
 Require Import Concrete.
 Require Import ConcreteMachine.
 Require Import Rules.
 Require Import CLattices.
-Require Import CodeSpecs. (* For [memory] *)
+Require Import CodeSpecs. 
 Require Import CodeGen.
-
-(* Specification of the handler code *)
-(* Some definitions and conjectures relating abstract fault descriptions to
-   execution of the code generated.  *) 
+Require Import CLattices.
+Require Import WfCLattices.
 
 Section TMU. 
 
@@ -23,7 +22,786 @@ Open Local Scope Z_scope.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}.
+        {CLatt: ConcreteLattice T}
+        {WFCLatt: WfConcreteLattice T Latt CLatt}. 
+
+(* --------------------- TMU Fault Handler code ----------------------------------- *)
+
+(* Compilation of rules *)
+
+Definition genError :=
+  [push (-1); Jump].
+
+Definition genVar {n:nat} (l:LAB n) :=
+  match l with
+  (* NC: We assume the operand labels are stored at these memory
+     addresses when the fault handler runs. *)
+  | lab1 _ => loadFrom addrTag1
+  | lab2 _ => loadFrom addrTag2
+  | lab3 _ => loadFrom addrTag3
+  | labpc => loadFrom addrTagPC
+  end.
+
+Fixpoint genExpr {n:nat} (e: rule_expr n) :=
+  match e with
+  | L_Var l => genVar l
+  (* NC: push the arguments in reverse order. *)
+  | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
+ end.
+
+Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
+  match s with
+  | A_True => genTrue
+  | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
+  | A_And s1 s2 => genScond s2 ++ genScond s1 ++ genAnd 
+  | A_Or s1 s2 => genScond s2 ++ genScond s1 ++ genOr 
+  end.
+
+
+Definition genApplyRule {n:nat} (am:AllowModify n): code :=
+  ite (genScond (allow am))
+      ((genExpr (labResPC am)) ++
+       some
+         match (labRes am) with
+         | Some lres => some (genExpr lres)
+         | None      => none
+         end
+      )
+      none.
+
+Section FaultHandler.
+
+Definition genCheckOp (op:OpCode): code :=
+  genTestEqual (push' (opCodeToZ op)) (loadFrom addrOpLabel).
+
+Definition fetch_rule_impl_type: Type := forall (opcode:OpCode),  {n:nat & AllowModify n}.
+Variable fetch_rule_impl: fetch_rule_impl_type.
+Definition opcodes := 
+  [OpNoop; OpAdd; OpSub; OpPush; OpLoad; OpStore; OpJump; OpBranchNZ; OpCall; OpRet; OpVRet].
+Definition genApplyRule' op := genApplyRule (projT2 (fetch_rule_impl op)).
+(* Fault handler that puts results on stack. *)
+Definition genFaultHandlerStack: code :=
+  indexed_cases nop genCheckOp genApplyRule' opcodes.
+
+(* Write fault handler results to memory. *)
+Definition genFaultHandlerMem: code :=
+  ifNZ (ifNZ (storeAt addrTagRes) nop ++
+        storeAt addrTagResPC ++
+        genTrue)
+       genFalse.
+
+Definition faultHandler: code :=
+  genFaultHandlerStack ++
+  genFaultHandlerMem ++
+  ifNZ [Ret] genError.
+
+(* NC: or
+
+   ite (genFaultHandlerStack ++ genFaultHandlerMem)
+        [Ret]
+        genError.
+*)
+
+End FaultHandler.
+
+(*
+Definition genRule {n:nat} (am:AllowModify n) (opcode:Z) : code :=
+  let (allow, labresopt, labrespc) := am in 
+  let body := 
+    genScond allow ++
+    [BranchNZ (Z.of_nat(length(genError)) +1)] ++
+    genError ++ 
+    genExpr labrespc ++
+    storeAt addrTagResPC ++ 
+    match labresopt with 
+    | Some labres =>
+      genExpr labres ++
+      storeAt addrTagRes
+    | None => []
+    end ++
+    [Ret] in
+  (* test if correct opcode; if not, jump to end to fall through *)    
+  branchIfLocNeq addrOpLabel opcode (Z.of_nat (length body)) ++ body.
+
+
+Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (labelCount opcode)) : code :=
+  let gen (opcode:OpCode) := genRule (fetch_rule_impl opcode) (opCodeToZ opcode) in
+  gen OpNoop ++
+  gen OpAdd ++ 
+  gen OpSub ++
+  gen OpPush ++
+  gen OpLoad ++
+  gen OpStore ++
+  gen OpJump ++
+  gen OpBranchNZ ++
+  gen OpCall ++
+  gen OpRet ++
+  gen OpVRet ++
+  genError.
+*)
+
+
+(* ================================================================ *)
+(* Fault-handler Code Specifications                                *)
+
+Section TMUSpecs.
+
+Definition handler_initial_mem_matches 
+           (opcode: OpCode)
+           (op1lab: option T) (op2lab:option T) (op3lab:option T) (pclab: T) 
+           (m: memory) : Prop := 
+  index_list_Z addrOpLabel m = Some(opCodeToZ opcode,handlerLabel)
+  /\ (match op1lab with
+      | Some op1 => index_list_Z addrTag1 m = Some (labToZ op1,handlerLabel)
+      |    None=> True
+   end)  
+  /\ (match op2lab with
+      | Some op2 => index_list_Z addrTag2 m = Some (labToZ op2,handlerLabel)
+      | None => True
+      end)
+  /\ (match op3lab with
+      | Some op3 => index_list_Z addrTag3 m = Some (labToZ op3,handlerLabel)
+      | None => True
+      end)
+  /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
+.
+
+(* APT: Just a little sanity check that these definitions are somewhat coherent. *)
+Lemma init_init: forall m op ts tpc, cache_hit m op ts tpc ->
+let '(op1lab,op2lab,op3lab) := ts in
+handler_initial_mem_matches op op1lab op2lab op3lab tpc m.
+Proof.
+  intros.
+  inv H. destruct ts as [[t1 t2] t3]. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
+  econstructor; destruct t1; destruct t2; destruct t3; eauto.
+Qed.
+
+(* Connecting to the definition used in FaultRoutine.v : *)
+Lemma init_enough0: forall {n} (vls:Vector.t T n) m opcode opls pcl,
+    glued vls opls ->                      
+    cache_hit m opcode opls pcl ->
+    handler_initial_mem_matches 
+      opcode
+      (nth_order_option vls 0)
+      (nth_order_option vls 1)
+      (nth_order_option vls 2)
+      pcl m.
+Proof.
+  intros. 
+  inv H0. destruct opls as [[? ?] ?]. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC.  
+  inv H;
+    match goal with H: existT _ _ _ = existT _ _ _ |- _ => apply inj_pair2 in H end; subst;  
+    (* inj_pair2 is an axiom !!!!!!! *)
+  unfold handler_initial_mem_matches; simpl; intuition. 
+Qed.
+
+(* Connecting to the definition used in FaultRoutine.v : *)
+Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
+    cache_hit m opcode (glue vls) pcl ->
+    handler_initial_mem_matches 
+      opcode
+      (nth_order_option vls 0)
+      (nth_order_option vls 1)
+      (nth_order_option vls 2)
+      pcl m.
+Proof.
+  intros. unfold glue in H. 
+  destruct (nth_order_option vls 0); destruct (nth_order_option vls 1);
+    destruct (nth_order_option vls 2); apply init_init in H; 
+    auto; unfold handler_initial_mem_matches in *; intuition. 
+Qed.
+
+
+Variable fetch_rule_impl: fetch_rule_impl_type.
+Variable (opcode: OpCode).
+Definition n := projT1 (fetch_rule_impl opcode).
+Definition am := projT2 (fetch_rule_impl opcode).
+Variable (vls: Vector.t T n).
+Variable (pcl: T).
+Variable (m0: @memory T).
+
+Hypothesis initial_mem_matches:
+  handler_initial_mem_matches
+    opcode
+    (nth_order_option vls 0)
+    (nth_order_option vls 1)
+    (nth_order_option vls 2)
+    pcl m0.
+
+Definition eval_var := mk_eval_var vls pcl.
+
+Lemma genVar_spec:
+  forall v l,
+    eval_var v = l ->
+    forall s0,
+      HT   (genVar v)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (labToZ l, handlerLabel) :: s0).
+Proof.
+  intros v l Heval_var s0.
+  destruct v; simpl; eapply loadFrom_spec;
+  simpl in *; unfold handler_initial_mem_matches in *.
+
+  (* Most of the cases are very similar ... *)
+  Ltac nth_order_case k :=
+    erewrite (nth_order_option_Some n vls k) in *;
+    intuition;
+    subst; auto;
+    eauto.
+  nth_order_case 0%nat.
+  nth_order_case 1%nat.
+  nth_order_case 2%nat.
+
+  intuition.
+  subst; auto.
+  eauto.
+Qed.
+
+
+Lemma genExpr_spec: forall (e: rule_expr n),
+  forall l,
+    eval_expr eval_var e = l ->
+    forall s0,
+      HT   (genExpr e)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (labToZ l, handlerLabel) :: s0).
+Proof.
+  induction e; intros ? Heval_expr ?;
+    simpl; simpl in Heval_expr.
+  eapply genVar_spec; eauto.
+  eapply HT_compose.
+  eapply IHe2; eauto.
+  eapply HT_compose.
+  eapply IHe1; eauto.
+  rewrite <- Heval_expr.
+  eapply genJoin_spec.
+Qed.
+
+
+Lemma genScond_spec: forall (c: rule_scond n),
+  forall b,
+    eval_cond eval_var c = b ->
+    forall s0,
+      HT   (genScond c)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (boolToZ b, handlerLabel) :: s0).
+Proof.
+  induction c; intros; simpl;
+    try (simpl in H); subst.
+
+  (* True *)
+  eapply push_spec''.
+
+  (* Flows *)
+  eapply HT_compose.
+  eapply genExpr_spec.
+  eauto.
+  eapply HT_compose.
+  eapply genExpr_spec.
+  eauto.
+  eapply genFlows_spec.
+
+  (* And *)
+  eapply HT_compose.
+  eapply IHc2.
+  eauto.
+  eapply HT_compose.
+  eapply IHc1.
+  eauto.
+  eapply genAnd_spec.
+
+  (* Or *)
+  eapply HT_compose.
+  eapply IHc2.
+  eauto.
+  eapply HT_compose.
+  eapply IHc1.
+  eauto.
+  eapply genOr_spec.
+Qed.
+
+(* XXX: how to best model [option]s and monadic sequencing in the code
+   gens?  E.g., for [genApplyRule_spec], I need to handle both [Some
+   (Some l1, l2)] and [Some (None, l2)].  Do I do different things to
+   memory in these cases? If so I need to distinguish these cases in
+   my stack returns.
+
+   Also, modeling [option]s in the generated code might make the
+   correctness proof easier? *)
+
+(* NC: Nota bene: we should only need to reason about what
+   [genApplyRule] does for the current opcode, since that's the only
+   code that is going to run. *)
+
+(* XXX: could factor out all the [apply_rule] assumptions
+   below as:
+
+     Parameter ar.
+     Hypothesis apply_rule_eq: apply_rule am vls pcl = ar.
+
+   and then use [ar] in place of [apply_rule am vls pcl] everywhere.
+*)
+
+Lemma genApplyRule_spec_Some_Some:
+  forall l1 l2,
+    apply_rule am vls pcl = Some (Some l1, l2) ->
+    forall s0,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (        1, handlerLabel) :: (* [Some (...)] *)
+                           CData (        1, handlerLabel) :: (* [Some l1] *)
+                           CData (labToZ l1, handlerLabel) ::
+                           CData (labToZ l2, handlerLabel) :: s0).
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+  cases (labRes am); try (solve [false; auto]).
+  inversion Happly; subst.
+
+  eapply ite_spec_specialized with (v:=boolToZ true).
+    eapply genScond_spec; auto.
+
+    intros.
+    eapply HT_compose.
+
+      apply genExpr_spec.
+      eauto.
+
+      eapply some_spec.
+      eapply some_spec.
+      eapply genExpr_spec.
+      eauto.
+
+    intros; false; omega.
+Qed.
+
+Lemma genApplyRule_spec_Some_None:
+  forall l2,
+    apply_rule am vls pcl = Some (None, l2) ->
+    forall s0,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (        1, handlerLabel) :: (* [Some (...)] *)
+                           CData (        0, handlerLabel) :: (* [None] *)
+                           CData (labToZ l2, handlerLabel) :: s0).
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+  cases (labRes am); try (solve [false; auto]).
+  inversion Happly; subst.
+
+  eapply ite_spec_specialized with (v:=boolToZ true).
+    eapply genScond_spec; auto.
+
+    intros.
+    eapply HT_compose.
+
+      apply genExpr_spec.
+      eauto.
+
+      eapply some_spec.
+      eapply none_spec.
+
+    intros; false; omega.
+Qed.
+
+Lemma genApplyRule_spec_None:
+    apply_rule am vls pcl = None ->
+    forall s0,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = CData (0, handlerLabel) :: s0). (* [None] *)
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+
+  eapply ite_spec_specialized with (v:=boolToZ false); intros.
+    eapply genScond_spec; auto.
+
+    unfold boolToZ in *; false; omega.
+
+    apply none_spec.
+Qed.
+
+Definition listify_apply_rule
+  (ar: option (option T * T)) (s0: stack): stack
+:=
+  match ar with
+  | None                => CData (0, handlerLabel) :: s0
+  | Some (None,    lpc) => CData (1, handlerLabel) ::
+                           CData (0, handlerLabel) ::
+                           CData (labToZ lpc, handlerLabel) :: s0
+  | Some (Some lr, lpc) => CData (1, handlerLabel) ::
+                           CData (1, handlerLabel) ::
+                           CData (labToZ lr, handlerLabel) ::
+                           CData (labToZ lpc, handlerLabel) :: s0
+  end.
+
+Lemma genApplyRule_spec:
+  forall ar,
+    apply_rule am vls pcl = ar ->
+    forall s0,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = listify_apply_rule ar s0).
+Proof.
+  intros.
+  case_eq ar; intros p ?; subst.
+  - destruct p as [o l2]; case_eq o; intros l1 ?; subst.
+    + eapply genApplyRule_spec_Some_Some; eauto.
+    + eapply genApplyRule_spec_Some_None; eauto.
+  - eapply genApplyRule_spec_None; eauto.
+Qed.
+
+Lemma genApplyRule_spec_GT:
+  forall ar,
+    apply_rule am vls pcl = ar ->
+      GT (genApplyRule am)
+         (fun m s => m = m0)
+         (fun m0' s0 m s => m = m0 /\
+                            s = listify_apply_rule ar s0).
+Proof.
+  unfold GT; intros.
+  eapply HT_consequence; eauto.
+  - eapply genApplyRule_spec; eauto.
+  - simpl; intuition (subst; eauto).
+  - simpl; intuition (subst; eauto).
+Qed.
+
+Lemma genCheckOp_spec:
+  forall opcode', forall s0,
+    HT (genCheckOp opcode')
+      (fun m s => m = m0 /\
+                  s = s0)
+      (fun m s => m = m0 /\
+                  s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
+                      ,handlerLabel) ::: s0).
+Proof.
+  intros.
+  unfold genCheckOp.
+  eapply genTestEqual_spec.
+  eapply push_spec''.
+  intros.
+  eapply loadFrom_spec.
+  unfold handler_initial_mem_matches in *.
+  iauto.
+Qed.
+
+Lemma genCheckOp_spec_GT:
+  forall opcode',
+    GT (genCheckOp opcode')
+       (fun m s => m = m0)
+       (fun m0' s0 m s => m = m0 /\
+                          s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
+                               ,handlerLabel) ::: s0).
+Proof.
+  unfold GT; intros.
+  eapply HT_consequence; eauto.
+  - eapply genCheckOp_spec; eauto.
+  - simpl; intuition (subst; eauto).
+  - simpl; intuition (subst; eauto).
+Qed.
+
+Section FaultHandlerSpec.
+
+Variable ar: option (option T * T).
+Hypothesis H_apply_rule: apply_rule am vls pcl = ar.
+
+(* Don't really need to specify [Qnil] since it will never run *)
+Definition Qnil: @GProp T := fun m0' s0 m s => True.
+Definition genV: OpCode -> @HFun T :=
+  fun i _ _ => boolToZ (opCodeToZ i =? opCodeToZ opcode).
+Definition genC: OpCode -> code := genCheckOp.
+Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl.
+Definition genQ: OpCode -> GProp :=
+         (fun i m0' s0 m s => m = m0 /\
+                              s = listify_apply_rule ar s0).
+
+Lemma genCheckOp_spec_GT_push_v:
+  forall opcode',
+    GT_push_v (genC opcode')
+              (fun m s => m = m0)
+              (genV opcode').
+Proof.
+  intros; eapply GT_consequence'.
+  eapply genCheckOp_spec_GT.
+  eauto.
+  intuition (subst; intuition).
+Qed.
+
+Lemma dec_eq_OpCode: forall (o o': OpCode),
+  o = o' \/ o <> o'.
+Proof.
+  destruct o; destruct o'; solve [ left; reflexivity | right; congruence ].
+Qed.
+
+
+Lemma opCodeToZ_inj: forall opcode opcode',
+  (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode) <> 0) ->
+  opcode' = opcode.
+Proof.
+  intros o o'.
+  destruct o; destruct o'; simpl; solve [ auto | intros; false; omega ].
+Qed.
+
+Lemma genApplyRule'_spec_GT_guard_v:
+  forall opcode',
+    GT_guard_v (genB opcode')
+               (fun m s => m = m0)
+               (genV opcode')
+               (genQ opcode').
+Proof.
+  (* NC: This proof is ugly ... not sure where I've gone wrong, but I
+  have ... *)
+  intros.
+  cases (dec_eq_OpCode opcode' opcode) as Eq; clear Eq.
+  - eapply GT_consequence'.
+    + unfold genB, genApplyRule'.
+      subst opcode'.
+      fold am.
+      eapply genApplyRule_spec_GT; eauto.
+    + iauto.
+    + (* why does iauto no longer work here?? *)
+      subst ar. intros.  subst m1. econstructor. intuition. subst ar. intuition.
+  - unfold GT_guard_v, GT, HT.
+    intros.
+    unfold genV in *.
+    pose (opCodeToZ_inj opcode opcode').
+    false; intuition. 
+Qed. 
+
+Lemma H_indexed_hyps: indexed_hyps _ genC genB genQ genV (fun m s => m = m0) opcodes.
+Proof.
+  simpl.
+  intuition; solve
+    [ eapply genCheckOp_spec_GT_push_v
+    | eapply genApplyRule'_spec_GT_guard_v ].
+Qed.
+
+Lemma genFaultHandlerStack_spec_GT:
+  GT (genFaultHandlerStack fetch_rule_impl)
+     (fun m s => m = m0)
+     (fun m0' s0 m s => m = m0 /\
+                        s = listify_apply_rule ar s0).
+Proof.
+  intros.
+  eapply GT_consequence'.
+  unfold genFaultHandlerStack.
+  eapply indexed_cases_spec with (Qnil:=Qnil).
+  - Case "default case that we never reach".
+    unfold GT; intros.
+    eapply HT_consequence.
+    eapply nop_spec.
+    iauto.
+    unfold Qnil; iauto.
+  - exact H_indexed_hyps.
+  - iauto.
+  - Case "untangle post condition".
+    simpl.
+    assert (0 = 0) by reflexivity.
+    assert (1 <> 0) by omega.
+    (* NC: Otherwise [cases] fails.  Thankfully, [cases] tells us this
+    is the problematic lemma, whereas [destruct] just spits out a huge
+    term and says it's ill typed *)
+    clear H_apply_rule.
+    cases opcode;
+      unfold genV, genQ; subst; simpl; intuition.
+Qed.
+
+(* Under our assumptions, [genFaultHandlerStack] just runs the appropriate
+   [genApplyRule]: *)
+Lemma genFaultHandlerStack_spec:
+    forall s0,
+      HT   (genFaultHandlerStack fetch_rule_impl)
+           (fun m s => m = m0 /\
+                       s = s0)
+           (fun m s => m = m0 /\
+                       s = listify_apply_rule ar s0).
+Proof.
+  intros.
+  eapply HT_consequence'.
+  eapply genFaultHandlerStack_spec_GT.
+  iauto.
+  simpl; iauto.
+Qed.
+
+
+(* XXX: NC: not sure which spec I'm supposed to prove, but
+[handler_final_mem_matches'] is the only one used, so try to get there
+first? *)
+
+Lemma genFaultHandlerMem_spec_Some_None: forall lpc,
+  valid_address addrTagResPC m0 ->
+  ar = Some (None, lpc) ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => upd_m addrTagResPC (labToZ lpc,handlerLabel) m0 =
+                     Some m /\
+                   s = (1,handlerLabel) ::: s0).
+Proof.
+  introv Hvalid Har_eq; intros.
+  unfold listify_apply_rule.
+  rewrite Har_eq.
+  unfold genFaultHandlerMem.
+
+  (* Need to exploit early so that existentials can be unified against
+  vars introduced here *)
+  exploit (@valid_store T); eauto.
+  intro H; destruct H.
+
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
+  eapply genTrue_spec_wp.
+  eapply storeAt_spec_wp.
+  eapply ifNZ_spec_Z with (v:=0).
+  eapply nop_spec_wp.
+
+  omega.
+  omega.
+  simpl; intuition; subst; jauto.
+Qed.
+
+Lemma genFaultHandlerMem_spec_Some_Some: forall lr lpc,
+  valid_address addrTagRes m0 ->
+  valid_address addrTagResPC m0 ->
+  ar = Some (Some lr, lpc) ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s =>
+        (exists m', upd_m addrTagRes (labToZ lr,handlerLabel) m0
+                    = Some m'
+                 /\ upd_m addrTagResPC (labToZ lpc,handlerLabel) m'
+                    = Some m)
+        /\ s = (1,handlerLabel) ::: s0).
+Proof.
+  introv HvalidRes HvalidResPC Har_eq; intros.
+  unfold listify_apply_rule.
+  rewrite Har_eq.
+  unfold genFaultHandlerMem.
+
+  (* Need to exploit early so that existentials can be unified against
+  vars introduced here *)
+  eapply valid_store in HvalidRes.
+  destruct HvalidRes as [m' ?].
+  eapply valid_address_upd in HvalidResPC.
+  eapply valid_store in HvalidResPC.
+  destruct HvalidResPC as [m'' ?]; eauto.
+
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
+  eapply genTrue_spec_wp.
+  eapply storeAt_spec_wp.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply storeAt_spec_wp.
+
+  omega.
+  omega.
+  simpl; intuition; subst; jauto.
+  eauto.
+Qed.
+
+Lemma genFaultHandlerMem_spec_None:
+  ar = None ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => m = m0 /\
+                   s = (0,handlerLabel) ::: s0).
+Proof.
+  introv Har_eq; intros.
+  unfold listify_apply_rule.
+  rewrite Har_eq.
+  unfold genFaultHandlerMem.
+
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_Z with (v:=0).
+  eapply genFalse_spec.
+
+  reflexivity.
+  jauto.
+Qed.
+
+(* The irrelevant memory never changes *)
+Lemma genFaultHandlerMem_update_cache_spec_rvec:
+  valid_address addrTagRes m0 ->
+  valid_address addrTagResPC m0 ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => update_cache_spec_rvec m0 m).
+Proof.
+  intros.
+  unfold update_cache_spec_rvec in *.
+
+  cases ar as Eq_ar.
+  destruct p.
+  cases o.
+
+  + eapply HT_weaken_conclusion;
+    rewrite <- Eq_ar in *.
+
+    eapply genFaultHandlerMem_spec_Some_Some; eauto.
+
+    simpl.
+    intros;
+
+    jauto_set_hyps; intros.
+    eapply transitivity.
+    eapply update_list_Z_spec2; eauto.
+    eapply update_list_Z_spec2; eauto.
+
+  + eapply HT_weaken_conclusion;
+    rewrite <- Eq_ar in *.
+
+    eapply genFaultHandlerMem_spec_Some_None; eauto.
+
+    simpl.
+    intros;
+
+    jauto_set_hyps; intros.
+    eapply update_list_Z_spec2; eauto.
+
+  + eapply HT_weaken_conclusion;
+    rewrite <- Eq_ar in *.
+
+    eapply genFaultHandlerMem_spec_None; eauto.
+
+    simpl; intuition; subst; auto.
+Qed.
+
+End FaultHandlerSpec.
+
+End TMUSpecs.
 
 (* Relate abstact rv to final handler memory. *)
 Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': memory) : Prop :=

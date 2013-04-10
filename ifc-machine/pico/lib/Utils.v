@@ -557,6 +557,29 @@ Proof.
   intro. apply H0. apply Z2Nat.inj; eauto.
 Qed.
 
+Lemma update_list_Some (T': Type): forall (v: T') l n,
+  n < length l ->
+  exists l', update_list n v l = Some l'.
+Proof.
+  induction l; intros. 
+  - inv H. 
+  - destruct n. 
+    + simpl.  eauto.
+    + simpl. edestruct IHl as [l' E]. simpl in H. instantiate (1:= n). omega. 
+      eexists. rewrite E. eauto.
+Qed.
+
+Lemma update_list_Z_Some (T':Type): forall (v:T') l (i:Z),
+  (0 <= i)%Z ->
+  Z.to_nat i < length l ->
+  exists l', update_list_Z i v l = Some l'. 
+Proof.
+  intros. unfold update_list_Z.
+  destruct (i <? 0)%Z eqn:?. 
+  - rewrite Z.ltb_lt in Heqb. omega. 
+  - eapply update_list_Some; eauto. 
+Qed.
+
 Lemma app_same_length_eq (T: Type): forall (l1 l2 l3 l4: list T), 
   l1++l2 = l3++l4 -> 
   length l1 = length l3 ->

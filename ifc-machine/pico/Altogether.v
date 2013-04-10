@@ -61,7 +61,7 @@ Qed.
 Context {CLatt: ConcreteLattice L}.
 
 (** The fault handler code *)
-Definition faultHandler := CodeGen.faultHandler (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
+Definition faultHandler := FaultRoutine.faultHandler (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
 Variable mtyCache : list (@Atom L).
 
 (** Initial state of the concrete machine *)

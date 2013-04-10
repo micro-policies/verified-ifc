@@ -2,7 +2,7 @@ Require Import Relations.
 Require Import EqNat.
 Require Import ZArith.
 Require Import List.
-Require Import Utils Lattices CLattices.
+Require Import Utils Lattices CLattices WfCLattices.
 
 Require Import TMUInstr.
 Require Import Abstract Rules AbstractMachine.
@@ -20,11 +20,12 @@ Section Refinement.
 
 Context {L: Type}
         {Latt: JoinSemiLattice L}
-        {CLatt: ConcreteLattice L}.
+        {CLatt: ConcreteLattice L}
+        {WFCLatt: WfConcreteLattice L Latt CLatt}. 
 
 (** The fault handler code and its correctness *)
 Definition fetch_rule_withsig := (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
-Definition faultHandler := CodeGen.faultHandler fetch_rule_withsig.
+Definition faultHandler := FaultRoutine.faultHandler fetch_rule_withsig.
 
 (* Bit more glue *)
 Lemma our_handler_correct_succeed : 
@@ -273,7 +274,7 @@ Proof.
   destruct opls' as [[? ?] ?]; inv MVEC0. split. 
   - inv TAGPC; inv TAGPC0.
     allinv'.  
-    eapply CLattices.labToZ_inj ; eauto.
+    eapply WfCLattices.labToZ_inj ; eauto. 
   - inv OP; inv OP0. allinv'.
     eapply opCodeToZ_inj ; auto.
 Qed.
@@ -309,7 +310,7 @@ Proof.  (* painfully slow *)
    end; 
    match goal with 
      | [ HH: labToZ _ = labToZ _ |- _] => 
-       (eapply CLattices.labToZ_inj in HH; eauto); 
+       (eapply WfCLattices.labToZ_inj in HH; eauto); 
      inv HH; auto
    end.
 Qed.
