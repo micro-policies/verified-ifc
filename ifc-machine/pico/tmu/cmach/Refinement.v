@@ -177,14 +177,14 @@ Hint Resolve update_cache_hit update_cache_spec.
 *)
 
 Lemma handler_final_cache_hit_preserved: 
-  forall tmuc tmuc' rl opcode opls rpcl pcl,
+  forall tmuc tmuc' rl opcode labs rpcl pcl,
     handler_final_mem_matches' rl rpcl tmuc tmuc' ->
-    cache_hit tmuc  opcode opls pcl ->
-    cache_hit tmuc' opcode opls pcl.
+    cache_hit tmuc  opcode labs pcl ->
+    cache_hit tmuc' opcode labs pcl.
 Proof. 
   intros until 0. intros Hfinal HCHIT. inv HCHIT.
   inv Hfinal. unfold update_cache_spec_rvec in *. clear H.
-  destruct opls as [[op1 op2] op3] . inv MVEC. destruct op1; destruct op2; destruct op3;
+  destruct labs as [[l1 l2] l3] . inv MVEC. 
   econstructor;
   constructor;
   match goal with 
@@ -204,27 +204,26 @@ Proof.
   destruct o1, o2; inv Heq; try congruence.
 Qed.
 
+
 Lemma glue_cons_hd: forall n0 a v0 b v3,
   S n0 <= 3 ->
   glue (Vector.cons L a n0 v0) = glue (Vector.cons L b n0 v3) ->
   a = b.
 Proof.
-  intros.
-  inv H0.
-  unfold nth_order_option in H3, H4. 
-  unfold Vector.nth_order in H2. simpl in H2. auto. 
+  intros. inv H0. 
+  auto.  (* APT: how does this work?? *)
 Qed.
 
-Lemma nth_order_option_cons:
-  forall nth n a v,
-    nth_order_option (Vector.cons L a n v) (S nth) 
-    = nth_order_option v nth.
+Lemma nth_order_default_cons:
+  forall nth n a v d,
+    nth_order_default (Vector.cons L a n v) (S nth) d
+    = nth_order_default v nth d.
 Proof.
   induction n; intros.
-  - unfold nth_order_option. 
+  - unfold nth_order_default. 
     case_eq (le_lt_dec (S nth) 1); case_eq (le_lt_dec nth 0); intros; auto;
     try (zify ; omega).
-  - unfold nth_order_option.
+  - unfold nth_order_default.
     case_eq (le_lt_dec (S (S n)) (S nth)); case_eq (le_lt_dec (S n) nth); intros; auto;
     try (zify ; omega).
     unfold Vector.nth_order. simpl. symmetry.
@@ -239,14 +238,15 @@ Lemma glue_cons_tail:
 Proof.
   intros. inv H0.
   unfold glue. 
-  repeat (rewrite nth_order_option_cons in H3). inv H3. clear H1.
-  repeat (rewrite nth_order_option_cons in H4). inv H4. clear H1.
-  replace (nth_order_option v0 2) with (nth_order_option v3 2). 
+  repeat (rewrite nth_order_default_cons in H3). inv H3. clear H1.
+  repeat (rewrite nth_order_default_cons in H4). inv H4. clear H1.
+  replace (nth_order_default v0 2 bot) with (nth_order_default v3 2 bot). 
   auto.
-  unfold nth_order_option. 
+  unfold nth_order_default.
   case_eq (le_lt_dec n0 2); intros; auto.
   zify ; omega.
 Qed.
+
   
 Lemma glue_inj: forall n (v1 v2: Vector.t L n), n <= 3 -> glue v1 = glue v2 -> v1 = v2.
 Proof.
@@ -263,6 +263,35 @@ Proof.
   reflexivity. zify ; omega.
 Qed.  
 
+Lemma cache_hit_unique:
+  forall c opcode opcode' labs labs' pcl pcl',
+    forall
+      (CHIT: cache_hit c opcode labs pcl)
+      (CHIT': cache_hit c opcode' labs' pcl'),
+      opcode = opcode' /\
+      labs = labs' /\
+      pcl = pcl'.
+Proof.
+  intros. inv CHIT; inv CHIT'. 
+  destruct labs as [[l1 l2] l3]; inv MVEC.
+  destruct labs' as [[l1' l2'] l3']; inv MVEC0. 
+  inv OP; inv OP0. 
+  inv TAG1; inv TAG0.
+  inv TAG2; inv TAG4.
+  inv TAG3; inv TAG5.
+  inv TAGPC; inv TAGPC0. 
+  repeat allinv'. 
+  eapply opCodeToZ_inj in H4. 
+  eapply WfCLattices.labToZ_inj in H6.
+  eapply WfCLattices.labToZ_inj in H8.
+  eapply WfCLattices.labToZ_inj in H9.
+  eapply WfCLattices.labToZ_inj in H10.
+  subst.
+  intuition.
+Qed.
+
+
+(*
 Lemma cache_hit_unique_opcode_pc : 
   forall c opcode opcode' pcl pcl' opls opls',
   forall
@@ -335,6 +364,7 @@ Proof.
   destruct opcode; simpl; omega. 
   congruence.
 Qed.
+*)
 
 Hint Constructors cstep run_tmu runsToEscape match_stacks match_states.
 
@@ -346,6 +376,23 @@ Ltac res_label :=
   end.
  
 
+Ltac inv_cache_update :=
+  unfold cache_up2date; intros; 
+  exploit handler_final_cache_hit_preserved; eauto; intros; 
+  let P1 := fresh in let P2 := fresh in let P3 := fresh in 
+  match goal with 
+    |  [CHIT: cache_hit ?C _ _ _,
+        CHIT': cache_hit ?C _ _ _ |- _] =>  
+       destruct (cache_hit_unique CHIT CHIT') as [P1 [P2 P3]]; 
+       subst;
+       apply glue_inj in P2; try (zify; omega); 
+       subst
+  end;
+  allinv'; 
+  try solve [eapply handler_cache_hit_read_none; eauto
+            |eapply handler_cache_hit_read_some; eauto].
+
+(*
 Ltac inv_cache_update :=
   (unfold cache_up2date; intros); 
   (exploit handler_final_cache_hit_preserved; eauto); intros; 
@@ -359,7 +406,7 @@ Ltac inv_cache_update :=
   allinv';
   try solve [eapply handler_cache_hit_read_none; eauto
             |eapply handler_cache_hit_read_some; eauto].
-
+*)
 
 Lemma match_observe: 
   forall s1 s2,
@@ -379,9 +426,9 @@ Lemma step_preserved:
 Proof.
   intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
   - Case "Noop".
-  { set (opls := glue (<||>: Vector.t L _)). 
+  { set (labs := glue (<||>: Vector.t L _)). 
     unfold run_tmr in H0.
-    destruct (classic (cache_hit tmuc OpNoop opls pcl)) as [CHIT | CMISS].
+    destruct (classic (cache_hit tmuc OpNoop labs pcl)) as [CHIT | CMISS].
     + exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false).
       res_label. split.
       unfold cache_up2date in CACHE. 
@@ -391,8 +438,8 @@ Proof.
       inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
       inv H0; eauto. 
 
-     + set (tmuc':= build_cache OpNoop opls pcl).  
-       assert (CHIT' : cache_hit tmuc' OpNoop opls pcl)
+     + set (tmuc':= build_cache OpNoop labs pcl).  
+       assert (CHIT' : cache_hit tmuc' OpNoop labs pcl)
          by (eauto using build_cache_hit). 
        edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]]; 
          [exact CHIT' | exact H0 |].  (* ARGH: eauto should work *)
@@ -404,9 +451,9 @@ Proof.
             inv_cache_update.
   }
  - Case "Add".
-  { set (opls := glue (<|x1l; x2l |>)). 
+  { set (labs := glue (<|x1l; x2l |>)). 
     unfold run_tmr in H0. inv Hmatch.
-      destruct (classic (cache_hit tmuc OpAdd opls pcl)) as
+      destruct (classic (cache_hit tmuc OpAdd labs pcl)) as
           [CHIT | CMISS].
       + inv STKS. inv H4. 
         exists (CState tmuc m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false).
@@ -415,8 +462,8 @@ Proof.
         eapply cstep_add with x1l x2l pcl i ; eauto.        
         eapply CACHE with (1:= H0); eauto.
         
-     + set (tmuc':= build_cache OpAdd opls pcl).
-       assert (CHIT' : cache_hit tmuc' OpAdd opls pcl)
+     + set (tmuc':= build_cache OpAdd labs pcl).
+       assert (CHIT' : cache_hit tmuc' OpAdd labs pcl)
          by (eauto using build_cache_hit).
        edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]].
        exact CHIT'. eauto.
@@ -426,7 +473,7 @@ Proof.
             eapply cstep_add with _ _ pcl _ ; eauto.                
           * econstructor ; eauto. 
             inv_cache_update.
-  }
+}
 Admitted.
 
 Lemma step_preserved_observ: 
@@ -500,26 +547,26 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma cache_hit_same_content (T: Type): forall opcode opls pcl c c',
-  cache_hit c opcode opls pcl ->
-  cache_hit c' opcode opls pcl ->
+Lemma cache_hit_same_content (T: Type): forall opcode labs pcl c c',
+  cache_hit c opcode labs pcl ->
+  cache_hit c' opcode labs pcl ->
   forall a, 
     (a = addrOpLabel \/ a = addrTag1 \/ a = addrTag2 \/ a = addrTag3 \/ a = addrTagPC) ->
     index_list_Z a c = index_list_Z a c'.
 Proof.
   intros. inv H; inv H0. 
-  destruct opls as [[op1 op2] op3]. 
+  destruct labs as [[l1 l2] l3]. 
   intuition; match goal with | [HH: a = _ |- _ ] => inv HH end.
   inv OP0. inv OP. congruence.
-  destruct op1; inv TAG1 ; inv TAG0; congruence.
-  destruct op2; inv TAG2 ; inv TAG4; congruence.
-  destruct op3; inv TAG3 ; inv TAG5; congruence.
+  inv TAG1 ; inv TAG0; congruence.
+  inv TAG2 ; inv TAG4; congruence.
+  inv TAG3 ; inv TAG5; congruence.
   inv TAGPC ; inv TAGPC0; congruence.
 Qed.  
 
-Lemma check_cache_determ: forall opcode opls pcl cs cs' cs'',
-  check_tags opcode opls pcl cs cs' ->
-  check_tags opcode opls pcl cs cs'' ->
+Lemma check_cache_determ: forall opcode labs pcl cs cs' cs'',
+  check_tags opcode labs pcl cs cs' ->
+  check_tags opcode labs pcl cs cs'' ->
   cs' = cs''.
 Proof.
   induction 1 ; intros; inv H; auto; try (solve [ intuition]).
@@ -605,9 +652,9 @@ Proof.  (* very tedious. there must be some better lemmas lurking. *)
      auto.
 Qed.  
    
-Lemma run_tmu_determ: forall opcode op1 op2 op3 pcl cs cs' cs'',
-  run_tmu opcode op1 op2 op3 pcl cs cs' ->
-  run_tmu opcode op1 op2 op3 pcl cs cs'' ->
+Lemma run_tmu_determ: forall opcode l1 l2 l3 pcl cs cs' cs'',
+  run_tmu opcode l1 l2 l3 pcl cs cs' ->
+  run_tmu opcode l1 l2 l3 pcl cs cs'' ->
   cs' = cs''.
 Proof.
   induction 1; intros. inv H2.

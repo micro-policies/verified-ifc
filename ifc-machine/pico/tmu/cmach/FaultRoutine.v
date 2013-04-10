@@ -146,36 +146,30 @@ Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (
 
 Section TMUSpecs.
 
+Definition handlerLabel := bot. 
+
 Definition handler_initial_mem_matches 
            (opcode: OpCode)
-           (op1lab: option T) (op2lab:option T) (op3lab:option T) (pclab: T) 
-           (m: memory) : Prop := 
+           (lab1: T) (lab2: T) (lab3: T) (pclab: T) 
+           (m: @memory T) : Prop := 
   index_list_Z addrOpLabel m = Some(opCodeToZ opcode,handlerLabel)
-  /\ (match op1lab with
-      | Some op1 => index_list_Z addrTag1 m = Some (labToZ op1,handlerLabel)
-      |    None=> True
-   end)  
-  /\ (match op2lab with
-      | Some op2 => index_list_Z addrTag2 m = Some (labToZ op2,handlerLabel)
-      | None => True
-      end)
-  /\ (match op3lab with
-      | Some op3 => index_list_Z addrTag3 m = Some (labToZ op3,handlerLabel)
-      | None => True
-      end)
+  /\ index_list_Z addrTag1 m = Some (labToZ lab1,handlerLabel)
+  /\ index_list_Z addrTag2 m = Some (labToZ lab2,handlerLabel)
+  /\ index_list_Z addrTag3 m = Some (labToZ lab3,handlerLabel)
   /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
 .
 
 (* APT: Just a little sanity check that these definitions are somewhat coherent. *)
-Lemma init_init: forall m op ts tpc, cache_hit m op ts tpc ->
-let '(op1lab,op2lab,op3lab) := ts in
-handler_initial_mem_matches op op1lab op2lab op3lab tpc m.
+Lemma init_init: forall (m:memory)  op ts tpc, cache_hit m op ts tpc ->
+let '(l1,l2,l3) := ts in
+handler_initial_mem_matches op l1 l2 l3 tpc m.
 Proof.
   intros.
   inv H. destruct ts as [[t1 t2] t3]. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
-  econstructor; destruct t1; destruct t2; destruct t3; eauto.
+  econstructor; eauto.
 Qed.
 
+(*
 (* Connecting to the definition used in FaultRoutine.v : *)
 Lemma init_enough0: forall {n} (vls:Vector.t T n) m opcode opls pcl,
     glued vls opls ->                      
@@ -194,21 +188,21 @@ Proof.
     (* inj_pair2 is an axiom !!!!!!! *)
   unfold handler_initial_mem_matches; simpl; intuition. 
 Qed.
+*)
 
 (* Connecting to the definition used in FaultRoutine.v : *)
 Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
     cache_hit m opcode (glue vls) pcl ->
     handler_initial_mem_matches 
       opcode
-      (nth_order_option vls 0)
-      (nth_order_option vls 1)
-      (nth_order_option vls 2)
+      (nth_order_default vls 0 bot)
+      (nth_order_default vls 1 bot)
+      (nth_order_default vls 2 bot)
       pcl m.
 Proof.
   intros. unfold glue in H. 
-  destruct (nth_order_option vls 0); destruct (nth_order_option vls 1);
-    destruct (nth_order_option vls 2); apply init_init in H; 
-    auto; unfold handler_initial_mem_matches in *; intuition. 
+  inv H. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
+  econstructor; eauto. 
 Qed.
 
 
@@ -223,9 +217,9 @@ Variable (m0: @memory T).
 Hypothesis initial_mem_matches:
   handler_initial_mem_matches
     opcode
-    (nth_order_option vls 0)
-    (nth_order_option vls 1)
-    (nth_order_option vls 2)
+    (nth_order_default vls 0 bot)
+    (nth_order_default vls 1 bot)
+    (nth_order_default vls 2 bot)
     pcl m0.
 
 Definition eval_var := mk_eval_var vls pcl.
@@ -246,7 +240,7 @@ Proof.
 
   (* Most of the cases are very similar ... *)
   Ltac nth_order_case k :=
-    erewrite (nth_order_option_Some n vls k) in *;
+    erewrite (nth_order_valid n vls k) in *;
     intuition;
     subst; auto;
     eauto.

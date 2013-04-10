@@ -45,10 +45,10 @@ match vls with
 end. 
 *)
 
-Definition nth_order_option {n:nat} (vls: Vector.t T n) (m:nat): option T :=
+Definition nth_order_default {n:nat} (vls: Vector.t T n) (m:nat) (default: T) : T :=
   match le_lt_dec n m with
-  | left _ => None
-  | right p => Some (Vector.nth_order vls p)
+  | left _ => default
+  | right p => Vector.nth_order vls p
   end.
 
 Lemma of_nat_lt_proof_irrel:
@@ -74,12 +74,12 @@ Proof.
   erewrite of_nat_lt_proof_irrel; eauto.
 Qed.
 
-Lemma nth_order_option_Some: forall (n:nat) (vls: Vector.t T n) m,
+Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m d,
   forall (lt: m < n),
-  nth_order_option vls m = Some (Vector.nth_order vls lt).
+  nth_order_default vls m d = Vector.nth_order vls lt.
 Proof.
   intros.
-  unfold nth_order_option.
+  unfold nth_order_default. 
   destruct (le_lt_dec n m).
   false; omega.
   (* NC: Interesting: here we have two different proofs [m < n0] being
@@ -89,21 +89,11 @@ Proof.
   erewrite nth_order_proof_irrel; eauto.
 Qed.
 
-Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
-(nth_order_option vls 0, nth_order_option vls 1, nth_order_option vls 2).
 
-Definition glue3 (vls : Vector.t T 3) : (T * T * T).
-refine
-  (@Vector.nth_order T 3 vls 0 _,
-   @Vector.nth_order T 3 vls 1 _,
-   @Vector.nth_order T 3 vls 2 _); omega.
-Defined.
-
-Inductive glued : forall {n: nat}, (Vector.t T n) -> (option T * option T * option T) -> Prop :=
-| glued0 : forall lop1 lop2 lop3, glued [] (lop1,lop2,lop3)
-| glued1 : forall l1 lop2 lop3, glued [l1] (Some l1,lop2,lop3)
-| glued2 : forall l1 l2 lop3, glued [l1;l2] (Some l1,Some l2,lop3)
-| glued3 : forall l1 l2 l3, glued [l1;l2;l3] (Some l1,Some l2,Some l3). 
+Definition glue {n:nat} (vls :Vector.t T n) : (T * T * T) :=
+(nth_order_default vls 0 bot, 
+ nth_order_default vls 1 bot, 
+ nth_order_default vls 2 bot).
 
 End Glue.
 
