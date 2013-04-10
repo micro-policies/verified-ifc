@@ -121,7 +121,7 @@ SmallStepEval :: '' ::=
 
   defn 
   M1 , I1 , S1 , pc1 -- e -> M2 , I2 , S2 , pc2  :: :: step :: '' 
-  {{tex [[M1]], [[I1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[M2]], [[I2]], [[S2]], [[pc2]] }} by
+  {{tex [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[M2]], [[S2]], [[pc2]] }} by
 
      I(pc) = Nop
      ------------------------------------- :: Step_Nop
@@ -158,9 +158,9 @@ SmallStepEval :: '' ::=
      -------------------------------------------------------- :: Step_BNZ_Yes
      M, I, [m@K; S], n@L -- epsilon -> M, I, S, (n+k)@L\/K
     
-     I(pc) = BNZ n
+     I(pc) = BNZ k quad   m = 0 
      -------------------------------------------------------- :: Step_BNZ_No
-     M, I, [0@K; S], pc -- epsilon -> M, I, S, pc+1 \/ K
+     M, I, [m@K; S], n@L -- epsilon -> M, I, S, (n+1)@L\/ K
 
      I(pc) = Call
      -------------------------------------------------------- :: Step_Call
@@ -170,17 +170,42 @@ SmallStepEval :: '' ::=
      -------------------------------------------------------- :: Step_Ret
      M, I, [a ; pc' ;; S], pc -- epsilon -> M, I, [a\/labOf(pc) ; S], pc'
 
-     I(pc) = Ret
-     -------------------------------------------------------- :: Step_Ret_Pop
-     M, I, [a; a'; S], pc --epsilon -> M, I, [a; S], pc
-
-     % M(pc) = Pop
+     % I(pc) = Pop
      % -------------------------------------------------------- :: Step_Pop
-     % M, [a; S], pc, T --> M, S, pc+1, T
+     % M, I, [a; S], pc -- espilon -> M, I, S, pc+1
+
+     % I(pc) = Swap
+     % -------------------------------------------------------- :: Step_Swap
+     % M, I, [a1; a2; S], pc -- espilon -> M, I, [a2; a1; S], pc+1
+
+     % I(pc) = Ret
+     % -------------------------------------------------------- :: Step_Ret_Pop
+     % M, I, [a; a'; S], pc --epsilon -> M, I, [a; S], pc
 
      % M(pc) = Dup
      % -------------------------------------------------------- :: Step_Dup
      % M, [a; S], pc, T --> M, [a;a;S], pc+1, T
+
+
+
+%%******* NEW RELATIONS FOR EXPLICIT RULES
+
+    %  I(pc) = BinOp o   
+    %  Binop, (L, L1, L2, _) |- rL, rpcl
+    % -------------------------------------------------------- :: Step_BinOp
+    %  M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> M, I, [(n1 o n2)@rl; S], (n+1@rpcl)
+
+    %  For irrelevant result labels 
+    %  Binop, (L, L1, L2, _) |- _, rpcl
+     
+    % ------------------------------------- :: Rule_Binop
+    % Binop |- TRUE, JOIN LAB1 LAB2, LABPC
+
+    % I |- A, E1, E2
+    % evalb rho A 
+    % evall rho E1 l1  quad   evall rho E2 l2
+    % ------------------------------------- :: eval
+    % I , rho |- l1, l2
     
 
 
