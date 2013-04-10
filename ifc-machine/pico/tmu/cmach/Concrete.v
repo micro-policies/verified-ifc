@@ -38,7 +38,7 @@ Record CS  := CState {
 
 (** * Cache handling mechanism *)
 
-(* Conversion between abstract labels (T) and tags (Z) *)
+(* OUTOFDATE Conversion between abstract labels (T) and tags (Z) *)
 Definition opCodeToZ (opcode : OpCode) : Z :=
 match opcode with 
 | OpNoop => 0
