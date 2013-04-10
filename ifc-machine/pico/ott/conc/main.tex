@@ -1,0 +1,93 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{stmaryrd}
+\usepackage{supertabular}
+\usepackage{fullpage}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyvrb}
+
+\input{temp/defns}
+
+\renewcommand{\ottkw}[1]{\mathsf{#1}}
+
+\definecolor{dkblue}{rgb}{0,0.1,0.5}
+\definecolor{dkgreen}{rgb}{0,0.3,0}
+\definecolor{dkred}{rgb}{0.6,0,0}
+
+\newcommand{\comm}[3]{\textcolor{#1}{[#2: #3]}}
+\newcommand{\ch}[1]{\comm{violet}{CH}{#1}} % Catalin
+\newcommand{\bcp}[1]{\comm{dkred}{BCP}{#1}} % Benjamin
+\newcommand{\dd}[1]{\comm{dkblue}{DD}{#1}} % Delphine
+
+\begin{document}
+
+\section*{Notes}
+
+\begin{itemize}
+\item Ott file for the current concrete pico machine with output.
+  \begin{itemize}
+    \item the user program and tmu fault handler code are implicit,
+      and global to the step relation
+    \item
+  \end{itemize}
+\end{itemize}
+
+\section*{Syntax}
+
+\ottmetavars\\[3ex]
+
+\ottgrammartabular{
+%% \ottM\ottinterrule
+%% \ottframe\ottinterrule
+\ottn\ottinterrule
+%% \ottp\ottinterrule
+%% \ottv\ottinterrule
+%% \ottov\ottinterrule
+\ottL\ottinterrule
+\otta\ottinterrule
+\ottinstr\ottinterrule
+%% \ottilab\ottinterrule
+%\ottipseudo\ottinterrule
+%% \ottireg\ottinterrule
+%% \ottT\ottinterrule
+\ottS\ottinterrule
+%% \ottal\ottinterrule
+}
+
+\section*{Auxiliary relations}
+
+\ottgrammartabular{
+\ottformula\ottinterrule
+}
+
+\newpage
+\section*{Step relation}
+
+%% \ottdefnss
+
+\[
+\begin{array}{cc}
+\ottdruleNop \ottinterrule & \ottdruleNopXXFail \ottinterrule \\ \\
+\ottdruleOutput \ottinterrule & %\ottdruleOutputXXPriv \ottinterrule \\
+\end{array}
+\]
+
+
+
+% \begin{quote}
+% \ottgrammartabular{%
+%    \ottC\ottinterrule
+%    \ottt\ottinterrule
+%    \ottu\ottinterrule
+%    \ottv\ottinterrule
+%    \ottG\ottinterrule
+%    \ottbuf\ottinterrule
+% }
+% \end{quote}
+
+\end{document}
+
+% LocalWords:  canElim canReclassify injective Elim Recl TL BCP TODO
+% LocalWords:  canEliminate newprin
