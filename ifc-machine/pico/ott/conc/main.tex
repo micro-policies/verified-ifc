@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass{scrartcl}
 
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{stmaryrd}
@@ -21,6 +21,10 @@
 \newcommand{\bcp}[1]{\comm{dkred}{BCP}{#1}} % Benjamin
 \newcommand{\dd}[1]{\comm{dkblue}{DD}{#1}} % Delphine
 
+\renewcommand{\ottdrulename}[1]{\footnotesize\textsc{#1}}
+\renewcommand{\ottdrule}[4][]
+           {{\displaystyle\frac{\begin{array}{l}#2\end{array}}{#3}~\ottdrulename{#4}}}
+
 \begin{document}
 
 \section*{Notes}
@@ -37,6 +41,8 @@
       Perhaps one or two, to show that the concrete machine is 
       using "default-labelled" values (using bot), and is not checking
       anything on them.
+    \item notation for fault handler cache: only payload-labels are
+      specified and not their labels. these could be any labels actually.
     \item when IFC-faulting, no effect on the memory (see rule for
       Store), and the stack below the frame of the tmu fault handler
       is also unchanged, so that, when returning from it, we can
@@ -48,6 +54,14 @@
       things: the next pc for callee, the next pc inside the caller,
       and the label to put on the argument passed to the function.
       this ought to be fixed, I would say. For now: just two results.
+    \item Output and privileged mode: we can either make it blocking
+      (saving one rule), or make it step, but observe that the tmu
+      fault handler code do use output instruction. Made it blocking
+      for now.
+    \item Returning from priv mode to user mode: seems odd/dangerous
+      to return a value here... For now, Ret is a value return at the
+      abstract level, and a void return in priv mode. Need to
+      reintroduce two kinds of return instruction?
   \end{itemize}
 \end{itemize}
 
@@ -66,12 +80,7 @@
 \otta\ottinterrule
 \ottinstr\ottinterrule
 %% \ottopcode\ottinterrule
-%% \ottilab\ottinterrule
-%\ottipseudo\ottinterrule
-%% \ottireg\ottinterrule
-%% \ottT\ottinterrule
 \ottS\ottinterrule
-%% \ottal\ottinterrule
 }
 
 \section*{Auxiliary relations}
@@ -83,20 +92,42 @@
 \pagebreak
 \section*{Step relation}
 
+\small
 %% \ottdefnss
 
-\small
-\[ \ottdruleNop \ottinterrule \qquad \ottdruleNopXXFault \ottinterrule \]
-\[ \ottdruleOut \ottinterrule \qquad  \ottdruleOutXXFault \ottinterrule \]
-\[ \ottdruleBinOp \ottinterrule \] 
-\[ \ottdrulePush \ottinterrule  \] 
-\[ \ottdruleLoad \ottinterrule  \] 
-\[ \ottdruleStore \ottinterrule \]
-\[ \ottdruleStoreXXFault \ottinterrule \] 
-\[ \ottdruleJump \ottinterrule  \] 
-\[ \ottdruleBNZXXYes \ottinterrule \qquad  \ottdruleBNZXXNo \ottinterrule  \] 
-\[ \ottdruleCall \ottinterrule  \] 
-\[ \ottdruleRet \ottinterrule  \] 
+%% \begin{ottdefnblock}{$ \ottnt{b_{{\mathrm{1}}}} ,  \kappa_{{\mathrm{1}}} ,  \mu_{{\mathrm{1}}} ,  \sigma_{{\mathrm{1}}} ,  \ottnt{pc_{{\mathrm{1}}}}  \xrightarrow{ \ottnt{e} }  \ottnt{b_{{\mathrm{2}}}} ,  \kappa_{{\mathrm{2}}} ,  \mu_{{\mathrm{2}}} ,  \sigma_{{\mathrm{2}}} ,  \ottnt{pc_{{\mathrm{2}}}} $}{}
+%% \end{ottdefnblock}
+
+\[ \ottdruleNop \ottinterrule 
+   \quad \ottdruleNopXXF \ottinterrule 
+   \quad \ottdruleNopXXPriv \ottinterrule \]
+\[ \ottdruleOut \ottinterrule
+   \qquad  \ottdruleOutXXF \ottinterrule \]
+\[ \ottdruleBinOp \ottinterrule
+   \quad \ottdruleBinOpXXF \ottinterrule \]
+\[ \ottdrulePush \ottinterrule 
+   \quad \ottdrulePushXXF \ottinterrule
+   \quad \ottdrulePushXXPriv \ottinterrule \]
+ \[ \ottdruleLoad \ottinterrule 
+   \quad \ottdruleLoadXXF \ottinterrule
+   \quad \ottdruleLoadXXPriv \ottinterrule \]
+\[ \ottdruleStore \ottinterrule
+   \quad \ottdruleStoreXXF \ottinterrule \]
+\[ \ottdruleBinOpXXPriv \ottinterrule
+   \quad \ottdruleStoreXXPriv \ottinterrule \]
+\[ \ottdruleJmp \ottinterrule
+   \quad \ottdruleJmpXXF \ottinterrule 
+   \quad \ottdruleJmpXXPriv \ottinterrule \]
+\[ \ottdruleBNZ \ottinterrule 
+   \quad  \ottdruleBNZXXF \ottinterrule
+   \quad  \ottdruleBNZXXPriv \ottinterrule  \] 
+\[ \ottdruleCall \ottinterrule
+   \quad  \ottdruleCallXXF \ottinterrule \]
+\[ \ottdruleRet \ottinterrule   
+   \quad  \ottdruleRetXXF \ottinterrule  \] 
+\[ \ottdruleCallXXPriv \ottinterrule
+   \quad  \ottdruleRetXXPriv \ottinterrule \] 
+
 % \begin{quote}
 % \ottgrammartabular{%
 %    \ottC\ottinterrule

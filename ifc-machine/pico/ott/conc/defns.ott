@@ -19,6 +19,7 @@ n, m, k, p, v :: 'n_' ::=                                {{com Integers}}
   | 1                       :: :: Zone
   | n1 + n2                 :: :: ZPlus
   | n1 o n2                 :: :: ZBinOp  
+  | ( n1 = n2 ) ? n3 : n4      :: :: ZIf  
   | ( n )                   :: S :: ZParen
 
 b :: 'b_' ::=                         {{com Privileged bit }}
@@ -74,9 +75,7 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   | Smty                    :: :: Smty     {{com empty stack}}
   | a ; S                   :: :: Sdcons   {{com stack atom cons}}
   | ( pc , b ) ;; S         :: :: Srcons   {{com stack frame marker cons (with return pc and priv bit )}}
-  % | S1 $ S2                 :: ::   Sappend  {{com stack append}}
   | [ S ]                   :: :: SParen
-  % | [ a1 .. aj ]            :: :: SElems
 
 C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = a 5-tuple of labels }}
   | ( opcode | L1 | L2 , L3 , L4 | L5 , L6 ) :: :: Cache {{tex 
@@ -90,8 +89,11 @@ C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = a 5-tuple of labels }}
 formula :: formula_ ::=  
  | judgement                :: :: judgement
  | I ( n ) = instr         :: :: instr_lookup  {{com instruction lookup }}
+ | F ( n ) = instr         :: :: instr_lookup_priv  {{com fault handler instruction lookup }}
  | read M p = a             :: :: load          {{com read from data memory }}
+ | read C p = a             :: :: load_priv          {{com read from cache }}
  | store M p a = M'         :: :: store         {{com memory store of atom }}
+ | store C p a = C'         :: :: store_priv         {{com cache write of atom }}
 
  | n1 <> n2                 :: :: not_eq_int
  | n1 = n2                  :: :: eq_int
@@ -114,7 +116,7 @@ terminals :: 'terminals_' ::=
   | <>                  :: :: noteq      {{tex \neq }}
   | ~                   :: :: match      {{tex \sim }}
   | ~/~                 :: :: dmatch     {{tex \not\sim }}
-  | @                   :: :: atlabel    {{tex \mathord{@} }}
+  | @                   :: :: atlabel    {{tex {\scriptstyle \mathord{@} } }}
   | ;;                  :: :: semisemi   {{tex \mathord{;\!;} }}
   | +                   :: :: plus       {{tex \mathord{+} }}
   | +1                  :: :: plusplus   {{tex {\scriptstyle \mathord{+\!+} } }}
@@ -162,7 +164,11 @@ SmallStepEval :: '' ::=
 
   defn 
   b1 , C1 , F1 , M1 , I1 , S1 , pc1 -- e -> b2 , C2 , F2 , M2 , I2 , S2 , pc2  :: :: step :: '' 
-  {{tex [[b1]], [[C1]], [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[b2]], [[C2]], [[M2]], [[S2]], [[pc2]] }} by
+  {{tex \def\arraystretch{.7}
+  \setlength\arraycolsep{2pt} \begin{array}{lllrlc}
+  [[b1]] & [[C1]] & [[M1]] & [[S1]] & [[pc1]] & \xrightarrow{[[e]]}   \\
+  [[b2]] & [[C2]] & [[M2]] & [[S2]] & [[pc2]]
+  \end{array} }} by
 
      I(n) = Nop
      C ~ (nop | L | _, _, _ | R, _)         
@@ -171,8 +177,13 @@ SmallStepEval :: '' ::=
 
      I(n) = Nop
      C ~/~ C' ~ (nop | L | _, _, _ | _, _)
-     ------------------------------------- :: Nop_Fault
+     ------------------------------------- :: Nop_F
      upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(n@L, upriv) ;; S], 0@bot
+
+     F(n) = Nop
+     ------------------------------------- :: Nop_Priv
+     priv, C, F, M, I, S, n@L -- epsilon -> priv, C, F, M, I, S, n+1@L
+
 
      I(n) = Output
      C ~ (out | L | K, _, _| R1, R2)         
@@ -181,63 +192,128 @@ SmallStepEval :: '' ::=
 
      I(n) = Output
      C ~/~ C' ~ (out | L | K, _, _| _, _)         
-     -------------------------------------------------------- :: Out_Fault
+     -------------------------------------------------------- :: Out_F
      upriv, C, F, M, I, [n@K; S], n@L -- epsilon -> priv, C, F, M, I, [(n@L,upriv) ;; n@K ; S], 0@bot
 
      I(n) = BinOp o
-     C ~ (binop | L | L1, L2, _| R1, R2) quad v = (n1 o n2)
+     C ~ (binop | L | L1, L2, _| R1, R2) 
     -------------------------------------------------------- :: BinOp
-     upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> upriv, C, F, M, I, [v@R2; S], n+1@R1
+     upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> upriv, C, F, M, I, [(n1 o n2)@R2; S], n+1@R1
 
      I(n) = BinOp o
      C ~/~ C' ~ ( binop | L | L1, L2, _| _, _)
-    -------------------------------------------------------- :: BinOp_Fault
+    -------------------------------------------------------- :: BinOp_F
      upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv);; n1@L1; n1@L2 ; S], 0@bot
 
+     F(n) = BinOp o
+     v = (n1 o n2)
+    -------------------------------------------------------- :: BinOp_Priv
+     priv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> priv, C, F, M, I, [v@L; S], n+1@L
+     
      I(n) = Push k
      C ~ ( push | L | _, _, _| R1, R2)
      -------------------------------------------------------- :: Push
      upriv, C, F, M, I, S, n@L -- epsilon -> upriv, C, F, M, I, [k @ R2; S], n+1@R1
 
-     I(n) = Load   quad    read M p = k@N
+     I(n) = Push k
+     C ~/~ C' ~ ( push | L | _, _, _| _, _)
+     -------------------------------------------------------- :: Push_F
+     upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(n@L,upriv) ;; S], 0@bot
+
+     F(n) = Push k
+     -------------------------------------------------------- :: Push_Priv
+     priv, C, F, M, I, S, n@L -- epsilon -> priv, C, F, M, I, [k @ bot; S], n+1@L
+
+     I(n) = Load
+     read M p = k@N
      C ~ ( load | L | K, N, _| R1, R2)
      -------------------------------------------------------- :: Load
      upriv, C, F, M, I, [p@K; S], n@L -- epsilon -> upriv, C, F, M, I, [k@R2; S], n+1@R1
 
+     I(n) = Load
+     read M p = k@N
+     C ~/~ C' ~ ( load | L | K, N, _| _, _)
+     -------------------------------------------------------- :: Load_F
+     upriv, C, F, M, I, [p@K; S], n@L -- epsilon -> priv, C', F, M, I, [(n@L,upriv) ;; p@K; S], 0@bot
+
+     F(n) = Load  
+     read C p = k@N
+     -------------------------------------------------------- :: Load_Priv
+     priv, C, F, M, I, [p@K; S], n@L -- epsilon -> priv, C, F, M, I, [k@N; S], n+1@L
+
      I(n) = Store    quad    read M p = k@N2
-     C ~ ( str | L | K, N1, N2| R1, R2)         quad    store M p (v@R2) = M'
+     C ~ ( str | L | K, N1, N2| R1, R2) 
+     store M p (v@R2) = M'
      -------------------------------------------------------- :: Store
      upriv, C, F, M, I, [p@K; v@N1; S], n@L -- epsilon -> upriv, C, F, M', I, S, n+1@R1
 
      I(n) = Store    quad    read M p = k@N2
      C ~/~ C' ~ ( str | L | K, N1, N2| _, _)    
-     -------------------------------------------------------- :: Store_Fault
+     -------------------------------------------------------- :: Store_F
      upriv, C, F, M, I, [p@K; v@N1; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K; v@N1; S], 0@bot 
+
+     F(n) = Store    
+     store C p (v@N) = C'
+     -------------------------------------------------------- :: Store_Priv
+     priv, C, F, M, I, [p@K; v@N; S], n@L -- epsilon -> priv, C', F, M, I, S, n+1@L
 
      I(n) = Jump
      C ~ ( jump | L | K, _, _| R1, _)
-      -------------------------------------------------------- :: Jump
+      -------------------------------------------------------- :: Jmp
      upriv, C, F, M, I, [k@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, k@R1
+
+     I(n) = Jump
+     C ~/~ C' ~ ( jump | L | K, _, _| _, _)
+      -------------------------------------------------------- :: Jmp_F
+     upriv, C, F, M, I, [k@K; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; k@K ; S], 0@bot
+
+     F(n) = Jump
+      -------------------------------------------------------- :: Jmp_Priv
+     priv, C, F, M, I, [k@K; S], n@L -- epsilon -> priv, C, F, M, I, S, k@L
     
-     I(n) = BNZ k  quad   m <> 0 
+     I(n) = BNZ k
      C ~ ( bnz | L | K, _, _| R1, _)
-     -------------------------------------------------------- :: BNZ_Yes
-     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, (n+k)@R1
+     n' = n+ (m = 0)? 1 : k  
+     -------------------------------------------------------- :: BNZ
+     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, n'@R1
     
-     I(n) = BNZ k quad   m = 0 
-     C ~ ( bnz | L | K, _, _| R1, _)
-     -------------------------------------------------------- :: BNZ_No
-     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, (n+1)@R1
+     I(n) = BNZ k
+     C ~/~ C' ~ ( bnz | L | K, _, _| _, _)
+     -------------------------------------------------------- :: BNZ_F
+     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; m@K ; S], 0@bot
+
+     F(n) = BNZ k
+     n' = n+ (m = 0)? 1 : k  
+     -------------------------------------------------------- :: BNZ_Priv
+     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> priv, C, F, M, I, S, n'@L
 
      I(n) = Call
      C ~ ( call | L | K, N, _| R1, R2)
      -------------------------------------------------------- :: Call
      upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> upriv, C, F, M, I, [v@R2; (n+1@L,upriv) ;; S], p@R1
 
+     I(n) = Call
+     C ~/~ C' ~ ( call | L | K, N, _| _, _)
+     -------------------------------------------------------- :: Call_F
+     upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K ; v@N ; S], 0@bot
+
+     F(n) = Call
+     -------------------------------------------------------- :: Call_Priv
+     priv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> priv, C, F, M, I, [v@N; (n+1@L,priv) ;; S], p@K
+
      I(n) = Ret
      C ~ ( ret | L | N, K, _| R1, R2)
      -------------------------------------------------------- :: Ret
      upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@L -- epsilon -> b, C, F, M, I, [v@R2 ; S], p@R1
+
+     I(n) = Ret
+     C ~/~ C' ~ ( ret | L | N, K, _| _, _)
+     -------------------------------------------------------- :: Ret_F
+     upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; v@N ; (p@K,b) ;; S], 0@bot
+
+     F(n) = Ret
+     -------------------------------------------------------- :: Ret_Priv
+     priv, C, F, M, I, [(p@K,b) ;; S], n@L -- epsilon -> b, C, F, M, I, S, p@K
 
      % I(pc) = Pop
      % -------------------------------------------------------- :: Pop
