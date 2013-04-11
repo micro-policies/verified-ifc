@@ -12,18 +12,22 @@ metavar I {{tex \iota }} ::=      {{com instruction memory}}
 
 grammar
 
-n, m, k, p :: 'n_' ::=                                {{com Integers}}
+n, m, k, p, npc {{tex n_\mathit{pc} }} :: 'n_' ::= {{com Integers}}
   | 0                       :: :: Zzro
   | 1                       :: :: Zone
   | n1 + n2                 :: :: ZPlus
-  | n1 o n2                 :: :: ZBinOp  
+  | n1 o n2                 :: :: ZBinOp
   | ( n )                   :: S :: ZParen
 
-L, K :: 'L_' ::=                  {{com Labels}}
+L, K, Lpc {{tex L_\mathit{pc} }} :: 'L_' ::=   {{com Labels}}
   | bot                     :: :: Lbot      {{com bottom label}}
   | labOf a                 :: :: Labelof    {{com extract label of an atom}}
   | L1 \/ L2                :: :: Ljoin     {{com label join}}
   | ( L )                   :: S :: LParen
+
+oL  :: 'oL_' ::=   {{com Optional Labels}}
+  | _                     :: :: Nothing {{tex \_}}
+  | L                     :: :: SomeLabel
 
 a, b, pc :: 'a_' ::=                       {{com Atoms}}
   | n @ L                   :: :: ValAtom {{com atom = integers value plus label}}
@@ -38,13 +42,28 @@ instr :: 'instr_' ::=                              {{com Instructions}}
   | Dup                     :: :: iDup
   | BinOp o                 :: :: iBinOp   {{com binary op, returning integer}}
   | Jump                    :: :: iJump
-  | BNZ n                   :: :: iBNZ     {{com conditional relative jump}}
+  | Bnz n                   :: :: iBnz     {{com conditional relative jump}}
   | Call                    :: :: iBCall
   | Ret                     :: :: iBRet
   | Load                    :: :: iLoad    
   | Store                   :: :: iStore
   | Output                  :: :: iOutput  {{com output the top of the stack, tainted with pc}}
   | Halt                    :: :: iHalt
+
+opcode :: 'opcode_' ::=                              {{com Opcodes}}
+  | NOP                     :: :: oNop
+  | PUSH                    :: :: oPush    {{com push constant integer}}
+  | POP                     :: :: oPop
+  | DUP                     :: :: oDup
+  | BINOP                   :: :: oBinOp   {{com binary op, returning integer}}
+  | JUMP                    :: :: oJump
+  | BNZ                     :: :: oBNZ     {{com conditional relative jump}}
+  | CALL                    :: :: oBCall
+  | RET                     :: :: oBRet
+  | LOAD                    :: :: oLoad    
+  | STORE                   :: :: oStore
+  | OUTPUT                  :: :: oOutput  {{com output the top of the stack, tainted with pc}}
+  | HALT                    :: :: oHalt
 
 e :: 'e_' ::=                              {{com Events}}
   | epsilon                 :: :: epsilon {{com no event }}
@@ -109,7 +128,7 @@ terminals :: 'terminals_' ::=
   | Dup                 :: :: Dup        {{tex \text{\sf Dup} }} 
   | BinOp               :: :: BinOp      {{tex \text{\sf BinOp} }}
   | Jump                :: :: Jump       {{tex \text{\sf Jump} }} 
-  | BNZ                 :: :: BNZ        {{tex \text{\sf BNZ} }} 
+  | Bnz                 :: :: Bnz        {{tex \text{\sf Bnz} }} 
   | Ret                 :: :: Ret        {{tex \text{\sf Ret} }} 
   | Halt                :: :: Halt       {{tex \text{\sf Halt} }} 
 
@@ -117,7 +136,7 @@ terminals :: 'terminals_' ::=
 
 
 defns
-SmallStepEval :: '' ::=
+AbstractHighLevelSmallStep :: '' ::=
 
   defn 
   M1 , I1 , S1 , pc1 -- e -> M2 , I2 , S2 , pc2  :: :: step :: '' 
@@ -154,12 +173,12 @@ SmallStepEval :: '' ::=
       -------------------------------------------------------- :: Step_Jump
      M, I, [pc'; S], pc -- epsilon -> M, I, S, pc' \/ labOf(pc)
     
-     I(pc) = BNZ k  quad   m <> 0 
-     -------------------------------------------------------- :: Step_BNZ_Yes
+     I(pc) = Bnz k  quad   m <> 0 
+     -------------------------------------------------------- :: Step_Bnz_Yes
      M, I, [m@K; S], n@L -- epsilon -> M, I, S, (n+k)@L\/K
     
-     I(pc) = BNZ k quad   m = 0 
-     -------------------------------------------------------- :: Step_BNZ_No
+     I(pc) = Bnz k quad   m = 0 
+     -------------------------------------------------------- :: Step_Bnz_No
      M, I, [m@K; S], n@L -- epsilon -> M, I, S, (n+1)@L\/ K
 
      I(pc) = Call
@@ -206,6 +225,77 @@ SmallStepEval :: '' ::=
     % evall rho E1 l1  quad   evall rho E2 l2
     % ------------------------------------- :: eval
     % I , rho |- l1, l2
+
+defns
+AbstractExplicitSmallStep :: '' ::=
+
+  defn 
+  oL1 , oL2 , oL3 , oL4 ~~ opcode ~> oL , oL'  :: :: run_tmr :: '' 
+  {{tex [[oL1]] , [[oL2]] , [[oL3]] , [[oL4]]
+%        \overset{[[opcode]]}{\leadsto}
+        \leadsto_{[[opcode]]}
+        [[oL]] , [[oL']] }} by
+
+  defn 
+  M1 , S1 , pc1 -- e -> M2 , S2 , pc2  :: :: step_exp :: '' 
+  {{tex [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[M2]], [[S2]], [[pc2]] }} by
+
+     I(pc) = Nop
+     Lpc, _, _, _ ~~ NOP ~> Lpc', _
+     -------------------------------------- :: XStep_Nop
+     M, S, npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc'
+
+     I(pc) = Output
+     Lpc, L1, _, _ ~~ OUTPUT ~> Lpc', L'
+     -------------------------------------------------------- :: XStep_Output
+     M, [n@L1; S], npc@Lpc -- n@L' -> M, S, (npc+1)@Lpc'
+
+     I(pc) = BinOp o
+     Lpc, L1, L2, _ ~~ BINOP ~> Lpc', L
+    -------------------------------------------------------- :: XStep_BinOp
+     M, [n1@L1; n1@L2; S], npc@Lpc -- epsilon -> M, [(n1 o n2)@L'; S], (npc+1)@Lpc'
+
+     I(pc) = Push n
+     Lpc, _, _, _ ~~ PUSH ~> Lpc', L'
+     -------------------------------------------------------- :: XStep_Push
+     M, S, npc@Lpc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
+
+     I(pc) = Load   quad    read M p = n@L2
+     Lpc, L1, L2, _ ~~ LOAD ~> Lpc', L'
+     -------------------------------------------------------- :: XStep_Load
+     M, [p@L1; S], pc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
+
+     I(pc) = Store    quad    read M p = n@L3
+     Lpc, L1, L2, L3 ~~ STORE ~> Lpc', L'
+     store M p m@L' = M'
+     -------------------------------------------------------- :: XStep_Store
+     M, [p@L1; m@L2; S], npc@Lpc -- epsilon -> M', S, (npc+1)@Lpc'
+
+     I(pc) = Jump
+     Lpc, L1, _, _ ~~ JUMP ~> Lpc', _
+      ------------------------------------------------------- :: XStep_Jump
+     M, [n@L1; S], npc@Lpc -- epsilon -> M, S, n@Lpc'
     
+     I(pc) = Bnz k  quad   m <> 0 
+     Lpc, L1, _, _ ~~ BNZ ~> Lpc', _
+     -------------------------------------------------------- :: XStep_Bnz_Yes
+     M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+k)@Lpc
+    
+     I(pc) = Bnz k quad   m = 0
+     Lpc, L1, _, _ ~~ BNZ ~> Lpc', _
+     -------------------------------------------------------- :: XStep_Bnz_No
+     M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc
 
+     % CH: This is not at all in sync with the Coq code
+     % CH: "a" could be expanded out, its label passed into the TMU
+     %         and returned out as a 3rd(!?) argument? Ouch!
+     I(pc) = Call
+     Lpc, L1, _, _ ~~ CALL ~> Lpc', L'
+     -------------------------------------------------------- :: XStep_Call
+     M, [ n@L1 ; a ; S], npc@Lpc -- epsilon -> M, [a; (npc+1)@L' ;; S], n@Lpc'
 
+     % CH: This is not in sync with the Coq code
+     I(pc) = Ret
+     Lpc, L1, L2, _ ~~ RET ~> Lpc', L'
+     -------------------------------------------------------- :: XStep_Ret
+     M, [n@L1 ; m@L2 ;; S], npc@Lpc -- epsilon -> M, [n@L' ; S], m@Lpc'
