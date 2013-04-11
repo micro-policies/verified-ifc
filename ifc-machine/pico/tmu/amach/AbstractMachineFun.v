@@ -157,18 +157,10 @@ Proof.
   unfold stepF, exec_instr.
   intros [m is s [pcv pcl]] st' H. simpl in *.
   match_inversion.
-  destruct i; simpl; match_inversion.
-  eapply step_nop; eauto; try reflexivity.
-  eapply step_add; eauto; try reflexivity.
-  eapply step_sub; eauto; try reflexivity.
-  eapply step_push; eauto; try reflexivity.
-  eapply step_load; eauto; try reflexivity.
-  eapply step_store; eauto; try reflexivity.
-  eapply step_jump; eauto; try reflexivity.
-  destruct z0.
-    eapply step_branchnz_true; eauto; try reflexivity.
-    eapply step_branchnz_false; eauto; try reflexivity. congruence.
-    eapply step_branchnz_false; eauto; try reflexivity. congruence.
+  destruct i; simpl; match_inversion;
+    try (econstructor (solve[eauto; reflexivity])).
+  destruct z0;
+    try (econstructor (solve[eauto; try reflexivity; congruence])).
 Qed.
 
 End Def.
