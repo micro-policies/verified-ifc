@@ -193,7 +193,7 @@ SmallStepEval :: '' ::=
      I(n) = Output
      C ~/~ C' ~ (out | L | K, _, _| _, _)         
      -------------------------------------------------------- :: Out_F
-     upriv, C, F, M, I, [n@K; S], n@L -- epsilon -> priv, C, F, M, I, [(n@L,upriv) ;; n@K ; S], 0@bot
+     upriv, C, F, M, I, [n@K; S], n@L -- epsilon -> priv, C', F, M, I, [(n@L,upriv) ;; n@K ; S], 0@bot
 
      I(n) = BinOp o
      C ~ (binop | L | L1, L2, _| R1, R2) 
@@ -287,14 +287,14 @@ SmallStepEval :: '' ::=
      upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> priv, C, F, M, I, S, n'@L
 
      I(n) = Call
-     C ~ ( call | L | K, N, _| R1, R2)
+     C ~ ( call | L | K, _, _| R1, R2)
      -------------------------------------------------------- :: Cll
-     upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> upriv, C, F, M, I, [v@N; (n+1@R2,upriv) ;; S], p@R1
+     upriv, C, F, M, I, [ p@K ; a ; S], n@L -- epsilon -> upriv, C, F, M, I, [a; (n+1@R2,upriv) ;; S], p@R1
 
      I(n) = Call
-     C ~/~ C' ~ ( call | L | K, N, _| _, _)
+     C ~/~ C' ~ ( call | L | K, _, _| _, _)
      -------------------------------------------------------- :: Cll_F
-     upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K ; v@N ; S], 0@bot
+     upriv, C, F, M, I, [ p@K ; a ; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K ; a ; S], 0@bot
 
      F(n) = Call
      -------------------------------------------------------- :: Cll_P
