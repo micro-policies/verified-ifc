@@ -79,7 +79,7 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   | [ S ]                   :: :: SParen
   % | [ a1 .. aj ]            :: :: SElems
 
-LE :: 'LE_' ::=
+LE :: 'LE_' ::= {{com Label Expressions}}
   | LAB1 :: :: eLab1 {{tex \mathsf{LAB}_1}}
   | LAB2 :: :: eLab2 {{tex \mathsf{LAB}_2}}
   | LAB3 :: :: eLab3 {{tex \mathsf{LAB}_3}}
@@ -88,16 +88,16 @@ LE :: 'LE_' ::=
   | __ :: :: DontCare
   | ( LE ) :: S :: eParen
 
-BE :: 'BE_' ::=
+BE :: 'BE_' ::= {{com Boolean Expressions over Labels}}
   | TRUE :: :: bTrue
   | FLOWS LE1 LE2 :: :: bFlows
   | AND BE1 BE2 :: :: bAnd
   | OR BE1 BE2 :: :: bOr
   | ( BE ) :: S :: bParen
 
-RHS :: 'RHS' ::=
-  | << BE , LE1 , LE2 >> :: :: RightHandSide
-  {{tex \ll [[BE]], [[LE1]], [[LE2]] \gg }}
+RHS :: 'RHS' ::= {{com Right hand side of rules }}
+  | << BE , LE1 , LE2 >> :: :: RightHandSide {{com Allow part, Result Label, Next PC label }}
+  {{tex \langle [[BE]], [[LE1]], [[LE2]] \rangle }}
 % alternative: \guillemotleft ... \guillemotright
 
 formula :: formula_ ::=  
@@ -130,6 +130,8 @@ terminals :: 'terminals_' ::=
   | @                   :: :: atlabel    {{tex \mathord{@} }}
   | ;;                  :: :: semisemi   {{tex \mathord{;\!;} }}
   | +                   :: :: plus       {{tex \mathord{+} }}
+  % | <<                  :: :: lbrack       {{tex \llbracket }}
+  % | >>                  :: :: rbeack       {{tex \rrbracket }}
   | +1                  :: :: plusplus   {{tex {\scriptstyle \mathord{+\!+} } }}
   | |->                 :: :: mapsto     {{tex {\scriptstyle \mathord{\mapsto} } }}
   | forall              :: :: forall     {{tex \forall }}
@@ -257,6 +259,8 @@ AbstractExplicitSmallStep :: '' ::=
         \leadsto_{[[opcode]]}
         [[oL]] , [[oL']] }}
   by
+  
+  
 
   defn
   M1 , S1 , pc1 -- e -> M2 , S2 , pc2  :: :: step_exp :: '' 
