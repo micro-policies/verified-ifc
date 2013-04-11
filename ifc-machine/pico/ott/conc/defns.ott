@@ -79,7 +79,7 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
 
 C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = a 5-tuple of labels }}
   | ( opcode | L1 | L2 , L3 , L4 | L5 , L6 ) :: :: Cache {{tex 
-  \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|}
+  \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}||@{\;}l@{\;}|@{\;}l@{\;}|}
         \hline
         [[opcode]] & [[L1]] & [[L2]] & [[L3]] & [[L4]] & [[L5]] & [[L6]] \\ 
         \hline
@@ -176,7 +176,7 @@ SmallStepEval :: '' ::=
      upriv, C, F, M, I, S, n@L -- epsilon -> upriv, C, F, M, I, S, n+1@R
 
      I(n) = Nop
-     C ~/~ C' ~ (nop | L | _, _, _ | _, _)
+     C ~/~ (nop | L | _, _, _ | _, _) ~ C'
      ------------------------------------- :: Nop_F
      upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(n@L, upriv) ;; S], 0@bot
 
@@ -289,7 +289,7 @@ SmallStepEval :: '' ::=
      I(n) = Call
      C ~ ( call | L | K, N, _| R1, R2)
      -------------------------------------------------------- :: Cll
-     upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> upriv, C, F, M, I, [v@R2; (n+1@L,upriv) ;; S], p@R1
+     upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> upriv, C, F, M, I, [v@N; (n+1@R2,upriv) ;; S], p@R1
 
      I(n) = Call
      C ~/~ C' ~ ( call | L | K, N, _| _, _)
