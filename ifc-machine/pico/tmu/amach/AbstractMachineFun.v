@@ -17,6 +17,83 @@ Section Def.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}.
+Ltac match_inversion :=
+  repeat (try congruence;
+          match goal with
+           | H : Some _ = Some _ |- _ =>
+             inversion H; subst; clear H
+           | H : match ?t with
+                   | nil => _
+                   | _ :: _ => _
+                 end = Some _ |- _ =>
+             destruct t; inversion H; subst; clear H
+           | H : match ?t with
+                   | AData _ => _
+                   | ARet _ _ => _
+                 end = Some _ |- _ =>
+             destruct t; inversion H; subst; clear H
+           | H : match ?t with
+                   | (_, _) => _
+                 end = Some _ |- _ =>
+             destruct t
+           | H : match ?t with
+                   | Some _ => _
+                   | _ => _
+                 end = Some _ |- _ =>
+             let E := fresh "E" in
+             destruct t eqn:E; try solve [inversion H]
+         end; simpl in *; try congruence).
+
+Fixpoint take_data (n : nat) (s : list (@StkElmt T)) : option (list (@StkElmt T) * list (@StkElmt T)) :=
+  match n, s with
+    | O, _ => Some (nil, s)
+    | S n', AData a :: s' =>
+      match take_data n' s' with
+        | Some (atms, s'') => Some (AData a :: atms, s'')
+        | None => None
+      end
+    | _, _ => None
+  end.
+
+Theorem take_data_spec : forall n s s1 s2,
+                           take_data n s = Some (s1, s2) ->
+                           length s1 = n /\
+                           s = s1 ++ s2 /\
+                           forall a, In a s1 -> exists d, a = AData d.
+Proof.
+  intros n.
+  induction n as [|n]; simpl in *; intros s s1 s2 H;
+  inversion H; subst; clear H.
+  - repeat split; auto.
+    intros a H. inversion H.
+  - match_inversion.
+    apply IHn in E. clear IHn.
+    destruct E as [H1 [H2 H3]]; subst.
+    repeat split; auto.
+    intros a' []; eauto.
+Qed.
+
+Fixpoint pop_to_returnF (s : list (@StkElmt T)) :
+  option (Z *  T * bool * list (@StkElmt T)) :=
+  match s with
+    | nil => None
+    | AData _ :: s' => pop_to_returnF s'
+    | ARet (pcv, pcl) b :: s' =>
+      Some (pcv, pcl, b, s')
+  end.
+
+Theorem pop_to_returnF_spec :
+  forall s pcv pcl b s',
+    pop_to_returnF s = Some (pcv, pcl, b, s') ->
+    pop_to_return s (ARet (pcv, pcl) b :: s').
+Proof.
+  intros s.
+  induction s; intros pcv pcl b s' H.
+  - inversion H.
+  - destruct a as [a | [pcv' pcl'] b']; simpl in H.
+    + apply IHs in H. econstructor. auto.
+    + inversion H; subst. constructor.
+Qed.
 
 Definition exec_instr (instr : @Instr T) (st : @AS T) : option (@AS T) :=
   let '(AState m i s (pcv, pcl)) := st in
@@ -107,9 +184,44 @@ Definition exec_instr (instr : @Instr T) (st : @AS T) : option (@AS T) :=
           end
         | _ => None
       end
-    | Call n b => None
-    | Ret => None
-    | VRet => None
+    | Call a r =>
+      match s with
+        | AData (pcv',pcl') :: s' =>
+          match run_tmr OpCall <|pcl'|> pcl with
+            | Some (Some rl,rpcl) =>
+              match take_data a s' with
+                | Some (s1, s2) =>
+                  Some (AState m i (s1 ++ ARet (pcv+1,rl) r :: s2) (pcv',rpcl))
+                | None => None
+              end
+            | _ => None
+          end
+        | _ => None
+      end
+    | Ret =>
+      match pop_to_returnF s with
+        | Some (pcv', pcl', false, s') =>
+          match run_tmr OpRet <|pcl'|> pcl with
+            | Some (_,rpcl) =>
+              Some (AState m i s' (pcv',rpcl))
+            | None => None
+          end
+        | _ => None
+      end
+    | VRet =>
+      match s with
+        | AData (resv,resl) :: s' =>
+          match pop_to_returnF s' with
+            | Some (pcv',pcl',true,s'') =>
+              match run_tmr OpVRet <|resl;pcl'|> pcl with
+                | Some (Some rl, rpcl) =>
+                  Some (AState m i (AData (resv,rl)::s'') (pcv',rpcl))
+                | _ => None
+              end
+            | _ => None
+          end
+        | _ => None
+      end
     | Halt => None
   end.
 
@@ -122,32 +234,6 @@ Definition stepF (st : @AS T) : option (@AS T) :=
 Hint Unfold upd_apc.
 Hint Constructors step_rules.
 
-Ltac match_inversion :=
-  repeat (try congruence;
-          match goal with
-           | H : Some _ = Some _ |- _ =>
-             inversion H; subst; clear H
-           | H : match ?t with
-                   | nil => _
-                   | _ :: _ => _
-                 end = Some _ |- _ =>
-             destruct t; inversion H; subst; clear H
-           | H : match ?t with
-                   | AData _ => _
-                   | ARet _ _ => _
-                 end = Some _ |- _ =>
-             destruct t; inversion H; subst; clear H
-           | H : match ?t with
-                   | (_, _) => _
-                 end = Some _ |- _ =>
-             destruct t
-           | H : match ?t with
-                   | Some _ => _
-                   | _ => _
-                 end = Some _ |- _ =>
-             let E := fresh "E" in
-             destruct t eqn:E; try solve [inversion H]
-         end; simpl in *; try congruence).
 
 Theorem stepF_step_rules :
   forall st st',
@@ -161,6 +247,16 @@ Proof.
     try (econstructor (solve[eauto; reflexivity])).
   destruct z0;
     try (econstructor (solve[eauto; try reflexivity; congruence])).
+  - apply take_data_spec in E0.
+    destruct E0 as [H1 [H2 H3]]. subst.
+    econstructor (solve [eauto; reflexivity]).
+  - destruct b. inversion H.
+    inv H.
+    apply pop_to_returnF_spec in E0.
+    econstructor (solve [eauto; reflexivity]).
+  - destruct b; inv H0.
+    apply pop_to_returnF_spec in E0.
+    econstructor (solve [eauto; reflexivity]).
 Qed.
 
 End Def.
