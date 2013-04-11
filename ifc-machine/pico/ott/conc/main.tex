@@ -30,7 +30,24 @@
   \begin{itemize}
     \item the user program and tmu fault handler code are implicit,
       and global to the step relation
-    \item
+    \item what about the fault handler code? 
+    \item for now, just two rules per instr (success or fault), but
+      ultimately, there's also the case of privileged mode.
+      that's a lot of rules...
+      Perhaps one or two, to show that the concrete machine is 
+      using "default-labelled" values (using bot), and is not checking
+      anything on them.
+    \item when IFC-faulting, no effect on the memory (see rule for
+      Store), and the stack below the frame of the tmu fault handler
+      is also unchanged, so that, when returning from it, we can
+      "replay" the instruction, with a cache that is up-to-date.
+  \end{itemize}
+\item Questions:
+  \begin{itemize}
+    \item Strictly speaking, the rule for Call is returning three
+      things: the next pc for callee, the next pc inside the caller,
+      and the label to put on the argument passed to the function.
+      this ought to be fixed, I would say. For now: just two results.
   \end{itemize}
 \end{itemize}
 
@@ -48,6 +65,7 @@
 \ottL\ottinterrule
 \otta\ottinterrule
 \ottinstr\ottinterrule
+%% \ottopcode\ottinterrule
 %% \ottilab\ottinterrule
 %\ottipseudo\ottinterrule
 %% \ottireg\ottinterrule
@@ -62,20 +80,23 @@
 \ottformula\ottinterrule
 }
 
-\newpage
+\pagebreak
 \section*{Step relation}
 
 %% \ottdefnss
 
-\[
-\begin{array}{cc}
-\ottdruleNop \ottinterrule & \ottdruleNopXXFail \ottinterrule \\ \\
-\ottdruleOutput \ottinterrule & %\ottdruleOutputXXPriv \ottinterrule \\
-\end{array}
-\]
-
-
-
+\small
+\[ \ottdruleNop \ottinterrule \qquad \ottdruleNopXXFault \ottinterrule \]
+\[ \ottdruleOut \ottinterrule \qquad  \ottdruleOutXXFault \ottinterrule \]
+\[ \ottdruleBinOp \ottinterrule \] 
+\[ \ottdrulePush \ottinterrule  \] 
+\[ \ottdruleLoad \ottinterrule  \] 
+\[ \ottdruleStore \ottinterrule \]
+\[ \ottdruleStoreXXFault \ottinterrule \] 
+\[ \ottdruleJump \ottinterrule  \] 
+\[ \ottdruleBNZXXYes \ottinterrule \qquad  \ottdruleBNZXXNo \ottinterrule  \] 
+\[ \ottdruleCall \ottinterrule  \] 
+\[ \ottdruleRet \ottinterrule  \] 
 % \begin{quote}
 % \ottgrammartabular{%
 %    \ottC\ottinterrule

@@ -14,7 +14,7 @@ metavar M {{tex \mu }} ::=      {{com memory}}
 
 grammar
 
-n, m, k, p :: 'n_' ::=                                {{com Integers}}
+n, m, k, p, v :: 'n_' ::=                                {{com Integers}}
   | 0                       :: :: Zzro
   | 1                       :: :: Zone
   | n1 + n2                 :: :: ZPlus
@@ -25,7 +25,7 @@ b :: 'b_' ::=                         {{com Privileged bit }}
   | upriv                       :: :: PbitOff {{com ON }}
   | priv                       :: :: PbitOn  {{com OFF }}
 
-L, K, R :: 'L_' ::=                  {{com Labels }}
+L {{tex \mathtt{L} }}, N {{tex \mathtt{N} }}, K {{tex \mathtt{K} }}, R {{tex \mathtt{R} }}:: 'L_' ::=                  {{com Labels }}
   | bot                     :: :: Lbot      {{com bottom label}}
   | _                       :: :: Lirrev      {{com irrelevant label}}
   | ( L )                   :: S :: LParen
@@ -50,6 +50,21 @@ instr :: 'instr_' ::=                              {{com Instructions}}
   | Output                  :: :: iOutput  {{com output the top of the stack, tainted with pc}}
   | Halt                    :: :: iHalt
 
+opcode :: 'opcode_' ::=                              {{com Opcodes - instructions with no "arguments" }}
+  | nop                     :: :: oNop
+  | push                    :: :: oPush
+  | pop                     :: :: oPop
+  | dup                     :: :: oDup
+  | binop                   :: :: oBinOp   
+  | jump                    :: :: oJump
+  | bnz                     :: :: oBNZ     
+  | call                    :: :: oBCall
+  | ret                     :: :: oBRet
+  | load                    :: :: oLoad    
+  | str                     :: :: oStore
+  | out                     :: :: oOutput  
+
+
 e :: 'e_' ::=                              {{com Events}}
   | epsilon                 :: :: epsilon {{com no event }}
   | n @ L                  :: :: intE  {{com observable value event }}
@@ -64,20 +79,17 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   % | [ a1 .. aj ]            :: :: SElems
 
 C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = a 5-tuple of labels }}
-  | ( instr | L1 | L2 , L3 , L4 | L5 , L6 ) :: :: Cache {{tex 
+  | ( opcode | L1 | L2 , L3 , L4 | L5 , L6 ) :: :: Cache {{tex 
   \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|}
         \hline
-        [[instr]] & [[L1]] & [[L2]] & [[L3]] & [[L4]] & [[L5]] & [[L6]] \\ 
+        [[opcode]] & [[L1]] & [[L2]] & [[L3]] & [[L4]] & [[L5]] & [[L6]] \\ 
         \hline
         \end{array}
    }} 
-% \framebox{[[L2]]}\framebox{[[L3]]}\framebox{[[L4]]}\framebox{[[L5]]}\framebox{[[L6]]}
-  
   
 formula :: formula_ ::=  
  | judgement                :: :: judgement
  | I ( n ) = instr         :: :: instr_lookup  {{com instruction lookup }}
- | F ( n ) = instr         :: :: priv_instr_lookup  {{com instruction lookup in fault handler code }}
  | read M p = a             :: :: load          {{com read from data memory }}
  | store M p a = M'         :: :: store         {{com memory store of atom }}
 
@@ -89,20 +101,19 @@ formula :: formula_ ::=
  | a1 = a2                  :: :: eq_atm
  | L1 = L2                  :: :: labelEq
 
- | C1 = C2                  :: :: cache_eq         {{com cache hit (equality of caches) }}
+ | C1 ~ C2                  :: :: cache_eq         {{com cache hit (equality of caches) }}
  
- | C1 <> C2 = C3            :: :: cache_neq         {{com cache miss and update }}
+ | C1 ~/~ C2 ~ C3            :: :: cache_neq         {{com cache miss and update }}
 
- % | v1 = .. = vj = v         :: :: vals_eq
- % | formula1 ==> formula2    :: :: implication
  | formula1 quad formula2   :: :: savingspace
 
 terminals :: 'terminals_' ::=
   | ==>                 :: :: eval       {{tex \Longrightarrow }}
   | quad                :: :: savespace  {{tex \qquad }}
   | \/                  :: :: join       {{tex \mathord{\vee} }}
-  | |_|                 :: :: ljoin      {{tex \mathord{\sqcup} }}
   | <>                  :: :: noteq      {{tex \neq }}
+  | ~                   :: :: match      {{tex \sim }}
+  | ~/~                 :: :: dmatch     {{tex \not\sim }}
   | @                   :: :: atlabel    {{tex \mathord{@} }}
   | ;;                  :: :: semisemi   {{tex \mathord{;\!;} }}
   | +                   :: :: plus       {{tex \mathord{+} }}
@@ -129,6 +140,19 @@ terminals :: 'terminals_' ::=
   | Ret                 :: :: Ret        {{tex \text{\sf Ret} }} 
   | Halt                :: :: Halt       {{tex \text{\sf Halt} }} 
 
+  | call                :: :: oCall      {{tex \text{\sf Call} }} 
+  | out                 :: :: oOutput    {{tex \text{\sf Output} }}
+  | load                :: :: oLoad       {{tex \text{\sf Load} }} 
+  | str                 :: :: oStore      {{tex \text{\sf Store} }} 
+  | nop                 :: :: oNop        {{tex \text{\sf Nop} }}
+  | push                :: :: oPush       {{tex \text{\sf Push} }} 
+  | pop                 :: :: oPop        {{tex \text{\sf Pop} }} 
+  | dup                 :: :: oDup        {{tex \text{\sf Dup} }} 
+  | binop               :: :: oBinOp      {{tex \text{\sf BinOp} }}
+  | jump                :: :: oJump       {{tex \text{\sf Jump} }} 
+  | bnz                 :: :: oBNZ        {{tex \text{\sf BNZ} }} 
+  | ret                 :: :: oRet        {{tex \text{\sf Ret} }} 
+
   | epsilon             :: :: eE0       {{tex \varepsilon }} 
   | upriv               :: :: upriv     {{tex 0 }} 
   | priv                :: :: priv      {{tex 1 }} 
@@ -141,73 +165,94 @@ SmallStepEval :: '' ::=
   {{tex [[b1]], [[C1]], [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[b2]], [[C2]], [[M2]], [[S2]], [[pc2]] }} by
 
      I(n) = Nop
-     C = (Nop | L | _, _, _ | R, _)         
+     C ~ (nop | L | _, _, _ | R, _)         
      ------------------------------------- :: Nop
      upriv, C, F, M, I, S, n@L -- epsilon -> upriv, C, F, M, I, S, n+1@R
 
      I(n) = Nop
-     C <> C' = (Nop | L | _, _, _ | _, _)
-     ------------------------------------- :: Nop_Fail
-     upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(pc, upriv) ;; S], 0@bot
+     C ~/~ C' ~ (nop | L | _, _, _ | _, _)
+     ------------------------------------- :: Nop_Fault
+     upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(n@L, upriv) ;; S], 0@bot
 
      I(n) = Output
-     C = (Output | L | K, _, _| R1, R2)         
-     -------------------------------------------------------- :: Output
+     C ~ (out | L | K, _, _| R1, R2)         
+     -------------------------------------------------------- :: Out
      upriv, C, F, M, I, [n@K; S], n@L -- n@R2 -> upriv, C, F, M, I, S, n+1@R1
 
-    % % pointer offsetting won't be a binop, now stricter on the input values
-    % % they must be integers
-    %  I(pc) = BinOp o
-    % -------------------------------------------------------- :: Step_BinOp
-    %  M, I, [n1@L1; n1@L2; S], pc -- epsilon -> M, I, [(n1 o n2)@(L1\/L2); S], pc+1
+     I(n) = Output
+     C ~/~ C' ~ (out | L | K, _, _| _, _)         
+     -------------------------------------------------------- :: Out_Fault
+     upriv, C, F, M, I, [n@K; S], n@L -- epsilon -> priv, C, F, M, I, [(n@L,upriv) ;; n@K ; S], 0@bot
 
-    %  I(pc) = Push n
-    %  -------------------------------------------------------- :: Step_Push
-    %  M, I, S, pc -- epsilon -> M, I, [n @ bot; S], pc+1
+     I(n) = BinOp o
+     C ~ (binop | L | L1, L2, _| R1, R2) quad v = (n1 o n2)
+    -------------------------------------------------------- :: BinOp
+     upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> upriv, C, F, M, I, [v@R2; S], n+1@R1
 
-    %  I(pc) = Load   quad    read M p = a
-    %  -------------------------------------------------------- :: Step_Load
-    %  M, I, [p@K; S], pc -- epsilon -> M, I, [a \/ K; S], pc+1
+     I(n) = BinOp o
+     C ~/~ C' ~ ( binop | L | L1, L2, _| _, _)
+    -------------------------------------------------------- :: BinOp_Fault
+     upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv);; n1@L1; n1@L2 ; S], 0@bot
 
-    %  I(pc) = Store    quad    read M p = n@L
-    %  K \/ labOf(pc) <= L   quad   store M p (a \/ K \/ labOf(pc)) = M'
-    %  -------------------------------------------------------- :: Step_Store
-    %  M, I, [p@K; a; S], pc -- epsilon -> M', I, S, pc+1
+     I(n) = Push k
+     C ~ ( push | L | _, _, _| R1, R2)
+     -------------------------------------------------------- :: Push
+     upriv, C, F, M, I, S, n@L -- epsilon -> upriv, C, F, M, I, [k @ R2; S], n+1@R1
 
-    %  I(pc) = Jump
-    %   -------------------------------------------------------- :: Step_Jump
-    %  M, I, [pc'; S], pc -- epsilon -> M, I, S, pc' \/ labOf(pc)
+     I(n) = Load   quad    read M p = k@N
+     C ~ ( load | L | K, N, _| R1, R2)
+     -------------------------------------------------------- :: Load
+     upriv, C, F, M, I, [p@K; S], n@L -- epsilon -> upriv, C, F, M, I, [k@R2; S], n+1@R1
+
+     I(n) = Store    quad    read M p = k@N2
+     C ~ ( str | L | K, N1, N2| R1, R2)         quad    store M p (v@R2) = M'
+     -------------------------------------------------------- :: Store
+     upriv, C, F, M, I, [p@K; v@N1; S], n@L -- epsilon -> upriv, C, F, M', I, S, n+1@R1
+
+     I(n) = Store    quad    read M p = k@N2
+     C ~/~ C' ~ ( str | L | K, N1, N2| _, _)    
+     -------------------------------------------------------- :: Store_Fault
+     upriv, C, F, M, I, [p@K; v@N1; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K; v@N1; S], 0@bot 
+
+     I(n) = Jump
+     C ~ ( jump | L | K, _, _| R1, _)
+      -------------------------------------------------------- :: Jump
+     upriv, C, F, M, I, [k@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, k@R1
     
-    %  I(pc) = BNZ k  quad   m <> 0 
-    %  -------------------------------------------------------- :: Step_BNZ_Yes
-    %  M, I, [m@K; S], n@L -- epsilon -> M, I, S, (n+k)@L\/K
+     I(n) = BNZ k  quad   m <> 0 
+     C ~ ( bnz | L | K, _, _| R1, _)
+     -------------------------------------------------------- :: BNZ_Yes
+     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, (n+k)@R1
     
-    %  I(pc) = BNZ k quad   m = 0 
-    %  -------------------------------------------------------- :: Step_BNZ_No
-    %  M, I, [m@K; S], n@L -- epsilon -> M, I, S, (n+1)@L\/ K
+     I(n) = BNZ k quad   m = 0 
+     C ~ ( bnz | L | K, _, _| R1, _)
+     -------------------------------------------------------- :: BNZ_No
+     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, (n+1)@R1
 
-    %  I(pc) = Call
-    %  -------------------------------------------------------- :: Step_Call
-    %  M, I, [ pc' ; a ; S], pc -- epsilon -> M, I, [a; pc+1 ;; S], pc'\/labOf(pc)
+     I(n) = Call
+     C ~ ( call | L | K, N, _| R1, R2)
+     -------------------------------------------------------- :: Call
+     upriv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> upriv, C, F, M, I, [v@R2; (n+1@L,upriv) ;; S], p@R1
 
-    %  I(pc) = Ret
-    %  -------------------------------------------------------- :: Step_Ret
-    %  M, I, [a ; pc' ;; S], pc -- epsilon -> M, I, [a\/labOf(pc) ; S], pc'
+     I(n) = Ret
+     C ~ ( ret | L | N, K, _| R1, R2)
+     -------------------------------------------------------- :: Ret
+     upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@L -- epsilon -> b, C, F, M, I, [v@R2 ; S], p@R1
 
      % I(pc) = Pop
-     % -------------------------------------------------------- :: Step_Pop
+     % -------------------------------------------------------- :: Pop
      % M, I, [a; S], pc -- espilon -> M, I, S, pc+1
 
      % I(pc) = Swap
-     % -------------------------------------------------------- :: Step_Swap
+     % -------------------------------------------------------- :: Swap
      % M, I, [a1; a2; S], pc -- espilon -> M, I, [a2; a1; S], pc+1
 
      % I(pc) = Ret
-     % -------------------------------------------------------- :: Step_Ret_Pop
+     % -------------------------------------------------------- :: Ret_Pop
      % M, I, [a; a'; S], pc --epsilon -> M, I, [a; S], pc
 
      % M(pc) = Dup
-     % -------------------------------------------------------- :: Step_Dup
+     % -------------------------------------------------------- :: Dup
      % M, [a; S], pc, T --> M, [a;a;S], pc+1, T
     
 
