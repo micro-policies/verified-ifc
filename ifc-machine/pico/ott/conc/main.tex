@@ -1,4 +1,5 @@
-\documentclass{scrartcl}
+%% \documentclass{scrartcl}
+\documentclass{article}
 
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{stmaryrd}
@@ -93,40 +94,36 @@
 \section*{Step relation}
 
 \small
-%% \ottdefnss
-
-%% \begin{ottdefnblock}{$ \ottnt{b_{{\mathrm{1}}}} ,  \kappa_{{\mathrm{1}}} ,  \mu_{{\mathrm{1}}} ,  \sigma_{{\mathrm{1}}} ,  \ottnt{pc_{{\mathrm{1}}}}  \xrightarrow{ \ottnt{e} }  \ottnt{b_{{\mathrm{2}}}} ,  \kappa_{{\mathrm{2}}} ,  \mu_{{\mathrm{2}}} ,  \sigma_{{\mathrm{2}}} ,  \ottnt{pc_{{\mathrm{2}}}} $}{}
-%% \end{ottdefnblock}
 
 \[ \ottdruleNop \ottinterrule 
    \quad \ottdruleNopXXF \ottinterrule 
-   \quad \ottdruleNopXXPriv \ottinterrule \]
+   \quad \ottdruleNopXXP \ottinterrule \]
 \[ \ottdruleOut \ottinterrule
-   \qquad  \ottdruleOutXXF \ottinterrule \]
-\[ \ottdruleBinOp \ottinterrule
-   \quad \ottdruleBinOpXXF \ottinterrule \]
-\[ \ottdrulePush \ottinterrule 
-   \quad \ottdrulePushXXF \ottinterrule
-   \quad \ottdrulePushXXPriv \ottinterrule \]
- \[ \ottdruleLoad \ottinterrule 
-   \quad \ottdruleLoadXXF \ottinterrule
-   \quad \ottdruleLoadXXPriv \ottinterrule \]
-\[ \ottdruleStore \ottinterrule
-   \quad \ottdruleStoreXXF \ottinterrule \]
-\[ \ottdruleBinOpXXPriv \ottinterrule
-   \quad \ottdruleStoreXXPriv \ottinterrule \]
+   \quad  \ottdruleOutXXF \ottinterrule 
+   \quad \ottdruleBOpXXP \ottinterrule \]
+\[ \ottdruleBOp \ottinterrule
+   \quad \ottdruleBOpXXF \ottinterrule \]
+\[ \ottdrulePsh \ottinterrule 
+   \quad \ottdrulePshXXF \ottinterrule
+   \quad \ottdrulePshXXP \ottinterrule \]
+ \[ \ottdruleLd \ottinterrule 
+   \quad \ottdruleLdXXF \ottinterrule
+   \quad \ottdruleLdXXP \ottinterrule \]
+\[ \ottdruleSt \ottinterrule
+   \quad \ottdruleStXXF \ottinterrule
+   \quad \ottdruleStXXP \ottinterrule \]
 \[ \ottdruleJmp \ottinterrule
    \quad \ottdruleJmpXXF \ottinterrule 
-   \quad \ottdruleJmpXXPriv \ottinterrule \]
-\[ \ottdruleBNZ \ottinterrule 
-   \quad  \ottdruleBNZXXF \ottinterrule
-   \quad  \ottdruleBNZXXPriv \ottinterrule  \] 
-\[ \ottdruleCall \ottinterrule
-   \quad  \ottdruleCallXXF \ottinterrule \]
+   \quad \ottdruleJmpXXP \ottinterrule \]
+\[ \ottdruleBnz \ottinterrule 
+   \quad  \ottdruleBnzXXF \ottinterrule
+   \quad  \ottdruleBnzXXP \ottinterrule  \] 
+\[ \ottdruleCll \ottinterrule
+   \quad  \ottdruleCllXXF \ottinterrule \]
 \[ \ottdruleRet \ottinterrule   
-   \quad  \ottdruleRetXXF \ottinterrule  \] 
-\[ \ottdruleCallXXPriv \ottinterrule
-   \quad  \ottdruleRetXXPriv \ottinterrule \] 
+   \quad  \ottdruleRetXXF \ottinterrule \]
+\[ \ottdruleCllXXP \ottinterrule 
+   \quad \ottdruleRetXXP \ottinterrule \] 
 
 % \begin{quote}
 % \ottgrammartabular{%
