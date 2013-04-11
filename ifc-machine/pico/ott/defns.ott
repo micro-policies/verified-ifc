@@ -51,19 +51,19 @@ instr :: 'instr_' ::=                              {{com Instructions}}
   | Halt                    :: :: iHalt
 
 opcode :: 'opcode_' ::=                              {{com Opcodes}}
-  | NOP                     :: :: oNop
-  | PUSH                    :: :: oPush    {{com push constant integer}}
-  | POP                     :: :: oPop
-  | DUP                     :: :: oDup
-  | BINOP                   :: :: oBinOp   {{com binary op, returning integer}}
-  | JUMP                    :: :: oJump
-  | BNZ                     :: :: oBNZ     {{com conditional relative jump}}
-  | CALL                    :: :: oBCall
-  | RET                     :: :: oBRet
-  | LOAD                    :: :: oLoad    
-  | STORE                   :: :: oStore
-  | OUTPUT                  :: :: oOutput  {{com output the top of the stack, tainted with pc}}
-  | HALT                    :: :: oHalt
+  | nop                     :: :: oNop
+  | push                    :: :: oPush    {{com push constant integer}}
+  | pop                     :: :: oPop
+  | dup                     :: :: oDup
+  | binop                   :: :: oBinOp   {{com binary op, returning integer}}
+  | jump                    :: :: oJump
+  | bnz                     :: :: oBNZ     {{com conditional relative jump}}
+  | call                    :: :: oBCall
+  | ret                     :: :: oBRet
+  | load                    :: :: oLoad    
+  | store                   :: :: oStore
+  | output                  :: :: oOutput  {{com output the top of the stack, tainted with pc}}
+  | halt                    :: :: oHalt
 
 e :: 'e_' ::=                              {{com Events}}
   | epsilon                 :: :: epsilon {{com no event }}
@@ -263,48 +263,48 @@ AbstractExplicitSmallStep :: '' ::=
   {{tex [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[M2]], [[S2]], [[pc2]] }} by
 
      I(pc) = Nop
-     Lpc, _, _, _ ~~ NOP ~> Lpc', _
+     Lpc, _, _, _ ~~ nop ~> Lpc', _
      -------------------------------------- :: XStep_Nop
      M, S, npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc'
 
      I(pc) = Output
-     Lpc, L1, _, _ ~~ OUTPUT ~> Lpc', L'
+     Lpc, L1, _, _ ~~ output ~> Lpc', L'
      -------------------------------------------------------- :: XStep_Output
      M, [n@L1; S], npc@Lpc -- n@L' -> M, S, (npc+1)@Lpc'
 
      I(pc) = BinOp o
-     Lpc, L1, L2, _ ~~ BINOP ~> Lpc', L
+     Lpc, L1, L2, _ ~~ binop ~> Lpc', L
     -------------------------------------------------------- :: XStep_BinOp
      M, [n1@L1; n1@L2; S], npc@Lpc -- epsilon -> M, [(n1 o n2)@L'; S], (npc+1)@Lpc'
 
      I(pc) = Push n
-     Lpc, _, _, _ ~~ PUSH ~> Lpc', L'
+     Lpc, _, _, _ ~~ push ~> Lpc', L'
      -------------------------------------------------------- :: XStep_Push
      M, S, npc@Lpc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
 
      I(pc) = Load   quad    read M p = n@L2
-     Lpc, L1, L2, _ ~~ LOAD ~> Lpc', L'
+     Lpc, L1, L2, _ ~~ load ~> Lpc', L'
      -------------------------------------------------------- :: XStep_Load
      M, [p@L1; S], pc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
 
      I(pc) = Store    quad    read M p = n@L3
-     Lpc, L1, L2, L3 ~~ STORE ~> Lpc', L'
+     Lpc, L1, L2, L3 ~~ store ~> Lpc', L'
      store M p m@L' = M'
      -------------------------------------------------------- :: XStep_Store
      M, [p@L1; m@L2; S], npc@Lpc -- epsilon -> M', S, (npc+1)@Lpc'
 
      I(pc) = Jump
-     Lpc, L1, _, _ ~~ JUMP ~> Lpc', _
+     Lpc, L1, _, _ ~~ jump ~> Lpc', _
       ------------------------------------------------------- :: XStep_Jump
      M, [n@L1; S], npc@Lpc -- epsilon -> M, S, n@Lpc'
     
      I(pc) = Bnz k  quad   m <> 0 
-     Lpc, L1, _, _ ~~ BNZ ~> Lpc', _
+     Lpc, L1, _, _ ~~ bnz ~> Lpc', _
      -------------------------------------------------------- :: XStep_Bnz_Yes
      M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+k)@Lpc
     
      I(pc) = Bnz k quad   m = 0
-     Lpc, L1, _, _ ~~ BNZ ~> Lpc', _
+     Lpc, L1, _, _ ~~ bnz ~> Lpc', _
      -------------------------------------------------------- :: XStep_Bnz_No
      M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc
 
@@ -312,13 +312,13 @@ AbstractExplicitSmallStep :: '' ::=
      % CH: "a" could be expanded out, its label passed into the TMU
      %         and returned out as a 3rd(!?) argument? Ouch!
      I(pc) = Call
-     Lpc, L1, _, _ ~~ CALL ~> Lpc', L'
+     Lpc, L1, _, _ ~~ call ~> Lpc', L'
      -------------------------------------------------------- :: XStep_Call
      M, [ n@L1 ; a ; S], npc@Lpc -- epsilon -> M, [a; (npc+1)@L' ;; S], n@Lpc'
 
-     % CH: This is not in sync with the Coq code
+     % CH: This corresponds to VRet in the Coq code
      I(pc) = Ret
-     Lpc, L1, L2, _ ~~ RET ~> Lpc', L'
+     Lpc, L1, L2, _ ~~ ret ~> Lpc', L'
      -------------------------------------------------------- :: XStep_Ret
      M, [n@L1 ; m@L2 ;; S], npc@Lpc -- epsilon -> M, [n@L' ; S], m@Lpc'
 
@@ -327,13 +327,13 @@ funs
     fun
       Rule ( opcode ) :: RHS :: rule
     by
-Rule(NOP)    === << TRUE, LABPC, __ >>
-Rule(OUTPUT) === << TRUE, LABPC, JOIN LAB1 LABPC >>
-Rule(BINOP)  === << TRUE, LABPC, JOIN LAB1 LAB2 >>
-Rule(PUSH)   === << TRUE, LABPC, LAB1 >>
-Rule(LOAD)   === << TRUE, LABPC, JOIN LAB1 LAB2 >>
-Rule(STORE)  === << FLOWS (JOIN LAB1 LABPC) LAB3, LABPC, JOIN LAB1 (JOIN LAB2 LABPC) >>
-Rule(JUMP)   === << TRUE, JOIN LAB1 LABPC, __ >>
-Rule(BNZ)    === << TRUE, JOIN LAB1 LABPC, __ >>
-Rule(CALL)   === << TRUE, JOIN LAB1 LABPC, LABPC >>
-Rule(RET)    === << TRUE, LAB2, JOIN LAB1 LABPC >>
+Rule(nop)    === << TRUE, LABPC, __ >>
+Rule(output) === << TRUE, LABPC, JOIN LAB1 LABPC >>
+Rule(binop)  === << TRUE, LABPC, JOIN LAB1 LAB2 >>
+Rule(push)   === << TRUE, LABPC, LAB1 >>
+Rule(load)   === << TRUE, LABPC, JOIN LAB1 LAB2 >>
+Rule(store)  === << FLOWS (JOIN LAB1 LABPC) LAB3, LABPC, JOIN LAB1 (JOIN LAB2 LABPC) >>
+Rule(jump)   === << TRUE, JOIN LAB1 LABPC, __ >>
+Rule(bnz)    === << TRUE, JOIN LAB1 LABPC, __ >>
+Rule(call)   === << TRUE, JOIN LAB1 LABPC, LABPC >>
+Rule(ret)    === << TRUE, LAB2, JOIN LAB1 LABPC >>
