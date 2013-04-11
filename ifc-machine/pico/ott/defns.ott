@@ -79,6 +79,27 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   | [ S ]                   :: :: SParen
   % | [ a1 .. aj ]            :: :: SElems
 
+LE :: 'LE_' ::=
+  | LAB1 :: :: eLab1 {{tex \mathsf{LAB}_1}}
+  | LAB2 :: :: eLab2 {{tex \mathsf{LAB}_2}}
+  | LAB3 :: :: eLab3 {{tex \mathsf{LAB}_3}}
+  | LABPC :: :: eLabPC {{tex \mathsf{LAB}_\mathit{pc} }}
+  | JOIN LE1 LE2 :: :: eJoin
+  | __ :: :: DontCare
+  | ( LE ) :: S :: eParen
+
+BE :: 'BE_' ::=
+  | TRUE :: :: bTrue
+  | FLOWS LE1 LE2 :: :: bFlows
+  | AND BE1 BE2 :: :: bAnd
+  | OR BE1 BE2 :: :: bOr
+  | ( BE ) :: S :: bParen
+
+RHS :: 'RHS' ::=
+  | << BE , LE1 , LE2 >> :: :: RightHandSide
+  {{tex \ll [[BE]], [[LE1]], [[LE2]] \gg }}
+% alternative: \guillemotleft ... \guillemotright
+
 formula :: formula_ ::=  
  | judgement                :: :: judgement
  | I ( pc ) = instr         :: :: instr_lookup  {{com instruction lookup (fails if pc not a code pointer)}}
@@ -234,9 +255,10 @@ AbstractExplicitSmallStep :: '' ::=
   {{tex [[oL1]] , [[oL2]] , [[oL3]] , [[oL4]]
 %        \overset{[[opcode]]}{\leadsto}
         \leadsto_{[[opcode]]}
-        [[oL]] , [[oL']] }} by
+        [[oL]] , [[oL']] }}
+  by
 
-  defn 
+  defn
   M1 , S1 , pc1 -- e -> M2 , S2 , pc2  :: :: step_exp :: '' 
   {{tex [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[M2]], [[S2]], [[pc2]] }} by
 
@@ -299,3 +321,19 @@ AbstractExplicitSmallStep :: '' ::=
      Lpc, L1, L2, _ ~~ RET ~> Lpc', L'
      -------------------------------------------------------- :: XStep_Ret
      M, [n@L1 ; m@L2 ;; S], npc@Lpc -- epsilon -> M, [n@L' ; S], m@Lpc'
+
+funs
+      Rule ::=
+    fun
+      Rule ( opcode ) :: RHS :: rule
+    by
+Rule(NOP)    === << TRUE, LABPC, __ >>
+Rule(OUTPUT) === << TRUE, LABPC, JOIN LAB1 LABPC >>
+Rule(BINOP)  === << TRUE, LABPC, JOIN LAB1 LAB2 >>
+Rule(PUSH)   === << TRUE, LABPC, LAB1 >>
+Rule(LOAD)   === << TRUE, LABPC, JOIN LAB1 LAB2 >>
+Rule(STORE)  === << FLOWS (JOIN LAB1 LABPC) LAB3, LABPC, JOIN LAB1 (JOIN LAB2 LABPC) >>
+Rule(JUMP)   === << TRUE, JOIN LAB1 LABPC, __ >>
+Rule(BNZ)    === << TRUE, JOIN LAB1 LABPC, __ >>
+Rule(CALL)   === << TRUE, JOIN LAB1 LABPC, LABPC >>
+Rule(RET)    === << TRUE, LAB2, JOIN LAB1 LABPC >>
