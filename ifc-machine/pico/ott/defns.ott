@@ -80,25 +80,27 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   % | [ a1 .. aj ]            :: :: SElems
 
 LE, exprr {{tex expr_{res} }}, exprpc {{tex expr_{pc} }}  :: 'LE_' ::= {{com Label Expressions}}
-  | LAB1 :: :: eLab1 {{tex \mathsf{LAB}_1}}
-  | LAB2 :: :: eLab2 {{tex \mathsf{LAB}_2}}
-  | LAB3 :: :: eLab3 {{tex \mathsf{LAB}_3}}
-  | LABPC :: :: eLabPC {{tex \mathsf{LAB}_\mathit{pc} }}
-  | JOIN LE1 LE2 :: :: eJoin
+  | LAB1 :: :: eLab1 {{tex \mathtt{LAB}_1}}
+  | LAB2 :: :: eLab2 {{tex \mathtt{LAB}_2}}
+  | LAB3 :: :: eLab3 {{tex \mathtt{LAB}_3}}
+  | LABPC :: :: eLabPC {{tex \mathtt{LAB}_\mathit{pc} }}
+  | JOIN LE1 LE2 :: :: eJoin 
   | __ :: :: DontCare
   | ( LE ) :: S :: eParen
 
 BE, allow :: 'BE_' ::= {{com Boolean Expressions over Labels}}
-  | TRUE :: :: bTrue
-  | FLOWS LE1 LE2 :: :: bFlows
-  | AND BE1 BE2 :: :: bAnd
-  | OR BE1 BE2 :: :: bOr
+  | TRUE :: :: bTrue                       
+  | FLOWS LE1 LE2 :: :: bFlows             
+  | AND BE1 BE2 :: :: bAnd                 
+  | OR BE1 BE2 :: :: bOr                   
   | ( BE ) :: S :: bParen
 
 RHS :: 'RHS' ::= {{com Right hand side of rules }}
   | << BE , LE1 , LE2 >> :: :: RightHandSide {{com Allow part, Result Label, Next PC label }}
   {{tex \langle [[BE]], [[LE1]], [[LE2]] \rangle }}
-% alternative: \guillemotleft ... \guillemotright
+
+rho {{tex \rho }} :: 'rho_' ::= {{com Evaluation context for rules }}
+  | ( l1 , l2 , l3 , l4 ) :: :: EvalCont {{com [[l1]] is pc label }}
 
 formula :: formula_ ::=  
  | judgement                :: :: judgement
@@ -118,7 +120,7 @@ formula :: formula_ ::=
  | L1 <= L2                 :: :: labelLeq
  | L1 = L2                  :: :: labelEq
  | RHS1 = RHS2              :: :: rhs_eq
-
+    
  % | v1 = .. = vj = v         :: :: vals_eq
  % | formula1 ==> formula2    :: :: implication
  | formula1 quad formula2   :: :: savingspace
@@ -132,8 +134,6 @@ terminals :: 'terminals_' ::=
   | @                   :: :: atlabel    {{tex \mathord{@} }}
   | ;;                  :: :: semisemi   {{tex \mathord{;\!;} }}
   | +                   :: :: plus       {{tex \mathord{+} }}
-  % | <<                  :: :: lbrack       {{tex \llbracket }}
-  % | >>                  :: :: rbeack       {{tex \rrbracket }}
   | +1                  :: :: plusplus   {{tex {\scriptstyle \mathord{+\!+} } }}
   | |->                 :: :: mapsto     {{tex {\scriptstyle \mathord{\mapsto} } }}
   | forall              :: :: forall     {{tex \forall }}
@@ -143,8 +143,8 @@ terminals :: 'terminals_' ::=
   | <|                  :: :: lcp        {{tex \langle }}
   | |>                  :: :: rcp        {{tex \rangle }}
 
-  | Call                :: :: Call      {{tex \text{\sf Call} }} 
-  | Output              :: :: Output  {{tex \text{\sf Output} }}
+  | Call                :: :: Call       {{tex \text{\sf Call} }} 
+  | Output              :: :: Output     {{tex \text{\sf Output} }}
   | Load                :: :: Load       {{tex \text{\sf Load} }} 
   | Store               :: :: Store      {{tex \text{\sf Store} }} 
   | Nop                 :: :: Nop        {{tex \text{\sf Nop} }}
@@ -157,7 +157,14 @@ terminals :: 'terminals_' ::=
   | Ret                 :: :: Ret        {{tex \text{\sf Ret} }} 
   | Halt                :: :: Halt       {{tex \text{\sf Halt} }} 
 
-  | epsilon             :: :: eE0       {{tex \varepsilon }} 
+  | epsilon             :: :: eE0        {{tex \varepsilon }} 
+
+  | TRUE                :: :: e_true     {{tex \texttt{TRUE} }}
+  | FLOWS               :: :: e_flows    {{tex \texttt{FLOWS} }}
+  | JOIN                :: :: e_join     {{tex \texttt{JOIN} }}
+  | AND                 :: :: e_and      {{tex \mathtt{AND} }}
+  | OR                  :: :: e_or       {{tex \mathtt{OR}  }}
+
 
 
 defns
@@ -255,29 +262,63 @@ defns
   RuleEvaluation :: '' ::= 
 
   defn 
-  l1 , l2 , l3 , l4 |- allow :: :: eval_cond :: ''
-  {{tex [[l1]] , [[l2]] , [[l3]] , [[l4]]
-        \vdash  [[allow]] }}
+  rho |-- LE oL  :: :: eval_expr :: '' {{tex [[rho]] \vdash  [[LE]] \downarrow [[oL]]}}
   by
 
-  defn 
-  l1 , l2 , l3 , l4 |-- LE oL  :: :: eval_expr :: ''
-  {{tex [[l1]] , [[l2]] , [[l3]] , [[l4]]
-        \vdash  [[LE]] \downarrow [[oL]]}}
-  by
+     
+   ------------------------------------ :: lpc
+     (Lpc, l1, l2, l3)  |-- LABPC Lpc
+
+   ------------------------------------ :: var1
+     (Lpc, L1, l2, l3)  |-- LAB1 L1
+
+   ------------------------------------ :: var2
+     (Lpc, l1, L2, l3)  |-- LAB2 L2
+
+   ------------------------------------ :: var3
+     (Lpc, l1, l2, L3)  |-- LAB3 L3
+
+     rho |-- LE1 L1   quad    rho |-- LE2 L2 
+   ------------------------------------------ :: join
+     rho  |-- (JOIN LE1 LE2) (L1 \/ L2)
 
   defn 
-  l1 , l2 , l3 , l4 ~~ opcode ~> L , oL'  :: :: run_tmr :: '' 
-  {{tex [[l1]] , [[l2]] , [[l3]] , [[l4]]
-%        \overset{[[opcode]]}{\leadsto}
-        \leadsto_{[[opcode]]}
-        [[L]] , [[oL']] }}
+  rho |- allow :: :: eval_cond :: '' {{tex [[rho]] \vdash  [[allow]] }}
+  by
+
+   ------------------ :: true
+     rho  |- TRUE
+
+     rho |-- LE1 L1  quad rho |-- LE2 L2 quad  L1 <= L2
+   ------------------------------------------------------- :: flows
+     rho  |- FLOWS LE1 LE2
+
+     rho |- BE1  quad rho |- BE2
+   ---------------------------------- :: and
+     rho  |- AND BE1 BE2
+
+     rho |- BE1  
+   ---------------------------------- :: or1
+     rho  |- OR BE1 BE2
+
+     rho |- BE2  
+   ---------------------------------- :: or2
+     rho  |- OR BE1 BE2
+
+  
+  defn 
+  rho ~~ opcode ~> L , oL'  :: :: run_tmr :: '' {{tex [[rho]]  \leadsto_{[[opcode]]} [[L]] , [[oL']] }}
   by
   
-     Rule(opcode) = << allow, exprpc, exprr >>  quad  l1, l2, l3, l4 |- allow
-     l1, l2, l3, l4 |--  exprpc Lpc'      quad   l1, l2, l3, l4 |--  exprr K
-   -------------------------------------- :: eval_rule
-     l1, l2, l3, l4 ~~ opcode ~> Lpc', K
+     Rule(opcode) = << allow, exprpc, exprr >>
+     rho |- allow   quad   rho |--  exprpc Lpc     quad   rho |--  exprr K
+   ------------------------------------------------------------------------------ :: eval_rule
+     rho ~~ opcode ~> Lpc, K
+
+     Rule(opcode) = << allow, exprpc, exprr >>
+     rho |- allow   quad   rho |--  exprpc Lpc     
+   ----------------------------------------------------- :: eval_rule_NoRes
+     rho ~~ opcode ~> Lpc, _
 
 
 defns
@@ -289,48 +330,48 @@ AbstractExplicitSmallStep :: '' ::=
   {{tex [[M1]], [[S1]], [[pc1]] \xrightarrow{[[e]]} [[M2]], [[S2]], [[pc2]] }} by
 
      I(pc) = Nop
-     Lpc, _, _, _ ~~ nop ~> Lpc', _
+     (Lpc, _, _, _) ~~ nop ~> Lpc', _
      -------------------------------------- :: Nop
      M, S, npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc'
 
      I(pc) = Output
-     Lpc, L1, _, _ ~~ output ~> Lpc', L'
+     (Lpc, L1, _, _) ~~ output ~> Lpc', L'
      -------------------------------------------------------- :: Output
      M, [n@L1; S], npc@Lpc -- n@L' -> M, S, (npc+1)@Lpc'
 
      I(pc) = BinOp o
-     Lpc, L1, L2, _ ~~ binop ~> Lpc', L
+     (Lpc, L1, L2, _) ~~ binop ~> Lpc', L
     -------------------------------------------------------- :: BinOp
      M, [n1@L1; n1@L2; S], npc@Lpc -- epsilon -> M, [(n1 o n2)@L'; S], (npc+1)@Lpc'
 
      I(pc) = Push n
-     Lpc, _, _, _ ~~ push ~> Lpc', L'
+     (Lpc, _, _, _) ~~ push ~> Lpc', L'
      -------------------------------------------------------- :: Push
      M, S, npc@Lpc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
 
      I(pc) = Load   quad    read M p = n@L2
-     Lpc, L1, L2, _ ~~ load ~> Lpc', L'
+     (Lpc, L1, L2, _) ~~ load ~> Lpc', L'
      -------------------------------------------------------- :: Load
      M, [p@L1; S], pc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
 
      I(pc) = Store    quad    read M p = n@L3
-     Lpc, L1, L2, L3 ~~ store ~> Lpc', L'
+     (Lpc, L1, L2, L3) ~~ store ~> Lpc', L'
      store M p m@L' = M'
      -------------------------------------------------------- :: Store
      M, [p@L1; m@L2; S], npc@Lpc -- epsilon -> M', S, (npc+1)@Lpc'
 
      I(pc) = Jump
-     Lpc, L1, _, _ ~~ jump ~> Lpc', _
+     (Lpc, L1, _, _) ~~ jump ~> Lpc', _
       ------------------------------------------------------- :: Jump
      M, [n@L1; S], npc@Lpc -- epsilon -> M, S, n@Lpc'
     
      I(pc) = Bnz k  quad   m <> 0 
-     Lpc, L1, _, _ ~~ bnz ~> Lpc', _
+     (Lpc, L1, _, _) ~~ bnz ~> Lpc', _
      -------------------------------------------------------- :: Bnz_Yes
      M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+k)@Lpc
     
      I(pc) = Bnz k quad   m = 0
-     Lpc, L1, _, _ ~~ bnz ~> Lpc', _
+     (Lpc, L1, _, _) ~~ bnz ~> Lpc', _
      -------------------------------------------------------- :: Bnz_No
      M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc
 
@@ -338,13 +379,13 @@ AbstractExplicitSmallStep :: '' ::=
      % CH: "a" could be expanded out, its label passed into the TMU
      %         and returned out as a 3rd(!?) argument? Ouch!
      I(pc) = Call
-     Lpc, L1, _, _ ~~ call ~> Lpc', L'
+     (Lpc, L1, _, _) ~~ call ~> Lpc', L'
      -------------------------------------------------------- :: Call
      M, [ n@L1 ; a ; S], npc@Lpc -- epsilon -> M, [a; (npc+1)@L' ;; S], n@Lpc'
 
      % CH: This corresponds to VRet in the Coq code
      I(pc) = Ret
-     Lpc, L1, L2, _ ~~ ret ~> Lpc', L'
+     (Lpc, L1, L2, _) ~~ ret ~> Lpc', L'
      -------------------------------------------------------- :: Ret
      M, [n@L1 ; m@L2 ;; S], npc@Lpc -- epsilon -> M, [n@L' ; S], m@Lpc'
 

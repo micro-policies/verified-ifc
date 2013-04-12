@@ -41,6 +41,11 @@
     \item the two rules for the return (popping until reaching the
       last element before call frame marker)
   \end{itemize}
+\item TODO, TOCHANGE: 
+  \begin{itemize}
+    \item Machine with explicit rules implicitly uses the convention that 
+      $n_{pc}@L_{pc} = pc$
+  \end{itemize}
 \end{itemize}
 
 \section*{Syntax}
@@ -97,16 +102,36 @@
 \ottLE\ottinterrule
 \ottBE\ottinterrule
 \ottRHS\ottinterrule
+\ottrho\ottinterrule
 }
 
 \ottfundefnsRule
-\ottdefnsRuleEvaluation
+
+\begin{ottdefnblock}[#1]{$ \rho  \vdash   \ottnt{allow} $}{}
+\[ \ottdruletrue \ottinterrule
+   \quad \ottdruleflows\ottinterrule \]
+\[ \ottdruleand\ottinterrule 
+   \quad \ottdruleorOne\ottinterrule
+   \quad \ottdruleorTwo\ottinterrule \]
+\end{ottdefnblock}
+
+\clearpage
+\begin{ottdefnblock}[#1]{$ \rho  \vdash \ottnt{LE} \downarrow  \ottnt{oL} $}{}
+\small 
+\[ \ottdrulelpc \ottinterrule
+   \quad \ottdrulejoin \ottinterrule \]
+\[ \ottdrulevarOne \ottinterrule
+   \quad \ottdrulevarTwo \ottinterrule
+   \quad \ottdrulevarThree \ottinterrule \]
+\end{ottdefnblock}
+
+\ottdefnrunXXtmr
+
 \clearpage
 
 \subsection*{Small step relation}
 
 \ottdefnsAbstractExplicitSmallStep
-
 
 \end{document}
 
