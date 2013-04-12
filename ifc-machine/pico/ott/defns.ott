@@ -25,7 +25,7 @@ L, K, Lpc {{tex L_\mathit{pc} }} :: 'L_' ::=   {{com Labels}}
   | L1 \/ L2                :: :: Ljoin     {{com label join}}
   | ( L )                   :: S :: LParen
 
-oL  :: 'oL_' ::=   {{com Optional Labels}}
+oL, l {{tex \ell }}  :: 'oL_' ::=   {{com Optional Labels}}
   | _                     :: :: Nothing {{tex \_}}
   | L                     :: :: SomeLabel
 
@@ -79,7 +79,7 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   | [ S ]                   :: :: SParen
   % | [ a1 .. aj ]            :: :: SElems
 
-LE :: 'LE_' ::= {{com Label Expressions}}
+LE, exprr {{tex expr_{res} }}, exprpc {{tex expr_{pc} }}  :: 'LE_' ::= {{com Label Expressions}}
   | LAB1 :: :: eLab1 {{tex \mathsf{LAB}_1}}
   | LAB2 :: :: eLab2 {{tex \mathsf{LAB}_2}}
   | LAB3 :: :: eLab3 {{tex \mathsf{LAB}_3}}
@@ -88,7 +88,7 @@ LE :: 'LE_' ::= {{com Label Expressions}}
   | __ :: :: DontCare
   | ( LE ) :: S :: eParen
 
-BE :: 'BE_' ::= {{com Boolean Expressions over Labels}}
+BE, allow :: 'BE_' ::= {{com Boolean Expressions over Labels}}
   | TRUE :: :: bTrue
   | FLOWS LE1 LE2 :: :: bFlows
   | AND BE1 BE2 :: :: bAnd
@@ -117,6 +117,8 @@ formula :: formula_ ::=
  | a1 = a2                  :: :: eq_atm
  | L1 <= L2                 :: :: labelLeq
  | L1 = L2                  :: :: labelEq
+ | RHS1 = RHS2              :: :: rhs_eq
+
  % | v1 = .. = vj = v         :: :: vals_eq
  % | formula1 ==> formula2    :: :: implication
  | formula1 quad formula2   :: :: savingspace
@@ -249,18 +251,38 @@ AbstractHighLevelSmallStep :: '' ::=
     % ------------------------------------- :: eval
     % I , rho |- l1, l2
 
+defns 
+  RuleEvaluation :: '' ::= 
+
+  defn 
+  l1 , l2 , l3 , l4 |- allow :: :: eval_cond :: ''
+  {{tex [[l1]] , [[l2]] , [[l3]] , [[l4]]
+        \vdash  [[allow]] }}
+  by
+
+  defn 
+  l1 , l2 , l3 , l4 |-- LE oL  :: :: eval_expr :: ''
+  {{tex [[l1]] , [[l2]] , [[l3]] , [[l4]]
+        \vdash  [[LE]] \downarrow [[oL]]}}
+  by
+
+  defn 
+  l1 , l2 , l3 , l4 ~~ opcode ~> L , oL'  :: :: run_tmr :: '' 
+  {{tex [[l1]] , [[l2]] , [[l3]] , [[l4]]
+%        \overset{[[opcode]]}{\leadsto}
+        \leadsto_{[[opcode]]}
+        [[L]] , [[oL']] }}
+  by
+  
+     Rule(opcode) = << allow, exprpc, exprr >>  quad  l1, l2, l3, l4 |- allow
+     l1, l2, l3, l4 |--  exprpc Lpc'      quad   l1, l2, l3, l4 |--  exprr K
+   -------------------------------------- :: eval_rule
+     l1, l2, l3, l4 ~~ opcode ~> Lpc', K
+
+
 defns
 AbstractExplicitSmallStep :: '' ::=
 
-  defn 
-  oL1 , oL2 , oL3 , oL4 ~~ opcode ~> oL , oL'  :: :: run_tmr :: '' 
-  {{tex [[oL1]] , [[oL2]] , [[oL3]] , [[oL4]]
-%        \overset{[[opcode]]}{\leadsto}
-        \leadsto_{[[opcode]]}
-        [[oL]] , [[oL']] }}
-  by
-  
-  
 
   defn
   M1 , S1 , pc1 -- e -> M2 , S2 , pc2  :: :: step_exp :: '' 
@@ -268,48 +290,48 @@ AbstractExplicitSmallStep :: '' ::=
 
      I(pc) = Nop
      Lpc, _, _, _ ~~ nop ~> Lpc', _
-     -------------------------------------- :: XStep_Nop
+     -------------------------------------- :: Nop
      M, S, npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc'
 
      I(pc) = Output
      Lpc, L1, _, _ ~~ output ~> Lpc', L'
-     -------------------------------------------------------- :: XStep_Output
+     -------------------------------------------------------- :: Output
      M, [n@L1; S], npc@Lpc -- n@L' -> M, S, (npc+1)@Lpc'
 
      I(pc) = BinOp o
      Lpc, L1, L2, _ ~~ binop ~> Lpc', L
-    -------------------------------------------------------- :: XStep_BinOp
+    -------------------------------------------------------- :: BinOp
      M, [n1@L1; n1@L2; S], npc@Lpc -- epsilon -> M, [(n1 o n2)@L'; S], (npc+1)@Lpc'
 
      I(pc) = Push n
      Lpc, _, _, _ ~~ push ~> Lpc', L'
-     -------------------------------------------------------- :: XStep_Push
+     -------------------------------------------------------- :: Push
      M, S, npc@Lpc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
 
      I(pc) = Load   quad    read M p = n@L2
      Lpc, L1, L2, _ ~~ load ~> Lpc', L'
-     -------------------------------------------------------- :: XStep_Load
+     -------------------------------------------------------- :: Load
      M, [p@L1; S], pc -- epsilon -> M, [n@L'; S], (npc+1)@Lpc'
 
      I(pc) = Store    quad    read M p = n@L3
      Lpc, L1, L2, L3 ~~ store ~> Lpc', L'
      store M p m@L' = M'
-     -------------------------------------------------------- :: XStep_Store
+     -------------------------------------------------------- :: Store
      M, [p@L1; m@L2; S], npc@Lpc -- epsilon -> M', S, (npc+1)@Lpc'
 
      I(pc) = Jump
      Lpc, L1, _, _ ~~ jump ~> Lpc', _
-      ------------------------------------------------------- :: XStep_Jump
+      ------------------------------------------------------- :: Jump
      M, [n@L1; S], npc@Lpc -- epsilon -> M, S, n@Lpc'
     
      I(pc) = Bnz k  quad   m <> 0 
      Lpc, L1, _, _ ~~ bnz ~> Lpc', _
-     -------------------------------------------------------- :: XStep_Bnz_Yes
+     -------------------------------------------------------- :: Bnz_Yes
      M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+k)@Lpc
     
      I(pc) = Bnz k quad   m = 0
      Lpc, L1, _, _ ~~ bnz ~> Lpc', _
-     -------------------------------------------------------- :: XStep_Bnz_No
+     -------------------------------------------------------- :: Bnz_No
      M, [m@L1; S], npc@Lpc -- epsilon -> M, S, (npc+1)@Lpc
 
      % CH: This is not at all in sync with the Coq code
@@ -317,13 +339,13 @@ AbstractExplicitSmallStep :: '' ::=
      %         and returned out as a 3rd(!?) argument? Ouch!
      I(pc) = Call
      Lpc, L1, _, _ ~~ call ~> Lpc', L'
-     -------------------------------------------------------- :: XStep_Call
+     -------------------------------------------------------- :: Call
      M, [ n@L1 ; a ; S], npc@Lpc -- epsilon -> M, [a; (npc+1)@L' ;; S], n@Lpc'
 
      % CH: This corresponds to VRet in the Coq code
      I(pc) = Ret
      Lpc, L1, L2, _ ~~ ret ~> Lpc', L'
-     -------------------------------------------------------- :: XStep_Ret
+     -------------------------------------------------------- :: Ret
      M, [n@L1 ; m@L2 ;; S], npc@Lpc -- epsilon -> M, [n@L' ; S], m@Lpc'
 
 funs
