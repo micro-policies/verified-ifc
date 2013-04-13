@@ -59,17 +59,9 @@ Lemma genJoin_spec' : forall l l' m0 s0,
 Proof.
   intros.
   unfold genJoin, TMUHL. 
-  destruct l; eapply HT_strengthen_premise.
-    eapply ifNZ_spec_Z with (v:=0); auto.
-    apply nop_spec.
-    simpl. instantiate (1:= L). (* weird *)  destruct l';  jauto.
-
-    eapply ifNZ_spec_NZ with (v:=1).
-    eapply HT_compose.
-    eapply pop_spec.  
-    eapply push_spec''. 
-    omega.
-    simpl; jauto.
+  cases l; cases l'; unfold labToZ in *;
+    eapply HT_weaken_conclusion;
+    try (eapply genOr_spec); simpl; eauto.
 Qed.
 
 Lemma genFlows_spec': forall l l' m0 s0,
@@ -82,18 +74,9 @@ Lemma genFlows_spec': forall l l' m0 s0,
 Proof.
   intros.
   unfold genFlows, TMUHL.
-  destruct l; eapply HT_strengthen_premise.  
-     eapply ifNZ_spec_Z with (v:= 0); auto. 
-     simpl (L <: l'). 
-     eapply HT_compose.
-     eapply pop_spec. 
-     eapply genTrue_spec; eauto. 
-     simpl. instantiate (2:= match l' with | L => 0 | H => 1 end).  (* awkward *) 
-     instantiate (1:= L). instantiate (1 := L). (* still weird *) destruct l'; jauto.
-
-     eapply ifNZ_spec_NZ with (v:= 1); try congruence. 
-     eapply nop_spec.
-     simpl. instantiate (1:= L); destruct l'; jauto.
+  cases l; cases l'; unfold labToZ in *;
+    eapply HT_weaken_conclusion;
+    try (eapply genImpl_spec); simpl; eauto.
 Qed.
 
 Instance TMUHLwf : WfConcreteLattice Lab HL TMUHL :=

@@ -21,8 +21,8 @@ Instance TMUHL : ConcreteLattice Lab :=
 {
   labToZ l :=
     match l with
-      | L => 0
-      | H => 1
+      | L => boolToZ false
+      | H => boolToZ true
     end
  
   ;ZToLab z :=
@@ -31,11 +31,9 @@ Instance TMUHL : ConcreteLattice Lab :=
       | _ => H
     end
 
-  ;genJoin := 
-    ifNZ (pop ++ push' 1) nop  (* same as genOr *)
+  ;genJoin := genOr
 
-  ;genFlows := (* l1 is on top of stack, l2 underneath *)
-    ifNZ nop (pop ++ genTrue) (* punning in true branch *)
+  ;genFlows := genImpl
 }.
 
 
