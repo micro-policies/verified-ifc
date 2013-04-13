@@ -281,6 +281,7 @@ Definition c_success (cs : @CS T) : Prop :=
   end.
 
 
+
 (* COMMENTING OUT THIS FOR NOW 
 
 Lemma cons_not_same (A: Type): forall (s:list A) a, s = a::s -> False.

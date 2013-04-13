@@ -15,7 +15,7 @@ TMU_ANI := AbstractObsEquiv NIAbstractMachine
 
 TMU_C := CLattices WfCLattices Concrete ConcreteMachine \
 	CodeGen CodeSpecs FaultRoutine\
-	Refinement
+	Refinement Determinism
 
 
 

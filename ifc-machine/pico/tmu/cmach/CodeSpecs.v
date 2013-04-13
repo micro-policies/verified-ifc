@@ -12,6 +12,7 @@ Require Import Concrete.
 Require Import CodeGen.
 Require Import CLattices.
 Require Import ConcreteMachine.
+Require Import Determinism.
 Require Import Coq.Arith.Compare_dec.
 
 Section CodeSpecs.
@@ -22,6 +23,7 @@ Context {T: Type}
         {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}  
 .
+
 
 Definition imemory : Type := list (@Instr T).
 Definition memory : Type := list (@Atom T). 
@@ -144,7 +146,7 @@ Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> @CS T -> @CS T -> Prop
   Rstep cs cs' ->
   fst (pc cs') = n' ->
   (* DD: I just comment out these for now, as the new hyp breaks composition lemma below *)
-  (* n <> n'' -> *)  (* OR:  n < n'' -> *) (* BEFORE: n < n' -> *) 
+  (* n <> n'' ->  *)  n < n'' -> (* BEFORE: n < n' -> *) 
   runsToEnd Rstep n' n'' cs' cs'' -> 
   runsToEnd Rstep n  n'' cs  cs''.
 
@@ -152,7 +154,7 @@ Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> @CS T -> @CS T -> Prop
    easy enough to prove the following two lemmas.
    But at the moment, Nathan and I don't see any
    strong reason to include this restriction...
-
+*)
 Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1, 
   runsToEnd step pc0 pc1 s0 s1 -> pc0 <= pc1. 
 Proof.
@@ -174,8 +176,30 @@ Proof.
   apply runsToEnd_bounded in H4. 
   omega.
 Qed.
-*)
 
+
+
+Lemma runsToEnd_determ : forall (step : CS -> CS -> Prop) pc0 pc1 s0 s1 s1',
+  forall (STEP_DET: forall s s' s'', step s s' -> step s s'' -> s' = s'') ,
+  runsToEnd step pc0 pc1 s0 s1 ->
+  runsToEnd step pc0 pc1 s0 s1' ->
+  s1 = s1'. 
+Proof.
+  intros until 1. 
+  induction 1; intros.
+    inv H0. 
+      auto.
+      exfalso; omega. 
+    inv H4.
+      exfalso; omega. 
+      clear H5 H8. 
+      assert (cs' = cs'0) by (eapply STEP_DET; eauto). 
+      subst. 
+      eauto.
+Qed.
+  
+
+(*
 Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
   runsToEnd step pc0 pc1 s0 s1 ->
   forall pc2 s2,
@@ -187,6 +211,8 @@ Proof.
   intros. 
   econstructor; eauto.
 Qed.
+*)
+
 
 (* Hoare triple for a list of instructions *)
 Definition HT   (c: code)
@@ -235,6 +261,7 @@ Proof.
 
    *)
 Qed.
+
 
 (* ================================================================ *)
 (* Lemmas on Hoare Triples *)
@@ -375,6 +402,21 @@ Proof.
   iauto.
 Qed.
 
+Lemma HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+  HT c P Q ->
+  HT c P Q' ->
+  HT c P (fun m s => Q m s /\ Q' m s).
+Proof.
+  intros.
+  unfold HT in *. intros.
+  edestruct (H imem mem) as [sk [cache [HQ R]]]. eapply H1.  eapply H2. eapply H3. 
+  edestruct (H0 imem mem) as [sk' [cache' [HQ' R']]]; eauto.
+  exists sk. exists cache.
+  pose proof (runsToEnd_determ _ _ _ _ _ _ cmach_priv_determ R R'). 
+  inv H4.
+  intuition.
+Qed.
+
 (* ================================================================ *)
 (* Specs for concrete code *)
 
@@ -400,6 +442,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_add ; eauto.
+  omega.
   
   (* Finish running *)
   eapply runsToEndDone; auto.
@@ -425,10 +468,12 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_add; eauto.
+  omega. 
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_sub; eauto.
+  simpl; omega. 
 
   (* Finish running *)
   let t := (auto || simpl; omega) in
@@ -453,6 +498,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_sub; eauto.
+  omega.
   simpl.
   constructor; auto.
 Qed.
@@ -474,6 +520,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
+  omega. 
   simpl.
   constructor; auto.
 Qed.
@@ -497,6 +544,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push ; eauto.
+  omega. 
   simpl.
   constructor; auto.
 Qed.
@@ -524,6 +572,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_push; eauto.
+  omega. 
   simpl.
   constructor; auto.
 Qed.
@@ -548,6 +597,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_load; eauto.
+  omega.
   simpl.
   constructor; auto.
 Qed.
@@ -583,6 +633,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_branchnz; eauto.
+  omega.
   simpl.
   destruct (v =? 0); constructor; auto.
 Qed.
@@ -672,6 +723,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_store; eauto.
+  simpl; omega.
 
   constructor; eauto.
 Qed.
@@ -717,6 +769,7 @@ Proof.
   (* Run an instruction *) 
   eapply runsToEndStep; eauto. 
   eapply cp_branchnz ; eauto. 
+  zify ; omega.
 
   simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
   rewrite Hif.
@@ -745,6 +798,7 @@ Proof.
   (* Run an instruction *)
   eapply runsToEndStep; auto.
   eapply cp_branchnz ; eauto. 
+  omega.
   simpl.
   constructor; auto.
 Qed.

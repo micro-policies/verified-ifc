@@ -803,10 +803,12 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m
   (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
 
+(*
 Conjecture HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
   HT c P Q ->
   HT c P Q' ->
   HT c P (fun m s => Q m s /\ Q' m s).
+*)
 
 (* XXX: NC: is this actually true? *)
 Conjecture valid_address_index_list_Z: forall a m,
