@@ -1208,6 +1208,21 @@ Proof.
   - cases b; auto.
 Qed.
 
+Lemma genImpl_spec: forall b1 b2, forall m0 s0,
+  HT genImpl
+     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerLabel) ::
+                               CData (boolToZ b2,handlerLabel) :: s0)
+     (fun m s => m = m0 /\ s = CData (boolToZ (implb b1 b2),handlerLabel) :: s0).
+Proof.
+  intros.
+  eapply HT_weaken_conclusion.
+  unfold genImpl.
+  eapply HT_compose.
+  eapply genNot_spec.
+  eapply genOr_spec.
+  simpl. cases b1; cases b2; iauto.
+Qed.
+
 (* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
    to propositional equality. *)
 Lemma genTestEqual_spec: forall c1 c2, forall v1 v2, forall m0,

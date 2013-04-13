@@ -122,6 +122,10 @@ Definition genOr :=
 Definition genNot :=
   ifNZ genFalse genTrue.
 
+Definition genImpl :=
+  (* [a -> b \equiv ~a \/ b] *)
+  genNot ++ genOr.
+
 Definition some c: code := c ++ push' 1.
 Definition none:   code := push' 0.
 
