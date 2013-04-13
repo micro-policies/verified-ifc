@@ -793,10 +793,96 @@ Proof.
     simpl; intuition; subst; auto.
 Qed.
 
+(* DD: yet another version *)
+(* NC: used in [handler_correct_succeed] below. *)
+Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m': @memory T) :Prop :=
+  (match olr with
+     | Some lr => cache_hit_read m' lr lpc
+     | None => exists l, cache_hit_read m' l lpc
+   end)
+  (* Nothing else changed *)
+  /\ update_cache_spec_rvec m m'.
+
+Conjecture ZToLab_labToZ_id: forall l, l = ZToLab (labToZ l).
+
+Conjecture HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+  HT c P Q ->
+  HT c P Q' ->
+  HT c P (fun m s => Q m s /\ Q' m s).
+
+(* XXX: NC: is this actually true? *)
+Conjecture valid_address_index_list_Z: forall a m,
+  valid_address a m ->
+  exists z, index_list_Z a m = Some (z, handlerLabel).
+
+Lemma genFaultHandlerMem_spec_Some: forall olr lpc,
+  valid_address addrTagRes m0 ->
+  valid_address addrTagResPC m0 ->
+  ar = Some (olr, lpc) ->
+  forall s0,
+    HT genFaultHandlerMem
+       (fun m s => m = m0 /\
+                   s = listify_apply_rule ar s0)
+       (fun m s => handler_final_mem_matches' olr lpc m0 m
+                   /\ s = (1,handlerLabel) ::: s0).
+Proof.
+  introv HvalidRes HvalidResPC Har_eq; intros.
+  eapply HT_split_conclusion.
+  { unfold handler_final_mem_matches'.
+    eapply HT_split_conclusion.
+    { cases olr; subst olr.
+      { eapply HT_weaken_conclusion.
+        + eapply genFaultHandlerMem_spec_Some_Some;  eauto.
+        + unfold handler_final_mem_matches'. intuition.
+          - rewrite (ZToLab_labToZ_id t).
+            rewrite (ZToLab_labToZ_id lpc).
+            eapply chr_uppriv.
+            (* Ugh ... *)
+            * eapply tim_intro.
+              jauto_set_hyps; intros.
+              eapply transitivity.
+              symmetry.
+              eapply update_list_Z_spec2.
+              eauto.
+              unfold addrTagRes, addrTagResPC; omega.
+              eapply update_list_Z_spec; eauto.
+            * eapply tim_intro.
+              jauto_set_hyps; intros.
+              eapply update_list_Z_spec; eauto.
+      }
+      { eapply HT_weaken_conclusion.
+        + eapply genFaultHandlerMem_spec_Some_None;  eauto.
+        + unfold handler_final_mem_matches'. intuition.
+          - destruct (valid_address_index_list_Z _ _ HvalidRes) as [z ?].
+            exists (ZToLab z).
+            rewrite (ZToLab_labToZ_id lpc).
+            eapply chr_uppriv.
+            (* Ugh ... *)
+            * eapply tim_intro.
+              eapply transitivity.
+              symmetry.
+              eapply update_list_Z_spec2.
+              eauto.
+              unfold addrTagRes, addrTagResPC; omega.
+              eauto.
+            * eapply tim_intro.
+              eapply update_list_Z_spec; eauto.
+      }
+    }
+    - eapply genFaultHandlerMem_update_cache_spec_rvec; eauto.
+  }
+  - cases olr; subst olr; eapply HT_weaken_conclusion.
+    + eapply genFaultHandlerMem_spec_Some_Some; eauto.
+    + intuition; jauto.
+    + eapply genFaultHandlerMem_spec_Some_None; eauto.
+    + intuition; jauto.
+Qed.
+
 End FaultHandlerSpec.
 
 End TMUSpecs.
 
+(*
 (* Relate abstact rv to final handler memory. *)
 Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': memory) : Prop :=
   let (olr,lpc) := rv in
@@ -807,16 +893,7 @@ Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': me
    end) 
   /\ tag_in_mem m' addrTagResPC (labToZ lpc)
   /\ update_cache_spec_rvec m m'.
-
-(* DD: yet another version *)
-(* NC: used in [handler_correct_succeed] below. *)
-Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m': @memory T) :Prop :=
-  (match olr with
-     | Some lr => cache_hit_read m' lr lpc
-     | None => exists l, cache_hit_read m' l lpc
-   end)
-  (* Nothing else changed *)
-  /\ update_cache_spec_rvec m m'.
+*)
 
 Conjecture handler_correct : 
   forall (fetch_rule_impl : (forall (opcode:OpCode), {n:nat & AllowModify n})),
