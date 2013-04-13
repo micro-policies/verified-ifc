@@ -12,7 +12,7 @@ Require Import CodeSpecs.
 
 (* Lattice-dependent parameters *)
 Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T) :=
-{ labToZ_inj: forall l1 l2, labToZ l1 = labToZ l2 -> l1 = l2
+{ ZToLab_labToZ_id: forall l, l = ZToLab (labToZ l)
 ; genJoin_spec: forall l l' m0 s0,
    HT  genJoin
        (fun m s => m = m0 /\
@@ -31,13 +31,22 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
                    s = CData (boolToZ (flows l l'), handlerLabel) :: s0)
 }.
 
+Lemma labToZ_inj: forall {L J C} {W: WfConcreteLattice L J C} (l1 l2: L),
+  labToZ l1 = labToZ l2 -> l1 = l2.
+Proof.
+  intros.
+  rewrite (ZToLab_labToZ_id l1).
+  rewrite (ZToLab_labToZ_id l2).
+  apply f_equal; auto.
+Qed.
 
 Require Import LatticeHL. 
 Local Open Scope Z_scope. 
 
-Lemma labToZ_inj' : forall l1 l2, labToZ l1 = labToZ l2 -> l1 = l2.
+Lemma ZToLab_labToZ_id' : forall l, l = ZToLab (labToZ l).
 Proof.
- intros. destruct l1, l2;  simpl in *; congruence. 
+  intros.
+  destruct l; auto.
 Qed.
 
 Lemma genJoin_spec' : forall l l' m0 s0,
@@ -88,7 +97,7 @@ Proof.
 Qed.
 
 Instance TMUHLwf : WfConcreteLattice Lab HL TMUHL :=
-{ labToZ_inj := labToZ_inj'
+{ ZToLab_labToZ_id := ZToLab_labToZ_id'
 ; genJoin_spec := genJoin_spec'
 ; genFlows_spec := genFlows_spec'
 }.

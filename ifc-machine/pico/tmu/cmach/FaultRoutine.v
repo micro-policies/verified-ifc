@@ -803,8 +803,6 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m
   (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
 
-Conjecture ZToLab_labToZ_id: forall l, l = ZToLab (labToZ l).
-
 Conjecture HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
   HT c P Q ->
   HT c P Q' ->
