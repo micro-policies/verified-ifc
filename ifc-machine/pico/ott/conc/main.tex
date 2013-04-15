@@ -38,8 +38,8 @@
     \item labels are represented with integers. TODO: change for
       richer data structures. Need to introduce an extra privileged
       memory for that.
-    \item how to present the fault handler code? I guess Nathan's
-      combinators will help the ease of presentation too.
+    \item how to present the fault handler? Nathan's
+      combinators may help the ease of presentation too.
     \item notation for fault handler cache: only payload-labels are
       specified and not their labels. these could be any labels actually.
     \item when IFC-faulting, no effect on the memory (see rule for
@@ -92,39 +92,43 @@
 \ottformula\ottinterrule
 }
 
-\section*{Step relation}
+\section*{Step relation: user mode - hit/faulting cases}
 
-\small
-
+\begin{small}
 \[ \ottdruleNop \ottinterrule 
-   \quad \ottdruleNopXXF \ottinterrule 
-   \quad \ottdruleNopXXP \ottinterrule \]
+   \quad \quad \ottdruleNopXXF \ottinterrule \]
 \[ \ottdruleOut \ottinterrule
-   \quad  \ottdruleOutXXF \ottinterrule 
-   \quad \ottdruleBOpXXP \ottinterrule \]
+   \quad \quad  \ottdruleOutXXF \ottinterrule \]
 \[ \ottdruleBOp \ottinterrule
-   \quad \ottdruleBOpXXF \ottinterrule \]
+   \quad \quad \ottdruleBOpXXF \ottinterrule \]
 \[ \ottdrulePsh \ottinterrule 
-   \quad \ottdrulePshXXF \ottinterrule
-   \quad \ottdrulePshXXP \ottinterrule \]
+   \quad \quad \ottdrulePshXXF \ottinterrule \]
  \[ \ottdruleLd \ottinterrule 
-   \quad \ottdruleLdXXF \ottinterrule
-   \quad \ottdruleLdXXP \ottinterrule \]
+   \quad \quad \ottdruleLdXXF \ottinterrule \]
 \[ \ottdruleSt \ottinterrule
-   \quad \ottdruleStXXF \ottinterrule
-   \quad \ottdruleStXXP \ottinterrule \]
+   \quad \quad \ottdruleStXXF \ottinterrule \]
 \[ \ottdruleJmp \ottinterrule
-   \quad \ottdruleJmpXXF \ottinterrule 
-   \quad \ottdruleJmpXXP \ottinterrule \]
+   \quad \quad \ottdruleJmpXXF \ottinterrule \]
 \[ \ottdruleBnz \ottinterrule 
-   \quad  \ottdruleBnzXXF \ottinterrule
-   \quad  \ottdruleBnzXXP \ottinterrule  \] 
+   \quad \quad  \ottdruleBnzXXF \ottinterrule  \] 
 \[ \ottdruleCll \ottinterrule
-   \quad  \ottdruleCllXXF \ottinterrule \]
+   \quad \quad  \ottdruleCllXXF \ottinterrule \]
 \[ \ottdruleRet \ottinterrule   
-   \quad  \ottdruleRetXXF \ottinterrule \]
-\[ \ottdruleCllXXP \ottinterrule 
-   \quad \ottdruleRetXXP \ottinterrule \] 
+   \quad \quad  \ottdruleRetXXF \ottinterrule \]
+\end{small}
+
+\section{Step relation: privileged mode}
+
+\[ \ottdruleNopXXP \ottinterrule \]
+\[ \ottdruleBOpXXP \ottinterrule \]
+\[ \ottdrulePshXXP \ottinterrule \]
+\[ \ottdruleLdXXP \ottinterrule \]
+\[ \ottdruleStXXP \ottinterrule \]
+\[ \ottdruleJmpXXP \ottinterrule \]
+\[ \ottdruleBnzXXP \ottinterrule \] 
+\[ \ottdruleCllXXP \ottinterrule \]
+\[ \ottdruleRetXXP \ottinterrule \] 
+
 
 % \begin{quote}
 % \ottgrammartabular{%
