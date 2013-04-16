@@ -77,13 +77,13 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   | ( pc , b ) ;; S         :: :: Srcons   {{com stack frame marker cons (with return pc and priv bit )}}
   | [ S ]                   :: :: SParen
 
-C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = a 5-tuple of labels }}
+C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = Opcode + 5-tuple of labels }}
   | ( opcode | L1 | L2 , L3 , L4 | L5 , L6 ) :: :: Cache {{tex 
   \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}||@{\;}l@{\;}|@{\;}l@{\;}|}
-        \hline
-        [[opcode]] & [[L1]] & [[L2]] & [[L3]] & [[L4]] & [[L5]] & [[L6]] \\ 
-        \hline
-        \end{array}
+   \hline  
+   [[opcode]] & [[L1]] & [[L2]] & [[L3]] & [[L4]] & [[L5]] & [[L6]] \\ 
+   \hline
+   \end{array}
    }} 
   
 formula :: formula_ ::=  
@@ -95,13 +95,11 @@ formula :: formula_ ::=
  | store M p a = M'         :: :: store         {{com memory store of atom }}
  | store C p a = C'         :: :: store_priv         {{com cache write of atom }}
 
- | n1 <> n2                 :: :: not_eq_int
+ % | n1 <> n2                 :: :: not_eq_int
  | n1 = n2                  :: :: eq_int
- | M1 = M2                  :: :: eq_mem
- | p1 <> p2                 :: :: not_eq_pntr
- | p1 = p2                  :: :: eq_pntr
- | a1 = a2                  :: :: eq_atm
- | L1 = L2                  :: :: labelEq
+ % | M1 = M2                  :: :: eq_mem
+ % | a1 = a2                  :: :: eq_atm
+ % | L1 = L2                  :: :: labelEq
 
  | C1 ~ C2                  :: :: cache_eq         {{com cache hit (equality of caches) }}
  
