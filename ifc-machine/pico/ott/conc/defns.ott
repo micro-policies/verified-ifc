@@ -14,7 +14,7 @@ metavar M {{tex \mu }} ::=      {{com memory}}
 
 grammar
 
-n, m, k, p, v :: 'n_' ::=                                {{com Integers}}
+n, m, p, v :: 'n_' ::=                                {{com Integers}}
   | 0                       :: :: Zzro
   | 1                       :: :: Zone
   | n1 + n2                 :: :: ZPlus
@@ -23,16 +23,18 @@ n, m, k, p, v :: 'n_' ::=                                {{com Integers}}
   | ( n )                   :: S :: ZParen
 
 b :: 'b_' ::=                         {{com Privileged bit }}
-  | upriv                       :: :: PbitOff {{com ON }}
-  | priv                       :: :: PbitOn  {{com OFF }}
+  | upriv                       :: :: PbitOff {{com user mode }}
+  | priv                       :: :: PbitOn   {{com kernel mode  }}
 
-L {{tex \mathtt{L} }}, N {{tex \mathtt{N} }}, K {{tex \mathtt{K} }}, R {{tex \mathtt{R} }}:: 'L_' ::=                  {{com Labels }}
-  | bot                     :: :: Lbot      {{com bottom label}}
-  | _                       :: :: Lirrev      {{com irrelevant label}}
-  | ( L )                   :: S :: LParen
+T {{tex \mathtt{T} }}, 
+N {{tex \mathtt{N} }}, 
+K {{tex \mathtt{K} }}, 
+R {{tex \mathtt{R} }}:: 'T_' ::=                  {{com Tags }}
+  | bot                     :: :: Tbot      {{com bottom tag}}
+  | _                       :: :: Tirrev      {{com irrelevant tag}}
 
 a, pc :: 'a_' ::=                       {{com Atoms}}
-  | n @ L                   :: :: ValAtom {{com atom = integers value plus label}}
+  | n @ T                   :: :: ValAtom {{com atom = integers value plus tag}}
   | a + 1                   :: :: ANext   {{com increment offset part of code pointer }}
   | ( a )                   :: S :: AParen
 
@@ -51,7 +53,7 @@ instr :: 'instr_' ::=                              {{com Instructions}}
   | Output                  :: :: iOutput  {{com output the top of the stack, tainted with pc}}
   | Halt                    :: :: iHalt
 
-opcode :: 'opcode_' ::=                              {{com Opcodes - instructions with no "arguments" }}
+opcode :: 'opcode_' ::=                              {{com Opcodes }}
   | nop                     :: :: oNop
   | push                    :: :: oPush
   | pop                     :: :: oPop
@@ -68,7 +70,7 @@ opcode :: 'opcode_' ::=                              {{com Opcodes - instruction
 
 e :: 'e_' ::=                              {{com Events}}
   | epsilon                 :: :: epsilon {{com no event }}
-  | n @ L                  :: :: intE  {{com observable value event }}
+  | n @ T                  :: :: intE  {{com observable value event }}
   | ( e )                   :: S :: eParen   
 
 S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
@@ -77,15 +79,43 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   | ( pc , b ) ;; S         :: :: Srcons   {{com stack frame marker cons (with return pc and priv bit )}}
   | [ S ]                   :: :: SParen
 
-C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = Opcode + 5-tuple of labels }}
-  | ( opcode | L1 | L2 , L3 , L4 | L5 , L6 ) :: :: Cache {{tex 
-  \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}||@{\;}l@{\;}|@{\;}l@{\;}|}
-   \hline  
-   [[opcode]] & [[L1]] & [[L2]] & [[L3]] & [[L4]] & [[L5]] & [[L6]] \\ 
-   \hline
-   \end{array}
-   }} 
-  
+C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = Opcode + 5-tuple of tags }}
+  | ( opcode | T1 | T2 , T3 , T4 | T5 , T6 ) :: :: Cache {{com the whole cache}}
+                  {{tex 
+                    \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}||@{\;}l@{\;}|@{\;}l@{\;}|}
+                       \hline  
+                          [[opcode]] & [[T1]] & [[T2]] & [[T3]] & [[T4]] & [[T5]] & [[T6]] \\ 
+                       \hline
+                       \end{array}
+                     }}                  
+   | [ ki , ko ]  :: :: CacheInOut   {{com  tmu cache inputs and outputs parts }} 
+                  {{tex  
+                    \begin{array}{|@{\;}l@{\;}||@{\;}l@{\;}|}
+                    \hline
+                     [[ki]] & [[ko]] \\
+                    \hline
+                    \end{array} 
+                    }}
+
+ki {{tex {\kappa_i} }},
+kj {{tex {\kappa_j} }} :: 'ki_' ::= {{com  tmu cache input part }}
+   | ( opcode | T1 | T2 , T3 , T4 ) :: :: CacheIn {{tex 
+                    \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|@{\;}l@{\;}|}
+                       \hline  
+                          [[opcode]] & [[T1]] & [[T2]] & [[T3]] & [[T4]] \\
+                       \hline
+                       \end{array}
+                     }}
+
+ko {{tex \kappa_o }} :: 'ko_' ::= {{com  tmu cache output part }}
+   | ( T5 , T6 ) :: :: CacheOut {{tex 
+                    \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|}
+                    \hline
+                          [[T5]] & [[T6]] \\
+                    \hline
+                       \end{array}
+                    }}
+   
 formula :: formula_ ::=  
  | judgement                :: :: judgement
  | I ( n ) = instr         :: :: instr_lookup  {{com instruction lookup }}
@@ -94,16 +124,11 @@ formula :: formula_ ::=
  | read C p = a             :: :: load_priv          {{com read from cache }}
  | store M p a = M'         :: :: store         {{com memory store of atom }}
  | store C p a = C'         :: :: store_priv         {{com cache write of atom }}
-
- % | n1 <> n2                 :: :: not_eq_int
  | n1 = n2                  :: :: eq_int
- % | M1 = M2                  :: :: eq_mem
- % | a1 = a2                  :: :: eq_atm
- % | L1 = L2                  :: :: labelEq
 
  | C1 ~ C2                  :: :: cache_eq         {{com cache hit (equality of caches) }}
  
- | C1 ~/~ C2 ~ C3            :: :: cache_neq         {{com cache miss and update }}
+ | ki1 ~/~ ki2 ~ ki3        :: :: cache_neq         {{com cache input miss and update }}
 
  | formula1 quad formula2   :: :: savingspace
 
@@ -112,9 +137,9 @@ terminals :: 'terminals_' ::=
   | quad                :: :: savespace  {{tex \qquad }}
   | \/                  :: :: join       {{tex \mathord{\vee} }}
   | <>                  :: :: noteq      {{tex \neq }}
-  | ~                   :: :: match      {{tex \sim }}
-  | ~/~                 :: :: dmatch     {{tex \not\sim }}
-  | @                   :: :: atlabel    {{tex {\scriptstyle \mathord{@} } }}
+  | ~                   :: :: match      {{tex = }}
+  | ~/~                 :: :: dmatch     {{tex \not= }}
+  | @                   :: :: attag    {{tex {\scriptstyle \mathord{@} } }}
   | ;;                  :: :: semisemi   {{tex \mathord{;\!;} }}
   | +                   :: :: plus       {{tex \mathord{+} }}
   | +1                  :: :: plusplus   {{tex {\scriptstyle \mathord{+\!+} } }}
@@ -154,8 +179,8 @@ terminals :: 'terminals_' ::=
   | ret                 :: :: oRet        {{tex \text{\sf Ret} }} 
 
   | epsilon             :: :: eE0       {{tex \varepsilon }} 
-  | upriv               :: :: upriv     {{tex 0 }} 
-  | priv                :: :: priv      {{tex 1 }} 
+  | upriv               :: :: upriv     {{tex \text{\sf u} }} 
+  | priv                :: :: priv      {{tex \text{\sf k} }} 
 
 defns
 SmallStepEval :: '' ::=
@@ -163,154 +188,153 @@ SmallStepEval :: '' ::=
   defn 
   b1 , C1 , F1 , M1 , I1 , S1 , pc1 -- e -> b2 , C2 , F2 , M2 , I2 , S2 , pc2  :: :: step :: '' 
   {{tex \def\arraystretch{.7}
-  \setlength\arraycolsep{2pt} \begin{array}{lllrlc}
-  [[b1]] & [[C1]] & [[M1]] & [[S1]] & [[pc1]] & \xrightarrow{[[e]]}   \\
+  \setlength\arraycolsep{2pt} \begin{array}{lclrlc}
+  [[b1]] & [[C1]] & [[M1]] & [[S1]] & [[pc1]] & \xrightarrow{[[e]]} \\
   [[b2]] & [[C2]] & [[M2]] & [[S2]] & [[pc2]]
   \end{array} }} by
 
      I(n) = Nop
-     C ~ (nop | L | _, _, _ | R, _)         
+     C ~ (nop | T | bot, bot, bot | R, bot)         
      ------------------------------------- :: Nop
-     upriv, C, F, M, I, S, n@L -- epsilon -> upriv, C, F, M, I, S, n+1@R
+     upriv, C, F, M, I, S, n@T -- epsilon -> upriv, C, F, M, I, S, n+1@R
 
      I(n) = Nop
-     C ~/~ (nop | L | _, _, _ | _, _) ~ C'
+     ki ~/~ (nop | T | bot, bot, bot) ~ kj
      ------------------------------------- :: Nop_F
-     upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(n@L, upriv) ;; S], 0@bot
+     upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T, upriv) ;; S], 0@bot
 
      F(n) = Nop
      ------------------------------------- :: Nop_P
-     priv, C, F, M, I, S, n@L -- epsilon -> priv, C, F, M, I, S, n+1@L
-
+     priv, C, F, M, I, S, n@T -- epsilon -> priv, C, F, M, I, S, n+1@T
 
      I(n) = Output
-     C ~ (out | L | K, _, _| R1, R2)         
+     C ~ (out | T | N, bot, bot| R1, R2)         
      -------------------------------------------------------- :: Out
-     upriv, C, F, M, I, [n@K; S], n@L -- n@R2 -> upriv, C, F, M, I, S, n+1@R1
+     upriv, C, F, M, I, [v@N; S], n@T -- v@R2 -> upriv, C, F, M, I, S, n+1@R1
 
      I(n) = Output
-     C ~/~ C' ~ (out | L | K, _, _| _, _)         
+     ki ~/~ (out | T | N, bot, bot) ~ kj
      -------------------------------------------------------- :: Out_F
-     upriv, C, F, M, I, [n@K; S], n@L -- epsilon -> priv, C', F, M, I, [(n@L,upriv) ;; n@K ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@N; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T,upriv) ;; v@N ; S], 0@bot
 
      I(n) = BinOp o
-     C ~ (binop | L | L1, L2, _| R1, R2) 
+     C ~ (binop | T | T1, T2, bot| R1, R2) 
     -------------------------------------------------------- :: BOp
-     upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> upriv, C, F, M, I, [(n1 o n2)@R2; S], n+1@R1
+     upriv, C, F, M, I, [n1@T1; n2@T2; S], n@T -- epsilon -> upriv, C, F, M, I, [(n1 o n2)@R2; S], n+1@R1
 
      I(n) = BinOp o
-     C ~/~ C' ~ ( binop | L | L1, L2, _| _, _)
+     ki ~/~ ( binop | T | T1, T2, bot) ~ kj
     -------------------------------------------------------- :: BOp_F
-     upriv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv);; n1@L1; n1@L2 ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [n1@T1; n1@T2; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv);; n1@T1; n1@T2 ; S], 0@bot
 
      F(n) = BinOp o
     -------------------------------------------------------- :: BOp_P
-     priv, C, F, M, I, [n1@L1; n1@L2; S], n@L -- epsilon -> priv, C, F, M, I, [(n1 o n2)@L; S], n+1@L
+     priv, C, F, M, I, [n1@T1; n1@T2; S], n@T -- epsilon -> priv, C, F, M, I, [(n1 o n2)@T; S], n+1@T
      
-     I(n) = Push k
-     C ~ ( push | L | _, _, _| R1, R2)
+     I(n) = Push m
+     C ~ ( push | T | bot, bot, bot| R1, R2)
      -------------------------------------------------------- :: Psh
-     upriv, C, F, M, I, S, n@L -- epsilon -> upriv, C, F, M, I, [k @ R2; S], n+1@R1
+     upriv, C, F, M, I, S, n@T -- epsilon -> upriv, C, F, M, I, [m @ R2; S], n+1@R1
 
-     I(n) = Push k
-     C ~/~ C' ~ ( push | L | _, _, _| _, _)
+     I(n) = Push m
+     ki ~/~ ( push | T | bot, bot, bot) ~ kj
      -------------------------------------------------------- :: Psh_F
-     upriv, C, F, M, I, S, n@L -- epsilon -> priv, C', F, M, I, [(n@L,upriv) ;; S], 0@bot
+     upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T,upriv) ;; S], 0@bot
 
-     F(n) = Push k
+     F(n) = Push m
      -------------------------------------------------------- :: Psh_P
-     priv, C, F, M, I, S, n@L -- epsilon -> priv, C, F, M, I, [k @ bot; S], n+1@L
+     priv, C, F, M, I, S, n@T -- epsilon -> priv, C, F, M, I, [m @ bot; S], n+1@T
 
      I(n) = Load
-     read M p = k@N
-     C ~ ( load | L | K, N, _| R1, R2)
+     read M p = v@N
+     C ~ ( load | T | K, N, bot| R1, R2)
      -------------------------------------------------------- :: Ld
-     upriv, C, F, M, I, [p@K; S], n@L -- epsilon -> upriv, C, F, M, I, [k@R2; S], n+1@R1
+     upriv, C, F, M, I, [p@K; S], n@T -- epsilon -> upriv, C, F, M, I, [v@R2; S], n+1@R1
 
      I(n) = Load
-     read M p = k@N
-     C ~/~ C' ~ ( load | L | K, N, _| _, _)
+     read M p = v@N
+     ki ~/~ ( load | T | K, N, bot) ~ kj
      -------------------------------------------------------- :: Ld_F
-     upriv, C, F, M, I, [p@K; S], n@L -- epsilon -> priv, C', F, M, I, [(n@L,upriv) ;; p@K; S], 0@bot
+     upriv, [ki,ko], F, M, I, [p@K; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T,upriv) ;; p@K; S], 0@bot
 
      F(n) = Load  
-     read C p = k@N
+     read C p = v@N
      -------------------------------------------------------- :: Ld_P
-     priv, C, F, M, I, [p@K; S], n@L -- epsilon -> priv, C, F, M, I, [k@N; S], n+1@L
+     priv, C, F, M, I, [p@K; S], n@T -- epsilon -> priv, C, F, M, I, [v@N; S], n+1@T
 
-     I(n) = Store    quad    read M p = k@N2
-     C ~ ( str | L | K, N1, N2| R1, R2) 
+     I(n) = Store    quad    read M p = m@N2
+     C ~ ( str | T | K, N1, N2| R1, R2) 
      store M p (v@R2) = M'
      -------------------------------------------------------- :: St
-     upriv, C, F, M, I, [p@K; v@N1; S], n@L -- epsilon -> upriv, C, F, M', I, S, n+1@R1
+     upriv, C, F, M, I, [p@K; v@N1; S], n@T -- epsilon -> upriv, C, F, M', I, S, n+1@R1
 
-     I(n) = Store    quad    read M p = k@N2
-     C ~/~ C' ~ ( str | L | K, N1, N2| _, _)    
+     I(n) = Store    quad    read M p = m@N2
+     ki ~/~ ( str | T | K, N1, N2)  ~ kj
      -------------------------------------------------------- :: St_F
-     upriv, C, F, M, I, [p@K; v@N1; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K; v@N1; S], 0@bot 
+     upriv, [ki,ko], F, M, I, [p@K; v@N1; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; p@K; v@N1; S], 0@bot 
 
      F(n) = Store    
      store C p (v@N) = C'
      -------------------------------------------------------- :: St_P
-     priv, C, F, M, I, [p@K; v@N; S], n@L -- epsilon -> priv, C', F, M, I, S, n+1@L
+     priv, C, F, M, I, [p@K; v@N; S], n@T -- epsilon -> priv, C', F, M, I, S, n+1@T
 
      I(n) = Jump
-     C ~ ( jump | L | K, _, _| R1, _)
+     C ~ ( jump | T | K, bot, bot| R1, bot)
       -------------------------------------------------------- :: Jmp
-     upriv, C, F, M, I, [k@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, k@R1
+     upriv, C, F, M, I, [v@K; S], n@T -- epsilon -> upriv, C, F, M, I, S, v@R1
 
      I(n) = Jump
-     C ~/~ C' ~ ( jump | L | K, _, _| _, _)
+     ki ~/~ ( jump | T | K, bot, bot) ~ kj
       -------------------------------------------------------- :: Jmp_F
-     upriv, C, F, M, I, [k@K; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; k@K ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
 
      F(n) = Jump
       -------------------------------------------------------- :: Jmp_P
-     priv, C, F, M, I, [k@K; S], n@L -- epsilon -> priv, C, F, M, I, S, k@L
+     priv, C, F, M, I, [v@K; S], n@T -- epsilon -> priv, C, F, M, I, S, v@T
     
-     I(n) = BNZ k
-     C ~ ( bnz | L | K, _, _| R1, _)
-     n' = n+ (m = 0)? 1 : k  
+     I(n) = BNZ m
+     C ~ ( bnz | T | K, bot, bot| R1, bot)
+     n' = n+ (v = 0)? 1 : m  
      -------------------------------------------------------- :: Bnz
-     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> upriv, C, F, M, I, S, n'@R1
+     upriv, C, F, M, I, [v@K; S], n@T -- epsilon -> upriv, C, F, M, I, S, n'@R1
     
-     I(n) = BNZ k
-     C ~/~ C' ~ ( bnz | L | K, _, _| _, _)
+     I(n) = BNZ m
+     ki ~/~ ( bnz | T | K, bot, bot) ~ kj
      -------------------------------------------------------- :: Bnz_F
-     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; m@K ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
 
-     F(n) = BNZ k
-     n' = n+ (m = 0)? 1 : k  
+     F(n) = BNZ m
+     n' = n+ (v = 0)? 1 : m  
      -------------------------------------------------------- :: Bnz_P
-     upriv, C, F, M, I, [m@K; S], n@L -- epsilon -> priv, C, F, M, I, S, n'@L
+     priv, C, F, M, I, [v@K; S], n@T -- epsilon -> priv, C, F, M, I, S, n'@T
 
      I(n) = Call
-     C ~ ( call | L | K, _, _| R1, R2)
+     C ~ ( call | T | K, bot, bot| R1, R2)
      -------------------------------------------------------- :: Cll
-     upriv, C, F, M, I, [ p@K ; a ; S], n@L -- epsilon -> upriv, C, F, M, I, [a; (n+1@R2,upriv) ;; S], p@R1
+     upriv, C, F, M, I, [ p@K ; a ; S], n@T -- epsilon -> upriv, C, F, M, I, [a; (n+1@R2,upriv) ;; S], p@R1
 
      I(n) = Call
-     C ~/~ C' ~ ( call | L | K, _, _| _, _)
+     ki ~/~ ( call | T | K, bot, bot) ~ kj
      -------------------------------------------------------- :: Cll_F
-     upriv, C, F, M, I, [ p@K ; a ; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; p@K ; a ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [ p@K ; a ; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; p@K ; a ; S], 0@bot
 
      F(n) = Call
      -------------------------------------------------------- :: Cll_P
-     priv, C, F, M, I, [ p@K ; v@N ; S], n@L -- epsilon -> priv, C, F, M, I, [v@N; (n+1@L,priv) ;; S], p@K
+     priv, C, F, M, I, [ p@K ; v@N ; S], n@T -- epsilon -> priv, C, F, M, I, [v@N; (n+1@T,priv) ;; S], p@K
 
      I(n) = Ret
-     C ~ ( ret | L | N, K, _| R1, R2)
+     C ~ ( ret | T | N, K, bot| R1, R2)
      -------------------------------------------------------- :: Ret
-     upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@L -- epsilon -> b, C, F, M, I, [v@R2 ; S], p@R1
+     upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@T -- epsilon -> b, C, F, M, I, [v@R2 ; S], p@R1
 
      I(n) = Ret
-     C ~/~ C' ~ ( ret | L | N, K, _| _, _)
+     ki ~/~ ( ret | T | N, K, bot) ~ kj
      -------------------------------------------------------- :: Ret_F
-     upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@L -- epsilon -> priv, C', F, M, I, [ (n@L,upriv) ;; v@N ; (p@K,b) ;; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@N ; (p@K,b) ;; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; v@N ; (p@K,b) ;; S], 0@bot
 
      F(n) = Ret
      -------------------------------------------------------- :: Ret_P
-     priv, C, F, M, I, [(p@K,b) ;; S], n@L -- epsilon -> b, C, F, M, I, S, p@K
+     priv, C, F, M, I, [(p@K,b) ;; S], n@T -- epsilon -> b, C, F, M, I, S, p@K
 
      % I(pc) = Pop
      % -------------------------------------------------------- :: Pop

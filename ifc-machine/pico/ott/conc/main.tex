@@ -24,7 +24,9 @@
 
 \renewcommand{\ottdrulename}[1]{\footnotesize\textsc{#1}}
 \renewcommand{\ottdrule}[4][]
-           {{\displaystyle\frac{\begin{array}{l}#2\end{array}}{#3}~\ottdrulename{#4}}}
+           {{\displaystyle\frac{\begin{array}{l}#2\end{array}}{#3}
+               %% ~\ottdrulename{#4}
+           }}
 
 \begin{document}
 
@@ -53,6 +55,9 @@
       things: the next pc for callee, the next pc inside the caller,
       and the label to put on the argument passed to the function.
       this ought to be fixed, I would say. For now: just two results.
+      \dd{Having all outputs coming from the TMU manager would be more
+        uniform}. \bcp{Stick to two outputs, and explain that in the
+        text (less hardware resource usage)}
     \item Output and privileged mode: we can either make it blocking
       (saving one rule), or make it step, but observe that the tmu
       fault handler code do use output instruction. Made it blocking
@@ -61,10 +66,9 @@
       to return a value here... For now, Ret is a value return at the
       abstract level, and a void return in priv mode. Need to
       reintroduce two kinds of return instruction?
-    \item Concern (CH): notation for cache miss-and-update: it can, as
-      is (i.e. when underspecified), can lead to non-determinism.  We
-      can either explain with words, or find a better notation. But I
-      would like to avoid to write down the cache update function.
+    \item For a cache size greater than 1, the notation for
+      cache-miss-and-update is likely to change.
+    \item Cache miss-and-update: shouldn't trigger any non-determinism.
   \end{itemize}
 \end{itemize}
 
@@ -80,8 +84,10 @@
 %% \ottv\ottinterrule
 %% \ottov\ottinterrule
 \ottb\ottinterrule
-\ottL\ottinterrule
+\ottT\ottinterrule
 \ottC\ottinterrule
+\ottki\ottinterrule
+\ottko\ottinterrule
 \otta\ottinterrule
 \ottinstr\ottinterrule
 %% \ottopcode\ottinterrule
@@ -94,9 +100,9 @@
 \ottformula\ottinterrule
 }
 
-\section*{Step relation: user mode - hit/faulting cases}
+\clearpage
+\section*{Step relation: user mode - hit/faulting, kernel mode}
 
-\begin{small}
 \[ \ottdruleNop \ottinterrule 
    \quad \quad \ottdruleNopXXF \ottinterrule \]
 \[ \ottdruleOut \ottinterrule
@@ -117,9 +123,8 @@
    \quad \quad  \ottdruleCllXXF \ottinterrule \]
 \[ \ottdruleRet \ottinterrule   
    \quad \quad  \ottdruleRetXXF \ottinterrule \]
-\end{small}
 
-\section{Step relation: privileged mode}
+\section*{Step relation: privileged mode}
 
 \[ \ottdruleNopXXP \ottinterrule \]
 \[ \ottdruleBOpXXP \ottinterrule \]
