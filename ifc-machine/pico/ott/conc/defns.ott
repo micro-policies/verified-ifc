@@ -19,19 +19,19 @@ n, m, p, v :: 'n_' ::=                                {{com Integers}}
   | 1                       :: :: Zone
   | n1 + n2                 :: :: ZPlus
   | n1 o n2                 :: :: ZBinOp  
-  | ( n1 = n2 ) ? n3 : n4      :: :: ZIf  
+  | ( n1 = n2 ) ? n3 : n4   :: :: ZIf  
   | ( n )                   :: S :: ZParen
-
-b :: 'b_' ::=                         {{com Privileged bit }}
-  | upriv                       :: :: PbitOff {{com user mode }}
-  | priv                       :: :: PbitOn   {{com kernel mode  }}
+  
+b :: 'b_' ::=                                   {{com Privileged bit }}
+  | upriv                   :: :: PbitOff  {{com user mode }}
+  | priv                    :: :: PbitOn   {{com kernel mode  }}
 
 T {{tex \mathtt{T} }}, 
 N {{tex \mathtt{N} }}, 
 K {{tex \mathtt{K} }}, 
-R {{tex \mathtt{R} }}:: 'T_' ::=                  {{com Tags }}
+R {{tex \mathtt{R} }}:: 'T_' ::=                 {{com Tags }}
   | bot                     :: :: Tbot      {{com bottom tag}}
-  | _                       :: :: Tirrev      {{com irrelevant tag}}
+  | _                       :: :: Tirrev    {{com irrelevant tag}}
 
 a, pc :: 'a_' ::=                       {{com Atoms}}
   | n @ T                   :: :: ValAtom {{com atom = integers value plus tag}}
@@ -66,7 +66,7 @@ opcode :: 'opcode_' ::=                              {{com Opcodes }}
   | load                    :: :: oLoad    
   | str                     :: :: oStore
   | out                     :: :: oOutput  
-
+  | opinvalid               :: :: oInvalid
 
 e :: 'e_' ::=                              {{com Events}}
   | epsilon                 :: :: epsilon {{com no event }}
@@ -88,14 +88,8 @@ C {{tex \kappa }} :: 'C_' ::=    {{com TMU Caches = Opcode + 5-tuple of tags }}
                        \hline
                        \end{array}
                      }}                  
-   | [ ki , ko ]  :: :: CacheInOut   {{com  tmu cache inputs and outputs parts }} 
-                  {{tex  
-                    \begin{array}{|@{\;}l@{\;}||@{\;}l@{\;}|}
-                    \hline
-                     [[ki]] & [[ko]] \\
-                    \hline
-                    \end{array} 
-                    }}
+   | [ ki , ko ]  :: :: CacheInOut   {{com  tmu cache inputs and outputs parts }}
+                  {{tex [ [[ki]] , [[ko]] ] }}            
 
 ki {{tex {\kappa_i} }},
 kj {{tex {\kappa_j} }} :: 'ki_' ::= {{com  tmu cache input part }}
@@ -115,6 +109,17 @@ ko {{tex \kappa_o }} :: 'ko_' ::= {{com  tmu cache output part }}
                     \hline
                        \end{array}
                     }}
+   |  kbot :: :: CacheOutDft 
+
+kbot {{tex \kappa_{\scriptstyle \bot} }} :: ''  ::= {{com default output part of cache }}
+   | ( bot , bot )  :: :: BotBot {{tex 
+                   \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|}
+                   \hline
+                          [[bot]] & [[bot]] \\
+                   \hline
+                    \end{array}
+                    }}
+
    
 formula :: formula_ ::=  
  | judgement                :: :: judgement
@@ -153,6 +158,7 @@ terminals :: 'terminals_' ::=
 
   | Call                :: :: Call      {{tex \text{\sf Call} }} 
   | Output              :: :: Output    {{tex \text{\sf Output} }}
+  | Invalid             :: :: Invalid   {{tex \text{\sf Invalid} }}
   | Load                :: :: Load       {{tex \text{\sf Load} }} 
   | Store               :: :: Store      {{tex \text{\sf Store} }} 
   | Nop                 :: :: Nop        {{tex \text{\sf Nop} }}
@@ -201,7 +207,7 @@ SmallStepEval :: '' ::=
      I(n) = Nop
      ki ~/~ (nop | T | bot, bot, bot) ~ kj
      ------------------------------------- :: Nop_F
-     upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T, upriv) ;; S], 0@bot
+     upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T, upriv) ;; S], 0@bot
 
      F(n) = Nop
      ------------------------------------- :: Nop_P
@@ -215,7 +221,7 @@ SmallStepEval :: '' ::=
      I(n) = Output
      ki ~/~ (out | T | N, bot, bot) ~ kj
      -------------------------------------------------------- :: Out_F
-     upriv, [ki,ko], F, M, I, [v@N; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T,upriv) ;; v@N ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@N; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T,upriv) ;; v@N ; S], 0@bot
 
      I(n) = BinOp o
      C ~ (binop | T | T1, T2, bot| R1, R2) 
@@ -225,7 +231,7 @@ SmallStepEval :: '' ::=
      I(n) = BinOp o
      ki ~/~ ( binop | T | T1, T2, bot) ~ kj
     -------------------------------------------------------- :: BOp_F
-     upriv, [ki,ko], F, M, I, [n1@T1; n1@T2; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv);; n1@T1; n1@T2 ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [n1@T1; n1@T2; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv);; n1@T1; n1@T2 ; S], 0@bot
 
      F(n) = BinOp o
     -------------------------------------------------------- :: BOp_P
@@ -239,7 +245,7 @@ SmallStepEval :: '' ::=
      I(n) = Push m
      ki ~/~ ( push | T | bot, bot, bot) ~ kj
      -------------------------------------------------------- :: Psh_F
-     upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T,upriv) ;; S], 0@bot
+     upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T,upriv) ;; S], 0@bot
 
      F(n) = Push m
      -------------------------------------------------------- :: Psh_P
@@ -255,7 +261,7 @@ SmallStepEval :: '' ::=
      read M p = v@N
      ki ~/~ ( load | T | K, N, bot) ~ kj
      -------------------------------------------------------- :: Ld_F
-     upriv, [ki,ko], F, M, I, [p@K; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [(n@T,upriv) ;; p@K; S], 0@bot
+     upriv, [ki,ko], F, M, I, [p@K; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T,upriv) ;; p@K; S], 0@bot
 
      F(n) = Load  
      read C p = v@N
@@ -271,7 +277,7 @@ SmallStepEval :: '' ::=
      I(n) = Store    quad    read M p = m@N2
      ki ~/~ ( str | T | K, N1, N2)  ~ kj
      -------------------------------------------------------- :: St_F
-     upriv, [ki,ko], F, M, I, [p@K; v@N1; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; p@K; v@N1; S], 0@bot 
+     upriv, [ki,ko], F, M, I, [p@K; v@N1; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; p@K; v@N1; S], 0@bot 
 
      F(n) = Store    
      store C p (v@N) = C'
@@ -286,7 +292,7 @@ SmallStepEval :: '' ::=
      I(n) = Jump
      ki ~/~ ( jump | T | K, bot, bot) ~ kj
       -------------------------------------------------------- :: Jmp_F
-     upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
 
      F(n) = Jump
       -------------------------------------------------------- :: Jmp_P
@@ -301,7 +307,7 @@ SmallStepEval :: '' ::=
      I(n) = BNZ m
      ki ~/~ ( bnz | T | K, bot, bot) ~ kj
      -------------------------------------------------------- :: Bnz_F
-     upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
 
      F(n) = BNZ m
      n' = n+ (v = 0)? 1 : m  
@@ -316,7 +322,7 @@ SmallStepEval :: '' ::=
      I(n) = Call
      ki ~/~ ( call | T | K, bot, bot) ~ kj
      -------------------------------------------------------- :: Cll_F
-     upriv, [ki,ko], F, M, I, [ p@K ; a ; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; p@K ; a ; S], 0@bot
+     upriv, [ki,ko], F, M, I, [ p@K ; a ; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; p@K ; a ; S], 0@bot
 
      F(n) = Call
      -------------------------------------------------------- :: Cll_P
@@ -330,7 +336,7 @@ SmallStepEval :: '' ::=
      I(n) = Ret
      ki ~/~ ( ret | T | N, K, bot) ~ kj
      -------------------------------------------------------- :: Ret_F
-     upriv, [ki,ko], F, M, I, [v@N ; (p@K,b) ;; S], n@T -- epsilon -> priv, [kj,ko], F, M, I, [ (n@T,upriv) ;; v@N ; (p@K,b) ;; S], 0@bot
+     upriv, [ki,ko], F, M, I, [v@N ; (p@K,b) ;; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; v@N ; (p@K,b) ;; S], 0@bot
 
      F(n) = Ret
      -------------------------------------------------------- :: Ret_P
