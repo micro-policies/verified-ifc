@@ -80,6 +80,7 @@ S {{tex \sigma }} :: 'S_' ::=                     {{com Stack}}
   % | [ a1 .. aj ]            :: :: SElems
 
 LE, exprr {{tex expr_{res} }}, exprpc {{tex expr_{pc} }}  :: 'LE_' ::= {{com Label Expressions}}
+  | BOT  :: :: eBOT  {{tex \mathtt{BOT} }}
   | LAB1 :: :: eLab1 {{tex \mathtt{LAB}_1}}
   | LAB2 :: :: eLab2 {{tex \mathtt{LAB}_2}}
   | LAB3 :: :: eLab3 {{tex \mathtt{LAB}_3}}
@@ -265,6 +266,8 @@ defns
   rho |-- LE oL  :: :: eval_expr :: '' {{tex [[rho]] \vdash  [[LE]] \downarrow [[oL]]}}
   by
 
+   ------------------------------------ :: lbot
+     (Lpc, l1, l2, l3)  |-- BOT bot
      
    ------------------------------------ :: lpc
      (Lpc, l1, l2, l3)  |-- LABPC Lpc
@@ -397,7 +400,7 @@ funs
 Rule(nop)    === << TRUE, LABPC, __ >>
 Rule(output) === << TRUE, LABPC, JOIN LAB1 LABPC >>
 Rule(binop)  === << TRUE, LABPC, JOIN LAB1 LAB2 >>
-Rule(push)   === << TRUE, LABPC, LAB1 >>
+Rule(push)   === << TRUE, LABPC, BOT >>
 Rule(load)   === << TRUE, LABPC, JOIN LAB1 LAB2 >>
 Rule(store)  === << FLOWS (JOIN LAB1 LABPC) LAB3, LABPC, JOIN LAB1 (JOIN LAB2 LABPC) >>
 Rule(jump)   === << TRUE, JOIN LAB1 LABPC, __ >>
