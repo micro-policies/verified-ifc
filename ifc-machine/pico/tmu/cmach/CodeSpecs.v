@@ -10,21 +10,12 @@ Require Import TMUInstr.
 Require Import Lattices.
 Require Import Concrete.
 Require Import CodeGen.
-Require Import CLattices.
 Require Import ConcreteMachine.
 Require Import Determinism.
 Require Import Coq.Arith.Compare_dec.
 
 Section CodeSpecs.
 Local Open Scope Z_scope.
-
-(*
-Context {T: Type}
-        {Latt: JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}  
-.
-
-*)
 
 Definition imemory : Type := list Instr.
 Definition memory : Type := list (@Atom Z). 

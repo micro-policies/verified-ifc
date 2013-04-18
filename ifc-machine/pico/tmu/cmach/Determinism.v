@@ -4,7 +4,7 @@ Require Import Relations.
 Require Import EqNat.
 Require Import ZArith.
 Require Import List.
-Require Import Utils Lattices CLattices. 
+Require Import Utils.
 
 Require Import TMUInstr.
 Require Import Abstract Rules AbstractMachine.
@@ -17,10 +17,6 @@ Local Open Scope Z_scope.
 
 Section Determinism.
 
-Context {L: Type}
-        {Latt: JoinSemiLattice L}
-        {CLatt : ConcreteLattice L}
-.
 
 Ltac allinv' :=
   allinv ; 

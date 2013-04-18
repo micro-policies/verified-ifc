@@ -4,7 +4,6 @@ Require Import Omega.
 Require Import Utils.
 Require Import Lattices.
 Require Import TMUInstr.
-Require Import CLattices.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope.

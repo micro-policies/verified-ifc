@@ -4,7 +4,6 @@ Require Import Omega.
 Require Import Utils.
 Require Import Lattices.
 Require Import TMUInstr.
-Require Import CLattices.
 Require Import Concrete.
 
 Set Implicit Arguments.
@@ -14,11 +13,6 @@ Local Open Scope Z_scope.
 
 Section CMach.
 
-(*
-Context {T: Type}
-        {Latt : JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}.
-*)
 
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
 Notation "'__'" := dontCare.
