@@ -25,12 +25,13 @@ Context {T: Type}
         {CLatt: ConcreteLattice T}
         {WFCLatt: WfConcreteLattice T Latt CLatt}. 
 
+
 (* --------------------- TMU Fault Handler code ----------------------------------- *)
 
 (* Compilation of rules *)
 
 Definition genError :=
-  [push (-1); Jump].
+  [Push (-1); Jump].
 
 Definition genVar {n:nat} (l:LAB n) :=
   match l with
@@ -44,6 +45,7 @@ Definition genVar {n:nat} (l:LAB n) :=
 
 Fixpoint genExpr {n:nat} (e: rule_expr n) :=
   match e with
+  | L_Bot => genBot
   | L_Var l => genVar l
   (* NC: push the arguments in reverse order. *)
   | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
@@ -144,19 +146,89 @@ Definition faultHandler (fetch_rule_impl: forall (opcode:OpCode),  AllowModify (
 (* ================================================================ *)
 (* Fault-handler Code Specifications                                *)
 
+(* Connecting vectors of labels to triples of tags. *)
+
+Section Glue.
+
+Import Vector.VectorNotations.
+
+Local Open Scope nat_scope.
+
+(* Old definition; replaced below. 
+Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
+match vls with
+| [] => (None,None,None)
+| [t1] => (Some t1, None,None)
+| [t1; t2] => (Some t1, Some t2, None)
+| (t1::(t2::(t3::_))) => (Some t1, Some t2, Some t3)
+end. 
+*)
+
+Definition nth_labToZ {n:nat} (vls: Vector.t T n) (m:nat) : Z :=
+  match le_lt_dec n m with
+  | left _ => dontCare
+  | right p => labToZ (Vector.nth_order vls p)
+  end.
+
+Lemma of_nat_lt_proof_irrel:
+  forall (m n: nat) (p q: m < n),
+    Fin.of_nat_lt p = Fin.of_nat_lt q.
+Proof.
+  induction m; intros.
+    destruct n.
+      false; omega.
+      reflexivity.
+    destruct n.
+      false; omega.
+      simpl; erewrite IHm; eauto.
+Qed.
+
+(* NC: this took a few tries ... *)
+Lemma nth_order_proof_irrel:
+  forall (m n: nat) (v: Vector.t T n) (p q: m < n),
+    Vector.nth_order v p = Vector.nth_order v q.
+Proof.
+  intros.
+  unfold Vector.nth_order.
+  erewrite of_nat_lt_proof_irrel; eauto.
+Qed.
+
+Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m,
+  forall (lt: m < n),
+  nth_labToZ vls m = labToZ (Vector.nth_order vls lt).
+Proof.
+  intros.
+  unfold nth_labToZ.
+  destruct (le_lt_dec n m).
+  false; omega.
+  (* NC: Interesting: here we have two different proofs [m < n0] being
+  used as arguments to [nth_order], and we need to know that the
+  result of [nth_order] is the same in both cases.  I.e., we need
+  proof irrelevance! *)
+  erewrite nth_order_proof_irrel; eauto.
+Qed.
+
+
+Definition labsToZs {n:nat} (vls :Vector.t T n) : (Z * Z * Z) :=
+(nth_labToZ vls 0,
+ nth_labToZ vls 1,
+ nth_labToZ vls 2).
+
+End Glue.
+
 Section TMUSpecs.
 
 Definition handlerLabel := bot. 
 
 Definition handler_initial_mem_matches 
-           (opcode: OpCode)
-           (lab1: T) (lab2: T) (lab3: T) (pclab: T) 
-           (m: @memory T) : Prop := 
-  index_list_Z addrOpLabel m = Some(opCodeToZ opcode,handlerLabel)
-  /\ index_list_Z addrTag1 m = Some (labToZ lab1,handlerLabel)
-  /\ index_list_Z addrTag2 m = Some (labToZ lab2,handlerLabel)
-  /\ index_list_Z addrTag3 m = Some (labToZ lab3,handlerLabel)
-  /\ index_list_Z addrTagPC m = Some (labToZ pclab,handlerLabel)
+           (opcode: Z)
+           (tag1: Z) (tag2: Z) (tag3: Z) (pctag: Z) 
+           (m: memory) : Prop := 
+  index_list_Z addrOpLabel m = Some(opcode,handlerTag)
+  /\ index_list_Z addrTag1 m = Some (tag1,handlerTag)
+  /\ index_list_Z addrTag2 m = Some (tag2,handlerTag)
+  /\ index_list_Z addrTag3 m = Some (tag3,handlerTag)
+  /\ index_list_Z addrTagPC m = Some (pctag,handlerTag)
 .
 
 (* APT: Just a little sanity check that these definitions are somewhat coherent. *)
@@ -165,7 +237,7 @@ let '(l1,l2,l3) := ts in
 handler_initial_mem_matches op l1 l2 l3 tpc m.
 Proof.
   intros.
-  inv H. destruct ts as [[t1 t2] t3]. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
+  inv H. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
   econstructor; eauto.
 Qed.
 
@@ -190,18 +262,19 @@ Proof.
 Qed.
 *)
 
-(* Connecting to the definition used in FaultRoutine.v : *)
+(* Connecting to the definition used in ConcreteMachine.v *)
 Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
-    cache_hit m opcode (glue vls) pcl ->
+    cache_hit m (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
     handler_initial_mem_matches 
-      opcode
-      (nth_order_default vls 0 bot)
-      (nth_order_default vls 1 bot)
-      (nth_order_default vls 2 bot)
-      pcl m.
+      (opCodeToZ opcode) 
+      (nth_labToZ vls 0)  
+      (nth_labToZ vls 1)
+      (nth_labToZ vls 2)
+      (labToZ pcl)
+      m.
 Proof.
-  intros. unfold glue in H. 
-  inv H. inv MVEC. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
+  intros. unfold labsToZs in H. 
+  inv H. inv UNPACK. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
   econstructor; eauto. 
 Qed.
 
@@ -212,15 +285,15 @@ Definition n := projT1 (fetch_rule_impl opcode).
 Definition am := projT2 (fetch_rule_impl opcode).
 Variable (vls: Vector.t T n).
 Variable (pcl: T).
-Variable (m0: @memory T).
+Variable (m0: memory).
 
 Hypothesis initial_mem_matches:
   handler_initial_mem_matches
-    opcode
-    (nth_order_default vls 0 bot)
-    (nth_order_default vls 1 bot)
-    (nth_order_default vls 2 bot)
-    pcl m0.
+    (opCodeToZ opcode)
+    (nth_labToZ vls 0)
+    (nth_labToZ vls 1)
+    (nth_labToZ vls 2)
+    (labToZ pcl) m0.
 
 Definition eval_var := mk_eval_var vls pcl.
 
@@ -232,7 +305,7 @@ Lemma genVar_spec:
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (labToZ l, handlerLabel) :: s0).
+                       s = CData (labToZ l, handlerTag) :: s0).
 Proof.
   intros v l Heval_var s0.
   destruct v; simpl; eapply loadFrom_spec;
@@ -262,10 +335,12 @@ Lemma genExpr_spec: forall (e: rule_expr n),
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (labToZ l, handlerLabel) :: s0).
+                       s = CData (labToZ l, handlerTag) :: s0).
 Proof.
   induction e; intros ? Heval_expr ?;
     simpl; simpl in Heval_expr.
+  subst l. 
+  eapply genBot_spec; eauto. 
   eapply genVar_spec; eauto.
   eapply HT_compose.
   eapply IHe2; eauto.
@@ -284,7 +359,7 @@ Lemma genScond_spec: forall (c: rule_scond n),
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (boolToZ b, handlerLabel) :: s0).
+                       s = CData (boolToZ b, handlerTag) :: s0).
 Proof.
   induction c; intros; simpl;
     try (simpl in H); subst.
@@ -350,10 +425,10 @@ Lemma genApplyRule_spec_Some_Some:
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (        1, handlerLabel) :: (* [Some (...)] *)
-                           CData (        1, handlerLabel) :: (* [Some l1] *)
-                           CData (labToZ l1, handlerLabel) ::
-                           CData (labToZ l2, handlerLabel) :: s0).
+                       s = CData (        1, handlerTag) :: (* [Some (...)] *)
+                           CData (        1, handlerTag) :: (* [Some l1] *)
+                           CData (labToZ l1, handlerTag) ::
+                           CData (labToZ l2, handlerTag) :: s0).
 Proof.
   introv Happly. intros.
   unfold genApplyRule.
@@ -387,9 +462,9 @@ Lemma genApplyRule_spec_Some_None:
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (        1, handlerLabel) :: (* [Some (...)] *)
-                           CData (        0, handlerLabel) :: (* [None] *)
-                           CData (labToZ l2, handlerLabel) :: s0).
+                       s = CData (        1, handlerTag) :: (* [Some (...)] *)
+                           CData (        0, handlerTag) :: (* [None] *)
+                           CData (labToZ l2, handlerTag) :: s0).
 Proof.
   introv Happly. intros.
   unfold genApplyRule.
@@ -420,7 +495,7 @@ Lemma genApplyRule_spec_None:
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
-                       s = CData (0, handlerLabel) :: s0). (* [None] *)
+                       s = CData (0, handlerTag) :: s0). (* [None] *)
 Proof.
   introv Happly. intros.
   unfold genApplyRule.
@@ -439,14 +514,14 @@ Definition listify_apply_rule
   (ar: option (option T * T)) (s0: stack): stack
 :=
   match ar with
-  | None                => CData (0, handlerLabel) :: s0
-  | Some (None,    lpc) => CData (1, handlerLabel) ::
-                           CData (0, handlerLabel) ::
-                           CData (labToZ lpc, handlerLabel) :: s0
-  | Some (Some lr, lpc) => CData (1, handlerLabel) ::
-                           CData (1, handlerLabel) ::
-                           CData (labToZ lr, handlerLabel) ::
-                           CData (labToZ lpc, handlerLabel) :: s0
+  | None                => CData (0, handlerTag) :: s0
+  | Some (None,    lpc) => CData (1, handlerTag) ::
+                           CData (0, handlerTag) ::
+                           CData (labToZ lpc, handlerTag) :: s0
+  | Some (Some lr, lpc) => CData (1, handlerTag) ::
+                           CData (1, handlerTag) ::
+                           CData (labToZ lr, handlerTag) ::
+                           CData (labToZ lpc, handlerTag) :: s0
   end.
 
 Lemma genApplyRule_spec:
@@ -489,7 +564,7 @@ Lemma genCheckOp_spec:
                   s = s0)
       (fun m s => m = m0 /\
                   s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
-                      ,handlerLabel) ::: s0).
+                      ,handlerTag) ::: s0).
 Proof.
   intros.
   unfold genCheckOp.
@@ -507,7 +582,7 @@ Lemma genCheckOp_spec_GT:
        (fun m s => m = m0)
        (fun m0' s0 m s => m = m0 /\
                           s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
-                               ,handlerLabel) ::: s0).
+                               ,handlerTag) ::: s0).
 Proof.
   unfold GT; intros.
   eapply HT_consequence; eauto.
@@ -522,8 +597,8 @@ Variable ar: option (option T * T).
 Hypothesis H_apply_rule: apply_rule am vls pcl = ar.
 
 (* Don't really need to specify [Qnil] since it will never run *)
-Definition Qnil: @GProp T := fun m0' s0 m s => True.
-Definition genV: OpCode -> @HFun T :=
+Definition Qnil: GProp := fun m0' s0 m s => True.
+Definition genV: OpCode -> HFun :=
   fun i _ _ => boolToZ (opCodeToZ i =? opCodeToZ opcode).
 Definition genC: OpCode -> code := genCheckOp.
 Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl.
@@ -651,9 +726,9 @@ Lemma genFaultHandlerMem_spec_Some_None: forall lpc,
     HT genFaultHandlerMem
        (fun m s => m = m0 /\
                    s = listify_apply_rule ar s0)
-       (fun m s => upd_m addrTagResPC (labToZ lpc,handlerLabel) m0 =
+       (fun m s => upd_m addrTagResPC (labToZ lpc,handlerTag) m0 =
                      Some m /\
-                   s = (1,handlerLabel) ::: s0).
+                   s = (1,handlerTag) ::: s0).
 Proof.
   introv Hvalid Har_eq; intros.
   unfold listify_apply_rule.
@@ -662,7 +737,7 @@ Proof.
 
   (* Need to exploit early so that existentials can be unified against
   vars introduced here *)
-  exploit (@valid_store T); eauto.
+  exploit valid_store; eauto.
   intro H; destruct H.
 
   eapply HT_strengthen_premise.
@@ -688,11 +763,11 @@ Lemma genFaultHandlerMem_spec_Some_Some: forall lr lpc,
        (fun m s => m = m0 /\
                    s = listify_apply_rule ar s0)
        (fun m s =>
-        (exists m', upd_m addrTagRes (labToZ lr,handlerLabel) m0
+        (exists m', upd_m addrTagRes (labToZ lr,handlerTag) m0
                     = Some m'
-                 /\ upd_m addrTagResPC (labToZ lpc,handlerLabel) m'
+                 /\ upd_m addrTagResPC (labToZ lpc,handlerTag) m'
                     = Some m)
-        /\ s = (1,handlerLabel) ::: s0).
+        /\ s = (1,handlerTag) ::: s0).
 Proof.
   introv HvalidRes HvalidResPC Har_eq; intros.
   unfold listify_apply_rule.
@@ -729,7 +804,7 @@ Lemma genFaultHandlerMem_spec_None:
        (fun m s => m = m0 /\
                    s = listify_apply_rule ar s0)
        (fun m s => m = m0 /\
-                   s = (0,handlerLabel) ::: s0).
+                   s = (0,handlerTag) ::: s0).
 Proof.
   introv Har_eq; intros.
   unfold listify_apply_rule.
@@ -795,10 +870,10 @@ Qed.
 
 (* DD: yet another version *)
 (* NC: used in [handler_correct_succeed] below. *)
-Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: @memory T) (m': @memory T) :Prop :=
+Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: memory) (m': memory) :Prop :=
   (match olr with
-     | Some lr => cache_hit_read m' lr lpc
-     | None => exists l, cache_hit_read m' l lpc
+     | Some lr => cache_hit_read m' (labToZ lr) (labToZ lpc)
+     | None => exists t, cache_hit_read m' t (labToZ lpc)
    end)
   (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
@@ -813,7 +888,7 @@ Conjecture HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
 (* XXX: NC: is this actually true? *)
 Conjecture valid_address_index_list_Z: forall a m,
   valid_address a m ->
-  exists z, index_list_Z a m = Some (z, handlerLabel).
+  exists z, index_list_Z a m = Some (z, handlerTag).
 
 Lemma genFaultHandlerMem_spec_Some: forall olr lpc,
   valid_address addrTagRes m0 ->
@@ -824,7 +899,7 @@ Lemma genFaultHandlerMem_spec_Some: forall olr lpc,
        (fun m s => m = m0 /\
                    s = listify_apply_rule ar s0)
        (fun m s => handler_final_mem_matches' olr lpc m0 m
-                   /\ s = (1,handlerLabel) ::: s0).
+                   /\ s = (1,handlerTag) ::: s0).
 Proof.
   introv HvalidRes HvalidResPC Har_eq; intros.
   eapply HT_split_conclusion.
@@ -834,8 +909,8 @@ Proof.
       { eapply HT_weaken_conclusion.
         + eapply genFaultHandlerMem_spec_Some_Some;  eauto.
         + unfold handler_final_mem_matches'. intuition.
-          - rewrite (ZToLab_labToZ_id t).
-            rewrite (ZToLab_labToZ_id lpc).
+          - (* rewrite (ZToLab_labToZ_id t). *)
+            (* rewrite (ZToLab_labToZ_id lpc). *)
             eapply chr_uppriv.
             (* Ugh ... *)
             * eapply tim_intro.
@@ -854,8 +929,8 @@ Proof.
         + eapply genFaultHandlerMem_spec_Some_None;  eauto.
         + unfold handler_final_mem_matches'. intuition.
           - destruct (valid_address_index_list_Z _ _ HvalidRes) as [z ?].
-            exists (ZToLab z).
-            rewrite (ZToLab_labToZ_id lpc).
+            exists (* ZToLab *)  z.
+            (* rewrite (ZToLab_labToZ_id lpc). *)
             eapply chr_uppriv.
             (* Ugh ... *)
             * eapply tim_intro.
@@ -900,16 +975,16 @@ Conjecture handler_correct :
   forall  opcode vls pcl m retaddr c imem fhdl s,
     let am := fetch_rule_impl opcode in
     let handler := faultHandler fetch_rule_impl in
-    cache_hit c opcode (glue vls) pcl ->
+    cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
     exists c' st pc priv, 
-      runsToEscape (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerLabel) true)
+      runsToEscape (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerTag) true)
                    (CState c' m fhdl imem st pc priv) /\ 
       match apply_rule (projT2 am) vls pcl with
         | Some (olr,lpc) => handler_final_mem_matches' olr lpc c c' 
                      /\ pc = retaddr
                      /\ st = s
                      /\ priv = false
-        | None => c' = c /\ pc = (-1,handlerLabel) /\ priv = true
+        | None => c' = c /\ pc = (-1,handlerTag) /\ priv = true
     end.
 
 (* TODO for Nathan: relate [runsToEscape] to [runsToEnd].*)
@@ -918,26 +993,26 @@ Section HandlerCorrect.
 (* DD: Hopefully easier to parse *)
 
 Variable get_rule : forall (opcode:OpCode), {n:nat & AllowModify n}.
-Definition handler : list (@Instr T) := faultHandler get_rule.
+Definition handler : list Instr := faultHandler get_rule.
 
 (* NC: appears this is the currently used conjecture, so prove this
 first. *)
 Conjecture handler_correct_succeed : 
   forall opcode vls pcl c m raddr s i olr lpc,
-  forall (INPUT: cache_hit c opcode (glue vls) pcl)
+  forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = Some (olr,lpc)),
     exists c',
-    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
+    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
                  (CState c' m handler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
               
 Conjecture handler_correct_fail : 
   forall opcode vls pcl c m raddr s i,
-  forall (INPUT: cache_hit c opcode (glue vls) pcl)
+  forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = None),
     exists st,
-    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerLabel) true)
-                 (CState c m handler i st (-1,handlerLabel) true).
+    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
+                 (CState c m handler i st (-1,handlerTag) true).
 
 (*  We also have the following: 
     - the handler code terminates DONE

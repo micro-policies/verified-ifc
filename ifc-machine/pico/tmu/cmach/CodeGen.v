@@ -6,8 +6,6 @@ Require Import Utils.
 Import ListNotations. (* list notations *)
 
 Require Import TMUInstr.
-Require Import Lattices.
-(* Require Import Concrete.*)
 Require Import Rules.
 
 Local Open Scope Z_scope. 
@@ -15,34 +13,27 @@ Set Implicit Arguments.
 
 Section CodeGeneration.
 
-Context 
-  {T: Type}
-  {Latt : JoinSemiLattice T}
-.
 
-Definition handlerLabel := bot.
-
-Definition code := list (@Instr T).
+Definition code := list Instr.
 
 (* Utility operations *)
-Definition pop: code := [(@BranchNZ T) 1].
+Definition pop: code := [BranchNZ 1].
 Definition nop: code := [].
-Definition push v := Push (v,handlerLabel).
-Definition push' v: code := [push v].
+Definition push' v: code := [Push v].
 
 (* For multi-instruction operations that include an offset
    parameter, we adjust the offset if negative. 
    Not sure this is the best way. *)
 Definition branchIfLocNeq addr val ofs :=
-  [push ofs;
-   push addr; 
+  [Push ofs;
+   Push addr; 
    Load;
-   push val;
+   Push val;
    Sub;
    BranchNZ (if ofs >=? 0 then ofs else ofs - 5) ].
 
 Definition branch ofs := 
-  [push 1;
+  [Push 1;
    BranchNZ (if ofs >=? 0 then ofs else ofs - 1 )]. 
 
 Definition storeAt loc :=

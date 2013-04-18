@@ -18,86 +18,20 @@ Require Import Coq.Arith.Compare_dec.
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
-
+(*
 Context {T: Type}
         {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}  
 .
 
-
-Definition imemory : Type := list (@Instr T).
-Definition memory : Type := list (@Atom T). 
-Definition stack : Type := list (@CStkElmt T). 
-Definition code := list (@Instr T).
-Definition state := @CS T.
-
-Section Glue.
-
-Import Vector.VectorNotations.
-
-Local Open Scope nat_scope.
-
-(* Old definition; replaced below. 
-Definition glue {n:nat} (vls :Vector.t T n) : (option T * option T * option T) :=
-match vls with
-| [] => (None,None,None)
-| [t1] => (Some t1, None,None)
-| [t1; t2] => (Some t1, Some t2, None)
-| (t1::(t2::(t3::_))) => (Some t1, Some t2, Some t3)
-end. 
 *)
 
-Definition nth_order_default {n:nat} (vls: Vector.t T n) (m:nat) (default: T) : T :=
-  match le_lt_dec n m with
-  | left _ => default
-  | right p => Vector.nth_order vls p
-  end.
+Definition imemory : Type := list Instr.
+Definition memory : Type := list (@Atom Z). 
+Definition stack : Type := list CStkElmt.
+Definition code := list Instr.
+Definition state := CS.
 
-Lemma of_nat_lt_proof_irrel:
-  forall (m n: nat) (p q: m < n),
-    Fin.of_nat_lt p = Fin.of_nat_lt q.
-Proof.
-  induction m; intros.
-    destruct n.
-      false; omega.
-      reflexivity.
-    destruct n.
-      false; omega.
-      simpl; erewrite IHm; eauto.
-Qed.
-
-(* NC: this took a few tries ... *)
-Lemma nth_order_proof_irrel:
-  forall (m n: nat) (v: Vector.t T n) (p q: m < n),
-    Vector.nth_order v p = Vector.nth_order v q.
-Proof.
-  intros.
-  unfold Vector.nth_order.
-  erewrite of_nat_lt_proof_irrel; eauto.
-Qed.
-
-Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m d,
-  forall (lt: m < n),
-  nth_order_default vls m d = Vector.nth_order vls lt.
-Proof.
-  intros.
-  unfold nth_order_default. 
-  destruct (le_lt_dec n m).
-  false; omega.
-  (* NC: Interesting: here we have two different proofs [m < n0] being
-  used as arguments to [nth_order], and we need to know that the
-  result of [nth_order] is the same in both cases.  I.e., we need
-  proof irrelevance! *)
-  erewrite nth_order_proof_irrel; eauto.
-Qed.
-
-
-Definition glue {n:nat} (vls :Vector.t T n) : (T * T * T) :=
-(nth_order_default vls 0 bot, 
- nth_order_default vls 1 bot, 
- nth_order_default vls 2 bot).
-
-End Glue.
 
 (* ---------------------------------------------------------------- *)
 (* Specs for self-contained code *)
@@ -136,7 +70,7 @@ Qed.
 
 (* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
 [pc1] and runs until pc [pc2]. *)
-Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> @CS T -> @CS T -> Prop :=
+Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=
 | runsToEndDone : forall n cs,
   fst (pc cs) = n -> 
   runsToEnd Rstep n n cs cs
@@ -225,8 +159,8 @@ Definition HT   (c: code)
   exists stk1 cache1,
   Q cache1 stk1 /\
   runsToEnd cstep_p n n' 
-             (CState cache0 mem fh imem stk0 (n, handlerLabel) true)
-             (CState cache1 mem fh imem stk1 (n', handlerLabel) true).
+             (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+             (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
 Lemma HT_compose: forall c1 c2 P Q R,
   HT   c1 P Q ->
@@ -422,10 +356,10 @@ Qed.
 
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
-Lemma add_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
+Lemma add_spec: forall (z1 z2: Z) (l1 l2: Z) (m: memory) (s: stack),
   HT  [Add]
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
-      (fun m2 s2 => m2 = m /\ s2 = CData (z1 + z2, handlerLabel) :: s).
+      (fun m2 s2 => m2 = m /\ s2 = CData (z1 + z2, handlerTag) :: s).
 Proof.
   (* Introduce hyps *)
   intros.
@@ -448,10 +382,10 @@ Proof.
   eapply runsToEndDone; auto.
 Qed.
 
-Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: T) (m: memory) (s: stack),
+Lemma add_sub_spec: forall (z1 z2: Z) (l1 l2: Z) (m: memory) (s: stack),
   HT   (Add :: Sub :: nil)
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: CData (z2,l2) :: s)
-      (fun m2 s2 => m2 = m /\ s2 = CData (z1, handlerLabel) :: s).
+      (fun m2 s2 => m2 = m /\ s2 = CData (z1, handlerTag) :: s).
 Proof.
   (* Introduce hyps *)
   intros.
@@ -483,7 +417,7 @@ Qed.
 Lemma sub_spec: forall z1 l1 z2 l2, forall m0 s0,
   HT [Sub]
      (fun m s => m = m0 /\ s = (z1,l1) ::: (z2,l2) ::: s0)
-     (fun m s => m = m0 /\ s = (z1 - z2,handlerLabel) ::: s0).
+     (fun m s => m = m0 /\ s = (z1 - z2,handlerTag) ::: s0).
 Proof.
   unfold HT; intros.
   eexists.
@@ -504,8 +438,8 @@ Proof.
 Qed.
 
 Lemma push_spec: forall v P,
-  HT   (push v :: nil)
-       (fun m s => P m (CData (v,handlerLabel) :: s))
+  HT   (Push v :: nil)
+       (fun m s => P m (CData (v,handlerTag) :: s))
        P.
 Proof.
   intros v P.
@@ -526,14 +460,14 @@ Proof.
 Qed.
 
 Lemma push_spec': forall v P,
-  HT   (push v :: nil)
+  HT   (Push v :: nil)
        P
-       (fun m s => head s = Some (CData (v,handlerLabel)) /\
+       (fun m s => head s = Some (CData (v,handlerTag)) /\
                             P m (tail s)).
 Proof.
   intros v P.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
-  exists (CData (v, handlerLabel) :: stk0). eexists c0.
+  exists (CData (v, handlerTag) :: stk0). eexists c0.
   intuition.
   
   (* Load an instruction *)
@@ -556,7 +490,7 @@ Qed.
 Lemma push_spec'': forall v, forall m0 s0,
   HT (push' v)
      (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData (v,handlerLabel) :: s0).
+     (fun m s => m = m0 /\ s = CData (v,handlerTag) :: s0).
 Proof.
   intros.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
@@ -581,7 +515,7 @@ Lemma load_spec: forall a al v vl, forall m0 s0,
   index_list_Z a m0 = Some (v,vl) ->
   HT [Load]
      (fun m s => m = m0 /\ s = CData (a,al) :: s0)
-     (fun m s => m = m0 /\ s = CData (v,handlerLabel) :: s0).
+     (fun m s => m = m0 /\ s = CData (v,handlerTag) :: s0).
 Proof.
   intros a al v vl m0 s0  Hmem.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
@@ -606,7 +540,7 @@ Lemma loadFrom_spec: forall a v vl, forall m0 s0,
   index_list_Z a m0 = Some (v,vl) ->
   HT (loadFrom a)
      (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData (v,handlerLabel) :: s0).
+     (fun m s => m = m0 /\ s = CData (v,handlerTag) :: s0).
 Proof.
   intros.
   eapply HT_compose.
@@ -958,7 +892,7 @@ Qed.
 Lemma ite_spec_specialized: forall v c t f Q, forall m0 s0,
   let P := fun m s => m = m0 /\ s = s0 in
   HT c (fun m s => m = m0 /\ s = s0)
-       (fun m s => m = m0 /\ s = (v,handlerLabel) ::: s0) ->
+       (fun m s => m = m0 /\ s = (v,handlerTag) ::: s0) ->
   (v <> 0 -> HT t P Q) ->
   (v =  0 -> HT f P Q) ->
   HT (ite c t f) P Q.
@@ -1020,7 +954,7 @@ Lemma cases_spec_step_specialized: forall c vc b cbs d P Qb Qcbs,
                         s = s0)
             (fun m s => P m0 s0 /\
                         m = m0 /\ 
-                        s = CData (vc m0 s0, handlerLabel) :: s0)) ->
+                        s = CData (vc m0 s0, handlerTag) :: s0)) ->
   HT   b P Qb ->
   HT   (cases cbs d) P Qcbs ->
   (forall m0 s0,
@@ -1045,7 +979,7 @@ Proof.
 
   intuition.
   exists (vc m0 s0).
-  exists handlerLabel.
+  exists handlerTag.
   exists s0.
   intuition; subst; auto.
 Qed.
@@ -1083,7 +1017,7 @@ Qed.
 Definition GT_push_v (c: code) (P: HProp) (v: HFun): Prop :=
   GT c P (fun m0 s0 m s => P m0 s0 /\
                            m = m0 /\
-                           s = CData (v m0 s0, handlerLabel) :: s0).
+                           s = CData (v m0 s0, handlerTag) :: s0).
 Definition GT_guard_v (b: code) (P: HProp) (v: HFun) (Q: GProp): Prop :=
   GT b (fun m s => P m s /\ v m s <> 0) Q.
 
@@ -1112,7 +1046,7 @@ Proof.
 
   intuition.
   exists (vc m0 s0).
-  exists handlerLabel.
+  exists handlerTag.
   exists s0.
   intuition; subst; auto.
 Qed.
@@ -1168,7 +1102,7 @@ Lemma some_spec: forall c, forall m0 s0 s1,
      (fun m s => m = m0 /\ s = s1) ->
   HT (some c)
      (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = (1,handlerLabel) ::: s1).
+     (fun m s => m = m0 /\ s = (1,handlerTag) ::: s1).
 Proof.
   introv HTc.
   unfold some.
@@ -1183,11 +1117,11 @@ Definition genFalse_spec := push_spec''.
 
 Lemma genAnd_spec: forall b1 b2, forall m0 s0,
   HT genAnd
-     (* We need [handlerLabel] on [b2] because [genAnd] returns [b2] when
+     (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
         [b1] is [true]. *)
-     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerLabel) ::
-                               CData (boolToZ b2,handlerLabel) :: s0)
-     (fun m s => m = m0 /\ s = CData (boolToZ (andb b1 b2),handlerLabel) :: s0).
+     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerTag) ::
+                               CData (boolToZ b2,handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (boolToZ (andb b1 b2),handlerTag) :: s0).
 Proof.
   intros.
   unfold genAnd.
@@ -1207,9 +1141,9 @@ Qed.
 
 Lemma genOr_spec: forall b1 b2, forall m0 s0,
   HT genOr
-     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerLabel) ::
-                               CData (boolToZ b2,handlerLabel) :: s0)
-     (fun m s => m = m0 /\ s = CData (boolToZ (orb b1 b2),handlerLabel) :: s0).
+     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerTag) ::
+                               CData (boolToZ b2,handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (boolToZ (orb b1 b2),handlerTag) :: s0).
 Proof.
   intros.
   unfold genOr.
@@ -1230,9 +1164,9 @@ Qed.
 
 Lemma genNot_spec_general: forall v, forall m0 s0,
   HT genNot
-     (fun m s => m = m0 /\ s = CData (v, handlerLabel) :: s0)
+     (fun m s => m = m0 /\ s = CData (v, handlerTag) :: s0)
      (fun m s => m = m0 /\ 
-                 s = CData (boolToZ (v =? 0),handlerLabel) :: s0).
+                 s = CData (boolToZ (v =? 0),handlerTag) :: s0).
 Proof.
   intros.
   unfold genNot.
@@ -1253,8 +1187,8 @@ Qed.
 
 Lemma genNot_spec: forall b, forall m0 s0,
   HT genNot
-     (fun m s => m = m0 /\ s = (boolToZ b, handlerLabel) ::: s0)
-     (fun m s => m = m0 /\ s = (boolToZ (negb b), handlerLabel) ::: s0).
+     (fun m s => m = m0 /\ s = (boolToZ b, handlerTag) ::: s0)
+     (fun m s => m = m0 /\ s = (boolToZ (negb b), handlerTag) ::: s0).
 Proof.
   intros.
   eapply HT_weaken_conclusion.
@@ -1264,9 +1198,9 @@ Qed.
 
 Lemma genImpl_spec: forall b1 b2, forall m0 s0,
   HT genImpl
-     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerLabel) ::
-                               CData (boolToZ b2,handlerLabel) :: s0)
-     (fun m s => m = m0 /\ s = CData (boolToZ (implb b1 b2),handlerLabel) :: s0).
+     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerTag) ::
+                               CData (boolToZ b2,handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (boolToZ (implb b1 b2),handlerTag) :: s0).
 Proof.
   intros.
   eapply HT_weaken_conclusion.
@@ -1283,15 +1217,15 @@ Lemma genTestEqual_spec: forall c1 c2, forall v1 v2, forall m0,
   (forall s0,
      HT c1
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (v1,handlerLabel) ::: s0)) ->
+        (fun m s => m = m0 /\ s = (v1,handlerTag) ::: s0)) ->
   (forall s0,
      HT c2
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (v2,handlerLabel) ::: s0)) ->
+        (fun m s => m = m0 /\ s = (v2,handlerTag) ::: s0)) ->
   (forall s0,
      HT (genTestEqual c1 c2)
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (boolToZ (v1 =? v2),handlerLabel) ::: s0)).
+        (fun m s => m = m0 /\ s = (boolToZ (v1 =? v2),handlerTag) ::: s0)).
 Proof.
   intros.
   unfold genTestEqual.
@@ -1370,12 +1304,12 @@ Qed.
 (* Follow from a more general [push'_spec_wp]. *)
 Conjecture genTrue_spec_wp: forall Q,
   HT genTrue
-     (fun m s => Q m ((1,handlerLabel):::s))
+     (fun m s => Q m ((1,handlerTag):::s))
      Q.
 
 Conjecture genFalse_spec_wp: forall Q,
   HT genFalse
-     (fun m s => Q m ((0,handlerLabel):::s))
+     (fun m s => Q m ((0,handlerTag):::s))
      Q.
 
 Lemma nop_spec_wp: forall Q,

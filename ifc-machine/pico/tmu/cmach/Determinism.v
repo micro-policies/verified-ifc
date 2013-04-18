@@ -206,7 +206,7 @@ Qed.
 
 Lemma c_pop_to_return_determ : 
   forall s s1 s2,
-    @c_pop_to_return L s s1 -> 
+    c_pop_to_return s s1 -> 
     c_pop_to_return s s2 -> 
     s1 = s2. 
 Proof. 

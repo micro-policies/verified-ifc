@@ -2,6 +2,7 @@ Require Import Relations.
 Require Import EqNat.
 Require Import ZArith.
 Require Import List.
+Require Import FunctionalExtensionality.
 Require Import Utils Lattices CLattices WfCLattices.
 
 Require Import TMUInstr.
@@ -30,48 +31,81 @@ Definition faultHandler := FaultRoutine.faultHandler fetch_rule_withsig.
 
 (* Bit more glue *)
 Lemma our_handler_correct_succeed : 
-  forall m i s raddr c opcode vls  pcl  olr lpc,
-  forall (INPUT: cache_hit c opcode (glue vls) pcl)
-         (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc)),
+  forall m i s raddr c opcode vls pcl olr lpc,
+  forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
+         (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc)), 
     exists c',
-    runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerLabel) true)
+    runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerTag) true)
                  (CState c' m faultHandler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros. 
   exploit (@handler_correct_succeed _ _ _ fetch_rule_withsig opcode); eauto.
 Qed.  
-               
-Inductive match_stacks : list (@StkElmt L) ->  list (@CStkElmt L) -> Prop :=
+
+Definition atom_labToZ (a:@Atom L) : (@Atom Z) :=
+  let (v,l) := a in (v,labToZ l).
+
+Definition atom_ZToLab (a:@Atom Z) : (@Atom L) :=
+  let (v,l) := a in (v,ZToLab l). 
+
+Lemma atom_ZToLab_labToZ_id: forall (a:@Atom L), a = atom_ZToLab (atom_labToZ a).
+Proof.
+  intros. unfold atom_labToZ, atom_ZToLab. destruct a. f_equal. 
+  apply ZToLab_labToZ_id. 
+Qed.
+
+Inductive match_stacks : list (@StkElmt L) ->  list CStkElmt -> Prop :=
 | ms_nil : match_stacks nil nil
-| ms_cons_data: forall a s cs, 
+| ms_cons_data: forall a ca s cs, 
                   match_stacks s cs ->
-                  match_stacks (AData a :: s) (CData a :: cs)
-| ms_cons_ret: forall a r s cs, 
+                  ca = atom_labToZ a -> 
+                  match_stacks (AData a :: s) (CData ca :: cs)
+| ms_cons_ret: forall a ca r s cs, 
                   match_stacks s cs ->
-                  match_stacks (ARet a r:: s) (CRet a r false:: cs).
+                  ca = atom_labToZ a -> 
+                  match_stacks (ARet a r:: s) (CRet ca r false:: cs).
+
+Definition mem_labToZ (m: list (@Atom L)) : list (@Atom Z) :=
+  map atom_labToZ m. 
+
+Definition mem_ZToLab (m: list (@Atom Z)) : list (@Atom L) :=
+  map atom_ZToLab m. 
+
+Lemma mem_ZToLab_labToZ_id : forall (m: list (@Atom L)),
+   m = mem_ZToLab (mem_labToZ m).                                
+Proof.
+  intros. unfold mem_ZToLab, mem_labToZ. rewrite map_map. 
+  replace (fun x => atom_ZToLab (atom_labToZ x)) with (@id (@Atom L)).
+  rewrite map_id; auto. 
+  extensionality x. 
+  apply atom_ZToLab_labToZ_id. 
+Qed.
+
 
 Definition cache_up2date tmuc :=
   forall opcode vls pcl rl rpcl,
   forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
-  forall (CHIT: cache_hit tmuc opcode (glue vls) pcl),
+  forall (CHIT: cache_hit tmuc (opCodeToZ opcode) (labsToZs vls) (labToZ pcl)),
     match rl with 
-        | Some l => cache_hit_read tmuc l rpcl
-        | None => exists l', cache_hit_read tmuc l' rpcl
+        | Some l => cache_hit_read tmuc (labToZ l) (labToZ rpcl)
+        | None => exists t', cache_hit_read tmuc t' (labToZ rpcl)
     end.
 
-Inductive match_states : @AS L -> @CS L -> Prop :=
- ms: forall m i astk tmuc cstk pc
+Inductive match_states : @AS L -> CS -> Prop :=
+ ms: forall am cm i astk tmuc cstk apc cpc
               (CACHE: cache_up2date tmuc)
-              (STKS: match_stacks astk cstk),
-         match_states (AState m i astk pc)
-                      (CState tmuc m faultHandler i cstk pc false).
+              (STKS: match_stacks astk cstk)
+              (MEM: cm = mem_labToZ am)
+              (PC: cpc = atom_labToZ apc),
+         match_states (AState am i astk apc)
+                      (CState tmuc cm faultHandler i cstk cpc false).
 
-Fixpoint c_to_a_stack (cs : list (@CStkElmt L)): list (@StkElmt L) :=
+Fixpoint c_to_a_stack (cs : list CStkElmt): list (@StkElmt L) :=
   match cs with 
     | nil => nil
-    | CData s :: cs => (AData s)::(c_to_a_stack cs)
-    | CRet a r p::cs => ARet a r::(c_to_a_stack cs)
+    | CData s :: cs => (AData (atom_ZToLab s))::(c_to_a_stack cs)
+    | CRet a r p::cs => ARet (atom_ZToLab a) r::(c_to_a_stack cs)
   end.
 
 Lemma match_stacks_obs : forall s s', 
@@ -80,21 +114,24 @@ Lemma match_stacks_obs : forall s s',
 Proof.
   induction s ; intros.
   inv H; simpl; auto.
-  inv H; simpl; rewrite IHs ; eauto.
+  inv H; simpl; rewrite IHs; eauto;
+  rewrite <- atom_ZToLab_labToZ_id; auto.
 Qed.
 
 Hint Rewrite match_stacks_obs.
 
+
 (** Observing a concete cache is just projecting it a the abstract level *)
-Definition observe_cstate (cs: @CS L) : @AS L := 
+Definition observe_cstate (cs: CS) : @AS L := 
   match cs with 
-    | CState c m fh i s pc p => AState m i (c_to_a_stack s) pc
+    | CState c m fh i s pc p => 
+      AState (mem_ZToLab m) i (c_to_a_stack s) (atom_ZToLab pc)
   end.
            
 Lemma handler_cache_hit_read_some: 
   forall rl m rpcl tmuc,
     handler_final_mem_matches' (Some rl) rpcl m tmuc ->
-    cache_hit_read tmuc rl rpcl. 
+    cache_hit_read tmuc (labToZ rl) (labToZ rpcl). 
 Proof.
   intros; inv H ; auto.
 Qed.
@@ -102,7 +139,7 @@ Qed.
 Lemma handler_cache_hit_read_none: 
   forall m rpcl tmuc,
     handler_final_mem_matches' None rpcl m tmuc ->
-    exists rl, cache_hit_read tmuc rl rpcl. 
+    exists t, cache_hit_read tmuc t (labToZ rpcl). 
 Proof.
   intros; inv H ; auto.
 Qed.
@@ -185,7 +222,6 @@ Lemma handler_final_cache_hit_preserved:
 Proof. 
   intros until 0. intros Hfinal HCHIT. inv HCHIT.
   inv Hfinal. unfold update_cache_spec_rvec in *. clear H.
-  destruct labs as [[l1 l2] l3] . inv MVEC. 
   econstructor;
   constructor;
   match goal with 
@@ -205,64 +241,67 @@ Proof.
   destruct o1, o2; inv Heq; try congruence.
 Qed.
 
-
-Lemma glue_cons_hd: forall n0 a v0 b v3,
+Lemma labsToZs_cons_hd: forall n0 a v0 b v3,
   S n0 <= 3 ->
-  glue (Vector.cons L a n0 v0) = glue (Vector.cons L b n0 v3) ->
+  labsToZs (Vector.cons L a n0 v0) = labsToZs (Vector.cons L b n0 v3) ->
   a = b.
 Proof.
-  intros. inv H0. 
-  auto.  (* APT: how does this work?? *)
+  intros.  inv H0. 
+  unfold nth_labToZ in H2. destruct (le_lt_dec (S n0) 0).  inv l. 
+  unfold Vector.nth_order in H2. simpl in H2. 
+  apply labToZ_inj in H2.  auto.
 Qed.
 
-Lemma nth_order_default_cons:
-  forall nth n a v d,
-    nth_order_default (Vector.cons L a n v) (S nth) d
-    = nth_order_default v nth d.
+Lemma nth_labToZ_cons:
+  forall nth n a v,
+    nth_labToZ (Vector.cons L a n v) (S nth) 
+    = nth_labToZ v nth.
 Proof.
   induction n; intros.
-  - unfold nth_order_default. 
+  - unfold nth_labToZ.
     case_eq (le_lt_dec (S nth) 1); case_eq (le_lt_dec nth 0); intros; auto;
     try (zify ; omega).
-  - unfold nth_order_default.
+  - unfold nth_labToZ.
     case_eq (le_lt_dec (S (S n)) (S nth)); case_eq (le_lt_dec (S n) nth); intros; auto;
     try (zify ; omega).
     unfold Vector.nth_order. simpl. symmetry.
     erewrite of_nat_lt_proof_irrel ; eauto.
 Qed.
     
-Lemma glue_cons_tail: 
+Lemma labsToZs_cons_tail: 
   forall n0 a v0 b v3,
     (n0 <= 2)%nat ->
-    glue (Vector.cons L a n0 v0) = glue (Vector.cons L b n0 v3) ->
-    glue v0 = glue v3.
+    labsToZs (Vector.cons L a n0 v0) = labsToZs (Vector.cons L b n0 v3) ->
+    labsToZs v0 = labsToZs v3.
 Proof.
   intros. inv H0.
-  unfold glue. 
-  repeat (rewrite nth_order_default_cons in H3). inv H3. clear H1.
-  repeat (rewrite nth_order_default_cons in H4). inv H4. clear H1.
-  replace (nth_order_default v0 2 bot) with (nth_order_default v3 2 bot). 
+  unfold labsToZs.
+  repeat (rewrite nth_labToZ_cons in H3). inv H3. clear H1.
+  repeat (rewrite nth_labToZ_cons in H4). inv H4. clear H1.
+  replace (nth_labToZ v0 2) with (nth_labToZ v3 2). 
   auto.
-  unfold nth_order_default.
+  unfold nth_labToZ.
   case_eq (le_lt_dec n0 2); intros; auto.
   zify ; omega.
 Qed.
 
   
-Lemma glue_inj: forall n (v1 v2: Vector.t L n), n <= 3 -> glue v1 = glue v2 -> v1 = v2.
+Lemma labsToZs_inj: forall n (v1 v2: Vector.t L n), n <= 3 -> 
+     labsToZs v1 = labsToZs v2 -> v1 = v2.
 Proof.
   intros n v1 v2.
-  set (P:= fun n (v1 v2: Vector.t L n) => n <= 3 -> glue v1 = glue v2 -> v1 = v2) in *.
+  set (P:= fun n (v1 v2: Vector.t L n) => n <= 3 -> labsToZs v1 = labsToZs v2 -> v1 = v2) in *.
   eapply Vector.rect2 with (P0:= P); eauto.
   unfold P. auto.
   intros.
   unfold P in *. intros. 
-  exploit glue_cons_hd; eauto. intros Heq ; inv Heq.
-  eapply glue_cons_tail in H1; eauto. 
+  exploit labsToZs_cons_hd; eauto. intros Heq ; inv Heq.
+  eapply labsToZs_cons_tail in H1; eauto. 
   exploit H ; eauto. zify; omega.
   intros Heq. inv Heq.
   reflexivity. zify ; omega.
 Qed.  
+
 
 Lemma cache_hit_unique:
   forall c opcode opcode' labs labs' pcl pcl',
@@ -274,21 +313,13 @@ Lemma cache_hit_unique:
       pcl = pcl'.
 Proof.
   intros. inv CHIT; inv CHIT'. 
-  destruct labs as [[l1 l2] l3]; inv MVEC.
-  destruct labs' as [[l1' l2'] l3']; inv MVEC0. 
   inv OP; inv OP0. 
   inv TAG1; inv TAG0.
   inv TAG2; inv TAG4.
   inv TAG3; inv TAG5.
   inv TAGPC; inv TAGPC0. 
   repeat allinv'. 
-  eapply opCodeToZ_inj in H4. 
-  eapply WfCLattices.labToZ_inj in H6.
-  eapply WfCLattices.labToZ_inj in H8.
-  eapply WfCLattices.labToZ_inj in H9.
-  eapply WfCLattices.labToZ_inj in H10.
-  subst.
-  intuition.
+  intuition. 
 Qed.
 
 
@@ -384,16 +415,19 @@ Ltac inv_cache_update :=
   match goal with 
     |  [CHIT: cache_hit ?C _ _ _,
         CHIT': cache_hit ?C _ _ _ |- _] =>  
-       destruct (cache_hit_unique CHIT CHIT') as [P1 [P2 P3]]; 
-       subst;
-       apply glue_inj in P2; try (zify; omega); 
-       subst
-  end;
-  allinv'; 
+       destruct (cache_hit_unique CHIT CHIT') as [P1 [P2 P3]];
+       subst; 
+       apply opCodeToZ_inj in P1; subst;
+       apply labsToZs_inj in P2; try (zify; omega); subst; 
+       apply labToZ_inj in P3 ;subst
+   end;
+   allinv'; 
   try solve [eapply handler_cache_hit_read_none; eauto
             |eapply handler_cache_hit_read_some; eauto].
 
-(*
+
+
+(* OLD:
 Ltac inv_cache_update :=
   (unfold cache_up2date; intros); 
   (exploit handler_final_cache_hit_preserved; eauto); intros; 
@@ -417,7 +451,11 @@ Proof.
   intros.
   inv H. 
   simpl. erewrite match_stacks_obs; eauto.
+  rewrite <- atom_ZToLab_labToZ_id.  
+  rewrite <- mem_ZToLab_labToZ_id.
+  auto.
 Qed.
+
 
 Lemma step_preserved: 
   forall s1 s1' s2,
@@ -427,51 +465,59 @@ Lemma step_preserved:
 Proof.
   intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
   - Case "Noop".
-  { set (labs := glue (<||>: Vector.t L _)). 
+  { set (tags := labsToZs (<||>: Vector.t L _)). 
+    set (op := opCodeToZ OpNoop).
+    set (pct := labToZ pcl). 
+    set (rpct := labToZ rpcl). 
+    set (cm := mem_labToZ m). 
     unfold run_tmr in H0.
-    destruct (classic (cache_hit tmuc OpNoop labs pcl)) as [CHIT | CMISS].
-    + exists (CState tmuc m faultHandler i cstk (pcv+1, pcl) false).
+    destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
+    + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. split.
       unfold cache_up2date in CACHE. 
-      assert (exists l' : L, cache_hit_read tmuc l' rpcl).
+      assert (exists t' : Z, cache_hit_read tmuc t' rpct). 
          eapply CACHE with (1:= H0); eauto. 
       destruct H1 as [ll Hll].
-      inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
-      inv H0; eauto. 
+      subst pct. inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
+      subst pct. inv H0; eauto. 
 
-     + set (tmuc':= build_cache OpNoop labs pcl).  
-       assert (CHIT' : cache_hit tmuc' OpNoop labs pcl)
+     + set (tmuc':= build_cache op tags pct).  
+       assert (CHIT' : cache_hit tmuc' op tags pct)
          by (eauto using build_cache_hit). 
-       edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]]; 
+       edestruct (@our_handler_correct_succeed cm i cstk (pcv,pct) tmuc') as [c [Hruns Hmfinal]]; 
          [exact CHIT' | exact H0 |].  (* ARGH: eauto should work *)
        res_label.
-       exists (CState c m faultHandler i cstk (pcv+1, rpcl) false). split.
+       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
           * destruct Hmfinal as [[ll Hll] Hspec].
-            eapply cstep_nop with _ pcv pcl; eauto. 
+            eapply cstep_nop with _ pcv pct; eauto. 
           * econstructor ; eauto. 
-            inv_cache_update.
-  }
+            inv_cache_update. 
+    }
  - Case "Add".
-  { set (labs := glue (<|x1l; x2l |>)). 
+  { set (tags := labsToZs (<|x1l; x2l |>)). 
+    set (op := opCodeToZ OpAdd). 
+    set (pct := labToZ pcl). 
+    set (rt := labToZ rl). 
+    set (rpct := labToZ rpcl). 
+    set (cm := mem_labToZ m). 
     unfold run_tmr in H0. inv Hmatch.
-      destruct (classic (cache_hit tmuc OpAdd labs pcl)) as
-          [CHIT | CMISS].
-      + inv STKS. inv H4. 
-        exists (CState tmuc m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false).
+      destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
+      + inv STKS. inv H3.
+        exists (CState tmuc cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false).
         split; eauto.
         unfold cache_up2date in CACHE. 
-        eapply cstep_add with x1l x2l pcl i ; eauto.        
+        eapply cstep_add with (labToZ x1l) (labToZ x2l) pct i ; eauto.        
         eapply CACHE with (1:= H0); eauto.
         
-     + set (tmuc':= build_cache OpAdd labs pcl).
-       assert (CHIT' : cache_hit tmuc' OpAdd labs pcl)
+     + set (tmuc':= build_cache op tags pct). 
+       assert (CHIT' : cache_hit tmuc' op tags pct)
          by (eauto using build_cache_hit).
-       edestruct (@our_handler_correct_succeed m i cstk (pcv,pcl) tmuc') as [c [Hruns Hmfinal]].
+       edestruct (@our_handler_correct_succeed cm i cstk (pcv,pct) tmuc') as [c [Hruns Hmfinal]].
        exact CHIT'. eauto.
-       inv STKS. inv H4.
-       exists (CState c m faultHandler i ((CData (x1v+x2v,rl))::cs0) (pcv+1, rpcl) false). split.
+       inv STKS. inv H3.
+       exists (CState c cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false). split.
           * destruct Hmfinal as [Hll Hspec].
-            eapply cstep_add with _ _ pcl _ ; eauto.                
+            eapply cstep_add with _ _ pct _ ; eauto.                
           * econstructor ; eauto. 
             inv_cache_update.
 }

@@ -11,15 +11,11 @@ Local Open Scope Z_scope.
 
 Section CMach.
 
-Context {T: Type}
-        {Latt: JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}.
-
 (** Definition of states for the concrete machine *)
 
 Inductive CStkElmt := 
-| CData : @Atom T -> CStkElmt 
-| CRet : @Atom T -> bool -> bool -> CStkElmt.
+| CData : @Atom Z -> CStkElmt 
+| CRet : @Atom Z -> bool -> bool -> CStkElmt.
 (* first bool is the type of call (v/void return), second bool is
        saved privilege bit *)
 (* CH: not sure which variant is better, but in the Haskell version
@@ -27,18 +23,17 @@ Inductive CStkElmt :=
 
 (* DD: the privileged parts of the states are now separate *)
 Record CS  := CState {
-  cache: list (@Atom T);
-  mem : list (@Atom T);
-  fhdl:  list (@Instr T); (* fault handler code *)
-  imem : list (@Instr T);
+  cache: list (@Atom Z);
+  mem : list (@Atom Z);
+  fhdl:  list Instr; (* fault handler code *)
+  imem : list Instr;
   stk : list CStkElmt;
-  pc : @Atom T;
+  pc : @Atom Z;
   priv : bool
 }.
 
 (** * Cache handling mechanism *)
 
-(* OUTOFDATE Conversion between abstract labels (T) and tags (Z) *)
 Definition opCodeToZ (opcode : OpCode) : Z :=
 match opcode with 
 | OpNoop => 0
@@ -73,10 +68,12 @@ Definition privInstSize := 1000.
 *)
 
 
+(*
 (** Conversion from labels to integer tags *)
 Definition to_mvector (opcode: OpCode) (labs: T * T * T)  (pclab: T) : Z * Z * Z * Z * Z :=
    let '(lab1,lab2,lab3) := labs in 
    (opCodeToZ opcode, labToZ lab1, labToZ lab2, labToZ lab3, labToZ pclab).
+*)
 
 (*
 Definition from_rvector (tags: Z * Z)  T * T := 
@@ -84,7 +81,13 @@ Definition from_rvector (tags: Z * Z)  T * T :=
   (ZToLab tagr,ZToLab tagrpc). 
 *)
 
-Definition handlerLabel := bot.
+(* APT: It should be possible for this to be a completely arbitrary integer, 
+since it will never be inspected. *)
+Definition handlerTag := 42%Z. 
+
+(* Ditto *)
+Definition dontCare := (-1)%Z.
+
 
 (* Build the cache line from mvector parameters. 
 NB: Ordering of parameters in memory must match addr* definitions above. *)
@@ -93,54 +96,53 @@ Section WithListNotations.
 
 Import ListNotations.
 
-Definition build_cache (opcode: OpCode) (labs: T * T * T) (pcl:T): list (@Atom T) := 
-let '(optag,tag1,tag2,tag3,pctag) := to_mvector opcode labs pcl in
-[(optag,handlerLabel); (tag1,handlerLabel); (tag2,handlerLabel); (tag3,handlerLabel); 
- (pctag,handlerLabel); (0,handlerLabel); (0,handlerLabel)]. 
+Definition build_cache (opcode: Z) (tags: Z * Z * Z) (pctag:Z): list (@Atom Z) := 
+let '(tag1,tag2,tag3) := tags in 
+[(opcode,handlerTag); (tag1,handlerTag); (tag2,handlerTag); (tag3,handlerTag); 
+ (pctag,handlerTag); (dontCare,handlerTag); (dontCare,handlerTag)]. 
 
 End WithListNotations.
 
 (** Cache spec when reading from, writing to *)
-Inductive tag_in_mem (m: list (@Atom T)) addr tagv : Prop := 
-| tim_intro : index_list_Z addr m = Some (tagv,handlerLabel) ->
+Inductive tag_in_mem (m: list (@Atom Z)) addr tagv : Prop := 
+| tim_intro : index_list_Z addr m = Some (tagv,handlerTag) ->
               tag_in_mem m addr tagv.
 
 (* Tests the cache line *)  
-Inductive cache_hit (m: list (@Atom T)) opcode labs pclab : Prop := 
-| ch_intro: forall m_op m_tag1 m_tag2 m_tag3 m_tagpc,
-              forall (MVEC: to_mvector opcode labs pclab = 
-                            (m_op, m_tag1, m_tag2, m_tag3, m_tagpc))
-                     (OP: tag_in_mem m addrOpLabel m_op)
-                     (TAG1: tag_in_mem m addrTag1 m_tag1)
-                     (TAG2: tag_in_mem m addrTag2 m_tag2)
-                     (TAG3: tag_in_mem m addrTag3 m_tag3)
-                     (TAGPC: tag_in_mem m addrTagPC m_tagpc),
-                cache_hit m opcode labs pclab. 
+Inductive cache_hit (m: list (@Atom Z)) opcode tags pctag : Prop := 
+| ch_intro: forall tag1 tag2 tag3 
+                     (UNPACK : tags = (tag1,tag2,tag3))
+                     (OP: tag_in_mem m addrOpLabel opcode) 
+                     (TAG1: tag_in_mem m addrTag1 tag1)
+                     (TAG2: tag_in_mem m addrTag2 tag2)
+                     (TAG3: tag_in_mem m addrTag3 tag3)
+                     (TAGPC: tag_in_mem m addrTagPC pctag),
+                cache_hit m opcode tags pctag. 
 
-Lemma build_cache_hit: forall opcode labs pclab,
-     cache_hit (build_cache opcode labs pclab) opcode labs pclab.                          
+Lemma build_cache_hit: forall opcode tags pctag,
+     cache_hit (build_cache opcode tags pctag) opcode tags pctag.                          
 Proof.
   intros. unfold build_cache. 
-  destruct (to_mvector opcode labs pclab) as [[[[optag tag1] tag2] tag3] pctag] eqn:?. 
+  destruct tags as [[tag1 tag2] tag3] eqn:?.
   econstructor; eauto; 
   try unfold addrOpLabel; try unfold addrTag1; try unfold addrTag2; try unfold addrTag3;
   try unfold addrTagPC; unfold index_list_Z; econstructor; reflexivity. 
 Qed.
 
 (* Reads the cache line *)
-Inductive cache_hit_read (m: list (@Atom T)) : T -> T -> Prop :=
-| chr_uppriv: forall m_tagr m_tagrpc,
-              forall (TAG_Res: tag_in_mem m addrTagRes m_tagr)
-                     (TAG_ResPC: tag_in_mem m addrTagResPC m_tagrpc),
-                cache_hit_read m (ZToLab m_tagr) (ZToLab m_tagrpc).
+Inductive cache_hit_read (m: list (@Atom Z)) : Z -> Z -> Prop :=
+| chr_uppriv: forall tagr tagrpc,
+              forall (TAG_Res: tag_in_mem m addrTagRes tagr)
+                     (TAG_ResPC: tag_in_mem m addrTagResPC tagrpc),
+                cache_hit_read m tagr tagrpc.
 
-Definition update_cache_spec_mvec (m m': list (@Atom T)) := 
+Definition update_cache_spec_mvec (m m': list (@Atom Z)) := 
   forall addr, 
     addr <> addrOpLabel ->  addr <> addrTagPC -> 
     addr <> addrTag1 -> addr <> addrTag2 -> addr <> addrTag3 ->
     index_list_Z addr m = index_list_Z addr m'.
 
-Definition update_cache_spec_rvec (m m': list (@Atom T)) := 
+Definition update_cache_spec_rvec (m m': list (@Atom Z)) := 
   forall addr, 
   addr <> addrTagRes -> 
   addr <> addrTagResPC -> 
@@ -186,7 +188,7 @@ Qed.
 
 Lemma c_pop_to_return_spec2: forall  s1 s2 p1 p2 b1 b2 a1 a2 dstk,
  c_pop_to_return (dstk ++ CRet a1 b1 p1 :: s2) (CRet a2 b2 p2 :: s1) ->
- (forall e, In e dstk -> exists a : @Atom T, e = CData a) ->
+ (forall e, In e dstk -> exists a : @Atom Z, e = CData a) ->
  CRet a1 b1 p1 =  CRet a2 b2 p2.
 Proof.
   induction dstk; intros.
@@ -198,7 +200,7 @@ Qed.
 
 Lemma c_pop_to_return_spec3: forall s1 s2 b1 b2 p1 p2 a1 a2 dstk,
  c_pop_to_return (dstk ++ CRet a1 b1 p1 :: s2) (CRet a2 b2 p2 :: s1) ->
- (forall e, In e dstk -> exists a : @Atom T, e = CData a) ->
+ (forall e, In e dstk -> exists a : @Atom Z, e = CData a) ->
  s1 = s2.
 Proof.
   induction dstk; intros.

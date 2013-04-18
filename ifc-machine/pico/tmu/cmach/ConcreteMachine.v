@@ -14,16 +14,17 @@ Local Open Scope Z_scope.
 
 Section CMach.
 
+(*
 Context {T: Type}
         {Latt : JoinSemiLattice T}
         {CLatt: ConcreteLattice T}.
-
+*)
 
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
-Notation "'__'" := bot.
+Notation "'__'" := dontCare.
  
 (** The concrete machine in privileged mode. *)
-Inductive cstep_p :  @CS T -> @CS T -> Prop := 
+Inductive cstep_p :  CS -> CS -> Prop := 
 | cp_nop : forall c m fh i s pcv pcl,
     fh @ pcv # Noop ->
     cstep_p (CState c m fh i s (pcv,pcl) true) (CState c m fh i s (pcv+1,pcl) true)
@@ -31,23 +32,23 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
 | cp_add: forall c m fh i s pcv pcl x1v x1l x2v x2l, 
     fh @ pcv # Add ->
     cstep_p (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true)  
-            (CState c m fh i ((x1v+x2v,handlerLabel):::s) (pcv+1,pcl) true)
+            (CState c m fh i ((x1v+x2v,handlerTag):::s) (pcv+1,pcl) true)
 
 | cp_sub: forall c m fh i s pcv pcl x1v x1l x2v x2l, 
     fh @ pcv # Sub ->
     cstep_p (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true) 
-            (CState c m fh i ((x1v-x2v,handlerLabel):::s) (pcv+1,pcl) true)
+            (CState c m fh i ((x1v-x2v,handlerTag):::s) (pcv+1,pcl) true)
 
-| cp_push: forall c m fh i s pcv pcl cv cl, 
-    fh @ pcv # Push (cv,cl) ->
+| cp_push: forall c m fh i s pcv pcl cv, 
+    fh @ pcv # Push cv ->
     cstep_p (CState c m fh i s (pcv,pcl) true) 
-            (CState c m fh i ((cv,cl):::s) (pcv+1,pcl) true)
+            (CState c m fh i ((cv,handlerTag):::s) (pcv+1,pcl) true)
 
 | cp_load: forall c m fh i s pcv pcl addrv addrl xv xl,
     fh @ pcv # Load ->
     read_m addrv c = Some (xv,xl) ->
     cstep_p (CState c m fh i ((addrv,addrl):::s) (pcv,pcl) true) 
-            (CState c m fh i ((xv,handlerLabel):::s) (pcv+1,pcl) true)
+            (CState c m fh i ((xv,handlerTag):::s) (pcv+1,pcl) true)
 
 | cp_store: forall c m fh i s pcv pcl c' addrv addrl x, 
     fh @ pcv # Store ->
@@ -63,7 +64,7 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
 | cp_branchnz: forall c m fh i s pcv pcl offv av al,
     fh @ pcv # BranchNZ offv -> 
     cstep_p (CState c m fh i ((av,al):::s) (pcv,pcl) true) 
-            (CState c m fh i s (if av =? 0 then pcv+1 else pcv+offv, handlerLabel) true)
+            (CState c m fh i s (if av =? 0 then pcv+1 else pcv+offv, handlerTag) true)
 
 | cp_call: forall c m fh i s pcv pcl a r args pcc pccl,
     fh @ pcv # Call a r -> 
@@ -94,18 +95,18 @@ Inductive cstep_p :  @CS T -> @CS T -> Prop :=
 (* [check_stags opc oplabs pcl s1 s2] holds when: either [s2]
 has an up to date cache or [s2] is the privileged state in which the
 tmu routine must then be executed *)
-Inductive check_tags (opcode: OpCode) (labs: T * T * T) (pcl:T): @CS T -> @CS T -> Prop :=
+Inductive check_tags (opcode: Z) (tags: Z * Z * Z) (pctag:Z): CS -> CS -> Prop :=
 | ct_upriv_chit : (* m vector is in the cache *)
     forall c m fh i s pc,
-    forall (CHIT: cache_hit c opcode labs pcl),      
-      check_tags opcode labs pcl 
+    forall (CHIT: cache_hit c opcode tags pctag),      
+      check_tags opcode tags pctag 
                  (CState c m fh i s pc false) (CState c m fh i s pc false)
 | ct_upriv_cmiss: (* not in cache: arrange to enter TMU fault handler *)
     forall c m fh i s pc,
-      forall (CMISS: ~ cache_hit c opcode labs pcl),
-    check_tags opcode labs pcl 
+      forall (CMISS: ~ cache_hit c opcode tags pctag),
+    check_tags opcode tags pctag 
                (CState c m fh i s pc false) 
-               (CState (build_cache opcode labs pcl) m fh i ((CRet pc false false)::s) (0,handlerLabel) true).
+               (CState (build_cache opcode tags pctag) m fh i ((CRet pc false false)::s) (0,handlerTag) true).
 
 (* New version decoupled from runsToEnd  *)
 
@@ -117,7 +118,7 @@ Inductive star (S: Type) (Rstep: S -> S -> Prop): S -> S -> Prop :=
       Rstep s1 s2 -> star Rstep s2 s3 -> 
       star Rstep s1 s3.
 
-Inductive runsToEscape : @CS T -> @CS T -> Prop :=
+Inductive runsToEscape : CS -> CS -> Prop :=
 | rte_success: (* executing until a return to user mode *)
     forall cs cs',
     forall (PRIV:  priv cs = true)
@@ -139,22 +140,22 @@ Inductive runsToEscape : @CS T -> @CS T -> Prop :=
 
 (* [run_tmu] checks the tags, and potentially execute all the code of
    the tmu fault handler and goes back to the unprivileged mode.  We
-   check it does not fail by going ruling out pc (-1,handlerLabel) or
+   check it does not fail by going ruling out pc (-1,handlerTag) or
    demanding priv. bit of resulting state to be false.  If the fault
    handler fails, the concrete machine just does not step *) 
-Inductive run_tmu (opcode: OpCode) (l1 l2 l3: T) (pcl:T) (cs: CS) : @CS T -> Prop :=
+Inductive run_tmu (opcode: OpCode) (t1 t2 t3: Z) (pct:Z) (cs: CS) : CS -> Prop :=
 | rtmu_upriv : forall cs' c m s ppc fh i,
       priv cs = false ->
       (* DD: Not sure we need this: (pc cs = ppc) *)
-      check_tags opcode (l1,l2,l3) pcl cs cs' ->
+      check_tags (opCodeToZ opcode) (t1,t2,t3) pct cs cs' ->
       runsToEscape cs' (CState c m fh i s ppc false) ->
-      run_tmu opcode l1 l2 l3 pcl cs (CState c m fh i s ppc false).
+      run_tmu opcode t1 t2 t3 pct cs (CState c m fh i s ppc false).
 
 (* TODO DD: MAYBE RUNS_TO_ESCAPE ONLY IF CHECK_TAG *)
 
 (** Concrete machine transition relation. Unprivileged mode. *)
 (* APT: All these p,p' are superflous. *)
-Inductive cstep : @CS T -> @CS T -> Prop := 
+Inductive cstep : CS -> CS -> Prop := 
 | cstep_nop : forall c m fh i s pcv pcl rl rpcl p c' m' pcv' pcl' p' fh' i' s',
     i @ pcv # Noop ->
     run_tmu OpNoop __ __ __  pcl 
@@ -184,13 +185,13 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
     cstep (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) p) 
           (CState c' m' fh' i' ((x1v'-x2v',rl):::s') (pcv'+1,rpcl) p')
 
-| cstep_push: forall c fh c' fh' m i s cv cl pcv pcl rpcl p rl m' i' s' p' pcv' pcl', 
-    i @ pcv # Push (cv,cl) ->
-    run_tmu OpPush cl __ __ pcl 
+| cstep_push: forall c fh c' fh' m i s cv pcv pcl rpcl p rl m' i' s' p' pcv' pcl', 
+    i @ pcv # Push cv ->
+    run_tmu OpPush __ __ __ pcl 
             (CState c  m fh i s (pcv,pcl) p)
             (CState c' m' fh' i' s' (pcv',pcl') p') ->  
     cache_hit_read c' rl rpcl ->     
-    cstep (CState c m fh i s (pcv,pcl) p) (CState c' m' fh' i' ((cv,rl):::s') (pcv'+1,rpcl) p')
+    cstep (CState c m fh i s (pcv,pcl) p) (CState c' m' fh' i' ((cv,0%Z):::s') (pcv'+1,rpcl) p')
 
 | cstep_load: forall c c' fh fh' m i s pcv pcl addrv addrl xv xl rl rpcl p m' p' s' i',
               forall addrv' addrl' xv' xl' pcl' pcv', 
@@ -274,7 +275,7 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 .
 
 (* Success is reaching a Halt state in non-privileged mode and valid address. *)
-Definition c_success (cs : @CS T) : Prop :=
+Definition c_success (cs : CS) : Prop :=
   match index_list_Z (fst (pc cs)) (imem cs) with
   | Some Halt => is_true (negb (priv cs))
   | _ => False

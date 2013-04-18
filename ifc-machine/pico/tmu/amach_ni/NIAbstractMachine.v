@@ -137,8 +137,8 @@ Proof.
     
   Case "Push".
     step_tmr2. 
-    rewrite H8 in Hinstr2; inv Hinstr2.
-    rewrite H9 in Hinstr1; inv Hinstr1.
+    rewrite H8 in Hinstr1; inv Hinstr1.
+    rewrite H7 in Hinstr2; inv Hinstr2.
     constructor 2; eauto.
 
   Case "Jump".

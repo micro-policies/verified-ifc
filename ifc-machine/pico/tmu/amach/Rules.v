@@ -61,6 +61,7 @@ intros; zify; omega.
 Qed.
 
 Inductive rule_expr (n: nat) : Type :=
+| L_Bot: rule_expr n
 | L_Var: LAB n -> rule_expr n
 | L_Join: rule_expr n -> rule_expr n -> rule_expr n. 
 
@@ -110,6 +111,7 @@ fun lv =>
 
 Fixpoint eval_expr {n:nat} (eval_var:LAB n -> T) (e: rule_expr n) : T :=
 match e with
+  | L_Bot => bot
   | L_Var labv => eval_var labv
   | L_Join e1 e2 => join (eval_expr eval_var e1) (eval_expr eval_var e2)
 end. 
@@ -158,6 +160,7 @@ Notation "'Lab1/3'" := (L_Var lab1_of_3).
 Notation "'Lab2/3'" := (L_Var lab2_of_3).
 Notation "'Lab3/3'" := (L_Var lab3_of_3).
 *)
+Notation "'BOT'" := (L_Bot _).
 Notation "'JOIN'" := L_Join.
 Notation "'TRUE'" := (A_True _).
 Notation "'AND'" := A_And.

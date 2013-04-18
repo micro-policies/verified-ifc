@@ -73,15 +73,13 @@ Hint Extern 1 =>
     | |- low_equiv_stkelt _ _ _ => reflexivity
   end.
   
-Inductive low_equiv_instr (o: Label) : @Instr Label -> @Instr Label -> Prop := 
+Inductive low_equiv_instr (o: Label) : Instr -> Instr -> Prop := 
 | lei_noop : low_equiv_instr o Noop Noop  
 | lei_add : low_equiv_instr o Add Add  
 | lei_sub : low_equiv_instr o Sub Sub
 | lei_load : low_equiv_instr o Load Load  
 | lei_store : low_equiv_instr o Store Store
-| lei_push : forall a1 a2, 
-  low_equiv_atom o a1 a2 ->
-  low_equiv_instr o (Push a1) (Push a2)
+| lei_push : forall i,  low_equiv_instr o (Push i) (Push i)
 | lei_jump : low_equiv_instr o Jump Jump
 | lei_branchNZ : forall ofs, low_equiv_instr o (BranchNZ ofs) (BranchNZ ofs)
 | lei_call : forall mpc b, low_equiv_instr o (Call mpc b) (Call mpc b)
@@ -90,7 +88,7 @@ Inductive low_equiv_instr (o: Label) : @Instr Label -> @Instr Label -> Prop :=
 | lei_halt: low_equiv_instr o Halt Halt.
 Hint Constructors low_equiv_instr.
 
-Global Instance low_instr (o: Label) : @Equivalence (@Instr Label) (low_equiv_instr o).
+Global Instance low_instr (o: Label) : @Equivalence Instr (low_equiv_instr o).
 Proof.
   constructor.
   (* reflexive *) intro x. destruct x; auto.

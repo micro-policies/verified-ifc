@@ -17,7 +17,7 @@ match c with
 | OpNoop => 0
 | OpAdd  => 2
 | OpSub  => 2
-| OpPush => 1
+| OpPush => 0
 | OpLoad => 2
 | OpStore => 3
 | OpJump => 1
@@ -39,9 +39,9 @@ Context {T: Type}
 Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
   match opcode with
     | OpNoop => ≪ TRUE , __ , LabPC ≫ 
-    | OpAdd => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫
+    | OpAdd => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫ 
     | OpSub => ≪ TRUE, JOIN Lab1 Lab2 , LabPC ≫
-    | OpPush => ≪ TRUE, Lab1 , LabPC ≫
+    | OpPush => ≪ TRUE, BOT, LabPC ≫
     | OpLoad => ≪ TRUE, JOIN Lab1 Lab2, LabPC ≫
     | OpStore => ≪ LE (JOIN Lab1 LabPC) Lab3,  (* addr, new value, old value *)
                   JOIN Lab1 (JOIN Lab2 LabPC), 
@@ -146,9 +146,9 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
                (AState m i ((AData (x1v-x2v,rl))::s) (pcv+1,rpcl))
 
-| step_push: forall m i s pcv pcl rpcl rl cv cl,
-    index_list_Z pcv i = Some (Push (cv,cl)) ->
-    run_tmr OpPush <|cl|> pcl = Some (Some rl,rpcl) ->
+| step_push: forall m i s pcv pcl rpcl rl cv,
+    index_list_Z pcv i = Some (Push cv) ->
+    run_tmr OpPush <||> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i s (pcv,pcl)) 
                (AState m i ((AData (cv,rl))::s) (pcv+1,rpcl))
 

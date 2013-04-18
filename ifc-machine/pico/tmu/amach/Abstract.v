@@ -17,7 +17,7 @@ Inductive StkElmt {T:Type} :=
 
 Record AS {T: Type}  := AState {
   amem : list (@Atom T);
-  aimem : list (@Instr T);
+  aimem : list Instr;
   astk : list (@StkElmt T);
   apc : @Atom T  
 }.

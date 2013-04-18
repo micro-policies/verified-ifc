@@ -10,8 +10,9 @@ Require Import CodeGen.
 Class ConcreteLattice (T: Type) :=
 { labToZ :  T -> Z
 ; ZToLab :  Z -> T
-; genJoin : list (@Instr T)
-; genFlows : list (@Instr T)
+; genBot : list Instr
+; genJoin : list Instr 
+; genFlows : list Instr
 }.
 
 Require Import LatticeHL. 
@@ -30,6 +31,8 @@ Instance TMUHL : ConcreteLattice Lab :=
       | 0 => L
       | _ => H
     end
+
+  ;genBot := genFalse
 
   ;genJoin := genOr
 

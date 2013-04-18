@@ -4,11 +4,11 @@ Require Import ZArith.
 
 Definition Atom {Label: Type} := (Z * Label)%type.
 
-Inductive Instr {Label: Type}:=
+Inductive Instr :=
   | Noop : Instr 
   | Add : Instr 
   | Sub : Instr
-  | Push : @Atom Label  -> Instr 
+  | Push : Z  -> Instr 
   | Load : Instr 
   | Store : Instr 
   | Jump : Instr 
