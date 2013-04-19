@@ -95,7 +95,7 @@ Proof.
     + inversion H; subst. constructor.
 Qed.
 
-Definition exec_instr (instr : @Instr T) (st : @AS T) : option (@AS T) :=
+Definition exec_instr (instr : Instr) (st : @AS T) : option (@AS T) :=
   let '(AState m i s (pcv, pcl)) := st in
   match instr with
     | Noop =>
@@ -121,8 +121,8 @@ Definition exec_instr (instr : @Instr T) (st : @AS T) : option (@AS T) :=
           end
         | _ => None
       end
-    | Push (cv,cl) =>
-      match run_tmr OpPush <|cl|> pcl with
+    | Push cv =>
+      match run_tmr OpPush <||> pcl with
         | Some (Some rl, rpcl) =>
           Some (AState m i (AData (cv,rl)::s) (pcv+1,rpcl))
         | _ => None
