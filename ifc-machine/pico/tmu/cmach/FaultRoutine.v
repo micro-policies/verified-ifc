@@ -8,7 +8,7 @@ Require Import LibTactics.
 Require Import TMUInstr.
 Require Import Lattices.
 Require Import Concrete.
-Require Import ConcreteMachine.
+Require Import ConcreteMachineSmallStep.
 Require Import Rules.
 Require Import CLattices.
 Require Import CodeSpecs. 

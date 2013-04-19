@@ -18,7 +18,7 @@ Require Import Abstract Rules AbstractMachine.
 Require Import AbstractObsEquiv NIAbstractMachine.
 
 (* Concrete Machine *)
-Require Import Concrete ConcreteMachine CodeGen.
+Require Import Concrete ConcreteMachineSmallStep CodeGen.
 Require Import FaultRoutine.
 
 Require Import Refinement.

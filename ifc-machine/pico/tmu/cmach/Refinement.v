@@ -8,7 +8,7 @@ Require Import Utils Lattices CLattices WfCLattices.
 Require Import TMUInstr.
 Require Import Abstract Rules AbstractMachine.
 
-Require Import Concrete ConcreteMachine CodeGen CodeSpecs.
+Require Import Concrete ConcreteMachineSmallStep CodeGen CodeSpecs.
 Require Import FaultRoutine.
 Require Import Determinism.
 
@@ -39,7 +39,7 @@ Lemma our_handler_correct_succeed :
                  (CState c' m faultHandler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
 Proof.
-  intros. 
+  intros.
   exploit (@handler_correct_succeed _ _ _ fetch_rule_withsig opcode); eauto.
 Qed.  
 
@@ -82,7 +82,6 @@ Proof.
   apply atom_ZToLab_labToZ_id. 
 Qed.
 
-
 Definition cache_up2date tmuc :=
   forall opcode vls pcl rl rpcl,
   forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
@@ -120,7 +119,6 @@ Qed.
 
 Hint Rewrite match_stacks_obs.
 
-
 (** Observing a concete cache is just projecting it a the abstract level *)
 Definition observe_cstate (cs: CS) : @AS L := 
   match cs with 
@@ -156,63 +154,6 @@ Definition optionlabToZ (ol: option L) : Z :=
           | None => labToZ bot
           | Some l => labToZ l
       end.
-
-(* Following is now dead; we use build_cache instead.
-
-Definition update_cache (tmuc: list (@Atom L)) (opcode: OpCode) (opls: option L * option L * option L) (pcl: L):=
-  let '(op1,op2,op3) := opls in
-  match upd_m addrOpLabel ((opCodeToZ opcode),handlerLabel) tmuc with 
-    | None => tmuc
-    | Some tmuc1 => 
-      match upd_m addrTag1 ((optionlabToZ op1),handlerLabel) tmuc1  with 
-        | None => tmuc
-        | Some tmuc2 => 
-          match upd_m addrTag2 ((optionlabToZ op2),handlerLabel) tmuc2 with 
-              | None => tmuc
-              | Some tmuc3 =>
-                match upd_m addrTag3 ((optionlabToZ op3),handlerLabel) tmuc3  with 
-                  | None => tmuc
-                  | Some tmuc4 => 
-                    match upd_m addrTagPC ((labToZ pcl),handlerLabel) tmuc4 with
-                        | None => tmuc
-                        | Some tmuc5 => tmuc5
-                    end
-                end
-          end
-      end
-  end.
-
-
-Lemma update_cache_spec : forall tmuc opcode opls pcl,
-    update_cache_spec_mvec tmuc (update_cache tmuc opcode opls pcl).
-Proof.
-  unfold update_cache_spec_mvec. intros.
-  destruct opls as [[opl1 opl2] opl3]. unfold update_cache. 
-  unfold addrOpLabel, addrTagPC, addrTag1, addrTag2,addrTag3 in *. 
-  repeat
-  match goal with
-    | |- context [match ?M with _ => _ end] => destruct M eqn:?; auto
-  end. 
-  unfold Atom in *.  (* argh! *)
-  rewrite (update_list_Z_spec2 _ _ Heqo H). 
-  rewrite (update_list_Z_spec2 _ _ Heqo0 H1). 
-  rewrite (update_list_Z_spec2 _ _ Heqo1 H2). 
-  rewrite (update_list_Z_spec2 _ _ Heqo2 H3). 
-  rewrite (update_list_Z_spec2 _ _ Heqo3 H0). 
-  auto.
-Qed.
-
-Lemma update_cache_hit : 
-  forall tmuc opcode opls pcl,
-    cache_hit (update_cache tmuc opcode opls pcl)
-              opcode opls pcl.
-Admitted. 
-(* APT: Actually, I don't think this is true unless we guarantee
-that tmuc is large enough to start with. *)
-
-Hint Resolve update_cache_hit update_cache_spec.
-
-*)
 
 Lemma handler_final_cache_hit_preserved: 
   forall tmuc tmuc' rl opcode labs rpcl pcl,
@@ -322,83 +263,7 @@ Proof.
   intuition. 
 Qed.
 
-
-(*
-Lemma cache_hit_unique_opcode_pc : 
-  forall c opcode opcode' pcl pcl' opls opls',
-  forall
-    (CHIT: cache_hit c opcode opls pcl)
-    (CHIT': cache_hit c opcode' opls' pcl'),
-    pcl = pcl' /\ opcode = opcode'.
-Proof.
-  intros. inv CHIT; inv CHIT'. destruct opls as [[? ?] ?]; inv MVEC. 
-  destruct opls' as [[? ?] ?]; inv MVEC0. split. 
-  - inv TAGPC; inv TAGPC0.
-    allinv'.  
-    eapply WfCLattices.labToZ_inj ; eauto. 
-  - inv OP; inv OP0. allinv'.
-    eapply opCodeToZ_inj ; auto.
-Qed.
-
-Lemma cache_hit_unique_ops opcode : 
-  forall c  vls vls' opls opls' rl rl' rpcl rpcl' pcl,
-  forall
-    (CHIT: cache_hit c opcode opls pcl)
-    (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
-    (GLUE: glue vls = opls)
-    
-    (CHIT': cache_hit c opcode opls' pcl)
-    (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
-    (GLUE': glue vls' = opls'),
-
-    opls = opls'.
-Proof.  (* painfully slow *)
-  intros.  
-  destruct opls as [[op1l op2l] op3l]. 
-  destruct opls' as [[op1l' op2l'] op3l'].
-  f_equal; f_equal; 
-  destruct op1l, op1l', op2l, op2l', op3l, op3l'; simpl in *;
-  (unfold glue, nth_order_option in GLUE, GLUE';
-  destruct (le_lt_dec (labelCount opcode) 0); 
-    destruct (le_lt_dec (labelCount opcode) 1); 
-    destruct (le_lt_dec (labelCount opcode) 2); 
-    try congruence);
-  (inv GLUE; inv GLUE'); repeat (split ; auto); simpl in *; 
-  inv CHIT; inv CHIT';  unfold to_mvector in *;  inv MVEC; inv MVEC0;
-  match goal with 
-    | [H1: tag_in_mem c _ (labToZ ?v1), 
-       H2: tag_in_mem c _ (labToZ ?v2) |- Some ?v1 = Some ?v2 ] => inv H1; inv H2; allinv'
-   end; 
-   match goal with 
-     | [ HH: labToZ _ = labToZ _ |- _] => 
-       (eapply WfCLattices.labToZ_inj in HH; eauto); 
-     inv HH; auto
-   end.
-Qed.
-
-
-Lemma cache_hit_unique opcode : 
-  forall c  vls vls' opls opls' rl rl' rpcl rpcl' pcl,
-  forall
-    (CHIT: cache_hit c opcode opls pcl)
-    (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl))
-    (GLUE: glue vls = opls)
-    
-    (RULE': apply_rule (fetch_rule opcode) vls' pcl = Some (rl', rpcl'))
-    (CHIT': cache_hit c opcode opls' pcl)
-    (GLUE': glue vls' = opls'),
-
-    vls = vls'.
-Proof.
-  intros.
-  assert (HH:= cache_hit_unique_ops CHIT RULE GLUE CHIT' RULE' GLUE'); eauto.
-  eapply glue_inj; eauto.
-  destruct opcode; simpl; omega. 
-  congruence.
-Qed.
-*)
-
-Hint Constructors cstep run_tmu runsToEscape match_stacks match_states.
+Hint Constructors cstep runsToEscape match_stacks match_states.
 
 Ltac res_label :=
   match goal with 
@@ -407,7 +272,6 @@ Ltac res_label :=
         try (solve [inv Hrule])
   end.
  
-
 Ltac inv_cache_update :=
   unfold cache_up2date; intros; 
   exploit handler_final_cache_hit_preserved; eauto; intros; 
@@ -425,24 +289,6 @@ Ltac inv_cache_update :=
   try solve [eapply handler_cache_hit_read_none; eauto
             |eapply handler_cache_hit_read_some; eauto].
 
-
-
-(* OLD:
-Ltac inv_cache_update :=
-  (unfold cache_up2date; intros); 
-  (exploit handler_final_cache_hit_preserved; eauto); intros; 
-  match goal with 
-    |  [H1 : apply_rule (fetch_rule ?opcode1) ?v1 ?pc1 = _ ,
-        H2 : apply_rule (fetch_rule ?opcode2) ?v2 ?pc2 = _ ,
-        CHIT: cache_hit _ _ _ _ |- _] => 
-  (assert (Hopcode: opcode1 = opcode2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hopcode;
-   assert (Hpcl: pc1 = pc2) by (eapply cache_hit_unique_opcode_pc; eauto); inv Hpcl;
-   assert (Hvec: v2 = v1) by (eapply cache_hit_unique with (1:= CHIT); eauto); inv Hvec) end;
-  allinv';
-  try solve [eapply handler_cache_hit_read_none; eauto
-            |eapply handler_cache_hit_read_some; eauto].
-*)
-
 Lemma match_observe: 
   forall s1 s2,
     match_states s1 s2 ->
@@ -456,12 +302,41 @@ Proof.
   auto.
 Qed.
 
+Hint Constructors star.
+
+Lemma runsToEscape_star: forall s1 s2, 
+ runsToEscape s1 s2 ->
+ star cstep s1 s2.
+Proof.
+  induction 1 ; intros; auto.
+Qed.
+
+Lemma star_right : forall S (Rstep: relation S) s1 s2, 
+                     star Rstep s1 s2 -> 
+                     forall s3, 
+                       Rstep s2 s3 -> star Rstep s1 s3.
+Proof.
+  induction 1; intros.
+  eapply star_step; eauto.
+  eauto.
+Qed.
+
+Ltac priv_steps := 
+  match goal with 
+    | [Hstar : runsToEscape ?s1 ?s2, 
+               Hfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
+      (eapply runsToEscape_star in Hstar; eauto);
+      (generalize Hfinal; intros [[ll Hll] Hspec]);
+      (simpl); 
+      (apply star_step with s1; eauto); 
+      (eapply star_right with s2; eauto)
+  end.
 
 Lemma step_preserved: 
   forall s1 s1' s2,
     step_rules s1 s1' ->
     match_states s1 s2 ->
-    (exists s2', cstep s2 s2' /\ match_states s1' s2').
+    (exists s2', star cstep s2 s2' /\ match_states s1' s2').
 Proof.
   intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
   - Case "Noop".
@@ -475,21 +350,20 @@ Proof.
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. split.
       unfold cache_up2date in CACHE. 
-      assert (exists t' : Z, cache_hit_read tmuc t' rpct). 
-         eapply CACHE with (1:= H0); eauto. 
+      assert (exists t' : Z, cache_hit_read tmuc t' rpct) by (eapply CACHE with (1:= H0); eauto). 
       destruct H1 as [ll Hll].
-      subst pct. inv H0. eapply cstep_nop with (rl:= ll) ; eauto. 
+      subst pct. inv H0. eapply star_step; eauto. eapply cstep_nop with (rl:= ll) ; eauto. 
       subst pct. inv H0; eauto. 
 
      + set (tmuc':= build_cache op tags pct).  
-       assert (CHIT' : cache_hit tmuc' op tags pct)
-         by (eauto using build_cache_hit). 
+       assert (CHIT' : cache_hit tmuc' op tags pct) by (eauto using build_cache_hit). 
        edestruct (@our_handler_correct_succeed cm i cstk (pcv,pct) tmuc') as [c [Hruns Hmfinal]]; 
          [exact CHIT' | exact H0 |].  (* ARGH: eauto should work *)
        res_label.
        exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
-          * destruct Hmfinal as [[ll Hll] Hspec].
-            eapply cstep_nop with _ pcv pct; eauto. 
+          * priv_steps.
+            eapply cstep_nop; eauto.
+            eapply handler_final_cache_hit_preserved; eauto.
           * econstructor ; eauto. 
             inv_cache_update. 
     }
@@ -506,7 +380,7 @@ Proof.
         exists (CState tmuc cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false).
         split; eauto.
         unfold cache_up2date in CACHE. 
-        eapply cstep_add with (labToZ x1l) (labToZ x2l) pct i ; eauto.        
+        eapply star_step ; eauto. eapply cstep_add ; eauto.        
         eapply CACHE with (1:= H0); eauto.
         
      + set (tmuc':= build_cache op tags pct). 
@@ -514,10 +388,12 @@ Proof.
          by (eauto using build_cache_hit).
        edestruct (@our_handler_correct_succeed cm i cstk (pcv,pct) tmuc') as [c [Hruns Hmfinal]].
        exact CHIT'. eauto.
-       inv STKS. inv H3.
+       inv STKS. inv H3. 
        exists (CState c cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false). split.
-          * destruct Hmfinal as [Hll Hspec].
-            eapply cstep_add with _ _ pct _ ; eauto.                
+          * simpl in Hruns. priv_steps. 
+            eapply cstep_add ; eauto.                
+            eapply handler_final_cache_hit_preserved; eauto.
+            eapply handler_cache_hit_read_some; eauto.            
           * econstructor ; eauto. 
             inv_cache_update.
 }
@@ -527,7 +403,7 @@ Lemma step_preserved_observ:
   forall s1 s1' s2,
     step_rules s1 s1' ->
     match_states s1 s2 ->
-    s1 = observe_cstate s2 /\ (exists s2', cstep s2 s2' /\ match_states s1' s2').
+    s1 = observe_cstate s2 /\ (exists s2', star cstep s2 s2' /\ match_states s1' s2').
 Proof.
   intros.
   split. 
@@ -535,37 +411,37 @@ Proof.
   eapply step_preserved; eauto.
 Qed.
 
-(* DD: Don't be tempted to add success s1 as a hypothesis... *)
-(* DD: Need to be updated later when we add proper behaviors to programs *)
-Axiom final_step_preserved: 
-  forall s1 s2,
-    (forall s1', ~ step_rules s1 s1') ->
-    (match_states s1 s2) ->
-    (forall s2', ~ cstep s2 s2')
-    /\ s1 = observe_cstate s2.
-
-Axiom succ_preserved: 
+Lemma succ_preserved: 
   forall s1 s2, 
     match_states s1 s2 -> 
-    success s1 <-> c_success s2.
-
-
+    (success s1 <-> c_success s2).
+Proof.
+  induction 1; intros.
+  split;
+    ((unfold success, c_success; simpl);
+     (inv MEM);
+     (destruct apc; simpl); 
+     (destruct (read_m z i); intuition);
+     (destruct i0 ; intuition)).
+Qed.
+  
 Require Import LNIwithEvents.
 
 Let aexec_with_trace := sys_trace step_rules success (fun x => x).
 Let cexec_with_trace := sys_trace cstep c_success observe_cstate.
 
-Theorem refinement: forall s1 s2 T, 
-                      match_states s1 s2 ->
-                      cexec_with_trace s2 T ->
-                      aexec_with_trace s1 T. 
-Proof.
-  eapply forward_backward_sim; eauto.
-  exact final_step_preserved.
-  exact step_preserved_observ.
-  exact succ_preserved.
-  exact cmach_determ.
-Qed.  
+(* The fwd simulation is not a lockstep diagram anymore *)
+(* Theorem refinement: forall s1 s2 T,  *)
+(*                       match_states s1 s2 -> *)
+(*                       cexec_with_trace s2 T -> *)
+(*                       aexec_with_trace s1 T.  *)
+(* Proof. *)
+(*   eapply forward_backward_sim; eauto. *)
+(*   admit.  *)
+(*   exact step_preserved_observ. *)
+(*   exact succ_preserved. *)
+(*   exact cmach_determ. *)
+(* Qed.   *)
 
 End Refinement.
 

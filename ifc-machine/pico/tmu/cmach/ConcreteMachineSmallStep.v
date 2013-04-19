@@ -21,30 +21,26 @@ Inductive star (S: Type) (Rstep: S -> S -> Prop): S -> S -> Prop :=
 
 Section CMach.
 
-Context {T: Type}
-        {Latt : JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}.
-
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
-Notation "'__'" := bot.
-Notation fh_start := (0,__).
+Notation "'__'" := dontCare.
+Notation fh_start := (0,handlerTag).
 Notation fh_ret := (fun pc pcl => (CRet (pc,pcl) false false)).
 
 (** Concrete machine transition relation.
     Each instructions has 3 semantic rules: (user mode - succ) (user mode - faulting) (kernel mode) *)
 
-Inductive cstep : @CS T -> @CS T -> Prop := 
+Inductive cstep : CS -> CS -> Prop := 
 | cstep_nop : forall c m fh i s pcv pcl rl rpcl,
     forall (INST: i @ pcv # Noop)
-           (CHIT: cache_hit c OpNoop (__,__,__) pcl)
+           (CHIT: cache_hit c (opCodeToZ OpNoop) (__,__,__) pcl)
            (CREAD: cache_hit_read c rl rpcl),
     cstep (CState c m fh i s (pcv,pcl) false)
           (CState c m fh i s (pcv+1,rpcl) false)
 
 | cstep_nop_f : forall c c' m fh i s pcv pcl,
    forall (INST: i @ pcv # Noop)
-          (CMISS: ~ cache_hit c OpNoop (__,__,__) pcl)
-          (CUPD: c' = build_cache OpNoop (__,__,__)  pcl),
+          (CMISS: ~ cache_hit c (opCodeToZ OpNoop) (__,__,__) pcl)
+          (CUPD: c' = build_cache (opCodeToZ OpNoop) (__,__,__)  pcl),
     cstep (CState c m fh i s (pcv,pcl) false) 
           (CState c' m fh i ((fh_ret pcv pcl)::s) fh_start true)
 
@@ -54,64 +50,64 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_add: forall c fh m i s rpcl pcv pcl rl x1v x1l x2v x2l,
    forall(INST: i @ pcv # Add)
-         (CHIT: cache_hit c OpAdd (x1l, x2l, __) pcl)
+         (CHIT: cache_hit c (opCodeToZ OpAdd) (x1l, x2l, __) pcl)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)    false)  
            (CState c m fh i          ((x1v+x2v,rl):::s) (pcv+1,rpcl) false)
 
 | cstep_add_f: forall c c' fh m i s pcv pcl x1v x1l x2v x2l,
    forall(INST: i @ pcv # Add)
-         (CMISS: ~ cache_hit c OpAdd (x1l, x2l, __) pcl)
-         (CUPD: c' = build_cache OpAdd (x1l,x2l,__)  pcl),
+         (CMISS: ~ cache_hit c (opCodeToZ OpAdd) (x1l, x2l, __) pcl)
+         (CUPD: c' = build_cache (opCodeToZ OpAdd) (x1l,x2l,__)  pcl),
      cstep (CState c  m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)    false)  
            (CState c' m fh i ((fh_ret pcv pcl)::(x1v,x1l):::(x2v,x2l):::s) fh_start true)
 
 | cstep_add_p: forall c m fh i s pcv pcl x1v x1l x2v x2l, 
     fh @ pcv # Add ->
     cstep (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true)  
-          (CState c m fh i ((x1v+x2v,handlerLabel):::s) (pcv+1,pcl) true)
+          (CState c m fh i ((x1v+x2v,handlerTag):::s) (pcv+1,pcl) true)
 
 | cstep_sub: forall c fh m i s rpcl pcv  pcl rl x1v x1l x2v x2l,
    forall(INST: i @ pcv # Sub)
-         (CHIT: cache_hit c OpSub (x1l, x2l, __) pcl)
+         (CHIT: cache_hit c (opCodeToZ OpSub) (x1l, x2l, __) pcl)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)    false)  
            (CState c m fh i          ((x1v-x2v,rl):::s) (pcv+1,rpcl) false)
 
 | cstep_sub_f: forall c c' fh m i s pcv pcl x1v x1l x2v x2l,
    forall(INST: i @ pcv # Sub)
-         (CMISS: ~ cache_hit c OpSub (x1l, x2l, __) pcl)
-         (CUPD: c' = build_cache OpSub (x1l,x2l,__)  pcl),
+         (CMISS: ~ cache_hit c (opCodeToZ OpSub) (x1l, x2l, __) pcl)
+         (CUPD: c' = build_cache (opCodeToZ OpSub) (x1l,x2l,__)  pcl),
      cstep (CState c  m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)    false)  
            (CState c' m fh i ((fh_ret pcv pcl)::(x1v,x1l):::(x2v,x2l):::s) fh_start true)
 
 | cstep_sub_p: forall c m fh i s pcv pcl x1v x1l x2v x2l, 
     fh @ pcv # Sub ->
     cstep (CState c m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true) 
-          (CState c m fh i ((x1v-x2v,handlerLabel):::s) (pcv+1,pcl) true)
+          (CState c m fh i ((x1v-x2v,handlerTag):::s) (pcv+1,pcl) true)
 
-| cstep_push: forall c fh m i s rpcl pcv pcl rl cv cl,
-   forall(INST: i @ pcv # Push (cv,cl))
-         (CHIT: cache_hit c OpPush (cl, __, __) pcl)
+| cstep_push: forall c fh m i s rpcl pcv pcl rl cv,
+   forall(INST: i @ pcv # Push cv)
+         (CHIT: cache_hit c (opCodeToZ OpPush) (__ , __, __) pcl)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i s (pcv,pcl)   false)
            (CState c m fh i ((cv,rl):::s) (pcv+1,rpcl) false)
 
-| cstep_push_f: forall c c' fh m i s pcv pcl cv cl,
-   forall(INST : i @ pcv # Push (cv,cl))
-         (CMISS: ~ cache_hit c OpPush (cl,__,__) pcl)
-         (CUPD : c' = build_cache OpPush (cl,__,__) pcl),
+| cstep_push_f: forall c c' fh m i s pcv pcl cv,
+   forall(INST : i @ pcv # Push cv)
+         (CMISS: ~ cache_hit c (opCodeToZ OpPush) (__,__,__) pcl)
+         (CUPD : c' = build_cache (opCodeToZ OpPush) (__,__,__) pcl),
      cstep (CState c  m fh i s (pcv,pcl) false)  
            (CState c' m fh i ((fh_ret pcv pcl)::s) fh_start true)
 
-| cstep_push_p: forall c m fh i s pcv pcl cv cl, 
-    fh @ pcv # Push (cv,cl) ->
+| cstep_push_p: forall c m fh i s pcv pcl cv, 
+    fh @ pcv # Push cv ->
     cstep (CState c m fh i s (pcv,pcl) true) 
-          (CState c m fh i ((cv,cl):::s) (pcv+1,pcl) true)
+          (CState c m fh i ((cv,handlerTag):::s) (pcv+1,pcl) true)
 
 | cstep_load: forall c fh m i s rpcl pcv pcl rl addrv addrl xv xl,
    forall(INST: i @ pcv # Load)
-         (CHIT: cache_hit c OpLoad (addrl, xl, __) pcl)
+         (CHIT: cache_hit c (opCodeToZ OpLoad) (addrl, xl, __) pcl)
          (CREAD: cache_hit_read c rl rpcl)
          (MREAD: read_m addrv m = Some (xv,xl)),
      cstep (CState c m fh i ((addrv,addrl):::s) (pcv,pcl)   false)
@@ -119,9 +115,9 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_load_f: forall c c' fh m i s pcv pcl addrv addrl xv xl,
    forall(INST: i @ pcv # Load)
-         (CMISS: ~ cache_hit c OpLoad (addrl,xl,__) pcl)
+         (CMISS: ~ cache_hit c (opCodeToZ OpLoad) (addrl,xl,__) pcl)
          (MREAD: read_m addrv m = Some (xv,xl))
-         (CUPD : c' = build_cache OpLoad (addrl,xl,__) pcl),
+         (CUPD : c' = build_cache (opCodeToZ OpLoad) (addrl,xl,__) pcl),
      cstep (CState c  m fh i ((addrv,addrl):::s) (pcv,pcl)   false)
            (CState c' m fh i ((fh_ret pcv pcl)::(addrv,addrl):::s) fh_start true)
 
@@ -129,11 +125,11 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
     fh @ pcv # Load ->
     read_m addrv c = Some (xv,xl) ->
     cstep (CState c m fh i ((addrv,addrl):::s) (pcv,pcl) true) 
-          (CState c m fh i ((xv,handlerLabel):::s) (pcv+1,pcl) true)
+          (CState c m fh i ((xv,handlerTag):::s) (pcv+1,pcl) true)
 
 | cstep_store: forall c fh m i s rpcl pcv pcl rl addrv addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)
-         (CHIT: cache_hit c OpStore (addrl, xl, ml) pcl)
+         (CHIT: cache_hit c (opCodeToZ OpStore) (addrl, xl, ml) pcl)
          (CREAD: cache_hit_read c rl rpcl)
          (MREAD: read_m addrv m = Some (mv,ml)),
      cstep (CState c m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl)   false)
@@ -141,9 +137,9 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_store_f: forall c c' fh m i s pcv pcl addrv addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)
-         (CMISS: ~ cache_hit c OpStore (addrl,xl,ml) pcl)
+         (CMISS: ~ cache_hit c (opCodeToZ OpStore) (addrl,xl,ml) pcl)
          (MREAD: read_m addrv m = Some (mv,ml))
-         (CUPD : c' = build_cache OpStore (addrl,xl,ml) pcl),
+         (CUPD : c' = build_cache (opCodeToZ OpStore) (addrl,xl,ml) pcl),
      cstep (CState c  m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl)   false)
            (CState c' m fh i ((fh_ret pcv pcl)::(addrv,addrl):::(xv,xl):::s) fh_start true)
 
@@ -155,15 +151,15 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_jump: forall c fh m i s rpcl pcv pcl rl cv cl,
    forall(INST: i @ pcv # Jump)
-         (CHIT: cache_hit c OpJump (cl, __, __) pcl)
+         (CHIT: cache_hit c (opCodeToZ OpJump) (cl, __, __) pcl)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i ((cv,cl):::s) (pcv,pcl)   false)
            (CState c m fh i s (cv,rpcl) false)
 
 | cstep_jump_f: forall c c' fh m i s pcv pcl cv cl,
    forall(INST: i @ pcv # Jump)
-         (CMISS: ~ cache_hit c OpJump (cl,__,__) pcl)
-         (CUPD : c' = build_cache OpJump (cl,__,__) pcl),
+         (CMISS: ~ cache_hit c (opCodeToZ OpJump) (cl,__,__) pcl)
+         (CUPD : c' = build_cache (opCodeToZ OpJump) (cl,__,__) pcl),
      cstep (CState c  m fh i ((cv,cl):::s) (pcv,pcl)   false)
            (CState c' m fh i ((fh_ret pcv pcl)::(cv,cl):::s) fh_start true)
 
@@ -174,36 +170,38 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_bnz: forall c fh m i s rpcl pcv pcl rl cv cl offv,
    forall(INST: i @ pcv # BranchNZ offv)
-         (CHIT: cache_hit c OpBranchNZ (cl, __, __) pcl)
+         (CHIT: cache_hit c (opCodeToZ OpBranchNZ) (cl, __, __) pcl)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i ((cv,cl):::s) (pcv,pcl)   false)
            (CState c m fh i s (if cv =? 0 then pcv+1 else pcv+offv, rpcl) false)
 
 | cstep_bnz_f: forall c c' fh m i s pcv pcl cv cl offv,
    forall(INST: i @ pcv # BranchNZ offv)
-         (CMISS: ~ cache_hit c OpBranchNZ (cl,__,__) pcl)
-         (CUPD : c' = build_cache OpBranchNZ (cl,__,__) pcl),
+         (CMISS: ~ cache_hit c (opCodeToZ OpBranchNZ) (cl,__,__) pcl)
+         (CUPD : c' = build_cache (opCodeToZ OpBranchNZ) (cl,__,__) pcl),
      cstep (CState c  m fh i ((cv,cl):::s) (pcv,pcl)   false)
            (CState c' m fh i ((fh_ret pcv pcl)::(cv,cl):::s) fh_start true)
 
 | cstep_branchnz_p: forall c m fh i s pcv pcl offv av al,
     fh @ pcv # BranchNZ offv -> 
     cstep (CState c m fh i ((av,al):::s) (pcv,pcl) true) 
-          (CState c m fh i s (if av =? 0 then pcv+1 else pcv+offv, handlerLabel) true)
+          (CState c m fh i s (if av =? 0 then pcv+1 else pcv+offv, handlerTag) true)
 
 | cstep_call: forall c fh m i s rpcl pcv pcl rl pcc pccl a r args,
    forall(INST: i @ pcv # Call a r)
-         (ARGS: length args = a -> (forall a, In a args -> exists d, a = CData d))
-         (CHIT: cache_hit c OpCall (pccl, __, __) pcl)
+         (ARGSA: length args = a) 
+         (ARGS: forall a, In a args -> exists d, a = CData d)
+         (CHIT: cache_hit c (opCodeToZ OpCall) (pccl, __, __) pcl)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i ((pcc,pccl):::args++s) (pcv,pcl)   false)
            (CState c m fh i (args++(((CRet (pcv+1, rl)) r false)::s)) (pcc,rpcl) false)
 
 | cstep_call_f: forall c c' fh m i s pcv pcl pcc pccl a r args,
    forall(INST: i @ pcv # Call a r)
-         (ARGS: length args = a -> (forall a, In a args -> exists d, a = CData d))
-         (CMISS: ~ cache_hit c OpCall (pccl, __, __) pcl)
-         (CUPD : c' = build_cache OpCall (pccl,__,__) pcl),
+         (ARGSA: length args = a) 
+         (ARGS: forall a, In a args -> exists d, a = CData d)
+         (CMISS: ~ cache_hit c (opCodeToZ OpCall) (pccl, __, __) pcl)
+         (CUPD : c' = build_cache (opCodeToZ OpCall) (pccl,__,__) pcl),
      cstep (CState c  m fh i ((pcc,pccl):::args++s) (pcv,pcl)   false)
            (CState c' m fh i ((fh_ret pcv pcl)::(pcc,pccl):::args++s) fh_start true)
 
@@ -215,24 +213,26 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_ret: forall c fh m i s s' pcv pcl rl rpcl pcret pcretl,
    forall(INST: i @ pcv # Ret)
-         (CHIT: cache_hit c OpRet (pcretl, __, __) pcl)
-         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false false)::s')) (*DD: should only return to user mode *)
+         (CHIT: cache_hit c (opCodeToZ OpRet) (pcretl, __, __) pcl)
+         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false false)::s')) 
+                (*DD: should only return to user mode *)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i s  (pcv,pcl) false)
            (CState c m fh i s' (pcret, rpcl) false)
 
 | cstep_ret_f: forall c c' fh m i s' s pcv pcl pcret pcretl,
    forall(INST: i @ pcv # Ret)
-         (CMISS: ~ cache_hit c OpRet (pcretl, __, __) pcl)
+         (CMISS: ~ cache_hit c (opCodeToZ OpRet) (pcretl, __, __) pcl)
          (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false false)::s')) (*DD: same thing *)
-         (CUPD : c' = build_cache OpRet (pcretl,__,__) pcl),
+         (CUPD : c' = build_cache (opCodeToZ OpRet) (pcretl,__,__) pcl),
      cstep (CState c m fh i s  (pcv,pcl) false)
            (CState c' m fh i ((fh_ret pcv pcl)::s) fh_start true)
 
 | cstep_retv: forall c fh m i s s' pcv pcl rl rpcl resv resl pcret pcretl,
    forall(INST: i @ pcv # VRet)
-         (CHIT: cache_hit c OpVRet (resl, pcretl, __) pcl)
-         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) true false)::s')) (*DD: should only return to user mode *)
+         (CHIT: cache_hit c (opCodeToZ OpVRet) (resl, pcretl, __) pcl)
+         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) true false)::s')) 
+                (*DD: should only return to user mode *)
          (CREAD: cache_hit_read c rl rpcl),
      cstep (CState c m fh i ((resv,resl):::s)  (pcv,pcl) false)
            (CState c m fh i ((resv,rl):::s') (pcret,rpcl) false)
@@ -245,9 +245,9 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
 
 | cstep_retv_f: forall c c' fh m i s' s pcv pcl resv resl pcret pcretl,
    forall(INST: i @ pcv # VRet)
-         (CMISS: ~ cache_hit c OpVRet (resl, pcretl, __) pcl)
+         (CMISS: ~ cache_hit c (opCodeToZ OpVRet) (resl, pcretl, __) pcl)
          (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false false)::s')) (*DD: same thing *)
-         (CUPD : c' = build_cache OpVRet (resl,pcretl,__) pcl),
+         (CUPD : c' = build_cache (opCodeToZ OpVRet) (resl,pcretl,__) pcl),
      cstep (CState c m fh i ((resv,resl):::s)  (pcv,pcl) false)
            (CState c' m fh i ((fh_ret pcv pcl)::(resv,resl):::s) fh_start true)
 
@@ -258,10 +258,30 @@ Inductive cstep : @CS T -> @CS T -> Prop :=
           (CState c m fh i ((resv,resl):::s') (pcret, pcretl) true).
 
 (* Success is reaching a Halt state in non-privileged mode and valid address. *)
-Definition c_success (cs : @CS T) : Prop :=
+Definition c_success (cs : CS) : Prop :=
   match index_list_Z (fst (pc cs)) (imem cs) with
   | Some Halt => is_true (negb (priv cs))
   | _ => False
   end.
+
+Inductive runsToEscape : CS -> CS -> Prop :=
+| rte_success: (* executing until a return to user mode *)
+    forall cs cs',
+    forall (PRIV:  priv cs = true)
+           (STAR:  star cstep cs cs')
+           (UPRIV: priv cs' = false), 
+      runsToEscape cs cs'
+| rte_fail : (* executing the tmu until it fails at a neg. pc in priv mode *)
+    forall cs cs',
+    forall (PRIV: priv cs = true)
+           (STAR: star cstep cs cs')
+           (PRIV: priv cs' = true)
+           (FAIL: fst (pc cs') < 0), 
+      runsToEscape cs cs'
+| rte_upriv: (* in unpriv. mode, it already escaped *) 
+    forall cs,
+    forall (UPRIV: priv cs = false),
+      runsToEscape cs cs.
+
 
 End CMach.

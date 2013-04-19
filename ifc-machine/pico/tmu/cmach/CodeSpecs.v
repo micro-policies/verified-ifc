@@ -10,7 +10,7 @@ Require Import TMUInstr.
 Require Import Lattices.
 Require Import Concrete.
 Require Import CodeGen.
-Require Import ConcreteMachine.
+Require Import ConcreteMachineSmallStep.
 Require Import Determinism.
 Require Import Coq.Arith.Compare_dec.
 
@@ -149,7 +149,7 @@ Definition HT   (c: code)
   n' = n + Z_of_nat (length c) -> 
   exists stk1 cache1,
   Q cache1 stk1 /\
-  runsToEnd cstep_p n n' 
+  runsToEnd cstep n n' 
              (CState cache0 mem fh imem stk0 (n, handlerTag) true)
              (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
@@ -366,7 +366,7 @@ Proof.
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_add ; eauto.
+  eapply cstep_add_p ; eauto.
   omega.
   
   (* Finish running *)
@@ -392,12 +392,12 @@ Proof.
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_add; eauto.
+  eapply cstep_add_p; eauto.
   omega. 
   
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_sub; eauto.
+  eapply cstep_sub_p; eauto.
   simpl; omega. 
 
   (* Finish running *)
@@ -422,7 +422,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_sub; eauto.
+  eapply cstep_sub_p; eauto.
   omega.
   simpl.
   constructor; auto.
@@ -444,7 +444,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_push ; eauto.
+  eapply cstep_push_p ; eauto.
   omega. 
   simpl.
   constructor; auto.
@@ -468,7 +468,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_push ; eauto.
+  eapply cstep_push_p ; eauto.
   omega. 
   simpl.
   constructor; auto.
@@ -496,7 +496,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_push; eauto.
+  eapply cstep_push_p; eauto.
   omega. 
   simpl.
   constructor; auto.
@@ -521,7 +521,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_load; eauto.
+  eapply cstep_load_p; eauto.
   omega.
   simpl.
   constructor; auto.
@@ -557,7 +557,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_branchnz; eauto.
+  eapply cstep_branchnz_p; eauto.
   omega.
   simpl.
   destruct (v =? 0); constructor; auto.
@@ -647,7 +647,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_store; eauto.
+  eapply cstep_store_p; eauto.
   simpl; omega.
 
   constructor; eauto.
@@ -693,7 +693,7 @@ Proof.
 
   (* Run an instruction *) 
   eapply runsToEndStep; eauto. 
-  eapply cp_branchnz ; eauto. 
+  eapply cstep_branchnz_p ; eauto. 
   zify ; omega.
 
   simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
@@ -722,7 +722,7 @@ Proof.
 
   (* Run an instruction *)
   eapply runsToEndStep; auto.
-  eapply cp_branchnz ; eauto. 
+  eapply cstep_branchnz_p ; eauto. 
   omega.
   simpl.
   constructor; auto.
