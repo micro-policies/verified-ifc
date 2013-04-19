@@ -6,3 +6,6 @@ Makefile.coq
 
 # Emacs
 .dir-locals.el
+
+# Other
+*.timestamp
