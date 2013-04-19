@@ -30,7 +30,7 @@ T {{tex \mathtt{T} }},
 N {{tex \mathtt{N} }}, 
 K {{tex \mathtt{K} }}, 
 R {{tex \mathtt{R} }}:: 'T_' ::=                 {{com Tags }}
-  | bot                     :: :: Tbot      {{com bottom tag}}
+  | bot                     :: :: Tbot      {{com default tag}}
   | _                       :: :: Tirrev    {{com irrelevant tag}}
 
 a, pc :: 'a_' ::=                       {{com Atoms}}

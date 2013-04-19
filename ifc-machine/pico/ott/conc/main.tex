@@ -62,13 +62,16 @@
       (saving one rule), or make it step, but observe that the tmu
       fault handler code do use output instruction. Made it blocking
       for now.
-    \item Returning from priv mode to user mode: seems odd/dangerous
-      to return a value here... For now, Ret is a value return at the
+    \item Returning from priv mode to user mode: it's wrong
+      to return a value here. For now, Ret is a value return at the
       abstract level, and a void return in priv mode. Need to
       reintroduce two kinds of return instruction?
     \item For a cache size greater than 1, the notation for
       cache-miss-and-update is likely to change.
     \item Cache miss-and-update: shouldn't trigger any non-determinism.
+    \item $\bot$ should really denote a default (arbitrary, fixed)
+      integer label, rather than the $\bot$ element of a concrete lattice.
+      Need to choose a good notation for that.
   \end{itemize}
 \end{itemize}
 
