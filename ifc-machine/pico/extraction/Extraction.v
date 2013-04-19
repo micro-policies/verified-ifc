@@ -1,8 +1,8 @@
 Require Monad.
 Require TMUInstr.
 Require LatticeHL.
-Require TMURules.
-Require TMUARules.
+Require Rules.
+Require AbstractMachineFun.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.Strings.String.
 
@@ -49,5 +49,5 @@ Cd "extraction".
 Recursive Extraction Library Monad.
 Recursive Extraction Library LatticeHL.
 Recursive Extraction Library TMUInstr.
-Recursive Extraction Library TMURules.
-Recursive Extraction Library TMUARules.
+Recursive Extraction Library Rules.
+Recursive Extraction Library AbstractMachineFun.
