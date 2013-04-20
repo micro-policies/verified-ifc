@@ -31,7 +31,7 @@ Context {T: Type}
 (* Compilation of rules *)
 
 Definition genError :=
-  [Push (-1); Jump].
+  push' (-1) ++ [Jump].
 
 Definition genVar {n:nat} (l:LAB n) :=
   match l with
@@ -951,6 +951,70 @@ Proof.
     + intuition; jauto.
     + eapply genFaultHandlerMem_spec_Some_None; eauto.
     + intuition; jauto.
+Qed.
+
+Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop),
+  HTEscape raddr genError
+           P
+           (fun m s => (P m s , Failure)).
+Proof.
+  intros.
+  unfold genError.
+  eapply HTEscape_compose.
+  - eapply push_spec'.
+  - eapply HTEscape_strengthen_premise.
+    + eapply jump_specEscape_Failure.
+    + intuition.
+      cases s; subst.
+      * rewrite hd_error_nil in *; false.
+      * rewrite hd_error_cons in *.
+        inversion H0; subst; jauto.
+Qed.
+
+Definition genFaultHandlerReturn: code := ifNZ [Ret] genError.
+
+Lemma genFaultHandlerReturn_specEscape_Some: forall raddr olr lpc,
+  fst raddr > 0 ->
+  forall s0,
+  HTEscape raddr genFaultHandlerReturn
+       (fun (m : memory) (s : stack) =>
+        handler_final_mem_matches' olr lpc m0 m /\
+        s = (1, handlerTag) ::: CRet raddr false false :: s0)
+       (fun (m : memory) (s : stack) =>
+        (s = s0 /\ handler_final_mem_matches' olr lpc m0 m, Success)).
+Proof.
+  intros.
+  unfold genFaultHandlerReturn.
+  eapply HTEscape_strengthen_premise.
+  - eapply ifNZ_specEscape with (v:=1) (Pf:=fun m s => True); intros.
+    eapply ret_specEscape.
+    auto.
+    false.
+  - subst.
+    intuition.
+    jauto_set_goal; eauto.
+Qed.
+
+Lemma faultHandler_specEscape_Some: forall raddr olr lpc,
+  fst raddr > 0 ->
+  valid_address addrTagRes m0 ->
+  valid_address addrTagResPC m0 ->
+  ar = Some (olr, lpc) ->
+  forall s0,
+    HTEscape raddr (faultHandler fetch_rule_impl)
+             (fun m s => m = m0 /\
+                         s = (CRet raddr false false::s0))
+             (fun m s => ( s = s0 /\
+                           handler_final_mem_matches' olr lpc m0 m
+                         , Success )).
+Proof.
+  intros.
+  unfold faultHandler.
+  eapply HTEscape_compose.
+  - eapply genFaultHandlerStack_spec.
+  - eapply HTEscape_compose.
+    + eapply genFaultHandlerMem_spec_Some; eauto.
+    + eapply genFaultHandlerReturn_specEscape_Some; auto.
 Qed.
 
 End FaultHandlerSpec.
