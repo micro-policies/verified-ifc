@@ -878,13 +878,6 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: memory) (m': 
   (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
 
-(*
-Conjecture HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
-  HT c P Q ->
-  HT c P Q' ->
-  HT c P (fun m s => Q m s /\ Q' m s).
-*)
-
 (* XXX: NC: is this actually true? *)
 Conjecture valid_address_index_list_Z: forall a m,
   valid_address a m ->
@@ -1061,7 +1054,7 @@ Definition handler : list Instr := faultHandler get_rule.
 
 (* NC: appears this is the currently used conjecture, so prove this
 first. *)
-Conjecture handler_correct_succeed : 
+Theorem handler_correct_succeed :
   forall opcode vls pcl c m raddr s i olr lpc,
   forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = Some (olr,lpc)),
@@ -1069,6 +1062,25 @@ Conjecture handler_correct_succeed :
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
                  (CState c' m handler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
+Proof.
+  intros.
+  (* NC: XXX: believe I need this for [ret_specEscape], but I should
+  double check ... *)
+  assert (fst raddr > 0) by admit.
+
+  (* NC: I definitely need these to reason about modifying these
+  addresses. *)
+  assert (valid_address addrTagRes c) by admit.
+  assert (valid_address addrTagResPC c) by admit.
+
+  (* NC: not sure how to instantiate here. *)
+  admit.
+  (*
+  exploit (faultHandler_specEscape_Some get_rule opcode vls pcl c); eauto.
+  - eapply init_enough; auto.
+  - intuition. jauto_set_hyps; intros.
+  *)
+Qed.
               
 Conjecture handler_correct_fail : 
   forall opcode vls pcl c m raddr s i,
@@ -1089,7 +1101,5 @@ Conjecture handler_correct_fail :
 *)
 
 End HandlerCorrect.
-
-
 
 End TMU.
