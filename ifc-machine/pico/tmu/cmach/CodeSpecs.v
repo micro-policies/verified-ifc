@@ -1348,6 +1348,103 @@ Proof.
   apply_f_equal runsToEndDone; rec_f_equal ltac:(try omega; eauto).
 Qed.
 
+Lemma ret_specEscape: forall raddr (P: memory -> stack -> Prop),
+  fst raddr > 0 ->
+  HTEscape raddr [Ret]
+    (fun m s => exists s', s = (CRet raddr false false::s') /\ P m s')
+    (fun m s => (P m s , Success)).
+Proof.
+  intros. cases raddr; subst.
+  unfold HTEscape. intros. intuition.
+  jauto_set_hyps; intuition.
+  repeat eexists.
+  eauto.
+
+  (* Load an instruction *)
+  subst.
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_success; auto.
+  eapply star_step.
+  eapply cstep_ret_p; auto.
+  eapply cptr_done.
+  eapply star_refl.
+Qed.
+
+Lemma jump_specEscape_Failure: forall raddr (P: memory -> stack -> Prop),
+  HTEscape raddr [Jump]
+           (fun m s => exists s0, (-1, handlerTag) ::: s0 = s /\ P m s0)
+           (fun m s => (P m s , Failure)).
+Proof.
+  intros.
+  unfold HTEscape. intros.
+  jauto_set_hyps; intuition.
+  repeat eexists.
+  eauto.
+
+  (* Load an instruction *)
+  subst.
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_fail; auto.
+  eapply star_step.
+  eapply cstep_jump_p; auto.
+  eapply star_refl.
+  simpl; eauto; omega.
+Qed.
+
+Lemma HTEscape_strengthen_premise: forall r c (P' P: memory -> stack -> Prop) Q,
+  HTEscape r c P  Q ->
+  (forall m s, P' m s -> P m s) ->
+  HTEscape r c P' Q.
+Proof.
+  introv HTPQ P'__P.
+  unfold HTEscape; intros.
+  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
+Qed.
+
+Lemma skipNZ_specEscape: forall r c1 c2 v P1 P2 Q,
+  (v =  0 -> HTEscape r c1 P1 Q) ->
+  (v <> 0 -> HTEscape r c2 P2 Q) ->
+  HTEscape r ((skipNZ (length c1) ++ c1) ++ c2)
+           (fun m s => exists s0, s = (v, handlerTag) ::: s0 /\
+                                  (v =  0 -> P1 m s0) /\
+                                  (v <> 0 -> P2 m s0))
+           Q.
+Proof.
+  intros.
+  unfold skipNZ.
+  destruct (dec_eq v 0); subst.
+  - eapply HTEscape_append.
+    eapply HTEscape_compose.
+    eapply skipNZ_spec_Z; auto.
+    eapply HTEscape_strengthen_premise; iauto.
+  - eapply HTEscape_compose.
+    eapply skipNZ_continuation_spec_NZ; auto.
+    eapply HTEscape_strengthen_premise; iauto.
+Qed.
+
+Lemma ifNZ_specEscape: forall r t f v Pt Pf Q,
+  (v <> 0 -> HTEscape r t Pt Q) ->
+  (v =  0 -> HTEscape r f Pf Q) ->
+  HTEscape r (ifNZ t f)
+           (fun m s => exists s0, s = (v, handlerTag) ::: s0 /\
+                                  (v <> 0 -> Pt m s0) /\
+                                  (v =  0 -> Pf m s0))
+           Q.
+Proof.
+  intros.
+  unfold ifNZ.
+  rewrite <- app_ass.
+  eapply HTEscape_strengthen_premise.
+  eapply skipNZ_specEscape with (v:=v).
+  - intros.
+    eapply HTEscape_append; eauto.
+  - intros.
+    eauto.
+  - jauto.
+Qed.
+
 End CodeSpecs.
-
-
