@@ -23,14 +23,14 @@ Section Refinement.
 Context {L: Type}
         {Latt: JoinSemiLattice L}
         {CLatt: ConcreteLattice L}
-        {WFCLatt: WfConcreteLattice L Latt CLatt}. 
+        {WFCLatt: WfConcreteLattice L Latt CLatt}.
 
 (** The fault handler code and its correctness *)
 Definition fetch_rule_withsig := (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
 Definition faultHandler := FaultRoutine.faultHandler fetch_rule_withsig.
 
 (* Bit more glue *)
-Lemma our_handler_correct_succeed : 
+Lemma handler_correct : 
   forall m i s raddr c opcode vls pcl olr lpc,
   forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
          (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc)), 
@@ -82,6 +82,34 @@ Proof.
   apply atom_ZToLab_labToZ_id. 
 Qed.
 
+Lemma pos_to_nat_sn: forall p, exists n, (Pos.to_nat p) = (S n).
+Proof.
+  induction p ; intros.
+  destruct IHp. 
+  SearchAbout Pos.to_nat.
+  simpl.
+Abort.
+
+Lemma read_m_labToZ : forall m addrv xv xl,
+ read_m addrv m = Some (xv, xl) ->
+ read_m addrv (mem_labToZ m) = Some (xv, labToZ xl).
+Admitted.
+  (* tedious *)
+  (* induction m ; intros.  *)
+  (* - unfold read_m, index_list_Z in *.     *)
+  (*   case (addrv <? 0) in *. inv H. *)
+  (*   rewrite index_list_nil in H; inv H. *)
+  (* -  *)
+  (*   destruct addrv; simpl in *. *)
+  (*   + unfold read_m, index_list_Z in *. *)
+  (*     simpl in *. inv H. *)
+  (*     reflexivity.  *)
+  (*   + unfold read_m in H. unfold read_m. *)
+  (*     simpl in *.  *)
+  (*     edestruct (Pos2Nat.is_succ p); eauto.  *)
+  (*     rewrite H0 in *. simpl in *. *)
+  (*     exploit (IHm (Zpos (Pos.of_nat x)) xv xl); eauto. *)
+  
 Definition cache_up2date tmuc :=
   forall opcode vls pcl rl rpcl,
   forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
@@ -285,7 +313,7 @@ Ltac inv_cache_update :=
        apply labsToZs_inj in P2; try (zify; omega); subst; 
        apply labToZ_inj in P3 ;subst
    end;
-   allinv'; 
+  try allinv'; 
   try solve [eapply handler_cache_hit_read_none; eauto
             |eapply handler_cache_hit_read_some; eauto].
 
@@ -321,6 +349,12 @@ Proof.
   eauto.
 Qed.
 
+Ltac solve_read_m :=
+  (unfold nth_labToZ; simpl);
+  (unfold Vector.nth_order; simpl);
+  (eapply read_m_labToZ; eauto).
+       
+
 Ltac priv_steps := 
   match goal with 
     | [Hstar : runsToEscape ?s1 ?s2, 
@@ -329,7 +363,28 @@ Ltac priv_steps :=
       (generalize Hfinal; intros [[ll Hll] Hspec]);
       (simpl); 
       (apply star_step with s1; eauto); 
+      try match goal with 
+          | [ |- cstep _ _] => 
+            econstructor (solve [ eauto; solve_read_m ; eauto])
+      end;
       (eapply star_right with s2; eauto)
+  end.
+
+Ltac renaming := 
+  match goal with 
+    | [ Hrule : run_tmr ?opcode ?v ?pcl = Some (?rl, ?rpcl) |- _ ]  => 
+      set (tags := labsToZs v);
+      set (op := opCodeToZ opcode);
+      set (pct := labToZ pcl);
+      set (rpct := labToZ rpcl);
+      match rl with 
+        | Some ?rll => set (rt := labToZ rll)
+        | _ => idtac
+      end
+  end; 
+  match goal with 
+    | [  m : list (Z * L) |- _ ] => set (cm := mem_labToZ m)
+    | [  m : list Atom |- _ ] => set (cm := mem_labToZ m)
   end.
 
 Lemma step_preserved: 
@@ -338,65 +393,129 @@ Lemma step_preserved:
     match_states s1 s2 ->
     (exists s2', star cstep s2 s2' /\ match_states s1' s2').
 Proof.
-  intros s1 s1' s2 Hstep Hmatch. inv Hstep. inv Hmatch.
+  intros s1 s1' s2 Hstep Hmatch. inv Hstep; try renaming;
+                                 match goal with 
+                                   | [Htmr : run_tmr _ _ _ = _ ,
+                                      Hmatch : match_states _ _ |- _ ] => 
+                                       inv Hmatch ; 
+                                       unfold run_tmr in Htmr
+                                 end.
   - Case "Noop".
-  { set (tags := labsToZs (<||>: Vector.t L _)). 
-    set (op := opCodeToZ OpNoop).
-    set (pct := labToZ pcl). 
-    set (rpct := labToZ rpcl). 
-    set (cm := mem_labToZ m). 
-    unfold run_tmr in H0.
     destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. split.
-      unfold cache_up2date in CACHE. 
-      assert (exists t' : Z, cache_hit_read tmuc t' rpct) by (eapply CACHE with (1:= H0); eauto). 
-      destruct H1 as [ll Hll].
-      subst pct. inv H0. eapply star_step; eauto. eapply cstep_nop with (rl:= ll) ; eauto. 
-      subst pct. inv H0; eauto. 
+      assert (exists t', cache_hit_read tmuc t' rpct) 
+        by (eapply CACHE with (1:= H0); eauto). 
+        destruct H1 as [ll Hll].
+        subst pct. inv H0. 
+        eapply star_step; eauto. eapply cstep_nop ; eauto. 
+        subst pct. inv H0; eauto. 
 
-     + set (tmuc':= build_cache op tags pct).  
-       assert (CHIT' : cache_hit tmuc' op tags pct) by (eauto using build_cache_hit). 
-       edestruct (@our_handler_correct_succeed cm i cstk (pcv,pct) tmuc') as [c [Hruns Hmfinal]]; 
-         [exact CHIT' | exact H0 |].  (* ARGH: eauto should work *)
-       res_label.
-       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
-          * priv_steps.
-            eapply cstep_nop; eauto.
-            eapply handler_final_cache_hit_preserved; eauto.
-          * econstructor ; eauto. 
-            inv_cache_update. 
-    }
+    + set (tmuc':= build_cache op tags pct).  
+      assert (CHIT' : cache_hit tmuc' op tags pct) 
+        by (eauto using build_cache_hit). 
+      edestruct (@handler_correct cm i cstk (pcv,pct) tmuc')
+        as [c [Hruns Hmfinal]]; [exact CHIT' | exact H0 |].  
+      (* ARGH: eauto should work *)
+      res_label.
+      exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
+      * priv_steps.
+        eapply cstep_nop; eauto.
+        eapply handler_final_cache_hit_preserved; eauto.
+      * econstructor ; eauto. 
+        inv_cache_update. 
+
  - Case "Add".
-  { set (tags := labsToZs (<|x1l; x2l |>)). 
-    set (op := opCodeToZ OpAdd). 
-    set (pct := labToZ pcl). 
-    set (rt := labToZ rl). 
-    set (rpct := labToZ rpcl). 
-    set (cm := mem_labToZ m). 
-    unfold run_tmr in H0. inv Hmatch.
-      destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
-      + inv STKS. inv H3.
-        exists (CState tmuc cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false).
-        split; eauto.
-        unfold cache_up2date in CACHE. 
-        eapply star_step ; eauto. eapply cstep_add ; eauto.        
-        eapply CACHE with (1:= H0); eauto.
-        
-     + set (tmuc':= build_cache op tags pct). 
-       assert (CHIT' : cache_hit tmuc' op tags pct)
-         by (eauto using build_cache_hit).
-       edestruct (@our_handler_correct_succeed cm i cstk (pcv,pct) tmuc') as [c [Hruns Hmfinal]].
-       exact CHIT'. eauto.
-       inv STKS. inv H3. 
-       exists (CState c cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false). split.
-          * simpl in Hruns. priv_steps. 
-            eapply cstep_add ; eauto.                
-            eapply handler_final_cache_hit_preserved; eauto.
-            eapply handler_cache_hit_read_some; eauto.            
-          * econstructor ; eauto. 
-            inv_cache_update.
-}
+   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
+   + inv STKS. inv H3.
+     exists (CState tmuc cm faultHandler i ((x1v+x2v,rt):::cs0) (pcv+1,rpct) false).
+     split. 
+     * eapply star_step ; eauto. eapply cstep_add ; eauto.        
+       eapply CACHE with (1:= H0); eauto.
+     * eauto.         
+   + set (tmuc':= build_cache op tags pct). 
+     assert (CHIT' : cache_hit tmuc' op tags pct)
+       by (eauto using build_cache_hit).
+     edestruct (@handler_correct cm i cstk (pcv,pct) tmuc') 
+       as [c [Hruns Hmfinal]]; [ exact CHIT' | eauto |].
+     inv STKS. inv H3. 
+     exists (CState c cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false). split.
+     * simpl in Hruns. priv_steps. 
+       eapply cstep_add ; eauto.                
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.            
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+ - Case "Sub".
+   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
+   + inv STKS. inv H3.
+     exists (CState tmuc cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1,rpct) false).
+     split. 
+     * eapply star_step ; eauto. eapply cstep_sub ; eauto.        
+       eapply CACHE with (1:= H0); eauto.
+     * eauto.         
+   + set (tmuc':= build_cache op tags pct). 
+     assert (CHIT' : cache_hit tmuc' op tags pct)
+       by (eauto using build_cache_hit).
+     edestruct (@handler_correct cm i cstk (pcv,pct) tmuc') 
+       as [c [Hruns Hmfinal]]; [ exact CHIT' | eauto |].
+     inv STKS. inv H3. 
+     exists (CState c cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1, rpct) false). 
+     split.
+     * simpl in Hruns. priv_steps. 
+       eapply cstep_sub ; eauto.                
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.            
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+- Case "Push ". 
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
+   + exists (CState tmuc cm faultHandler i ((cv,rt):::cstk) (pcv+1,rpct) false).
+     split. 
+     * eapply star_step ; eauto. eapply cstep_push ; eauto.        
+       eapply CACHE with (1:= H0); eauto.
+     * eauto.         
+   + set (tmuc':= build_cache op tags pct). 
+     assert (CHIT' : cache_hit tmuc' op tags pct)
+       by (eauto using build_cache_hit).
+     edestruct (@handler_correct cm i cstk (pcv,pct) tmuc') 
+       as [c [Hruns Hmfinal]]; [ exact CHIT' | eauto |].
+     exists (CState c cm faultHandler i ((cv,rt):::cstk) (pcv+1, rpct) false). split.
+     * simpl in Hruns. priv_steps. 
+       eapply cstep_push ; eauto.                
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.            
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+- Case "Load ". 
+   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
+   + inv STKS.
+     exists (CState tmuc cm faultHandler i ((xv,rt):::cs) (pcv+1,rpct) false).
+     split. 
+     * eapply star_step ; eauto. 
+       eapply cstep_load ; eauto.        
+       eapply CACHE with (1:= H1); eauto.
+       solve_read_m.       
+     * eauto.         
+   + set (tmuc':= build_cache op tags pct). 
+     assert (CHIT' : cache_hit tmuc' op tags pct)
+       by (eauto using build_cache_hit).
+     edestruct (@handler_correct cm i cstk (pcv,pct) tmuc') 
+       as [c [Hruns Hmfinal]]; [ exact CHIT' | eauto |].
+     inv STKS.
+     exists (CState c cm faultHandler i ((xv,rt):::cs) (pcv+1, rpct) false). split.
+     * simpl in Hruns. simpl. 
+       priv_steps.
+       eapply cstep_load ; eauto.                
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.            
+       solve_read_m.
+     * econstructor ; eauto. 
+       inv_cache_update.
+      
 Admitted.
 
 Lemma step_preserved_observ: 
