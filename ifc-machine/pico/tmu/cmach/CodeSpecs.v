@@ -153,6 +153,43 @@ Definition HT   (c: code)
              (CState cache0 mem fh imem stk0 (n, handlerTag) true)
              (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
+Inductive Outcome :=
+| Success
+| Failure.
+
+Definition predicted_outcome (o: Outcome) raddr pc priv :=
+  match o with
+  | Success => priv = false /\ pc = raddr
+  | Failure => priv = true  /\ pc = (-1, handlerTag)
+  end.
+
+(* NC: Big question: can I use the existing [runsToEscape] from
+   ConcreteMachine.v, or should I define my own version(s) here, which
+   is more inductive (does not use [star])? *)
+Definition HTEscape raddr
+  (c: code)
+  (P: memory -> stack -> Prop)
+  (Q: memory -> stack -> Prop * Outcome)
+:= forall imem mem stk0 cache0 fh n,
+  code_at n fh c ->
+  P cache0 stk0 ->
+  exists stk1 cache1 pc1 priv1,
+  let (prop, outcome) := Q cache1 stk1 in
+  prop /\
+  predicted_outcome outcome raddr pc1 priv1 /\
+  runsToEscape
+    (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+    (CState cache1 mem fh imem stk1 pc1             priv1).
+
+Conjecture HTEscape_compose: forall r c1 c2 P Q R,
+  HT         c1 P Q ->
+  HTEscape r c2 Q R ->
+  HTEscape r (c1 ++ c2) P R.
+
+Conjecture HTEscape_append: forall r c1 c2 P Q,
+  HTEscape r c1 P Q ->
+  HTEscape r (c1 ++ c2) P Q.
+
 Lemma HT_compose: forall c1 c2 P Q R,
   HT   c1 P Q ->
   HT   c2 Q R ->
