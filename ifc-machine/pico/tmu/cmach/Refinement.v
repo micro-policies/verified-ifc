@@ -82,14 +82,6 @@ Proof.
   apply atom_ZToLab_labToZ_id. 
 Qed.
 
-Lemma pos_to_nat_sn: forall p, exists n, (Pos.to_nat p) = (S n).
-Proof.
-  induction p ; intros.
-  destruct IHp. 
-  SearchAbout Pos.to_nat.
-  simpl.
-Abort.
-
 Lemma read_m_labToZ : forall m addrv xv xl,
  read_m addrv m = Some (xv, xl) ->
  read_m addrv (mem_labToZ m) = Some (xv, labToZ xl).
