@@ -11,7 +11,7 @@ TMU := 	TMUInstr
 
 TMU_A:=	Abstract Rules AbstractMachine AbstractMachineFun
 
-TMU_ANI := AbstractObsEquiv NIAbstractMachine
+TMU_ANI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine
 
 TMU_C := CLattices WfCLattices Concrete ConcreteMachineSmallStep \
 	CodeGen CodeSpecs FaultRoutine\
