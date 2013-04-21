@@ -11,14 +11,12 @@ This code is known to work with Coq 8.4.
    tmu/amach  : definition of the abstract machine 
    tmu/cmach  : definition of the concrete machine 
    tmu/amach_ni: non-interference for abstract machine 
-   extraction : extraction script and extraction directory -- stalled
-   driver     : the driver to be linked with extracted files -- stalled
+   extraction : extraction script and extraction directory
 
 -- Compile
         make all
-   This will compile the coq definitions and proofs, 
-   extract the code of the machine into Haskell files,
-   and produce the executable driver/Driver.
+   This will compile the coq definitions and proofs and
+   extract the code of the machine into Haskell files.
 
 -- Coqtop and library paths...
    

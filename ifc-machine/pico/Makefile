@@ -27,12 +27,12 @@ ALLDIRS := $(EXTRACTDIR) $(DIRS) driver
 
 COQEXEC=coqtop $(INCLUDES) -batch -load-vernac-source
 
-.PHONY: coq doc clean Driver
+.PHONY: coq doc clean
 
 coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
 
-all: coq #extraction Driver
+all: coq extraction
 
 Makefile.coq: Makefile $(VS:%=%)
 	echo $(VS)
@@ -49,9 +49,6 @@ extraction.timestamp: coq.timestamp $(EXTRACTION)
 	$(COQEXEC) $(EXTRACTION)
 	cd extraction && ./add_safe_prelude.sh
 	rm -rf extraction.timestamp
-
-Driver: 
-	ghc --make -iextraction/ -main-is Driver driver/Driver.hs
 
 clean:
 	rm -f Makefile.coq .depend *.v.d *.vo *.glob *~
