@@ -47,7 +47,7 @@ extraction: extraction.timestamp
 extraction.timestamp: coq.timestamp $(EXTRACTION)
 	date > extraction/extraction.timestamp
 	$(COQEXEC) $(EXTRACTION)
-	cd extraction && ./add_safe_prelude.sh
+	cd extraction && ./add_safe_prelude.sh && ghc --make Main
 	rm -rf extraction.timestamp
 
 clean:

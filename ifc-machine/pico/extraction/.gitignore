@@ -19,3 +19,6 @@ Specif.hs
 TMUInstr.hs
 Utils.hs
 Vector.hs
+*.hi
+*.o
+Main

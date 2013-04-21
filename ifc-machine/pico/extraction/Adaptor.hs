@@ -1,3 +1,5 @@
+module Adaptor where
+
 import Abstract
 import qualified Lattices as L
 import LatticeHL
