@@ -44,6 +44,11 @@ Extract Inductive option => "Prelude.Maybe"
                    Prelude.Just a -> fj a;
                    Prelude.Nothing -> fn (); })".
 
+Extract Inductive sum => "Prelude.Either"
+  [ "Prelude.Left" "Prelude.Right" ]
+  "(\ fl fr e -> case e of {
+                   Prelude.Left a -> fl a;
+                   Prelude.Right b -> fr b; })".
 
 Cd "extraction".
 Recursive Extraction Library Monad.
