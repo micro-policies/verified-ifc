@@ -1066,21 +1066,30 @@ Proof.
   intros.
   (* NC: XXX: believe I need this for [ret_specEscape], but I should
   double check ... *)
+  (* APT: Hmm. Seems like this shouldn't really be needed. SHould be allowed
+   to "succeed" by returning to user mode, even if the address is invalid. 
+   (And in any case, why > 0 instead of >= 0 ? *)
   assert (fst raddr > 0) by admit.
 
   (* NC: I definitely need these to reason about modifying these
   addresses. *)
+  (* APT: Sure. Maybe we should add these to cache_hit. *)
   assert (valid_address addrTagRes c) by admit.
   assert (valid_address addrTagResPC c) by admit.
 
   (* NC: not sure how to instantiate here. *)
-  admit.
-  (*
-  exploit (faultHandler_specEscape_Some get_rule opcode vls pcl c); eauto.
-  - eapply init_enough; auto.
-  - intuition. jauto_set_hyps; intros.
-  *)
-Qed.
+  (* APT: here's one way: *)
+  assert (code_at 0 handler (faultHandler get_rule)).
+     unfold handler. 
+     admit. (* surprisingly non-trivial to prove. may need custom induction princ. *)
+  edestruct (faultHandler_specEscape_Some get_rule opcode vls pcl c) 
+      as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 
+   eapply init_enough; auto. 
+  exists cache1. 
+  inversion P3.  subst. 
+  intuition.
+  apply P4. 
+Qed.  
               
 Conjecture handler_correct_fail : 
   forall opcode vls pcl c m raddr s i,

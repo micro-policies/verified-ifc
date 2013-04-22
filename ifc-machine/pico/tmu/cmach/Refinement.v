@@ -40,7 +40,7 @@ Lemma handler_correct :
     handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros.
-  exploit (@handler_correct_succeed _ _ _ fetch_rule_withsig opcode); eauto.
+  exploit (@handler_correct_succeed _ _ _ _ fetch_rule_withsig opcode); eauto.
 Qed.  
 
 Definition atom_labToZ (a:@Atom L) : (@Atom Z) :=
