@@ -186,9 +186,14 @@ Conjecture HTEscape_compose: forall r c1 c2 P Q R,
   HTEscape r c2 Q R ->
   HTEscape r (c1 ++ c2) P R.
 
-Conjecture HTEscape_append: forall r c1 c2 P Q,
+Lemma HTEscape_append: forall r c1 c2 P Q,
   HTEscape r c1 P Q ->
   HTEscape r (c1 ++ c2) P Q.
+Proof.
+  unfold HTEscape.
+  intros.
+  exploit code_at_compose_1; eauto.
+Qed.
 
 Lemma HT_compose: forall c1 c2 P Q R,
   HT   c1 P Q ->
@@ -1330,15 +1335,21 @@ Proof.
 Qed.
 
 (* Follow from a more general [push'_spec_wp]. *)
-Conjecture genTrue_spec_wp: forall Q,
+Lemma genTrue_spec_wp: forall Q,
   HT genTrue
      (fun m s => Q m ((1,handlerTag):::s))
      Q.
+Proof.
+  eapply push_spec.
+Qed.
 
-Conjecture genFalse_spec_wp: forall Q,
+Lemma genFalse_spec_wp: forall Q,
   HT genFalse
      (fun m s => Q m ((0,handlerTag):::s))
      Q.
+Proof.
+  eapply push_spec.
+Qed.
 
 Lemma nop_spec_wp: forall Q,
   HT nop Q Q.
