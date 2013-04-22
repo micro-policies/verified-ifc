@@ -127,13 +127,14 @@ Inductive cstep : CS -> CS -> Prop :=
     cstep (CState c m fh i ((addrv,addrl):::s) (pcv,pcl) true) 
           (CState c m fh i ((xv,handlerTag):::s) (pcv+1,pcl) true)
 
-| cstep_store: forall c fh m i s rpcl pcv pcl rl addrv addrl xv xl mv ml,
+| cstep_store: forall c fh m m' i s rpcl pcv pcl rl addrv addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)
          (CHIT: cache_hit c (opCodeToZ OpStore) (addrl, xl, ml) pcl)
          (CREAD: cache_hit_read c rl rpcl)
-         (MREAD: read_m addrv m = Some (mv,ml)),
+         (MREAD: read_m addrv m = Some (mv,ml))
+         (MUPDT: upd_m addrv (xv,rl) m = Some m'),
      cstep (CState c m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl)   false)
-           (CState c m fh i s (pcv+1,rpcl) false)
+           (CState c m' fh i s (pcv+1,rpcl) false)
 
 | cstep_store_f: forall c c' fh m i s pcv pcl addrv addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)

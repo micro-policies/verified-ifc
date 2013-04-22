@@ -380,8 +380,7 @@ Ltac renaming :=
       end
   end; 
   match goal with 
-    | [  m : list (Z * L) |- _ ] => set (cm := mem_labToZ m)
-    | [  m : list Atom |- _ ] => set (cm := mem_labToZ m)
+    | [ HH: match_states (AState ?m _ _ _) _ |- _ ] => set (cm := mem_labToZ m)
   end.
 
 Ltac res_label :=
@@ -417,6 +416,11 @@ Ltac build_cache_and_tmu :=
       eauto
   end.
 
+Lemma upd_m_mem_labToZ : forall m addrv xv rl m',
+  upd_m addrv (xv, rl) m = Some m' -> 
+  upd_m addrv (xv, labToZ rl) (mem_labToZ m) = Some (mem_labToZ m').
+Admitted.
+
 Lemma step_preserved: 
   forall s1 s1' s2,
     step_rules s1 s1' ->
@@ -430,7 +434,7 @@ Proof.
           inv Hmatch ; 
           unfold run_tmr in Htmr
     end.
-  - Case "Noop".
+  - Case "Noop".    
     destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. subst pct.
@@ -507,6 +511,26 @@ Proof.
      exists (CState c cm faultHandler i ((xv,rt):::cs) (pcv+1, rpct) false). split.
      * simpl in Hruns. simpl. 
        priv_steps.
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.            
+       solve_read_m.
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+- Case "Store ". 
+  inv STKS. inv H5. 
+  exploit upd_m_mem_labToZ ; eauto. intros Hcm'.
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc (mem_labToZ m') faultHandler i cs0 (pcv+1,rpct) false).
+     split. 
+     * eapply star_step ; eauto. 
+       eapply cstep_store  ; eauto.        
+       eapply CACHE with (1:= H2); eauto.       
+       solve_read_m.       
+     * econstructor; eauto.
+   + build_cache_and_tmu. 
+     exists (CState c (mem_labToZ m') faultHandler i cs0 (pcv+1, rpct) false). split.
+     * priv_steps.
        eapply handler_final_cache_hit_preserved; eauto.
        eapply handler_cache_hit_read_some; eauto.            
        solve_read_m.

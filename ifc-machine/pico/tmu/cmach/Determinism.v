@@ -50,6 +50,9 @@ Proof.
   (exploit (@cache_hit_read_determ c rl); eauto; intros [Heq Heq'])
   end);
   (allinv'; try reflexivity).
+
+  Case "Store user".
+  allinv'. reflexivity.
   
   Case "Call user".
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
