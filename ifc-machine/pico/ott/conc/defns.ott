@@ -111,11 +111,11 @@ ko {{tex \kappa_o }} :: 'ko_' ::= {{com  tmu cache output part }}
                     }}
    |  kbot :: :: CacheOutDft 
 
-kbot {{tex \kappa_{\scriptstyle \bot} }} :: ''  ::= {{com default output part of cache }}
-   | ( bot , bot )  :: :: BotBot {{tex 
+kbot {{tex \kappa_{\_} }} :: ''  ::= {{com default output part of cache }}
+   | ( _ , _ )  :: :: BotBot {{tex 
                    \begin{array}{|@{\;}l@{\;}|@{\;}l@{\;}|}
                    \hline
-                          [[bot]] & [[bot]] \\
+                          [[_]] & [[_]] \\
                    \hline
                     \end{array}
                     }}
@@ -200,12 +200,12 @@ SmallStepEval :: '' ::=
   \end{array} }} by
 
      I(n) = Nop
-     C ~ (nop | T | bot, bot, bot | R, bot)         
+     C ~ (nop | T | _, _, _ | R, _)         
      ------------------------------------- :: Nop
      upriv, C, F, M, I, S, n@T -- epsilon -> upriv, C, F, M, I, S, n+1@R
 
      I(n) = Nop
-     ki ~/~ (nop | T | bot, bot, bot) ~ kj
+     ki ~/~ (nop | T | _, _, _) ~ kj
      ------------------------------------- :: Nop_F
      upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T, upriv) ;; S], 0@bot
 
@@ -214,22 +214,22 @@ SmallStepEval :: '' ::=
      priv, C, F, M, I, S, n@T -- epsilon -> priv, C, F, M, I, S, n+1@T
 
      I(n) = Output
-     C ~ (out | T | N, bot, bot| R1, R2)         
+     C ~ (out | T | N, _, _| R1, R2)         
      -------------------------------------------------------- :: Out
      upriv, C, F, M, I, [v@N; S], n@T -- v@R2 -> upriv, C, F, M, I, S, n+1@R1
 
      I(n) = Output
-     ki ~/~ (out | T | N, bot, bot) ~ kj
+     ki ~/~ (out | T | N, _, _) ~ kj
      -------------------------------------------------------- :: Out_F
      upriv, [ki,ko], F, M, I, [v@N; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T,upriv) ;; v@N ; S], 0@bot
 
      I(n) = BinOp o
-     C ~ (binop | T | T1, T2, bot| R1, R2) 
+     C ~ (binop | T | T1, T2, _| R1, R2) 
     -------------------------------------------------------- :: BOp
      upriv, C, F, M, I, [n1@T1; n2@T2; S], n@T -- epsilon -> upriv, C, F, M, I, [(n1 o n2)@R2; S], n+1@R1
 
      I(n) = BinOp o
-     ki ~/~ ( binop | T | T1, T2, bot) ~ kj
+     ki ~/~ ( binop | T | T1, T2, _) ~ kj
     -------------------------------------------------------- :: BOp_F
      upriv, [ki,ko], F, M, I, [n1@T1; n1@T2; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv);; n1@T1; n1@T2 ; S], 0@bot
 
@@ -238,12 +238,12 @@ SmallStepEval :: '' ::=
      priv, C, F, M, I, [n1@T1; n1@T2; S], n@T -- epsilon -> priv, C, F, M, I, [(n1 o n2)@T; S], n+1@T
      
      I(n) = Push m
-     C ~ ( push | T | bot, bot, bot| R1, R2)
+     C ~ ( push | T | _, _, _| R1, R2)
      -------------------------------------------------------- :: Psh
      upriv, C, F, M, I, S, n@T -- epsilon -> upriv, C, F, M, I, [m @ R2; S], n+1@R1
 
      I(n) = Push m
-     ki ~/~ ( push | T | bot, bot, bot) ~ kj
+     ki ~/~ ( push | T | _, _, _) ~ kj
      -------------------------------------------------------- :: Psh_F
      upriv, [ki,ko], F, M, I, S, n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T,upriv) ;; S], 0@bot
 
@@ -253,13 +253,13 @@ SmallStepEval :: '' ::=
 
      I(n) = Load
      read M p = v@N
-     C ~ ( load | T | K, N, bot| R1, R2)
+     C ~ ( load | T | K, N, _| R1, R2)
      -------------------------------------------------------- :: Ld
      upriv, C, F, M, I, [p@K; S], n@T -- epsilon -> upriv, C, F, M, I, [v@R2; S], n+1@R1
 
      I(n) = Load
      read M p = v@N
-     ki ~/~ ( load | T | K, N, bot) ~ kj
+     ki ~/~ ( load | T | K, N, _) ~ kj
      -------------------------------------------------------- :: Ld_F
      upriv, [ki,ko], F, M, I, [p@K; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [(n@T,upriv) ;; p@K; S], 0@bot
 
@@ -285,12 +285,12 @@ SmallStepEval :: '' ::=
      priv, C, F, M, I, [p@K; v@N; S], n@T -- epsilon -> priv, C', F, M, I, S, n+1@T
 
      I(n) = Jump
-     C ~ ( jump | T | K, bot, bot| R1, bot)
+     C ~ ( jump | T | K, _, _| R1, _)
       -------------------------------------------------------- :: Jmp
      upriv, C, F, M, I, [v@K; S], n@T -- epsilon -> upriv, C, F, M, I, S, v@R1
 
      I(n) = Jump
-     ki ~/~ ( jump | T | K, bot, bot) ~ kj
+     ki ~/~ ( jump | T | K, _, _) ~ kj
       -------------------------------------------------------- :: Jmp_F
      upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
 
@@ -299,13 +299,13 @@ SmallStepEval :: '' ::=
      priv, C, F, M, I, [v@K; S], n@T -- epsilon -> priv, C, F, M, I, S, v@T
     
      I(n) = BNZ m
-     C ~ ( bnz | T | K, bot, bot| R1, bot)
+     C ~ ( bnz | T | K, _, _| R1, _)
      n' = n+ (v = 0)? 1 : m  
      -------------------------------------------------------- :: Bnz
      upriv, C, F, M, I, [v@K; S], n@T -- epsilon -> upriv, C, F, M, I, S, n'@R1
     
      I(n) = BNZ m
-     ki ~/~ ( bnz | T | K, bot, bot) ~ kj
+     ki ~/~ ( bnz | T | K, _, _) ~ kj
      -------------------------------------------------------- :: Bnz_F
      upriv, [ki,ko], F, M, I, [v@K; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; v@K ; S], 0@bot
 
@@ -315,12 +315,12 @@ SmallStepEval :: '' ::=
      priv, C, F, M, I, [v@K; S], n@T -- epsilon -> priv, C, F, M, I, S, n'@T
 
      I(n) = Call
-     C ~ ( call | T | K, bot, bot| R1, R2)
+     C ~ ( call | T | K, _, _| R1, R2)
      -------------------------------------------------------- :: Cll
      upriv, C, F, M, I, [ p@K ; a ; S], n@T -- epsilon -> upriv, C, F, M, I, [a; (n+1@R2,upriv) ;; S], p@R1
 
      I(n) = Call
-     ki ~/~ ( call | T | K, bot, bot) ~ kj
+     ki ~/~ ( call | T | K, _, _) ~ kj
      -------------------------------------------------------- :: Cll_F
      upriv, [ki,ko], F, M, I, [ p@K ; a ; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; p@K ; a ; S], 0@bot
 
@@ -329,12 +329,12 @@ SmallStepEval :: '' ::=
      priv, C, F, M, I, [ p@K ; v@N ; S], n@T -- epsilon -> priv, C, F, M, I, [v@N; (n+1@T,priv) ;; S], p@K
 
      I(n) = Ret
-     C ~ ( ret | T | N, K, bot| R1, R2)
+     C ~ ( ret | T | N, K, _| R1, R2)
      -------------------------------------------------------- :: Ret
      upriv, C, F, M, I, [v@N ; (p@K,b) ;; S], n@T -- epsilon -> b, C, F, M, I, [v@R2 ; S], p@R1
 
      I(n) = Ret
-     ki ~/~ ( ret | T | N, K, bot) ~ kj
+     ki ~/~ ( ret | T | N, K, _) ~ kj
      -------------------------------------------------------- :: Ret_F
      upriv, [ki,ko], F, M, I, [v@N ; (p@K,b) ;; S], n@T -- epsilon -> priv, [kj,kbot], F, M, I, [ (n@T,upriv) ;; v@N ; (p@K,b) ;; S], 0@bot
 
