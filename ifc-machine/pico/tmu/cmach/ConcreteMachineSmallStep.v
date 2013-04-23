@@ -18,6 +18,17 @@ Inductive star (S: Type) (Rstep: S -> S -> Prop): S -> S -> Prop :=
   | star_step: forall s1 s2 s3,
       Rstep s1 s2 -> star Rstep s2 s3 -> 
       star Rstep s1 s3.
+Hint Constructors star.
+
+Lemma star_right : forall S (Rstep: S -> S -> Prop) s1 s2, 
+                     star Rstep s1 s2 -> 
+                     forall s3, 
+                       Rstep s2 s3 -> star Rstep s1 s3.
+Proof.
+  induction 1; intros.
+  eapply star_step; eauto.
+  eauto.
+Qed.
 
 Section CMach.
 
@@ -283,6 +294,14 @@ Inductive runsToEscape : CS -> CS -> Prop :=
     forall cs,
     forall (UPRIV: priv cs = false),
       runsToEscape cs cs.
+
+Lemma runsToEscape_star: forall s1 s2, 
+ runsToEscape s1 s2 ->
+ star cstep s1 s2.
+Proof.
+  induction 1 ; intros; auto.
+Qed.
+
 
 
 End CMach.

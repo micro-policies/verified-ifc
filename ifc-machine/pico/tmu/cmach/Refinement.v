@@ -55,6 +55,39 @@ Proof.
   apply ZToLab_labToZ_id. 
 Qed.
 
+Definition mem_labToZ (m: list (@Atom L)) : list (@Atom Z) :=
+  map atom_labToZ m. 
+
+Definition mem_ZToLab (m: list (@Atom Z)) : list (@Atom L) :=
+  map atom_ZToLab m. 
+
+Lemma mem_ZToLab_labToZ_id : forall (m: list (@Atom L)),
+   m = mem_ZToLab (mem_labToZ m).                                
+Proof.
+  intros. unfold mem_ZToLab, mem_labToZ. rewrite map_map. 
+  replace (fun x => atom_ZToLab (atom_labToZ x)) with (@id (@Atom L)).
+  rewrite map_id; auto. 
+  extensionality x. 
+  apply atom_ZToLab_labToZ_id. 
+Qed.
+
+Lemma read_m_labToZ : forall m addrv xv xl,
+ read_m addrv m = Some (xv, xl) ->
+ read_m addrv (mem_labToZ m) = Some (xv, labToZ xl).
+Proof.
+  unfold read_m in *.
+  destruct m ; intros.
+  - case (addrv <? 0) in *. inv H.
+    rewrite index_list_nil in H; inv H.
+  - destruct addrv; simpl in *.
+    + inv H. reflexivity.
+    + edestruct (Pos2Nat.is_succ p0); eauto.
+      rewrite H0 in *. simpl in *.
+      unfold mem_labToZ. erewrite index_list_map; eauto.
+      reflexivity.
+    + inv H.
+Qed.      
+
 Inductive match_stacks : list (@StkElmt L) ->  list CStkElmt -> Prop :=
 | ms_nil : match_stacks nil nil
 | ms_cons_data: forall a ca s cs, 
@@ -172,51 +205,7 @@ Proof.
   assert (Hcdstk:= match_stacks_data Hmatch H0); eauto.
   eapply c_pop_to_return_pops_data; eauto.
 Qed.
-  
-Definition mem_labToZ (m: list (@Atom L)) : list (@Atom Z) :=
-  map atom_labToZ m. 
-
-Definition mem_ZToLab (m: list (@Atom Z)) : list (@Atom L) :=
-  map atom_ZToLab m. 
-
-Lemma mem_ZToLab_labToZ_id : forall (m: list (@Atom L)),
-   m = mem_ZToLab (mem_labToZ m).                                
-Proof.
-  intros. unfold mem_ZToLab, mem_labToZ. rewrite map_map. 
-  replace (fun x => atom_ZToLab (atom_labToZ x)) with (@id (@Atom L)).
-  rewrite map_id; auto. 
-  extensionality x. 
-  apply atom_ZToLab_labToZ_id. 
-Qed.
-
-Lemma index_list_map : forall (A B: Type) m x (e:A) (f: A -> B), 
-  index_list x m = Some e ->
-  index_list x (map f m) = Some (f e).
-Proof.
-  induction m ; intros.
-  - rewrite index_list_nil in *. inv H.
-  - destruct x ; simpl in *.
-    inv H; auto.
-    eauto.
-Qed.
-
-Lemma read_m_labToZ : forall m addrv xv xl,
- read_m addrv m = Some (xv, xl) ->
- read_m addrv (mem_labToZ m) = Some (xv, labToZ xl).
-Proof.
-  unfold read_m in *.
-  destruct m ; intros.
-  - case (addrv <? 0) in *. inv H.
-    rewrite index_list_nil in H; inv H.
-  - destruct addrv; simpl in *.
-    + inv H. reflexivity.
-    + edestruct (Pos2Nat.is_succ p0); eauto.
-      rewrite H0 in *. simpl in *.
-      unfold mem_labToZ. erewrite index_list_map; eauto.
-      reflexivity.
-    + inv H.
-Qed.      
-        
+          
 Definition cache_up2date tmuc :=
   forall opcode vls pcl rl rpcl,
   forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
@@ -235,6 +224,10 @@ Inductive match_states : @AS L -> CS -> Prop :=
          match_states (AState am i astk apc)
                       (CState tmuc cm faultHandler i cstk cpc false).
 
+
+(** Observing a concete cache is just projecting it a the abstract level.
+    Defining related notions and conversions
+ *)
 Fixpoint c_to_a_stack (cs : list CStkElmt): list (@StkElmt L) :=
   match cs with 
     | nil => nil
@@ -254,12 +247,12 @@ Qed.
 
 Hint Rewrite match_stacks_obs.
 
-(** Observing a concete cache is just projecting it a the abstract level *)
 Definition observe_cstate (cs: CS) : @AS L := 
   match cs with 
     | CState c m fh i s pc p => 
       AState (mem_ZToLab m) i (c_to_a_stack s) (atom_ZToLab pc)
   end.
+
            
 Lemma handler_cache_hit_read_some: 
   forall rl m rpcl tmuc,
@@ -454,31 +447,6 @@ Proof.
   eapply update_list_map; eauto.
 Qed.
 
-
-Lemma runsToEscape_star: forall s1 s2, 
- runsToEscape s1 s2 ->
- star cstep s1 s2.
-Proof.
-  induction 1 ; intros; auto.
-Qed.
-
-Lemma star_right : forall S (Rstep: relation S) s1 s2, 
-                     star Rstep s1 s2 -> 
-                     forall s3, 
-                       Rstep s2 s3 -> star Rstep s1 s3.
-Proof.
-  induction 1; intros.
-  eapply star_step; eauto.
-  eauto.
-Qed.
-
-Ltac solve_read_m :=
-  (unfold nth_labToZ; simpl);
-  (unfold Vector.nth_order; simpl);
-  (eapply read_m_labToZ; eauto).
-       
-
-
 Ltac renaming := 
   match goal with 
     | [ Hrule : run_tmr ?opcode ?v ?pcl = Some (?rl, ?rpcl) |- _ ]  => 
@@ -494,6 +462,11 @@ Ltac renaming :=
   match goal with 
     | [ HH: match_states (AState ?m _ _ _) _ |- _ ] => set (cm := mem_labToZ m)
   end.
+
+Ltac solve_read_m :=
+  (unfold nth_labToZ; simpl);
+  (unfold Vector.nth_order; simpl);
+  (eapply read_m_labToZ; eauto).
 
 Ltac res_label :=
   match goal with 

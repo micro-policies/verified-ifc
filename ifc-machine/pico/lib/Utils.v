@@ -474,6 +474,17 @@ Proof.
 Qed.
 
 
+Lemma index_list_map : forall (A B: Type) m x (e:A) (f: A -> B), 
+  index_list x m = Some e ->
+  index_list x (map f m) = Some (f e).
+Proof.
+  induction m ; intros.
+  - rewrite index_list_nil in *. inv H.
+  - destruct x ; simpl in *.
+    inv H; auto.
+    eauto.
+Qed.
+
 Definition update_list_Z A i y (xs: list A) : option (list A) :=
   if Z.ltb i 0 then
     None
