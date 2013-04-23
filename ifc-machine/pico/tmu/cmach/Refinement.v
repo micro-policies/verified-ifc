@@ -66,6 +66,37 @@ Inductive match_stacks : list (@StkElmt L) ->  list CStkElmt -> Prop :=
                   ca = atom_labToZ a -> 
                   match_stacks (ARet a r:: s) (CRet ca r false:: cs).
 
+Lemma match_stacks_args : forall args s cs,
+   match_stacks (args ++ s) cs -> 
+   exists args' cs', cs = args'++cs'
+                      /\ match_stacks args args'
+                      /\ match_stacks s cs'.
+Admitted.
+  
+Lemma match_stacks_length : forall s cs,
+    match_stacks s cs ->
+    length cs = length s.
+Admitted.
+
+Lemma match_stacks_data : forall s cs,
+    match_stacks s cs ->
+    (forall a, In a s -> exists d : Atom, a = AData d) ->
+    (forall a, In a cs -> exists d : Atom, a = CData d).
+Admitted.
+
+Lemma match_stacks_app : forall s cs s' cs',
+    match_stacks s cs ->
+    match_stacks s' cs' ->
+    match_stacks (s++s') (cs++cs').
+Admitted.
+
+Lemma match_stacks_pop_to_return : forall dstk cdstk pcv pcl b stk cs p,
+   match_stacks (dstk  ++ ARet (pcv, pcl)        b   :: stk)
+                (cdstk ++ CRet (pcv, labToZ pcl) b p :: cs) ->
+   pop_to_return   (dstk  ++ ARet (pcv, pcl)        b   :: stk) (ARet (pcv, pcl) b :: stk) ->
+   c_pop_to_return (cdstk ++ CRet (pcv, labToZ pcl) b p :: cs)  (CRet (pcv, labToZ pcl) b p ::cs).
+Admitted.
+
 Definition mem_labToZ (m: list (@Atom L)) : list (@Atom Z) :=
   map atom_labToZ m. 
 
@@ -325,6 +356,29 @@ Qed.
 
 Hint Constructors star.
 
+Lemma update_list_map : forall xv rl m n m',
+   update_list n (xv, rl) m = Some m' ->
+   update_list n (xv, labToZ rl) (mem_labToZ m) = Some (mem_labToZ m').
+Proof.
+  induction m ; intros; simpl in *.
+  destruct n ; simpl in *; inv H.
+  destruct n ; simpl in *.
+  - inv H. reflexivity.
+  - case_eq (update_list n (xv,rl) m); intros; rewrite H0 in *; inv H.
+    erewrite IHm ; eauto. reflexivity.
+Qed.
+
+Lemma upd_m_mem_labToZ : forall m addrv xv rl m',
+  upd_m addrv (xv, rl) m = Some m' -> 
+  upd_m addrv (xv, labToZ rl) (mem_labToZ m) = Some (mem_labToZ m').
+Proof.
+  unfold upd_m.
+  intros; simpl in *.
+  case (addrv <? 0) in *. inv H.
+  eapply update_list_map; eauto.
+Qed.
+
+
 Lemma runsToEscape_star: forall s1 s2, 
  runsToEscape s1 s2 ->
  star cstep s1 s2.
@@ -348,24 +402,6 @@ Ltac solve_read_m :=
   (eapply read_m_labToZ; eauto).
        
 
-Ltac priv_steps := 
-  match goal with 
-    | [Hstar : runsToEscape ?s1 ?s2, 
-               Hfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
-      (eapply runsToEscape_star in Hstar; eauto);
-        let ll := fresh "ll" in
-        let Hll := fresh "Hll" in
-        let Hspec := fresh "Hspec" in
-      (generalize Hfinal; intros [[ll Hll] Hspec]);
-      (simpl); 
-      (apply star_step with s1; eauto); 
-      try match goal with 
-          | [ |- cstep _ _] => 
-            econstructor (solve [ eauto; solve_read_m ; eauto])
-      end;
-      (eapply star_right with s2; eauto);
-      (econstructor (try solve [ eauto ]); eauto)
-  end.
 
 Ltac renaming := 
   match goal with 
@@ -416,11 +452,30 @@ Ltac build_cache_and_tmu :=
       eauto
   end.
 
-Lemma upd_m_mem_labToZ : forall m addrv xv rl m',
-  upd_m addrv (xv, rl) m = Some m' -> 
-  upd_m addrv (xv, labToZ rl) (mem_labToZ m) = Some (mem_labToZ m').
-Admitted.
+Ltac priv_steps := 
+  match goal with 
+    | [Hstar : runsToEscape ?s1 ?s2, 
+               Hfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
+      (eapply runsToEscape_star in Hstar; eauto);
+        let ll := fresh "ll" in
+        let Hll := fresh "Hll" in
+        let Hspec := fresh "Hspec" in
+      (generalize Hfinal; intros [[ll Hll] Hspec]);
+      (simpl atom_labToZ); 
+      (apply star_step with s1; eauto); 
+      try (match goal with 
+          | [ |- cstep _ _] => 
+            econstructor (solve [ eauto | eauto; solve_read_m ])
+           end);
+      try match goal with 
+            | [ |- star _ _ _ ] => 
+              (eapply star_right with s2; eauto);
+              econstructor ; eauto
+          end
+  end.
 
+Hint Resolve match_stacks_app match_stacks_data match_stacks_length.
+      
 Lemma step_preserved: 
   forall s1 s1' s2,
     step_rules s1 s1' ->
@@ -437,7 +492,7 @@ Proof.
   - Case "Noop".    
     destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
-      res_label. subst pct.
+      res_label. subst pct. 
       split; inv H0; eauto.
       eapply star_step; eauto. eapply cstep_nop ; eauto. 
 
@@ -536,16 +591,146 @@ Proof.
        solve_read_m.
      * econstructor ; eauto. 
        inv_cache_update.
-      
-Admitted.
 
-(* previously: *)
-(*     set (tmuc':= build_cache op tags pct); *)
-(*     assert (CHIT' : cache_hit tmuc' op tags pct)  *)
-(*       by (eauto using build_cache_hit). *)
-(* edestruct (handler_correct cm i cstk (pcv,pct) _ _ CHIT' H0) *)
-(*   as [c [Hruns Hmfinal]]; eauto.  *)
+- Case " Jump ". 
+  inv STKS. 
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
+     split. 
+     * eapply star_step ; eauto. simpl. 
+       res_label. eapply cstep_jump  ; eauto.        
+     * econstructor; eauto.
+   + build_cache_and_tmu. res_label.
+     exists (CState c cm faultHandler i cs (pcv', rpct) false). split.
+     * priv_steps.
+       eapply handler_final_cache_hit_preserved; eauto.
+     * econstructor ; eauto. 
+       inv_cache_update.
 
+- Case " Branch ". 
+  inv STKS. 
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i cs 
+                    (if 0 =? 0 then pcv+1 else pcv+offv , rpct) false).
+     split. 
+     * eapply star_step ; eauto. res_label.  
+       eapply cstep_bnz ; eauto.        
+     * econstructor; eauto.
+   + build_cache_and_tmu. res_label.
+     exists (CState c cm faultHandler i cs 
+                    (if 0 =? 0 then pcv+1 else pcv+offv , rpct) false). 
+     split.
+     * res_label. 
+       priv_steps.
+       eapply handler_final_cache_hit_preserved; eauto.
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+- Case " Branch YES ". 
+  inv STKS. 
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i cs 
+                    (if av =? 0 then pcv+1 else pcv+offv , rpct) false).
+     split. 
+     * eapply star_step ; eauto. res_label.  
+       eapply cstep_bnz ; eauto.        
+     * econstructor; eauto. 
+       case_eq (av =? 0)%Z; intros; auto.
+       eelim H1; eauto.
+       rewrite Z.eqb_eq in H2. auto.
+   + build_cache_and_tmu. res_label.
+     exists (CState c cm faultHandler i cs 
+                    (if av =? 0 then pcv+1 else pcv+offv , rpct) false). 
+     split.
+     * priv_steps.
+       eapply handler_final_cache_hit_preserved; eauto.
+     * econstructor ; eauto. 
+       inv_cache_update.
+       case_eq (av =? 0)%Z; intros; auto.
+       eelim H1; eauto.
+       rewrite Z.eqb_eq in H2. auto.
+       
+- Case " Call ". 
+  inv STKS.        
+  edestruct (match_stacks_args _ _ H4) as [args' [cs' [Heq [Hargs Hcs]]]]; eauto.
+  inv Heq.  
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i 
+                    (args'++ (CRet (pcv+1, rt) r false)::cs') (pcv',rpct) false).
+     split. 
+     * eapply star_step ; eauto. 
+       eapply cstep_call ; eauto. 
+       eapply CACHE with (1:= H0); eauto.
+     * econstructor; eauto. 
+   + build_cache_and_tmu. 
+     exists (CState c cm faultHandler i 
+                    (args'++ (CRet (pcv+1, rt) r false)::cs') (pcv',rpct) false). 
+     split. 
+     * priv_steps.
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.                   
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+- Case " Ret ".
+  
+  exploit @pop_to_return_spec; eauto.
+  intros [dstk [stk [a [b [Heq Hdata]]]]]. inv Heq.
+  exploit @pop_to_return_spec2; eauto. intros Heq. inv Heq.
+  exploit @pop_to_return_spec3; eauto. intros Heq. inv Heq.
+  
+  edestruct (match_stacks_args _ _ STKS) as [args' [cs' [Heq [Hargs Hcs]]]]; eauto.
+  inv Heq. inv Hcs. simpl atom_labToZ in *.
+
+  exploit match_stacks_pop_to_return; eauto. intros.
+     
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
+     split. 
+     * res_label. eapply star_step ; eauto. 
+       eapply cstep_ret ; eauto.
+     * econstructor; eauto. 
+       
+   + build_cache_and_tmu. 
+     exists (CState c cm faultHandler i cs (pcv',rpct) false). res_label. 
+     split.
+     * priv_steps.
+       eapply handler_final_cache_hit_preserved; eauto.
+     * econstructor ; eauto. 
+       inv_cache_update.
+
+- Case " VRet ".
+  inv STKS.
+  exploit @pop_to_return_spec; eauto.
+  intros [dstk [stk [a [b [Heq Hdata]]]]]. inv Heq.
+  exploit @pop_to_return_spec2; eauto. intros Heq. inv Heq.
+  exploit @pop_to_return_spec3; eauto. intros Heq. inv Heq.
+  edestruct (match_stacks_args _ _ H4) as [args' [cs' [Heq [Hargs Hcs]]]]; eauto.
+  inv Heq. inv Hcs. simpl atom_labToZ in *.
+  exploit match_stacks_pop_to_return; eauto. intros.
+     
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false).
+     split. 
+     * eapply star_step ; eauto. 
+       eapply cstep_vret ; eauto.
+       eapply CACHE with (1:= H1); eauto.
+     * econstructor; eauto.        
+   + build_cache_and_tmu. 
+     exists (CState c cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false). 
+     split.
+     * (eapply runsToEscape_star in Hruns; eauto);
+       (generalize Hmfinal; intros [[ll Hll] Hspec]);
+       (simpl atom_labToZ).
+       (eapply star_step; eauto).
+       (eapply star_right; eauto).       
+       eapply cstep_vret; eauto.
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.      
+     * econstructor ; eauto. 
+       inv_cache_update.
+Qed.
+  
 Lemma step_preserved_observ: 
   forall s1 s1' s2,
     step_rules s1 s1' ->
@@ -584,7 +769,6 @@ Let cexec_with_trace := sys_trace cstep c_success observe_cstate.
 (*                       aexec_with_trace s1 T.  *)
 (* Proof. *)
 (*   eapply forward_backward_sim; eauto. *)
-(*   admit.  *)
 (*   exact step_preserved_observ. *)
 (*   exact succ_preserved. *)
 (*   exact cmach_determ. *)

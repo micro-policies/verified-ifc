@@ -64,7 +64,7 @@ Proof.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     reflexivity.
 
-  Case "Ret user".
+  Case "Ret Ret user".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
@@ -93,8 +93,7 @@ Proof.
     exploit @c_pop_to_return_spec2; eauto. intros. 
     inv H. inv H0. congruence.
 
-  Case "Ret kernel".
-    
+  Case "Ret kernel".    
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
@@ -103,28 +102,7 @@ Proof.
     inv H. inv H0. 
     reflexivity.
     
-  Case "VRet".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-
-    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-
-    exploit @c_pop_to_return_spec3; eauto. intros. 
-    generalize POP0 ; clear POP0 ; intros POP0.
-    exploit @c_pop_to_return_spec3; eauto. intros.
-    inv H1.  inv H. inv H0.
-    reflexivity.
-
-  Case "VRet".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-
-    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. 
-
-  Case "Ret priv".
+  Case "Ret Ret".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
@@ -137,35 +115,58 @@ Proof.
     intros.  inv H1.    
     reflexivity.
 
-  Case "VRet cache hit and miss".
+  Case "VRet user ".
+    exploit @c_pop_to_return_spec; eauto.
+    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
+
+    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top POP0.
+    exploit @c_pop_to_return_spec2; eauto. intros. 
+
+    exploit @c_pop_to_return_spec3; eauto. intros. 
+    generalize POP0 ; clear POP0 ; intros POP0.
+    exploit @c_pop_to_return_spec3; eauto. intros.
+    inv H1.  inv H. inv H0.
+    reflexivity.
+
+  Case "Ret kernel / user ".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
     exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
     exploit @c_pop_to_return_spec2; eauto. intros. 
     inv H. inv H0. 
+    congruence. 
 
-  Case "Ret priv".
+  Case "Ret kernel / user - sym".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
     exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
     exploit @c_pop_to_return_spec2; eauto. intros. 
     inv H. inv H0. 
-    
-    exploit @c_pop_to_return_spec3; eauto. 
+    congruence. 
 
-  Case "Ret priv true".
+  Case "VRet priv".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top H13.
+    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
     exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H1. inv H2. 
+    inv H. inv H0.
     
-    exploit @c_pop_to_return_spec3; eauto. clear H0.
     exploit @c_pop_to_return_spec3; eauto. 
-    intros.  inv H1.    
+
+  Case "VRet true".
+    exploit @c_pop_to_return_spec; eauto.
+    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
+
+    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top H13.
+    exploit @c_pop_to_return_spec2; eauto. intros. 
+    inv H1. inv H2.
+
+    exploit @c_pop_to_return_spec3; eauto. move_to_top H0.
+    exploit @c_pop_to_return_spec3; eauto. intros. 
+    inv H1. 
     reflexivity.
 Qed.
 

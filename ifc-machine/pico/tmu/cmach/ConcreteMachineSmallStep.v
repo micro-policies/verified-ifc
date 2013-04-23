@@ -229,7 +229,13 @@ Inductive cstep : CS -> CS -> Prop :=
      cstep (CState c m fh i s  (pcv,pcl) false)
            (CState c' m fh i ((fh_ret pcv pcl)::s) fh_start true)
 
-| cstep_retv: forall c fh m i s s' pcv pcl rl rpcl resv resl pcret pcretl,
+| cstep_ret_p: forall c m fh i s pcv pcl  pcret pcretl s' pret, 
+    fh @ pcv # Ret -> (* can either return to user/priv mode *)
+    c_pop_to_return s ((CRet (pcret,pcretl) false pret)::s') ->
+    cstep (CState c m fh i s  (pcv,pcl) true) 
+          (CState c m fh i s' (pcret,pcretl) pret)
+
+| cstep_vret: forall c fh m i s s' pcv pcl rl rpcl resv resl pcret pcretl,
    forall(INST: i @ pcv # VRet)
          (CHIT: cache_hit c (opCodeToZ OpVRet) (resl, pcretl, __) pcl)
          (POP:  c_pop_to_return s ((CRet (pcret,pcretl) true false)::s')) 
@@ -238,16 +244,10 @@ Inductive cstep : CS -> CS -> Prop :=
      cstep (CState c m fh i ((resv,resl):::s)  (pcv,pcl) false)
            (CState c m fh i ((resv,rl):::s') (pcret,rpcl) false)
 
-| cstep_ret_p: forall c m fh i s pcv pcl  pcret pcretl s' pret, 
-    fh @ pcv # Ret -> (* can either return to user/priv mode *)
-    c_pop_to_return s ((CRet (pcret,pcretl) false pret)::s') ->
-    cstep (CState c m fh i s  (pcv,pcl) true) 
-          (CState c m fh i s' (pcret,pcretl) pret)
-
-| cstep_retv_f: forall c c' fh m i s' s pcv pcl resv resl pcret pcretl,
+| cstep_vret_f: forall c c' fh m i s' s pcv pcl resv resl pcret pcretl,
    forall(INST: i @ pcv # VRet)
          (CMISS: ~ cache_hit c (opCodeToZ OpVRet) (resl, pcretl, __) pcl)
-         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false false)::s')) (*DD: same thing *)
+         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) true false)::s')) (*DD: same thing *)
          (CUPD : c' = build_cache (opCodeToZ OpVRet) (resl,pcretl,__) pcl),
      cstep (CState c m fh i ((resv,resl):::s)  (pcv,pcl) false)
            (CState c' m fh i ((fh_ret pcv pcl)::(resv,resl):::s) fh_start true)
