@@ -66,37 +66,113 @@ Inductive match_stacks : list (@StkElmt L) ->  list CStkElmt -> Prop :=
                   ca = atom_labToZ a -> 
                   match_stacks (ARet a r:: s) (CRet ca r false:: cs).
 
+Hint Constructors match_stacks.
+
 Lemma match_stacks_args : forall args s cs,
    match_stacks (args ++ s) cs -> 
    exists args' cs', cs = args'++cs'
                       /\ match_stacks args args'
                       /\ match_stacks s cs'.
-Admitted.
-  
+Proof.
+  induction args; intros.
+  simpl in *. exists nil; exists cs. split; eauto.
+  inv H;
+    (exploit IHargs; eauto; intros [args' [cs' [Heq [Hmatch Hmatch']]]]);
+    (inv Heq; (eexists; eexists; split; eauto ; try reflexivity)).
+Qed.
+
 Lemma match_stacks_length : forall s cs,
     match_stacks s cs ->
     length cs = length s.
-Admitted.
+Proof.
+  induction 1; intros; (simpl; eauto).
+Qed.
 
 Lemma match_stacks_data : forall s cs,
     match_stacks s cs ->
     (forall a, In a s -> exists d : Atom, a = AData d) ->
     (forall a, In a cs -> exists d : Atom, a = CData d).
-Admitted.
+Proof.
+  induction 1;  intros.
+  - inv H0.
+  - inv H2.  eauto.
+    eapply IHmatch_stacks; eauto.  
+    intros; eapply H1; eauto.
+    econstructor 2; eauto.
+  - inv H2.
+    eelim (H1 (ARet a r)); eauto. intros. congruence.
+    constructor; auto.
+    eapply IHmatch_stacks; eauto.
+    intros; eapply H1; eauto.
+    econstructor 2; eauto.
+Qed.
 
 Lemma match_stacks_app : forall s cs s' cs',
     match_stacks s cs ->
     match_stacks s' cs' ->
     match_stacks (s++s') (cs++cs').
-Admitted.
+Proof.
+  induction 1 ; intros; (simpl; eauto).
+Qed.
+
+Lemma match_stacks_app_length : forall S CS,
+    match_stacks S CS ->
+    forall s s' cs cs',
+    S = (s++s') ->
+    CS = (cs++cs') ->
+    length s = length cs ->
+    match_stacks s cs 
+    /\ match_stacks s' cs'.
+Proof.
+  induction 1 ; intros; (simpl; eauto).
+  - exploit app_eq_nil ; eauto. intros [Heq Heq']. inv Heq.
+    exploit (app_eq_nil s) ; eauto. intros [Heq Heq']. inv Heq.
+    split; eauto.
+  - destruct s0 ; simpl in *. inv H1. 
+    destruct cs0 ; simpl in *. inv H2; split; eauto. congruence.
+    inv H1. destruct cs0; simpl in *. congruence.
+    inv H3. 
+    inv H2.
+    exploit IHmatch_stacks; eauto.
+    intros [Hmatch Hmatch']; split; eauto.
+  - destruct s0 ; simpl in *. inv H1. 
+    destruct cs0 ; simpl in *. inv H2; split; eauto. congruence.
+    inv H1. destruct cs0; simpl in *. congruence.
+    inv H3. 
+    inv H2.
+    exploit IHmatch_stacks; eauto.
+    intros [Hmatch Hmatch']; split; eauto.
+Qed.
+
+Lemma c_pop_to_return_pops_data: forall cdstk a b p cs,   
+     (forall a : CStkElmt, In a cdstk -> exists d : Atom, a = CData d) ->
+     c_pop_to_return (cdstk ++ CRet a b p :: cs) (CRet a b p :: cs).
+Proof.
+  induction cdstk; intros.
+  simpl; auto. constructor.
+  simpl. destruct a.
+  constructor. eapply IHcdstk; eauto.
+  intros; (eapply H ; eauto ; constructor 2; auto).
+  exploit (H (CRet a b0 b1)); eauto.
+  constructor; auto.
+  intros [d Hcont]. inv Hcont.
+Qed.
 
 Lemma match_stacks_pop_to_return : forall dstk cdstk pcv pcl b stk cs p,
    match_stacks (dstk  ++ ARet (pcv, pcl)        b   :: stk)
                 (cdstk ++ CRet (pcv, labToZ pcl) b p :: cs) ->
+   (forall e, In e dstk -> exists a, e = AData a) ->
+   length dstk = length cdstk ->
    pop_to_return   (dstk  ++ ARet (pcv, pcl)        b   :: stk) (ARet (pcv, pcl) b :: stk) ->
    c_pop_to_return (cdstk ++ CRet (pcv, labToZ pcl) b p :: cs)  (CRet (pcv, labToZ pcl) b p ::cs).
-Admitted.
-
+Proof.
+  intros.
+  exploit match_stacks_app_length; eauto. intros [Hmatch Hmatch'].
+  inv Hmatch'. inv H10. 
+  assert (Hcdstk:= match_stacks_data Hmatch H0); eauto.
+  eapply c_pop_to_return_pops_data; eauto.
+Qed.
+  
 Definition mem_labToZ (m: list (@Atom L)) : list (@Atom Z) :=
   map atom_labToZ m. 
 
@@ -682,10 +758,12 @@ Proof.
   edestruct (match_stacks_args _ _ STKS) as [args' [cs' [Heq [Hargs Hcs]]]]; eauto.
   inv Heq. inv Hcs. simpl atom_labToZ in *.
 
-  exploit match_stacks_pop_to_return; eauto. intros.
+  exploit match_stacks_pop_to_return; eauto. 
+  erewrite match_stacks_length; auto.
+  intros.
      
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
-   + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
+  + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
      split. 
      * res_label. eapply star_step ; eauto. 
        eapply cstep_ret ; eauto.
@@ -707,7 +785,9 @@ Proof.
   exploit @pop_to_return_spec3; eauto. intros Heq. inv Heq.
   edestruct (match_stacks_args _ _ H4) as [args' [cs' [Heq [Hargs Hcs]]]]; eauto.
   inv Heq. inv Hcs. simpl atom_labToZ in *.
-  exploit match_stacks_pop_to_return; eauto. intros.
+  exploit match_stacks_pop_to_return; eauto. 
+  erewrite match_stacks_length; auto.
+  intros.
      
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
    + exists (CState tmuc cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false).
