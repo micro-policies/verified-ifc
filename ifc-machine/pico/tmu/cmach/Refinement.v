@@ -423,7 +423,7 @@ Proof.
   auto.
 Qed.
 
-Hint Constructors star.
+Hint Constructors star plus.
 
 Lemma update_list_map : forall xv rl m n m',
    update_list n (xv, rl) m = Some m' ->
@@ -503,23 +503,25 @@ Ltac build_cache_and_tmu :=
 
 Ltac priv_steps := 
   match goal with 
-    | [Hstar : runsToEscape ?s1 ?s2, 
-               Hfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
-      (eapply runsToEscape_star in Hstar; eauto);
+    | [Hruns : runsToEscape ?s ?s', 
+       Hmfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
+      (eapply runsToEscape_star in Hruns; [| congruence]);
         let ll := fresh "ll" in
         let Hll := fresh "Hll" in
         let Hspec := fresh "Hspec" in
-      (generalize Hfinal; intros [[ll Hll] Hspec]);
+      (generalize Hmfinal; intros [[ll Hll] Hspec]);
       (simpl atom_labToZ); 
-      (apply star_step with s1; eauto); 
+      (apply plus_trans with (s2:= s); eauto); 
       try (match goal with 
           | [ |- cstep _ _] => 
             econstructor (solve [ eauto | eauto; solve_read_m ])
+          | [ |- cstep _ _] => 
+            econstructor ; eauto 
            end);
       try match goal with 
-            | [ |- star _ _ _ ] => 
-              (eapply star_right with s2; eauto);
-              econstructor ; eauto
+            | [ |- plus _ _ _ ] => 
+              (eapply plus_right with s'; eauto);
+              (econstructor; eauto)                                               
           end
   end.
 
@@ -529,7 +531,7 @@ Lemma step_preserved:
   forall s1 s1' s2,
     step_rules s1 s1' ->
     match_states s1 s2 ->
-    (exists s2', star cstep s2 s2' /\ match_states s1' s2').
+    (exists s2', plus cstep s2 s2' /\ match_states s1' s2').
 Proof.
   intros s1 s1' s2 Hstep Hmatch. inv Hstep; try renaming;
     match goal with 
@@ -543,11 +545,11 @@ Proof.
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. subst pct. 
       split; inv H0; eauto.
-      eapply star_step; eauto. eapply cstep_nop ; eauto. 
+      eapply plus_step; eauto. eapply cstep_nop ; eauto. 
 
     + build_cache_and_tmu. res_label.
       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
-      * priv_steps.
+      * priv_steps.        
         eapply handler_final_cache_hit_preserved; eauto.
       * econstructor ; eauto. 
         inv_cache_update. 
@@ -557,7 +559,7 @@ Proof.
    destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].   
    + exists (CState tmuc cm faultHandler i ((x1v+x2v,rt):::cs0) (pcv+1,rpct) false).
      split. 
-     * eapply star_step ; eauto. eapply cstep_add ; eauto.
+     * eapply plus_step ; eauto. eapply cstep_add ; eauto.
        eapply CACHE with (1:= H0); eauto.
      * eauto.         
    + build_cache_and_tmu.  
@@ -574,7 +576,7 @@ Proof.
    destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1,rpct) false).
      split. 
-     * eapply star_step ; eauto. eapply cstep_sub ; eauto.        
+     * eapply plus_step ; eauto. eapply cstep_sub ; eauto.        
        eapply CACHE with (1:= H0); eauto.
      * eauto.         
    + build_cache_and_tmu. 
@@ -590,7 +592,7 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((cv,rt):::cstk) (pcv+1,rpct) false).
      split. 
-     * eapply star_step ; eauto. eapply cstep_push ; eauto.        
+     * eapply plus_step ; eauto. eapply cstep_push ; eauto.        
        eapply CACHE with (1:= H0); eauto.
      * eauto.         
    + build_cache_and_tmu. 
@@ -606,7 +608,7 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((xv,rt):::cs) (pcv+1,rpct) false).
      split. 
-     * eapply star_step ; eauto. 
+     * eapply plus_step ; eauto. 
        eapply cstep_load ; eauto.        
        eapply CACHE with (1:= H1); eauto.
        solve_read_m.       
@@ -627,7 +629,7 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
    + exists (CState tmuc (mem_labToZ m') faultHandler i cs0 (pcv+1,rpct) false).
      split. 
-     * eapply star_step ; eauto. 
+     * eapply plus_step ; eauto. 
        eapply cstep_store  ; eauto.        
        eapply CACHE with (1:= H2); eauto.       
        solve_read_m.       
@@ -646,7 +648,7 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
    + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
      split. 
-     * eapply star_step ; eauto. simpl. 
+     * eapply plus_step ; eauto. simpl. 
        res_label. eapply cstep_jump  ; eauto.        
      * econstructor; eauto.
    + build_cache_and_tmu. res_label.
@@ -662,7 +664,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i cs 
                     (if 0 =? 0 then pcv+1 else pcv+offv , rpct) false).
      split. 
-     * eapply star_step ; eauto. res_label.  
+     * eapply plus_step ; eauto. res_label.  
        eapply cstep_bnz ; eauto.        
      * econstructor; eauto.
    + build_cache_and_tmu. res_label.
@@ -681,7 +683,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i cs 
                     (if av =? 0 then pcv+1 else pcv+offv , rpct) false).
      split. 
-     * eapply star_step ; eauto. res_label.  
+     * eapply plus_step ; eauto. res_label.  
        eapply cstep_bnz ; eauto.        
      * econstructor; eauto. 
        case_eq (av =? 0)%Z; intros; auto.
@@ -707,7 +709,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i 
                     (args'++ (CRet (pcv+1, rt) r false)::cs') (pcv',rpct) false).
      split. 
-     * eapply star_step ; eauto. 
+     * eapply plus_step ; eauto. 
        eapply cstep_call ; eauto. 
        eapply CACHE with (1:= H0); eauto.
      * econstructor; eauto. 
@@ -738,8 +740,7 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
   + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
      split. 
-     * res_label. eapply star_step ; eauto. 
-       eapply cstep_ret ; eauto.
+     * res_label. eapply plus_step ; eauto. 
      * econstructor; eauto. 
        
    + build_cache_and_tmu. 
@@ -765,21 +766,30 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
    + exists (CState tmuc cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false).
      split. 
-     * eapply star_step ; eauto. 
+     * eapply plus_step ; eauto. 
        eapply cstep_vret ; eauto.
        eapply CACHE with (1:= H1); eauto.
      * econstructor; eauto.        
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false). 
      split.
-     * (eapply runsToEscape_star in Hruns; eauto);
+     * (eapply runsToEscape_star in Hruns; [| congruence]);
        (generalize Hmfinal; intros [[ll Hll] Hspec]);
-       (simpl atom_labToZ).
-       (eapply star_step; eauto).
-       (eapply star_right; eauto).       
+       (simpl atom_labToZ).       
+       (eapply plus_trans with {|
+            cache := tmuc';
+            mem := mem_labToZ m;
+            fhdl := faultHandler;
+            imem := i;
+            stk := CRet (pcv, pct) false false
+                   :: (resv, labToZ resl)
+                      ::: args' ++ CRet (pcv', labToZ pcl') true false :: cs;
+            pc := (0, handlerTag);
+            priv := true |}; eauto).
+       eapply plus_right ; eauto.
        eapply cstep_vret; eauto.
        eapply handler_final_cache_hit_preserved; eauto.
-       eapply handler_cache_hit_read_some; eauto.      
+       eapply handler_cache_hit_read_some; eauto.             
      * econstructor ; eauto. 
        inv_cache_update.
 Qed.
@@ -788,7 +798,7 @@ Lemma step_preserved_observ:
   forall s1 s1' s2,
     step_rules s1 s1' ->
     match_states s1 s2 ->
-    s1 = observe_cstate s2 /\ (exists s2', star cstep s2 s2' /\ match_states s1' s2').
+    s1 = observe_cstate s2 /\ (exists s2', plus cstep s2 s2' /\ match_states s1' s2').
 Proof.
   intros.
   split. 

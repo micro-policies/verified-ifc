@@ -30,6 +30,27 @@ Proof.
   eauto.
 Qed.
 
+Inductive plus (S: Type) (Rstep: S -> S -> Prop): S -> S -> Prop :=
+  | plus_step: forall s s',
+      Rstep s s' ->
+      plus Rstep s s'
+  | plus_trans: forall s1 s2 s3,
+      Rstep s1 s2 -> plus Rstep s2 s3 -> 
+      plus Rstep s1 s3.
+
+Hint Constructors star.
+Hint Constructors plus.
+
+Lemma plus_right : forall S (Rstep: S -> S -> Prop) s1 s2, 
+                     plus Rstep s1 s2 -> 
+                     forall s3, 
+                       Rstep s2 s3 -> plus Rstep s1 s3.
+Proof.
+  induction 1; intros.
+  eapply plus_trans; eauto.
+  eauto.
+Qed.
+
 Section CMach.
 
 Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity, at level 55).
@@ -295,13 +316,24 @@ Inductive runsToEscape : CS -> CS -> Prop :=
     forall (UPRIV: priv cs = false),
       runsToEscape cs cs.
 
-Lemma runsToEscape_star: forall s1 s2, 
- runsToEscape s1 s2 ->
- star cstep s1 s2.
+Lemma step_star_plus (S: Type): 
+  forall (Rstep: S -> S -> Prop) (s2 s3: S), 
+    star Rstep s2 s3 ->
+    forall s1, 
+      Rstep s1 s2 ->
+      plus Rstep s1 s3.
 Proof.
-  induction 1 ; intros; auto.
+  induction 1; intros; eauto.
 Qed.
 
-
+Lemma runsToEscape_star: forall s1 s2, 
+ runsToEscape s1 s2 ->
+ s1 <> s2 ->
+ plus cstep s1 s2.
+Proof.
+  induction 1 ; intros;
+  try ( inv STAR; [ congruence | eapply step_star_plus; eauto]).
+  congruence.
+Qed.
 
 End CMach.
