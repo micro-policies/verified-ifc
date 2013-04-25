@@ -25,6 +25,7 @@ match c with
 | OpCall => 1
 | OpRet => 1
 | OpVRet => 2
+| OpOutput => 1
 end.
 
 Local Open Scope Z_scope.
@@ -51,6 +52,7 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
     | OpCall => ≪ TRUE ,LabPC ,JOIN Lab1 LabPC ≫
     | OpRet => ≪ TRUE, __ , Lab1 ≫
     | OpVRet => ≪ TRUE, JOIN Lab1 LabPC, Lab2 ≫ (* value, return addr *)
+    | OpOuput => ≪ TRUE, JOIN Lab1 LabPC, LabPC ≫ (* output value *)
     end.
 
 (** run_tmr (TMR for Tag Managment Rules): fetches the rule for the
@@ -58,8 +60,7 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
 (** DD: Shall we propagate the boolean return code of apply_rule for
     distinguishing the kind of errors of the machine ?
     - abort/die abruptly when eval_var is buggy
-    - exception on an IFC violation
- *)
+    - exception on an IFC violation *)
 
 Definition run_tmr (opcode: OpCode) (labs:Vector.t T (labelCount opcode)) (pc: T):  option (option T * T) :=  
   let r := fetch_rule opcode in
@@ -128,28 +129,31 @@ Proof.
 Qed.
    
 
-Inductive step_rules : @AS T -> @AS T -> Prop := 
+Inductive step_rules : @AS T -> option (@Event T) -> @AS T -> Prop := 
 | step_nop : forall m i s pcv pcl rpcl rl,
     index_list_Z pcv i = Some Noop ->
     run_tmr OpNoop <||> pcl = Some (rl,rpcl) ->
-    step_rules (AState m i s (pcv,pcl)) (AState m i s (pcv+1,rpcl))
+    step_rules (AState m i s (pcv,pcl)) None (AState m i s (pcv+1,rpcl))
 
 | step_add: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l, 
     index_list_Z pcv i = Some Add ->
     run_tmr OpAdd <|x1l;x2l|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
+               None
                (AState m i ((AData (x1v+x2v,rl))::s) (pcv+1,rpcl))
 
 | step_sub: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l, 
     index_list_Z pcv i = Some Sub ->
     run_tmr OpSub <|x1l;x2l|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
+               None
                (AState m i ((AData (x1v-x2v,rl))::s) (pcv+1,rpcl))
 
 | step_push: forall m i s pcv pcl rpcl rl cv,
     index_list_Z pcv i = Some (Push cv) ->
     run_tmr OpPush <||> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i s (pcv,pcl)) 
+               None
                (AState m i ((AData (cv,rl))::s) (pcv+1,rpcl))
 
 | step_load: forall m i s pcv pcl addrv addrl xv xl rl rpcl, 
@@ -157,6 +161,7 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
     index_list_Z addrv m = Some (xv,xl) ->
     run_tmr OpLoad <|addrl;xl|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (addrv,addrl))::s) (pcv,pcl)) 
+               None
                (AState m i ((AData (xv, rl))::s) (pcv+1,rpcl))
 
 | step_store: forall m i s pcv pcl addrv addrl xv xl mv ml rl rpcl m', 
@@ -165,18 +170,21 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
     update_list_Z addrv (xv, rl) m = Some m' ->
     run_tmr OpStore <|addrl;xl;ml|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i ((AData (addrv,addrl))::(AData (xv,xl))::s) (pcv,pcl)) 
+               None 
                (AState m' i s (pcv+1,rpcl))
 
 | step_jump: forall m i s pcv pcl pcv' pcl' rl rpcl, 
     index_list_Z pcv i = Some Jump ->
     run_tmr OpJump <|pcl'|> pcl = Some (rl,rpcl) ->
     step_rules (AState m i ((AData (pcv',pcl'))::s) (pcv,pcl)) 
+               None
                (AState m i s (pcv',rpcl))
                
 | step_branchnz_true: forall m i s pcv pcl offv al rl rpcl,
     index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
     run_tmr OpBranchNZ <|al|> pcl = Some (rl,rpcl) ->
     step_rules (AState m i ((AData (0,al))::s) (pcv,pcl)) 
+               None
                (AState m i s (pcv+1,rpcl))
 
 | step_branchnz_false: forall m i s pcv pcl offv av al rl rpcl, 
@@ -184,6 +192,7 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
     run_tmr OpBranchNZ <|al|> pcl = Some (rl,rpcl) ->
     av <> 0 ->
     step_rules (AState m i ((AData (av,al))::s) (pcv,pcl)) 
+               None
                (AState m i s (pcv+offv,rpcl))
 
 | step_call: forall m i s pcv pcl pcv' pcl' rl rpcl args a r, 
@@ -192,21 +201,27 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
     length args = a ->
     (forall a, In a args -> exists d, a = AData d) ->
     step_rules (AState m i ((AData (pcv',pcl'))::args++s) (pcv,pcl)) 
+               None
                (AState m i (args++(ARet (pcv+1,rl) r)::s) (pcv',rpcl))
 
 | step_ret: forall m i s pcv pcl pcv' pcl' rl rpcl s' , 
     index_list_Z pcv i = Some Ret -> 
     pop_to_return s ((ARet (pcv',pcl') false)::s') ->
     run_tmr OpRet <|pcl'|> pcl = Some (rl,rpcl) ->
-    step_rules (AState m i s  (pcv,pcl)) 
-               (AState m i s' (pcv',rpcl))
+    step_rules (AState m i s  (pcv,pcl)) None (AState m i s' (pcv',rpcl))
 
 | step_vret: forall m i s pcv pcl pcv' pcl' rl rpcl resv resl s' , 
     index_list_Z pcv i = Some VRet -> 
     pop_to_return s ((ARet (pcv',pcl') true)::s') ->
     run_tmr OpVRet <|resl;pcl'|> pcl = Some (Some rl,rpcl) ->
     step_rules (AState m i (AData (resv,resl)::s) (pcv,pcl)) 
-               (AState m i (AData (resv, rl)::s') (pcv',rpcl)).
+               None (AState m i (AData (resv, rl)::s') (pcv',rpcl))
+
+| step_output: forall m i s pcv pcl rl rpcl xv xl, 
+    index_list_Z pcv i = Some Output -> 
+    run_tmr OpOutput <|xl|> pcl = Some (Some rl,rpcl) ->
+    step_rules (AState m i (AData (xv,xl)::s) (pcv,pcl)) 
+               (Some (EInt (xv,rl))) (AState m i s (pcv+1,rpcl)).
 
 (* Halt does not step. We're going to distingush sucessful executions by looking at what
    was the last instruction *)
@@ -231,8 +246,8 @@ Inductive step_rules : @AS T -> @AS T -> Prop :=
 (*                                        |}. *)
 *)
 
-Lemma step_rules_instr : forall m i s pcv pcl s',
-  step_rules (AState m i s (pcv,pcl)) s' ->
+Lemma step_rules_instr : forall m i s pcv pcl s' e,
+  step_rules (AState m i s (pcv,pcl)) e s' ->
   exists instr, 
     index_list_Z pcv i = Some instr.
 Proof.
@@ -242,7 +257,7 @@ Qed.
 
 Lemma success_runSTO_None : forall  s,
   success s ->  
-  forall s', ~ step_rules s s'.
+  forall s' e, ~ step_rules s e s'.
 Proof.
   intros. intros HCont. break_success.
   inv HCont; simpl in * ; try congruence.
@@ -271,8 +286,8 @@ Ltac step_tmr :=
     | [ H: run_tmr _ _ _ = _  |- _ ] => inv H
   end. 
 
-Lemma step_rules_non_ret_label_pc: forall m i stk pc l s instr,
-  step_rules (AState m i stk (pc, l)) s ->
+Lemma step_rules_non_ret_label_pc: forall m i stk pc l s instr e,
+  step_rules (AState m i stk (pc, l)) e s ->
   index_list_Z pc i = Some instr ->
   instr <> Ret ->
   instr <> VRet ->

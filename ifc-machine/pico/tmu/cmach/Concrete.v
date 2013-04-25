@@ -31,6 +31,9 @@ Record CS  := CState {
   priv : bool
 }.
 
+Inductive CEvent :=
+| CEInt : @Atom Z -> CEvent.
+
 (** * Cache handling mechanism *)
 
 Definition opCodeToZ (opcode : OpCode) : Z :=
@@ -46,6 +49,7 @@ match opcode with
 | OpCall => 8
 | OpRet => 9
 | OpVRet => 10
+| OpOutput => 11
 end.
 
 (* Where in the cache the various labels live *)
@@ -216,7 +220,6 @@ Notation read_m := index_list_Z.
 Notation upd_m := update_list_Z. 
 Notation "a ::: b" := ((CData a) :: b)  (at level 60, right associativity).
 Hint Constructors cache_hit cache_hit_read.
-
 
 (* DD: NOT NEEDED ANYMORE. TWO SEPARATE MODES and MEMORIES FOR THE MACHINE *)
 (* Inductive check_addr_priv : bool -> Z -> Z -> Prop := *)

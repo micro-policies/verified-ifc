@@ -15,12 +15,13 @@ Inductive Instr :=
   | BranchNZ : Z -> Instr
   | Call : nat -> bool -> Instr 
     (* Call n b : call to a function with n arguments, the boolean
-       indicates a value or void returning function DD: do we really
-       need the boolean flag? 
-     DD: YES WE NEED IT !! *) 
+       indicates a value or void returning function.
+       We need that flag to ensure return stack are the same height
+       when returning from two high calling context.  *) 
   | Ret: Instr 
   | VRet : Instr 
-  | Halt : Instr .
+  | Halt : Instr
+  | Output : Instr.
 
 
 (* Convenience datatype for packaging the operation-specific label parameters
@@ -40,4 +41,4 @@ Inductive OpCode : Type :=
 | OpCall
 | OpRet 
 | OpVRet
-.
+| OpOutput.

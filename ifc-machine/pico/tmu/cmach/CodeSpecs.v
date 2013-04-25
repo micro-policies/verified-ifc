@@ -61,54 +61,50 @@ Qed.
 
 (* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
 [pc1] and runs until pc [pc2]. *)
-Inductive runsToEnd (Rstep: CS -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=
+Inductive runsToEnd (Rstep: CS -> option CEvent -> CS -> Prop) : Z -> Z -> CS -> list CEvent -> CS -> Prop :=
 | runsToEndDone : forall n cs,
   fst (pc cs) = n -> 
-  runsToEnd Rstep n n cs cs
+  runsToEnd Rstep n n cs nil cs
   (* NC: do we need to worry about [n <= n' <= n'']? *)
-| runsToEndStep: forall n n' n'' cs cs' cs'',
+| runsToEndStep: forall n n' n'' cs e cs' t cs'',
   fst (pc cs) = n ->
-  Rstep cs cs' ->
+  Rstep cs e cs' ->
   fst (pc cs') = n' ->
   (* DD: I just comment out these for now, as the new hyp breaks composition lemma below *)
   (* n <> n'' ->  *)  n < n'' -> (* BEFORE: n < n' -> *) 
-  runsToEnd Rstep n' n'' cs' cs'' -> 
-  runsToEnd Rstep n  n'' cs  cs''.
+  runsToEnd Rstep n' n'' cs' t cs'' -> 
+  runsToEnd Rstep n  n'' cs  (op_cons e t) cs''.
 
 (* APT: With second option above ( n < n'') it is
    easy enough to prove the following two lemmas.
    But at the moment, Nathan and I don't see any
    strong reason to include this restriction...
 *)
-Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1, 
-  runsToEnd step pc0 pc1 s0 s1 -> pc0 <= pc1. 
+Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1 t, 
+  runsToEnd step pc0 pc1 s0 t s1 -> pc0 <= pc1. 
 Proof.
-  intros.  inv H. 
-  omega.
-omega.
+  intros.  inv H; omega.
 Qed.
 
-Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
-  runsToEnd step pc0 pc1 s0 s1 ->
-  forall pc2 s2,
-  runsToEnd step pc1 pc2 s1 s2 ->
-  runsToEnd step pc0 pc2 s0 s2.
+Lemma runsToEnd_compose : forall step pc0 pc1 s0 t1 s1,
+  runsToEnd step pc0 pc1 s0 t1 s1 ->
+  forall pc2 s2 t2,
+  runsToEnd step pc1 pc2 s1 t2 s2 ->
+  runsToEnd step pc0 pc2 s0 (t1++t2) s2.
 Proof.
   induction 1. 
-  intros; auto.
+  intros; simpl; auto.
   intros. 
-  econstructor; eauto.
+  rewrite op_cons_app. econstructor; eauto.
   apply runsToEnd_bounded in H4. 
   omega.
 Qed.
 
-
-
-Lemma runsToEnd_determ : forall (step : CS -> CS -> Prop) pc0 pc1 s0 s1 s1',
-  forall (STEP_DET: forall s s' s'', step s s' -> step s s'' -> s' = s'') ,
-  runsToEnd step pc0 pc1 s0 s1 ->
-  runsToEnd step pc0 pc1 s0 s1' ->
-  s1 = s1'. 
+Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) pc0 pc1 s0 t1 s1 s1',
+  forall (STEP_DET: forall s e s' e' s'', step s e s' -> step s e' s'' -> s' = s'' /\ e = e') ,
+  runsToEnd step pc0 pc1 s0 t1 s1 ->
+  forall t2, runsToEnd step pc0 pc1 s0 t2 s1' ->
+  s1 = s1' /\ t1 = t2.
 Proof.
   intros until 1. 
   induction 1; intros.
@@ -117,13 +113,12 @@ Proof.
       exfalso; omega. 
     inv H4.
       exfalso; omega. 
-      clear H5 H8. 
       assert (cs' = cs'0) by (eapply STEP_DET; eauto). 
-      subst. 
-      eauto.
+      assert (e = e0) by (eapply STEP_DET; eauto). subst.
+      exploit IHrunsToEnd; eauto. intros [Heq Heq'].
+      subst. split; eauto.
 Qed.
   
-
 (*
 Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
   runsToEnd step pc0 pc1 s0 s1 ->
@@ -138,7 +133,6 @@ Proof.
 Qed.
 *)
 
-
 (* Hoare triple for a list of instructions *)
 Definition HT   (c: code)
                 (P: memory -> stack -> Prop) (* pre-condition *)
@@ -151,6 +145,7 @@ Definition HT   (c: code)
   Q cache1 stk1 /\
   runsToEnd cstep n n' 
              (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+             nil 
              (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
 Inductive Outcome :=
@@ -179,6 +174,7 @@ Definition HTEscape raddr
   predicted_outcome outcome raddr pc1 priv1 /\
   runsToEscape
     (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+    nil
     (CState cache1 mem fh imem stk1 pc1             priv1).
 
 Conjecture HTEscape_compose: forall r c1 c2 P Q R,
@@ -211,6 +207,7 @@ Proof.
   apply code_at_compose_2 in HC12; eauto.
 
   eexists. eexists. intuition. eauto.
+  replace (@nil CEvent) with (@nil CEvent++@nil CEvent) by reflexivity.
   eapply runsToEnd_compose; eauto.
 
   (* NC: why is this let-binding necessary ? *)
@@ -379,13 +376,15 @@ Proof.
   edestruct (H imem mem) as [sk [cache [HQ R]]]. eapply H1.  eapply H2. eapply H3. 
   edestruct (H0 imem mem) as [sk' [cache' [HQ' R']]]; eauto.
   exists sk. exists cache.
-  pose proof (runsToEnd_determ _ _ _ _ _ _ cmach_priv_determ R R'). 
-  inv H4.
+  pose proof (@runsToEnd_determ cstep _ _ _ _ _ _ cmach_priv_determ_state R _ R').
+  inv H4. inv H5.
   intuition.
 Qed.
 
 (* ================================================================ *)
 (* Specs for concrete code *)
+
+Ltac nil_help :=   replace (@nil CEvent) with (op_cons None (@nil CEvent)) by reflexivity.
 
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
@@ -407,6 +406,7 @@ Proof.
   unfold code_at in *. intuition. 
   
   (* Run an instruction *)
+  nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_add_p ; eauto.
   omega.
@@ -433,11 +433,13 @@ Proof.
   unfold code_at in *. intuition. 
   
   (* Run an instruction *)
+  nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_add_p; eauto.
   omega. 
   
   (* Run an instruction *)
+  nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_sub_p; eauto.
   simpl; omega. 
@@ -463,7 +465,7 @@ Proof.
   unfold code_at in *. intuition.
 
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
+  nil_help. eapply runsToEndStep; auto.
   eapply cstep_sub_p; eauto.
   omega.
   simpl.
@@ -485,7 +487,7 @@ Proof.
   unfold code_at in *. simpl in *. intuition. 
 
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
+  nil_help. eapply runsToEndStep; auto.
   eapply cstep_push_p ; eauto.
   omega. 
   simpl.
@@ -509,6 +511,7 @@ Proof.
   unfold code_at in *. intuition. 
 
   (* Run an instruction *)
+  nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_push_p ; eauto.
   omega. 
@@ -537,6 +540,7 @@ Proof.
   unfold push', code_at in *. intuition.
 
   (* Run an instruction *)
+  nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_push_p; eauto.
   omega. 
@@ -562,7 +566,7 @@ Proof.
   unfold code_at in *. intuition. 
 
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
+  nil_help. eapply runsToEndStep; auto.
   eapply cstep_load_p; eauto.
   omega.
   simpl.
@@ -598,6 +602,7 @@ Proof.
   unfold pop, code_at in *. intuition.
 
   (* Run an instruction *)
+  nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_branchnz_p; eauto.
   omega.
@@ -688,7 +693,7 @@ Proof.
   unfold code_at in *. intuition.
 
   (* Run an instruction *)
-  eapply runsToEndStep; auto.
+  nil_help. eapply runsToEndStep; auto.
   eapply cstep_store_p; eauto.
   simpl; omega.
 
@@ -734,6 +739,7 @@ Proof.
   unfold code_at in *. simpl in *. intuition. fold code_at in *.
 
   (* Run an instruction *) 
+  nil_help. 
   eapply runsToEndStep; eauto. 
   eapply cstep_branchnz_p ; eauto. 
   zify ; omega.
@@ -763,6 +769,7 @@ Proof.
   intuition. 
 
   (* Run an instruction *)
+  nil_help. 
   eapply runsToEndStep; auto.
   eapply cstep_branchnz_p ; eauto. 
   omega.
@@ -1381,6 +1388,7 @@ Proof.
   eapply cstep_ret_p; auto.
   eapply cptr_done.
   eapply star_refl.
+  auto.
 Qed.
 
 Lemma jump_specEscape_Failure: forall raddr (P: memory -> stack -> Prop),
@@ -1403,6 +1411,7 @@ Proof.
   eapply star_step.
   eapply cstep_jump_p; auto.
   eapply star_refl.
+  auto.
   simpl; eauto; omega.
 Qed.
 

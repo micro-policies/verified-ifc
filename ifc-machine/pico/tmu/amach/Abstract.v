@@ -22,6 +22,9 @@ Record AS {T: Type}  := AState {
   apc : @Atom T  
 }.
 
+Inductive Event {T: Type} :=
+| EInt : @Atom T -> @Event T.
+
 Definition AMach {T: Type} := STO (@AS T).
 
 (** Record update functions by hand *)

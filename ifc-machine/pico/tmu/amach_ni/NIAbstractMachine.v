@@ -67,11 +67,11 @@ Proof.
      inv H0. inv H4. eauto.
 Qed.
 
-Lemma lowstep : forall o as1 as1' as2 as2', 
+Lemma lowstep : forall o as1 e as1' as2 e' as2', 
   low_equiv_full_state o as1 as2 ->
   low_pc o as1  ->
-  step_rules as1 as1' ->
-  step_rules as2 as2' ->
+  step_rules as1 e as1' ->
+  step_rules as2 e' as2' ->
   low_equiv_full_state o as1' as2'.
 Proof.
   intros. inv H. inv H0. congruence.
@@ -131,14 +131,14 @@ Proof.
     
     exploit_low. simpl in *. allinv. inv H0.
     assert (low_equiv_list (low_equiv_atom o) m' m'0).
-    eapply low_equiv_list_update_Z  with (8:= H10) (9:= H13); eauto with lat.
+    eapply low_equiv_list_update_Z  with (8:= H11) (9:= H14); eauto with lat.
     eapply low_equiv_atom_join_value with (v0:= xv) ; eauto. 
     constructor 2; auto.
     
   Case "Push".
     step_tmr2. 
-    rewrite H8 in Hinstr1; inv Hinstr1.
-    rewrite H7 in Hinstr2; inv Hinstr2.
+    rewrite H9 in Hinstr1; inv Hinstr1.
+    rewrite H8 in Hinstr2; inv Hinstr2.
     constructor 2; eauto.
 
   Case "Jump".
@@ -164,8 +164,8 @@ Proof.
     apply below_lret_low_equiv; auto. 
     
   Case "BranchNZ-4".
-    rewrite H7 in Hinstr2; inv Hinstr2.
-    rewrite H8 in Hinstr1; inv Hinstr1.
+    rewrite H8 in Hinstr2; inv Hinstr2.
+    rewrite H9 in Hinstr1; inv Hinstr1.
     exploit_low. inv LEa; step_tmr2.
     constructor 2 ; eauto with lat. 
     constructor; eauto with lat. 
@@ -176,8 +176,8 @@ Proof.
      exploit_low.  inv LEa.
      SCase "Low Call". 
        constructor 2; auto. eapply join_minimal; eauto.
-       rewrite H7 in Hinstr2 ; inv Hinstr2.
-       rewrite H8 in Hinstr1 ; inv Hinstr1.
+       rewrite H8 in Hinstr2 ; inv Hinstr2.
+       rewrite H9 in Hinstr1 ; inv Hinstr1.
        exploit low_equiv_list_app_left ; eauto.
        exploit low_equiv_list_app_right ; eauto. intros.
        eapply low_equiv_list_app ; eauto.
@@ -185,8 +185,8 @@ Proof.
      SCase "High Call".
        constructor; auto with lat.
        
-       rewrite H7 in Hinstr2 ; inv Hinstr2.
-       rewrite H8 in Hinstr1 ; inv Hinstr1.
+       rewrite H8 in Hinstr2 ; inv Hinstr2.
+       rewrite H9 in Hinstr1 ; inv Hinstr1.
        exploit low_equiv_list_app_right ; eauto.
        intros Hstk0stk.
        rewrite below_lret_adata ; eauto; [intros; eauto].
@@ -223,12 +223,18 @@ Proof.
        apply below_lret_low_equiv; eauto.
        inv LEa. constructor ; eauto. 
        constructor; auto. constructor ; eauto with lat.
+
+   Case " Output". 
+       step_tmr2. exploit_low.
+       inv LEa. 
+       constructor 2 ; eauto. 
+       constructor 2 ; eauto with lat. 
 Qed.
 
   
-Lemma highstep : forall o as1 as1', 
+Lemma highstep : forall o as1 e as1', 
   ~low_pc o as1 ->
-  step_rules as1 as1' ->
+  step_rules as1 e as1' ->
   ~low_pc o as1' ->
   low_equiv_full_state o as1 as1'.
 Proof.
@@ -251,7 +257,7 @@ Proof.
       assert (rpcl <: o = true) by eauto with lat. congruence.
       assert ((addrl \_/ xl) \_/ rpcl <: o = false). eauto using not_flows_not_join_flows_right.
       assert (low_equiv_list (low_equiv_atom o) m' amem).
-      eapply update_list_Z_high with (4:= H9) (5:= H10); eauto with lat.
+      eapply update_list_Z_high with (4:= H10) (5:= H11); eauto with lat.
     constructor ; eauto. symmetry ; auto.
         
   Case "Call".
@@ -288,10 +294,10 @@ Proof.
     rewrite e; auto.
 Qed. 
 
-Lemma low_lockstep_end : forall o s1 s1' s2,
+Lemma low_lockstep_end : forall o s1 e s1' s2,
   low_equiv_full_state o s1 s2 ->
   low_pc o s2 ->
-  step_rules s1 s1' ->
+  step_rules s1 e s1' ->
   success s2 ->
   False.
 Proof.
@@ -300,12 +306,12 @@ Proof.
   eapply success_runSTO_None in H; eauto.
 Qed.
 
-Lemma highlowstep : forall o as1 as1' as2 as2', 
+Lemma highlowstep : forall o as1 e as1' as2 e' as2', 
   low_equiv_full_state o as1 as2 ->
   ~low_pc o as1 ->
-  step_rules as1 as1' ->
+  step_rules as1 e as1' ->
   low_pc o as1' ->
-  step_rules as2 as2' ->
+  step_rules as2 e' as2' ->
   low_pc o as2' ->
   low_equiv_full_state o as1' as2'.
 Proof.
@@ -340,10 +346,10 @@ Proof.
           spec_pop_return. 
           exploit @pop_to_return_spec2; eauto. intros H1. inv H1.
           exploit @pop_to_return_spec3; eauto. intros H1. inv H1.
-          generalize H10 ; clear H10.
+          generalize H11 ; clear H11.
           exploit @pop_to_return_spec2; eauto. intros H1. inv H1.
           exploit @pop_to_return_spec3; eauto. intros H1. inv H1.
-          intros. clear H12 H10.
+          intros. 
           step_tmr2. unfold Vector.nth_order in *; simpl in *. 
           rewrite below_lret_adata in LEsH; eauto.
           rewrite below_lret_adata in LEsH; eauto.
@@ -359,10 +365,9 @@ Proof.
           spec_pop_return.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
-          generalize H10 ; clear H10.
+          generalize H11 ; clear H11.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
-          clear H12 H10.
           step_tmr2. unfold Vector.nth_order in *; simpl in *. 
           rewrite below_lret_adata in LEsH; eauto. simpl in LEsH.
           inv H2. rewrite H3 in *. 
@@ -389,10 +394,9 @@ Proof.
           spec_pop_return.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
-          generalize H10 ; clear H10.
+          generalize H11 ; clear H11.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
-          clear H12 H10.
           step_tmr2.  unfold Vector.nth_order in *; simpl in *. 
           rewrite below_lret_adata in LEsH; eauto.
           simpl in LEsH.  rewrite below_lret_adata in LEsH; eauto.
@@ -409,10 +413,9 @@ Proof.
           spec_pop_return.           
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
-          generalize H10 ; clear H10.
+          generalize H11 ; clear H11.
           exploit @pop_to_return_spec2; eauto. intros. inv H1.
           exploit @pop_to_return_spec3; eauto. intros. inv H1.
-          clear H12 H10.
           step_tmr2. unfold Vector.nth_order in *; simpl in *. 
 
           simpl in LEsH. rewrite below_lret_adata in LEsH; eauto.
@@ -429,19 +432,19 @@ Proof.
           congruence.
 Qed.
 
-Theorem lockstep_ni_amach :
-  lockstep_ni_state_evt step_rules low_pc success low_equiv_full_state.
-Proof. 
-  eapply lockstep_ni_state_evt_holds ; eauto.
+(* Theorem lockstep_ni_amach : *)
+(*   lockstep_ni_state_evt step_rules low_pc success low_equiv_full_state. *)
+(* Proof.  *)
+(*   eapply lockstep_ni_state_evt_holds ; eauto. *)
 
-  intros; split ; eauto using pc_labels1, pc_labels2. 
-  exact low_pc_dec. 
-  exact success_dec.
+(*   intros; split ; eauto using pc_labels1, pc_labels2.  *)
+(*   exact low_pc_dec.  *)
+(*   exact success_dec. *)
   
-  eapply lowstep; eauto.
-  eapply highstep; eauto.
-  eapply highlowstep; eauto.
-  eapply low_lockstep_end; eauto.  
-Qed.
+(*   eapply lowstep; eauto. *)
+(*   eapply highstep; eauto. *)
+(*   eapply highlowstep; eauto. *)
+(*   eapply low_lockstep_end; eauto.   *)
+(* Qed. *)
 
 End ParamMachine.

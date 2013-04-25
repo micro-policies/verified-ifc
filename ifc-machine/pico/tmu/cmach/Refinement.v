@@ -36,7 +36,7 @@ Lemma handler_correct :
          (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc)), 
     exists c',
     runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerTag) true)
-                 (CState c' m faultHandler i s raddr false) /\
+                 nil (CState c' m faultHandler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros.
@@ -501,9 +501,23 @@ Ltac build_cache_and_tmu :=
       eauto
   end.
 
+
+Hint Resolve match_stacks_app match_stacks_data match_stacks_length.
+
+Definition op_cons_ZToLab (oe: option Event) (t: list CEvent) := 
+  match oe with 
+    | Some (EInt e) => (CEInt (atom_labToZ e))::t
+    | None => t
+  end.
+
+Lemma op_cons_ZToLab_none : (op_cons_ZToLab None nil) = (op_cons None (@nil CEvent)).
+Proof. reflexivity. Qed.
+
+Ltac hint_event := rewrite op_cons_ZToLab_none.
+
 Ltac priv_steps := 
   match goal with 
-    | [Hruns : runsToEscape ?s ?s', 
+    | [Hruns : runsToEscape ?s _ ?s', 
        Hmfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
       (eapply runsToEscape_star in Hruns; [| congruence]);
         let ll := fresh "ll" in
@@ -511,29 +525,27 @@ Ltac priv_steps :=
         let Hspec := fresh "Hspec" in
       (generalize Hmfinal; intros [[ll Hll] Hspec]);
       (simpl atom_labToZ); 
-      (apply plus_trans with (s2:= s); eauto); 
+      (eapply plus_trans with (s2:= s) (t:= @nil CEvent); eauto); 
       try (match goal with 
-          | [ |- cstep _ _] => 
+          | [ |- cstep _ _ _ ] => 
             econstructor (solve [ eauto | eauto; solve_read_m ])
-          | [ |- cstep _ _] => 
+          | [ |- cstep _ _ _ ] => 
             econstructor ; eauto 
            end);
       try match goal with 
-            | [ |- plus _ _ _ ] => 
-              (eapply plus_right with s'; eauto);
+            | [ |- plus _ _ _ _ ] => 
+              (eapply plus_right with (s2:= s') (t:= nil) (e:= None); eauto);
               (econstructor; eauto)                                               
           end
   end.
 
-Hint Resolve match_stacks_app match_stacks_data match_stacks_length.
-      
 Lemma step_preserved: 
-  forall s1 s1' s2,
-    step_rules s1 s1' ->
+  forall s1 s1' e s2,
+    step_rules s1 e s1' ->
     match_states s1 s2 ->
-    (exists s2', plus cstep s2 s2' /\ match_states s1' s2').
+    (exists s2', plus cstep s2 (op_cons_ZToLab e nil) s2' /\ match_states s1' s2').
 Proof.
-  intros s1 s1' s2 Hstep Hmatch. inv Hstep; try renaming;
+  intros s1 s1' e s2 Hstep Hmatch. inv Hstep; try renaming;
     match goal with 
       | [Htmr : run_tmr _ _ _ = _ ,
          Hmatch : match_states _ _ |- _ ] => 
@@ -545,11 +557,11 @@ Proof.
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. subst pct. 
       split; inv H0; eauto.
-      eapply plus_step; eauto. eapply cstep_nop ; eauto. 
-
+      hint_event. eapply plus_step; eauto. eapply cstep_nop ; eauto. 
+     
     + build_cache_and_tmu. res_label.
       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
-      * priv_steps.        
+      * priv_steps.
         eapply handler_final_cache_hit_preserved; eauto.
       * econstructor ; eauto. 
         inv_cache_update. 
@@ -559,8 +571,9 @@ Proof.
    destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].   
    + exists (CState tmuc cm faultHandler i ((x1v+x2v,rt):::cs0) (pcv+1,rpct) false).
      split. 
-     * eapply plus_step ; eauto. eapply cstep_add ; eauto.
+     * eapply plus_step ; eauto. eapply cstep_add ; eauto. 
        eapply CACHE with (1:= H0); eauto.
+       auto.
      * eauto.         
    + build_cache_and_tmu.  
      exists (CState c cm faultHandler i ((CData (x1v+x2v,rt))::cs0) (pcv+1, rpct) false). 
@@ -577,7 +590,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1,rpct) false).
      split. 
      * eapply plus_step ; eauto. eapply cstep_sub ; eauto.        
-       eapply CACHE with (1:= H0); eauto.
+       eapply CACHE with (1:= H0); eauto. auto.
      * eauto.         
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1, rpct) false). 
@@ -592,8 +605,8 @@ Proof.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((cv,rt):::cstk) (pcv+1,rpct) false).
      split. 
-     * eapply plus_step ; eauto. eapply cstep_push ; eauto.        
-       eapply CACHE with (1:= H0); eauto.
+     * eapply plus_step ; eauto. eapply cstep_push ; eauto. 
+       eapply CACHE with (1:= H0); eauto. auto.
      * eauto.         
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i ((cv,rt):::cstk) (pcv+1, rpct) false). split.
@@ -611,7 +624,7 @@ Proof.
      * eapply plus_step ; eauto. 
        eapply cstep_load ; eauto.        
        eapply CACHE with (1:= H1); eauto.
-       solve_read_m.       
+       solve_read_m. auto.
      * eauto.         
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i ((xv,rt):::cs) (pcv+1, rpct) false). split.
@@ -620,6 +633,7 @@ Proof.
        eapply handler_final_cache_hit_preserved; eauto.
        eapply handler_cache_hit_read_some; eauto.            
        solve_read_m.
+       auto.
      * econstructor ; eauto. 
        inv_cache_update.
 
@@ -632,14 +646,14 @@ Proof.
      * eapply plus_step ; eauto. 
        eapply cstep_store  ; eauto.        
        eapply CACHE with (1:= H2); eauto.       
-       solve_read_m.       
+       solve_read_m. auto.
      * econstructor; eauto.
    + build_cache_and_tmu. 
      exists (CState c (mem_labToZ m') faultHandler i cs0 (pcv+1, rpct) false). split.
      * priv_steps.
        eapply handler_final_cache_hit_preserved; eauto.
        eapply handler_cache_hit_read_some; eauto.            
-       solve_read_m.
+       solve_read_m. auto.
      * econstructor ; eauto. 
        inv_cache_update.
 
@@ -649,7 +663,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
      split. 
      * eapply plus_step ; eauto. simpl. 
-       res_label. eapply cstep_jump  ; eauto.        
+       res_label. eapply cstep_jump  ; eauto. auto.
      * econstructor; eauto.
    + build_cache_and_tmu. res_label.
      exists (CState c cm faultHandler i cs (pcv', rpct) false). split.
@@ -665,7 +679,7 @@ Proof.
                     (if 0 =? 0 then pcv+1 else pcv+offv , rpct) false).
      split. 
      * eapply plus_step ; eauto. res_label.  
-       eapply cstep_bnz ; eauto.        
+       eapply cstep_bnz ; eauto. auto.
      * econstructor; eauto.
    + build_cache_and_tmu. res_label.
      exists (CState c cm faultHandler i cs 
@@ -684,7 +698,7 @@ Proof.
                     (if av =? 0 then pcv+1 else pcv+offv , rpct) false).
      split. 
      * eapply plus_step ; eauto. res_label.  
-       eapply cstep_bnz ; eauto.        
+       eapply cstep_bnz ; eauto. auto.
      * econstructor; eauto. 
        case_eq (av =? 0)%Z; intros; auto.
        eelim H1; eauto.
@@ -711,7 +725,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_call ; eauto. 
-       eapply CACHE with (1:= H0); eauto.
+       eapply CACHE with (1:= H0); eauto. auto.
      * econstructor; eauto. 
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i 
@@ -723,8 +737,7 @@ Proof.
      * econstructor ; eauto. 
        inv_cache_update.
 
-- Case " Ret ".
-  
+- Case " Ret ".  
   exploit @pop_to_return_spec; eauto.
   intros [dstk [stk [a [b [Heq Hdata]]]]]. inv Heq.
   exploit @pop_to_return_spec2; eauto. intros Heq. inv Heq.
@@ -768,7 +781,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_vret ; eauto.
-       eapply CACHE with (1:= H1); eauto.
+       eapply CACHE with (1:= H1); eauto. auto.
      * econstructor; eauto.        
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false). 
@@ -776,29 +789,53 @@ Proof.
      * (eapply runsToEscape_star in Hruns; [| congruence]);
        (generalize Hmfinal; intros [[ll Hll] Hspec]);
        (simpl atom_labToZ).       
-       (eapply plus_trans with {|
-            cache := tmuc';
-            mem := mem_labToZ m;
-            fhdl := faultHandler;
-            imem := i;
-            stk := CRet (pcv, pct) false false
-                   :: (resv, labToZ resl)
-                      ::: args' ++ CRet (pcv', labToZ pcl') true false :: cs;
-            pc := (0, handlerTag);
-            priv := true |}; eauto).
+       (eapply plus_trans with (s2:= (CState tmuc' (mem_labToZ m) faultHandler i
+                                             (CRet (pcv, pct) false false
+                                                   :: (resv, labToZ resl)
+                                                   ::: args' ++ CRet (pcv', labToZ pcl') true false :: cs)
+                                             (0, handlerTag) true)); eauto).
        eapply plus_right ; eauto.
        eapply cstep_vret; eauto.
        eapply handler_final_cache_hit_preserved; eauto.
-       eapply handler_cache_hit_read_some; eauto.             
+       eapply handler_cache_hit_read_some; eauto. auto.
+     * econstructor ; eauto. 
+       inv_cache_update.
+       
+- Case " Output ". 
+  inv STKS.        
+  destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
+   + exists (CState tmuc cm faultHandler i cs (pcv+1,rpct) false).
+     split. 
+     * eapply plus_step ; eauto.        
+       eapply cstep_out ; eauto. 
+       eapply CACHE with (1:= H0); eauto. auto.
+     * econstructor; eauto. 
+   + build_cache_and_tmu. 
+     exists (CState c cm faultHandler i cs (pcv+1, rpct) false).
+     split. 
+     * 
+       (eapply runsToEscape_star in Hruns; [| congruence]);
+       (generalize Hmfinal; intros [[ll Hll] Hspec]);
+       (simpl atom_labToZ).       
+       (eapply plus_trans ; eauto). 
+       eapply plus_right ; eauto.
+       eapply cstep_out; eauto.
+       eapply handler_final_cache_hit_preserved; eauto.
+       eapply handler_cache_hit_read_some; eauto.
+       simpl. 
+       replace ll with (labToZ rl). auto.
+       exploit handler_cache_hit_read_some; eauto. 
+       intros. inv H1. 
+       inv TAG_Res. inv TAG_Res0. allinv'. auto. 
      * econstructor ; eauto. 
        inv_cache_update.
 Qed.
   
 Lemma step_preserved_observ: 
-  forall s1 s1' s2,
-    step_rules s1 s1' ->
+  forall s1 e s1' s2,
+    step_rules s1 e s1' ->
     match_states s1 s2 ->
-    s1 = observe_cstate s2 /\ (exists s2', plus cstep s2 s2' /\ match_states s1' s2').
+    s1 = observe_cstate s2 /\ (exists s2', plus cstep s2 (op_cons_ZToLab e nil) s2' /\ match_states s1' s2').
 Proof.
   intros.
   split. 
@@ -822,8 +859,8 @@ Qed.
   
 Require Import LNIwithEvents.
 
-Let aexec_with_trace := sys_trace step_rules success (fun x => x).
-Let cexec_with_trace := sys_trace cstep c_success observe_cstate.
+(* Let aexec_with_trace := sys_trace step_rules success (fun x => x). *)
+(* Let cexec_with_trace := sys_trace cstep c_success observe_cstate. *)
 
 (* The fwd simulation is not a lockstep diagram anymore *)
 (* Theorem refinement: forall s1 s2 T,  *)

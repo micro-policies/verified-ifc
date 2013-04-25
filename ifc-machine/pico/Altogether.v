@@ -45,19 +45,19 @@ Inductive initial_astate (P: list Instr) : @AS L -> Prop :=
 (** Defining observation, execution traces, and indistingability relation *)
 Let low_equiv_prog := fun (o:L) => low_equiv_list (low_equiv_instr o).
 Let observe_astate : @AS L -> @AS L := (fun x => x).
-Let aexec_with_trace := sys_trace step_rules success observe_astate.
+(* Let aexec_with_trace := sys_trace step_rules success observe_astate. *)
 Let indistinguishable := lockstep_indist low_pc success low_equiv_full_state.
 
-Theorem NI_abstract_machine: forall o s s' P P' T T', 
-    low_equiv_prog o P P' ->
-    initial_astate P s ->
-    initial_astate P' s'->
-    aexec_with_trace s T ->
-    aexec_with_trace s' T' ->
-    indistinguishable o T T'.
-Proof.
-  admit. (* TODO with lockstep_ni_amach *)
-Qed.
+(* Theorem NI_abstract_machine: forall o s s' P P' T T',  *)
+(*     low_equiv_prog o P P' -> *)
+(*     initial_astate P s -> *)
+(*     initial_astate P' s'-> *)
+(*     aexec_with_trace s T -> *)
+(*     aexec_with_trace s' T' -> *)
+(*     indistinguishable o T T'. *)
+(* Proof. *)
+(*   admit. (* TODO with lockstep_ni_amach *) *)
+(* Qed. *)
 
 (** * Concrete Machine *)
 Context {CLatt: ConcreteLattice L}.
@@ -84,18 +84,18 @@ Let observe_cstate (cs: CS) : @AS L :=
   
 *)
 
-Let cexec_with_trace := sys_trace cstep c_success observe_cstate.
+(* Let cexec_with_trace := sys_trace cstep c_success observe_cstate. *)
 
-Theorem NI_concrete_machine: forall o P P' s s' T T', 
-    initial_cstate P s -> 
-    initial_cstate P' s' ->
-    low_equiv_prog o P P' ->
-    cexec_with_trace s T ->
-    cexec_with_trace s' T' ->
-    indistinguishable o T T'.
-Proof.
-  admit. (* TODO with refinement + NI preservation *)
-Qed.
+(* Theorem NI_concrete_machine: forall o P P' s s' T T',  *)
+(*     initial_cstate P s ->  *)
+(*     initial_cstate P' s' -> *)
+(*     low_equiv_prog o P P' -> *)
+(*     cexec_with_trace s T -> *)
+(*     cexec_with_trace s' T' -> *)
+(*     indistinguishable o T T'. *)
+(* Proof. *)
+(*   admit. (* TODO with refinement + NI preservation *) *)
+(* Qed. *)
 
 End Altogether.
 

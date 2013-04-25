@@ -105,6 +105,7 @@ Definition instr_eqB (i1 i2 : Instr) : bool :=
   | Ret, Ret => true
   | VRet, VRet => true
   | Halt, Halt => true
+  | Output, Output => true
   | _, _ => false
   end.
 

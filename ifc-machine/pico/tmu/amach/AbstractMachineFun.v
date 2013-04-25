@@ -223,6 +223,7 @@ Definition exec_instr (instr : Instr) (st : @AS T) : option (@AS T) :=
         | _ => None
       end
     | Halt => None
+    | Output => None (* DD: Arthur, I don't want to mess with your code... *)
   end.
 
 Definition stepF (st : @AS T) : option (@AS T) :=
@@ -238,22 +239,22 @@ Hint Constructors step_rules.
 Theorem stepF_step_rules :
   forall st st',
     stepF st = Some st' ->
-    step_rules st st'.
+    exists e, step_rules st e st'.
 Proof.
   unfold stepF, exec_instr.
   intros [m is s [pcv pcl]] st' H. simpl in *.
   match_inversion.
   destruct i; simpl; match_inversion;
-    try (econstructor (solve[eauto; reflexivity])).
+    try (eexists ; econstructor (solve[ eauto; reflexivity])).
   destruct z0;
-    try (econstructor (solve[eauto; try reflexivity; congruence])).
+    try (eexists ; econstructor (solve[eauto; try reflexivity; congruence])).
   - apply take_data_spec in E0.
     destruct E0 as [H1 [H2 H3]]. subst.
-    econstructor (solve [eauto; reflexivity]).
+    eexists ; econstructor ( solve [eauto; reflexivity]).
   - destruct b. inversion H.
     inv H.
     apply pop_to_returnF_spec in E0.
-    econstructor (solve [eauto; reflexivity]).
+    eexists;  econstructor (solve [eauto; reflexivity]).
   - destruct b; inv H0.
     apply pop_to_returnF_spec in E0.
     econstructor (solve [eauto; reflexivity]).

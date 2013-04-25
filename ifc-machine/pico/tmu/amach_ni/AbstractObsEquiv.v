@@ -85,7 +85,8 @@ Inductive low_equiv_instr (o: Label) : Instr -> Instr -> Prop :=
 | lei_call : forall mpc b, low_equiv_instr o (Call mpc b) (Call mpc b)
 | lei_return: low_equiv_instr o Ret Ret
 | lei_vreturn: low_equiv_instr o VRet VRet
-| lei_halt: low_equiv_instr o Halt Halt.
+| lei_halt: low_equiv_instr o Halt Halt
+| lei_out: low_equiv_instr o Output Output.
 Hint Constructors low_equiv_instr.
 
 Global Instance low_instr (o: Label) : @Equivalence Instr (low_equiv_instr o).

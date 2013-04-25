@@ -34,35 +34,35 @@ Proof.
   allinv'. allinv'. intuition.
 Qed.
 
-Lemma cmach_priv_determ: 
-  forall s s' s'', 
-    cstep s s' -> 
-    cstep s s'' -> 
-    s' = s''.
+Lemma cmach_priv_determ_state: 
+  forall s e s' e' s'', 
+    cstep s e s' -> 
+    cstep s e' s'' -> 
+    s' = s'' /\ e = e'.
 Proof.
   induction 1; intros;
   match goal with 
-      | [HH: cstep _ _ |- _ ] => inv HH; try congruence; auto
+      | [HH: cstep _ _ _ |- _ ] => inv HH; try congruence; auto
   end;
   try (match goal with 
     | [H1 : cache_hit_read ?c ?rl _, 
        H2 : cache_hit_read ?c ?rl0 _ |- _ ] =>
   (exploit (@cache_hit_read_determ c rl); eauto; intros [Heq Heq'])
   end);
-  (allinv'; try reflexivity).
+  (allinv'; split ; try reflexivity).
 
   Case "Store user".
-  allinv'. reflexivity.
+  allinv'. split ; reflexivity.
   
   Case "Call user".
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
-    reflexivity.
+    split ; reflexivity.
 
   Case "Call kernel".
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
-    reflexivity.
+    split ; reflexivity.
 
   Case "Ret Ret user".
     exploit @c_pop_to_return_spec; eauto.
@@ -75,7 +75,7 @@ Proof.
     exploit @c_pop_to_return_spec3; eauto. clear POP.
     exploit @c_pop_to_return_spec3; eauto. 
     intros.  inv H.    
-    reflexivity.
+    split ; reflexivity.
 
   Case "Ret kernel / user".
     exploit @c_pop_to_return_spec; eauto.
@@ -100,20 +100,20 @@ Proof.
     exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
     exploit @c_pop_to_return_spec2; eauto. intros. 
     inv H. inv H0. 
-    reflexivity.
+    split ; reflexivity.
     
   Case "Ret Ret".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
     
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top H11.
+    exploit @c_pop_to_return_spec2; eauto.  move_to_top H12.
     exploit @c_pop_to_return_spec2; eauto. intros. 
     inv H1. inv H2. 
     
     exploit @c_pop_to_return_spec3; eauto. clear H0.
     exploit @c_pop_to_return_spec3; eauto. 
     intros.  inv H1.    
-    reflexivity.
+    split ; reflexivity.
 
   Case "VRet user ".
     exploit @c_pop_to_return_spec; eauto.
@@ -126,7 +126,7 @@ Proof.
     generalize POP0 ; clear POP0 ; intros POP0.
     exploit @c_pop_to_return_spec3; eauto. intros.
     inv H1.  inv H. inv H0.
-    reflexivity.
+    split ; reflexivity.
 
   Case "Ret kernel / user ".
     exploit @c_pop_to_return_spec; eauto.
@@ -160,14 +160,14 @@ Proof.
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
-    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top H13.
+    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top H14.
     exploit @c_pop_to_return_spec2; eauto. intros. 
     inv H1. inv H2.
 
     exploit @c_pop_to_return_spec3; eauto. move_to_top H0.
     exploit @c_pop_to_return_spec3; eauto. intros. 
     inv H1. 
-    reflexivity.
+    split ; reflexivity.
 Qed.
 
 (* APT: This doesn't seem to be used.... 
