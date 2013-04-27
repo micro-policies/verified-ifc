@@ -791,6 +791,33 @@ Proof.
   eapply update_list_Z_Some; iauto.
 Qed. 
 
+Lemma store_spec_wp: forall Q a al v,
+  forall m s,
+  HT [Store]
+     (fun m0 s0 => s0 = (a,al) ::: v ::: s /\
+                   upd_m a v m0 = Some m /\
+                   Q m s)
+     Q.
+Proof.
+  unfold HT.
+  intros.
+  jauto_set_hyps; intros.
+  eexists.
+  eexists.
+  intuition; subst.
+  eauto.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  nil_help. eapply runsToEndStep; auto.
+  eapply cstep_store_p; eauto.
+  simpl; omega.
+
+  constructor; eauto.
+Qed.
+
 Lemma store_spec: forall a al v vl m s,
   HT [Store]
      (fun m0 s0 => m0 = m /\
@@ -837,6 +864,29 @@ Proof.
   eapply store_spec.
   intuition; eauto.
   jauto.
+Qed.
+
+(* NC: [valid_address a m0] implies [upd_m] succeeds *)
+Lemma storeAt_spec_wp: forall a vl Q,
+  forall m s,
+  HT (storeAt a)
+     (fun m0 s0 => s0 = vl ::: s /\
+                   upd_m a vl m0 = Some m /\
+                   Q m s)
+     Q.
+Proof.
+  intros.
+  eapply HT_compose.
+  eapply push_spec'.
+  eapply HT_strengthen_premise.
+  eapply store_spec_wp.
+  intuition; eauto.
+  destruct s0; simpl in *.
+  - false.
+  - subst.
+    unfold value in *.
+    inversion H0; subst.
+    reflexivity.
 Qed.
 
 Lemma skipNZ_continuation_spec_NZ: forall c P v l,
@@ -1408,15 +1458,6 @@ Proof.
 
   rewrite basic_arithmetic in *; intuition.
 Qed.
-
-(* NC: [valid_address a m0] implies [upd_m] succeeds *)
-Conjecture storeAt_spec_wp: forall a vl Q,
-  forall m s,
-  HT (storeAt a)
-     (fun m0 s0 => s0 = vl ::: s /\
-                   upd_m a vl m0 = Some m /\
-                   Q m s)
-     Q.
 
 Lemma HT_compose_bwd:
   forall (c1 c2 : code) (P Q R : memory -> stack -> Prop),
