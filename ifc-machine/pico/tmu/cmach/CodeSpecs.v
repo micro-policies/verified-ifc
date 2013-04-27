@@ -733,6 +733,23 @@ Proof.
   - eapply update_list_Some; eauto. 
 Qed.
 
+Lemma update_preserves_length: forall T a (vl:T) m m',
+  update_list a vl m = Some m' ->
+  length m' = length m.
+Proof.
+  induction a; intros.
+  - destruct m; simpl in *.
+    + false.
+    + inversion H; subst; reflexivity.
+  - destruct m; simpl in *.
+    + false.
+    + cases (update_list a vl m).
+      * exploit IHa; eauto.
+        inversion H; subst.
+        intros eq; rewrite <- eq; reflexivity.
+      * false.
+Qed.
+
 End MoveThisToUtils.
 
 (* NC: to prove that addresses are valid per this definition, we just
@@ -1408,10 +1425,17 @@ Proof.
   intros; eapply HT_compose; eauto.
 Qed.
 
-Conjecture valid_address_upd: forall a a' vl m m',
+Lemma valid_address_upd: forall a a' vl m m',
   valid_address a m ->
   upd_m a' vl m = Some m' ->
   valid_address a m'.
+Proof.
+  unfold valid_address; intuition.
+  unfold upd_m in *.
+  destruct (a' <? 0).
+  - false.
+  - erewrite update_preserves_length; eauto.
+Qed.
 
 Lemma store_twice_test: forall a1 a2 vl1 vl2,
   a1 <> a2 ->
