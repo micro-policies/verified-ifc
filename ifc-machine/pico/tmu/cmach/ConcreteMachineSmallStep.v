@@ -371,4 +371,26 @@ Proof.
   congruence.
 Qed.
 
+Lemma runsToEscape_star: forall s1 s2 t,
+ runsToEscape s1 t s2 ->
+ star cstep s1 t s2.
+Proof.
+  inversion 1; eauto.
+Qed.
+
+Lemma star_trans: forall S E (Rstep: S -> option E -> S -> Prop) s0 t s1,
+  star Rstep s0 t s1 ->
+  forall t' s2,
+  star Rstep s1 t' s2 ->
+  star Rstep s0 (t++t') s2.
+Proof.
+  induction 1.
+  - auto.
+  - inversion 1.
+    + rewrite app_nil_r.
+      subst; econstructor; eauto.
+    + subst; econstructor; eauto.
+      rewrite op_cons_app; reflexivity.
+Qed.
+
 End CMach.
