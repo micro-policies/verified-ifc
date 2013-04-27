@@ -742,6 +742,29 @@ End MoveThisToUtils.
 Definition valid_address a (m: memory) :=
   (0 <= a) /\ (Z.to_nat a < length m)%nat.
 
+Lemma valid_read: forall a m,
+  valid_address a m ->
+  exists v, read_m a m = Some v.
+Proof.
+  introv H.
+  unfold valid_address in H.
+  unfold read_m.
+  cases (a <? 0).
+  - false.
+    rewrite Z.ltb_lt in Eq. omega.
+  - remember (Z.to_nat a) as n; clear Heqn.
+    destruct H as [_ Hbound].
+    generalize dependent n.
+    generalize dependent m.
+    induction m; intros.
+    + false; simpl in *; omega.
+    + cases n; subst.
+      * simpl; eauto.
+      * simpl in Hbound.
+        apply lt_S_n in Hbound.
+        eauto.
+Qed.
+
 Lemma valid_store: forall a v m,
   valid_address a m ->
   exists m', upd_m a v m = Some m'.

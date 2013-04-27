@@ -883,11 +883,6 @@ Definition handler_final_mem_matches' (olr: option T) (lpc: T) (m: memory) (m': 
   (* Nothing else changed *)
   /\ update_cache_spec_rvec m m'.
 
-(* XXX: NC: is this actually true? *)
-Conjecture valid_address_index_list_Z: forall a m,
-  valid_address a m ->
-  exists z, index_list_Z a m = Some (z, handlerTag).
-
 Lemma genFaultHandlerMem_spec_Some: forall olr lpc,
   valid_address addrTagRes m0 ->
   valid_address addrTagResPC m0 ->
@@ -925,12 +920,10 @@ Proof.
       }
       { eapply HT_weaken_conclusion.
         + eapply genFaultHandlerMem_spec_Some_None;  eauto.
-        + unfold handler_final_mem_matches'. intuition.
-          - destruct (valid_address_index_list_Z _ _ HvalidRes) as [z ?].
-            exists (* ZToLab *)  z.
-            (* rewrite (ZToLab_labToZ_id lpc). *)
+        + apply valid_read in HvalidRes; destruct HvalidRes as [[? ?] ?].
+          unfold handler_final_mem_matches'. intuition.
+          - eexists.
             eapply chr_uppriv.
-            (* Ugh ... *)
             * eapply tim_intro.
               eapply transitivity.
               symmetry.
