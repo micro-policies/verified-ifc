@@ -361,7 +361,7 @@ Proof.
   induction 1; intros; eauto.
 Qed.
 
-Lemma runsToEscape_star: forall s1 s2 t, 
+Lemma runsToEscape_plus: forall s1 s2 t,
  runsToEscape s1 t s2 ->
  s1 <> s2 ->
  plus cstep s1 t s2.

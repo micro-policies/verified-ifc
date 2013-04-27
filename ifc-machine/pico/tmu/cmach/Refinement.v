@@ -519,7 +519,7 @@ Ltac priv_steps :=
   match goal with 
     | [Hruns : runsToEscape ?s _ ?s', 
        Hmfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
-      (eapply runsToEscape_star in Hruns; [| congruence]);
+      (eapply runsToEscape_plus in Hruns; [| congruence]);
         let ll := fresh "ll" in
         let Hll := fresh "Hll" in
         let Hspec := fresh "Hspec" in
@@ -786,7 +786,7 @@ Proof.
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false). 
      split.
-     * (eapply runsToEscape_star in Hruns; [| congruence]);
+     * (eapply runsToEscape_plus in Hruns; [| congruence]);
        (generalize Hmfinal; intros [[ll Hll] Hspec]);
        (simpl atom_labToZ).       
        (eapply plus_trans with (s2:= (CState tmuc' (mem_labToZ m) faultHandler i
@@ -814,7 +814,7 @@ Proof.
      exists (CState c cm faultHandler i cs (pcv+1, rpct) false).
      split. 
      * 
-       (eapply runsToEscape_star in Hruns; [| congruence]);
+       (eapply runsToEscape_plus in Hruns; [| congruence]);
        (generalize Hmfinal; intros [[ll Hll] Hspec]);
        (simpl atom_labToZ).       
        (eapply plus_trans ; eauto). 
