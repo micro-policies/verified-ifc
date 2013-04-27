@@ -59,6 +59,30 @@ Proof.
   apply_f_equal IHc1; eauto; zify; omega.
 Qed.
 
+Lemma code_at_app : forall c2 c1 n, 
+  n = Z_of_nat (length c1) -> 
+  code_at n (c1 ++ c2) c2.
+Proof.
+  induction c2; intros. 
+  simpl. auto.
+  simpl. 
+  split. 
+  rewrite index_list_Z_app. auto.
+  subst n; auto.
+  replace (c1 ++ a :: c2) with ((c1 ++ [a]) ++ c2). 
+  eapply IHc2.
+  rewrite app_length. simpl. subst n; auto.
+  zify; omega. 
+  rewrite app_ass. auto.
+Qed.
+
+Lemma code_at_id : forall c, code_at 0%Z c c.
+Proof.
+  intros. pattern c at 1.  replace c with ([]++c) by auto.
+  eapply code_at_app. 
+  auto.
+Qed.
+
 (* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
 [pc1] and runs until pc [pc2]. *)
 Inductive runsToEnd (Rstep: CS -> option CEvent -> CS -> Prop) : Z -> Z -> CS -> list CEvent -> CS -> Prop :=

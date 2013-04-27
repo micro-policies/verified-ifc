@@ -428,6 +428,19 @@ Proof.
   zify; omega.
 Qed. 
   
+Lemma index_list_Z_app:
+  forall (T : Type)  (l1 l2: list T) (i : Z),
+  i = Z.of_nat (length l1) -> index_list_Z i (l1 ++ l2) = index_list_Z 0 l2. 
+Proof.
+  induction l1; intros. 
+  simpl in *. subst. auto.
+  simpl (length (a::l1)) in H.  zify. 
+  simpl.
+  replace i with (i - 1 + 1)%Z by omega.
+  erewrite <- index_list_Z_cons by try omega. 
+  eapply IHl1. omega.  
+Qed.
+
 Lemma index_list_Z_eq (T: Type) : forall (l1 l2: list T), 
   (forall i, index_list_Z i l1 = index_list_Z i l2) ->
   l1 = l2.

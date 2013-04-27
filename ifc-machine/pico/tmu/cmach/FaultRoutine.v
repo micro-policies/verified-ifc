@@ -1067,14 +1067,10 @@ Proof.
   assert (valid_address addrTagRes c) by admit.
   assert (valid_address addrTagResPC c) by admit.
 
-  (* NC: not sure how to instantiate here. *)
-  (* APT: here's one way: *)
-  assert (code_at 0 handler (faultHandler get_rule)).
-     unfold handler. 
-     admit. (* surprisingly non-trivial to prove. may need custom induction princ. *)
   edestruct (faultHandler_specEscape_Some get_rule opcode vls pcl c) 
       as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 
    eapply init_enough; auto. 
+  apply code_at_id. 
   exists cache1. 
   inversion P3.  subst. 
   intuition.
