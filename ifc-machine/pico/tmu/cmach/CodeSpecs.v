@@ -158,9 +158,6 @@ Definition predicted_outcome (o: Outcome) raddr pc priv :=
   | Failure => priv = true  /\ pc = (-1, handlerTag)
   end.
 
-(* NC: Big question: can I use the existing [runsToEscape] from
-   ConcreteMachine.v, or should I define my own version(s) here, which
-   is more inductive (does not use [star])? *)
 Definition HTEscape raddr
   (c: code)
   (P: memory -> stack -> Prop)
@@ -177,10 +174,92 @@ Definition HTEscape raddr
     nil
     (CState cache1 mem fh imem stk1 pc1             priv1).
 
-Conjecture HTEscape_compose: forall r c1 c2 P Q R,
+Lemma HTEscape_strengthen_premise: forall r c (P' P: memory -> stack -> Prop) Q,
+  HTEscape r c P  Q ->
+  (forall m s, P' m s -> P m s) ->
+  HTEscape r c P' Q.
+Proof.
+  introv HTPQ P'__P.
+  unfold HTEscape; intros.
+  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
+Qed.
+
+Lemma runsToEnd_star: forall n1 n2 s1 t s2,
+  runsToEnd cstep n1 n2 s1 t s2 ->
+  star cstep s1 t s2.
+Proof.
+  induction 1; econstructor; eauto.
+Qed.
+
+Lemma HT_star: forall c P Q,
+  HT c P Q ->
+  forall imem mem stk0 cache0 fh n n',
+  code_at n fh c ->
+  P cache0 stk0 ->
+  n' = n + Z_of_nat (length c) ->
+  exists cache1 stk1,
+  Q cache1 stk1 /\
+  star cstep (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+             nil
+             (CState cache1 mem fh imem stk1 (n', handlerTag) true).
+Proof.
+  unfold HT.
+  introv HTcPQ; intros.
+  edestruct HTcPQ as [stk2 [cache2 [HQ RTE2]]]; eauto; clear HTcPQ.
+  repeat eexists; eauto.
+  eapply runsToEnd_star; eauto.
+Qed.
+
+Lemma HTEscape_star: forall raddr c P Q,
+  HTEscape raddr c P Q ->
+  forall imem mem stk0 cache0 fh n,
+  code_at n fh c ->
+  P cache0 stk0 ->
+  exists stk1 cache1 pc1 priv1,
+  let (prop, outcome) := Q cache1 stk1 in
+  prop /\
+  predicted_outcome outcome raddr pc1 priv1 /\
+  star cstep
+    (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+    nil
+    (CState cache1 mem fh imem stk1 pc1             priv1).
+Proof.
+  unfold HTEscape.
+  introv HTcPQ; intros.
+  edestruct HTcPQ as [stk1 [cache1 [pc1 [priv1 RTE2]]]]; eauto; clear HTcPQ.
+  exists stk1 cache1 pc1 priv1.
+  destruct (Q cache1 stk1); intuition.
+  eapply runsToEscape_star; eauto.
+Qed.
+
+Lemma HTEscape_compose: forall r c1 c2 P Q R,
   HT         c1 P Q ->
   HTEscape r c2 Q R ->
   HTEscape r (c1 ++ c2) P R.
+Proof.
+  introv H_HT H_HTE.
+  intro; intros.
+
+  edestruct (HT_star _ _ _ H_HT) as [cache1 [stk1 [HQ Hstar1]]]; eauto.
+  eapply code_at_compose_1; eauto.
+
+  edestruct (HTEscape_star _ _ _ _ H_HTE) as [stk2 [cache2 [pc2 [priv2 Hlet]]]]; eauto.
+  eapply code_at_compose_2; eauto.
+
+  exists stk2 cache2 pc2 priv2.
+  destruct (R cache2 stk2).
+  destruct Hlet as [? [Houtcome ?]].
+  destruct o; unfold predicted_outcome in Houtcome; simpl; intuition; subst.
+  - eapply rte_success.
+    + reflexivity.
+    + eapply star_trans with (t:=[]) (t':=[]); eauto.
+    + reflexivity.
+  - eapply rte_fail.
+    + reflexivity.
+    + eapply star_trans with (t:=[]) (t':=[]); eauto.
+    + reflexivity.
+    + simpl; omega.
+Qed.
 
 Lemma HTEscape_append: forall r c1 c2 P Q,
   HTEscape r c1 P Q ->
@@ -1412,16 +1491,6 @@ Proof.
   eapply star_refl.
   auto.
   simpl; eauto; omega.
-Qed.
-
-Lemma HTEscape_strengthen_premise: forall r c (P' P: memory -> stack -> Prop) Q,
-  HTEscape r c P  Q ->
-  (forall m s, P' m s -> P m s) ->
-  HTEscape r c P' Q.
-Proof.
-  introv HTPQ P'__P.
-  unfold HTEscape; intros.
-  edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
 Lemma skipNZ_specEscape: forall r c1 c2 v P1 P2 Q,
