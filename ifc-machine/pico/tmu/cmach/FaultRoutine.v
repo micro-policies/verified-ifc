@@ -224,11 +224,11 @@ Definition handler_initial_mem_matches
            (opcode: Z)
            (tag1: Z) (tag2: Z) (tag3: Z) (pctag: Z) 
            (m: memory) : Prop := 
-  index_list_Z addrOpLabel m = Some(opcode,handlerTag)
-  /\ index_list_Z addrTag1 m = Some (tag1,handlerTag)
-  /\ index_list_Z addrTag2 m = Some (tag2,handlerTag)
-  /\ index_list_Z addrTag3 m = Some (tag3,handlerTag)
-  /\ index_list_Z addrTagPC m = Some (pctag,handlerTag)
+     (exists tag, index_list_Z addrOpLabel m = Some (opcode,tag))
+  /\ (exists tag, index_list_Z addrTag1 m = Some (tag1,tag))
+  /\ (exists tag, index_list_Z addrTag2 m = Some (tag2,tag))
+  /\ (exists tag, index_list_Z addrTag3 m = Some (tag3,tag))
+  /\ (exists tag, index_list_Z addrTagPC m = Some (pctag,tag))
 .
 
 (* APT: Just a little sanity check that these definitions are somewhat coherent. *)
@@ -238,7 +238,7 @@ handler_initial_mem_matches op l1 l2 l3 tpc m.
 Proof.
   intros.
   inv H. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
-  econstructor; eauto.
+  econstructor; jauto.
 Qed.
 
 (*
@@ -275,7 +275,7 @@ Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
 Proof.
   intros. unfold labsToZs in H. 
   inv H. inv UNPACK. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
-  econstructor; eauto. 
+  econstructor; jauto.
 Qed.
 
 
@@ -297,6 +297,11 @@ Hypothesis initial_mem_matches:
 
 Definition eval_var := mk_eval_var vls pcl.
 
+Ltac clean_up_initial_mem :=
+  unfold handler_initial_mem_matches in *;
+  intuition;
+  jauto_set_hyps; intros.
+
 Lemma genVar_spec:
   forall v l,
     eval_var v = l ->
@@ -308,8 +313,11 @@ Lemma genVar_spec:
                        s = CData (labToZ l, handlerTag) :: s0).
 Proof.
   intros v l Heval_var s0.
+
+  clean_up_initial_mem.
+
   destruct v; simpl; eapply loadFrom_spec;
-  simpl in *; unfold handler_initial_mem_matches in *.
+  simpl in *.
 
   (* Most of the cases are very similar ... *)
   Ltac nth_order_case k :=
@@ -321,11 +329,8 @@ Proof.
   nth_order_case 1%nat.
   nth_order_case 2%nat.
 
-  intuition.
-  subst; auto.
-  eauto.
+  subst; eauto.
 Qed.
-
 
 Lemma genExpr_spec: forall (e: rule_expr n),
   forall l,
@@ -566,14 +571,14 @@ Lemma genCheckOp_spec:
                   s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
                       ,handlerTag) ::: s0).
 Proof.
+  clean_up_initial_mem.
   intros.
   unfold genCheckOp.
   eapply genTestEqual_spec.
   eapply push_spec''.
   intros.
   eapply loadFrom_spec.
-  unfold handler_initial_mem_matches in *.
-  iauto.
+  eauto.
 Qed.
 
 Lemma genCheckOp_spec_GT:

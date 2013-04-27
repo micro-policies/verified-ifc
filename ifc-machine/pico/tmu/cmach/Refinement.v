@@ -291,17 +291,14 @@ Lemma handler_final_cache_hit_preserved:
 Proof. 
   intros until 0. intros Hfinal HCHIT. inv HCHIT.
   inv Hfinal. unfold update_cache_spec_rvec in *. clear H.
-  econstructor;
-  constructor;
+  repeat (match goal with
+    | [ HTAG : tag_in_mem _ ?addr _ |- _ ] => inv HTAG
+  end).
+  econstructor; econstructor;
+  rewrite <- H0; eauto;
   match goal with 
-    | [HTAG: tag_in_mem _ ?addr _
-       |- read_m ?addr _ = Some _  ] => 
-      (rewrite <- H0 ; eauto); 
-      (inv HTAG; eauto);
-      (match goal with 
-         | [ |- ?a <> ?b ] => try (unfold a, b ; congruence)
-       end)
-   end.
+     | [ |- ?a <> ?b ] => try (unfold a, b ; congruence)
+  end.
 Qed.
 
 Lemma opCodeToZ_inj: forall o1 o2, opCodeToZ o1 = opCodeToZ o2 -> o1 = o2.
@@ -875,6 +872,3 @@ Require Import LNIwithEvents.
 (* Qed.   *)
 
 End Refinement.
-
-
-  

@@ -108,7 +108,7 @@ End WithListNotations.
 
 (** Cache spec when reading from, writing to *)
 Inductive tag_in_mem (m: list (@Atom Z)) addr tagv : Prop := 
-| tim_intro : index_list_Z addr m = Some (tagv,handlerTag) ->
+| tim_intro : forall tag, index_list_Z addr m = Some (tagv,tag) ->
               tag_in_mem m addr tagv.
 
 (* Tests the cache line *)  
