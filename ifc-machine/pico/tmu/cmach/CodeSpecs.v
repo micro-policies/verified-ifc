@@ -1367,7 +1367,6 @@ Proof.
 Qed.
 
 Lemma ret_specEscape: forall raddr (P: memory -> stack -> Prop),
-  fst raddr > 0 ->
   HTEscape raddr [Ret]
     (fun m s => exists s', s = (CRet raddr false false::s') /\ P m s')
     (fun m s => (P m s , Success)).

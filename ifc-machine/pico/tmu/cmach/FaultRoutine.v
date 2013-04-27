@@ -967,7 +967,6 @@ Qed.
 Definition genFaultHandlerReturn: code := ifNZ [Ret] genError.
 
 Lemma genFaultHandlerReturn_specEscape_Some: forall raddr olr lpc,
-  fst raddr > 0 ->
   forall s0,
   HTEscape raddr genFaultHandlerReturn
        (fun (m : memory) (s : stack) =>
@@ -989,7 +988,6 @@ Proof.
 Qed.
 
 Lemma faultHandler_specEscape_Some: forall raddr olr lpc,
-  fst raddr > 0 ->
   valid_address addrTagRes m0 ->
   valid_address addrTagResPC m0 ->
   ar = Some (olr, lpc) ->
@@ -1064,12 +1062,6 @@ Theorem handler_correct_succeed :
     handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros.
-  (* NC: XXX: believe I need this for [ret_specEscape], but I should
-  double check ... *)
-  (* APT: Hmm. Seems like this shouldn't really be needed. SHould be allowed
-   to "succeed" by returning to user mode, even if the address is invalid. 
-   (And in any case, why > 0 instead of >= 0 ? *)
-  assert (fst raddr > 0) by admit.
 
   (* NC: I definitely need these to reason about modifying these
   addresses. *)
