@@ -8,6 +8,7 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{fancyvrb}
+\usepackage{bm}
 
 \input{temp/defns}
 
@@ -27,6 +28,8 @@
            {{\displaystyle\frac{\begin{array}{l}#2\end{array}}{#3}
                %% ~\ottdrulename{#4}
            }}
+
+\DeclareMathAlphabet{\mathitbf}{OT1}{cmr}{bx}{it}
 
 \begin{document}
 
@@ -86,16 +89,16 @@
 %% \ottp\ottinterrule
 %% \ottv\ottinterrule
 %% \ottov\ottinterrule
-\ottb\ottinterrule
+\ottpriv\ottinterrule
 \ottT\ottinterrule
 \ottC\ottinterrule
 \ottki\ottinterrule
 \ottko\ottinterrule
 \ottkbot\ottinterrule
-\otta\ottinterrule
+\ottca\ottinterrule
 \ottinstr\ottinterrule
 %% \ottopcode\ottinterrule
-\ottS\ottinterrule
+\ottcS\ottinterrule
 }
 
 \section*{Auxiliary relations}
