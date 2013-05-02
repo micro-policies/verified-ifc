@@ -1061,11 +1061,10 @@ Theorem handler_correct_succeed :
 Proof.
   intros.
 
-  (* NC: I definitely need these to reason about modifying these
-  addresses. *)
-  (* APT: Sure. Maybe we should add these to cache_hit. *)
-  assert (valid_address addrTagRes c) by admit.
-  assert (valid_address addrTagResPC c) by admit.
+  assert (valid_address addrTagRes c).
+    inv INPUT. inv TAGR. eapply index_list_Z_valid; eauto. 
+  assert (valid_address addrTagResPC c).
+    inv INPUT. inv TAGRPC. eapply index_list_Z_valid; eauto.
 
   edestruct (faultHandler_specEscape_Some get_rule opcode vls pcl c) 
       as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 

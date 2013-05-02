@@ -462,6 +462,25 @@ Proof.
   destruct l1, l2 ; auto.
 Qed.
 
+Lemma index_list_valid (T:Type): forall n (l:list T) v,
+   index_list n l = Some v -> n < length l.                                    
+Proof.
+  induction n; intros; destruct l; simpl in H. 
+     inv H.
+     inv H.  simpl.  omega. 
+     inv H. 
+     pose proof (IHn _ _ H). simpl. omega.
+Qed.
+
+Lemma index_list_Z_valid (T:Type): forall i (l:list T) v,
+   index_list_Z i l = Some v -> (0 <= i)%Z  /\ (Z.to_nat i < length l)%nat.                                      
+Proof.
+   intros. 
+   unfold index_list_Z in H.  destruct ((i <? 0)%Z) eqn:?. inv H. 
+   split. apply Z.ltb_ge; auto. 
+   eapply index_list_valid; eauto.  
+Qed.
+
 Fixpoint update_list A (n : nat) (y : A) (xs : list A) : option (list A) :=
   match xs, n with
   | nil, _ => None
@@ -581,7 +600,7 @@ Proof.
   intro. apply H0. apply Z2Nat.inj; eauto.
 Qed.
 
-Lemma update_list_Some (T': Type): forall (v: T') l n,
+Lemma update_list_Some (T: Type): forall (v: T) l n,
   n < length l ->
   exists l', update_list n v l = Some l'.
 Proof.
@@ -593,7 +612,7 @@ Proof.
       eexists. rewrite E. eauto.
 Qed.
 
-Lemma update_list_Z_Some (T':Type): forall (v:T') l (i:Z),
+Lemma update_list_Z_Some (T:Type): forall (v:T) l (i:Z),
   (0 <= i)%Z ->
   Z.to_nat i < length l ->
   exists l', update_list_Z i v l = Some l'. 
@@ -602,6 +621,23 @@ Proof.
   destruct (i <? 0)%Z eqn:?. 
   - rewrite Z.ltb_lt in Heqb. omega. 
   - eapply update_list_Some; eauto. 
+Qed.
+
+Lemma update_preserves_length: forall T a (vl:T) m m',
+  update_list a vl m = Some m' ->
+  length m' = length m.
+Proof.
+  induction a; intros.
+  - destruct m; simpl in *.
+    + inv H.
+    + inversion H; subst; reflexivity.
+  - destruct m; simpl in *.
+    + inv H. 
+    + destruct (update_list a vl m) eqn:?.
+      * exploit IHa; eauto.
+        inversion H; subst.
+        intros eq; rewrite <- eq; reflexivity.
+      * inv H. 
 Qed.
 
 Lemma app_same_length_eq (T: Type): forall (l1 l2 l3 l4: list T), 

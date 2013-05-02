@@ -290,15 +290,21 @@ Lemma handler_final_cache_hit_preserved:
     cache_hit tmuc' opcode labs pcl.
 Proof. 
   intros until 0. intros Hfinal HCHIT. inv HCHIT.
-  inv Hfinal. unfold update_cache_spec_rvec in *. clear H.
+  inv Hfinal. unfold update_cache_spec_rvec in *. 
+  assert (exists tagr tagrpc, cache_hit_read tmuc' tagr tagrpc).
+    destruct rl.
+      eexists; eexists; eauto.
+      destruct H as [tagr0 Q]. eexists; eexists; eauto. 
+  destruct H1 as [tagr' [tagrpc' C]]. 
+  inv C. 
   repeat (match goal with
     | [ HTAG : tag_in_mem _ ?addr _ |- _ ] => inv HTAG
   end).
   econstructor; econstructor;
-  rewrite <- H0; eauto;
-  match goal with 
-     | [ |- ?a <> ?b ] => try (unfold a, b ; congruence)
-  end.
+  try (rewrite <- H0; eauto;
+       match goal with 
+        | [ |- ?a <> ?b ] => try (unfold a, b ; congruence)
+       end; fail); eauto.
 Qed.
 
 Lemma opCodeToZ_inj: forall o1 o2, opCodeToZ o1 = opCodeToZ o2 -> o1 = o2.

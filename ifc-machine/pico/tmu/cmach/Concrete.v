@@ -113,13 +113,15 @@ Inductive tag_in_mem (m: list (@Atom Z)) addr tagv : Prop :=
 
 (* Tests the cache line *)  
 Inductive cache_hit (m: list (@Atom Z)) opcode tags pctag : Prop := 
-| ch_intro: forall tag1 tag2 tag3 
+| ch_intro: forall tag1 tag2 tag3 tagr tagrpc
                      (UNPACK : tags = (tag1,tag2,tag3))
                      (OP: tag_in_mem m addrOpLabel opcode) 
                      (TAG1: tag_in_mem m addrTag1 tag1)
                      (TAG2: tag_in_mem m addrTag2 tag2)
                      (TAG3: tag_in_mem m addrTag3 tag3)
-                     (TAGPC: tag_in_mem m addrTagPC pctag),
+                     (TAGPC: tag_in_mem m addrTagPC pctag)
+                     (TAGR: tag_in_mem m addrTagRes tagr)
+                     (TAGRPC: tag_in_mem m addrTagResPC tagrpc),
                 cache_hit m opcode tags pctag. 
 
 Lemma build_cache_hit: forall opcode tags pctag,

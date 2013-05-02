@@ -728,54 +728,6 @@ Proof.
 Qed.
 
 
-(* Move this to the place in Utils.v with related lemmas once it's
-proven. *)
-Section MoveThisToUtils.
-
-Local Open Scope nat_scope.
-
-Lemma update_list_Some (T': Type): forall (v: T') l n,
-  n < length l ->
-  exists l', update_list n v l = Some l'.
-Proof.
-  induction l; intros. 
-  - inv H. 
-  - destruct n. 
-    + simpl.  eauto.
-    + simpl. edestruct IHl as [l' E]. simpl in H. instantiate (1:= n). omega. 
-      eexists. rewrite E. eauto.
-Qed.
-
-Lemma update_list_Z_Some (T':Type): forall (v:T') l (i:Z),
-  (0 <= i)%Z ->
-  Z.to_nat i < length l ->
-  exists l', update_list_Z i v l = Some l'. 
-Proof.
-  intros. unfold upd_m. 
-  destruct (i <? 0) eqn:?. 
-  - rewrite Z.ltb_lt in Heqb. omega. 
-  - eapply update_list_Some; eauto. 
-Qed.
-
-Lemma update_preserves_length: forall T a (vl:T) m m',
-  update_list a vl m = Some m' ->
-  length m' = length m.
-Proof.
-  induction a; intros.
-  - destruct m; simpl in *.
-    + false.
-    + inversion H; subst; reflexivity.
-  - destruct m; simpl in *.
-    + false.
-    + cases (update_list a vl m).
-      * exploit IHa; eauto.
-        inversion H; subst.
-        intros eq; rewrite <- eq; reflexivity.
-      * false.
-Qed.
-
-End MoveThisToUtils.
-
 (* NC: to prove that addresses are valid per this definition, we just
    need to know that that the memory is at least as large as the
    [tmuCacheSize] defined in Concrete.v, since we only use
