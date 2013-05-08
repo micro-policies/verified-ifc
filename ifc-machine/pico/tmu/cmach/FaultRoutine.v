@@ -62,12 +62,12 @@ Fixpoint genScond {n:nat} (s: rule_scond n) : code :=
 
 Definition genApplyRule {n:nat} (am:AllowModify n): code :=
   ite (genScond (allow am))
-      ((genExpr (labResPC am)) ++
-       some
+      (some 
+        (genExpr (labResPC am) ++
          match (labRes am) with
          | Some lres => some (genExpr lres)
          | None      => none
-         end
+         end)
       )
       none.
 
@@ -446,12 +446,12 @@ Proof.
     eapply genScond_spec; auto.
 
     intros.
-    eapply HT_compose.
 
+    eapply some_spec.
+    eapply HT_compose.
       apply genExpr_spec.
       eauto.
 
-      eapply some_spec.
       eapply some_spec.
       eapply genExpr_spec.
       eauto.
@@ -482,12 +482,12 @@ Proof.
     eapply genScond_spec; auto.
 
     intros.
+    eapply some_spec.
     eapply HT_compose.
 
       apply genExpr_spec.
       eauto.
 
-      eapply some_spec.
       eapply none_spec.
 
     intros; false; omega.
@@ -985,6 +985,23 @@ Proof.
     jauto_set_goal; eauto.
 Qed.
 
+Lemma genFaultHandlerReturn_specEscape_None: forall raddr s0,
+ HTEscape raddr genFaultHandlerReturn
+   (fun (m : memory) (s : stack) => m = m0 /\ s = (0, handlerTag) ::: s0)
+   (fun (m : memory) (s : stack) => (m = m0 /\ s = s0, Failure)).
+Proof.
+  intros.
+  unfold genFaultHandlerReturn.
+  eapply HTEscape_strengthen_premise.
+  - eapply ifNZ_specEscape with (v := 0) (Pt := fun m s => True); intros. 
+    + intuition.
+    + eapply genError_specEscape. 
+  - intros. 
+    subst. 
+    intuition.
+    jauto_set_goal; eauto.
+Qed.
+ 
 Lemma faultHandler_specEscape_Some: forall raddr olr lpc,
   valid_address addrTagRes m0 ->
   valid_address addrTagResPC m0 ->
@@ -1004,6 +1021,23 @@ Proof.
   - eapply HTEscape_compose.
     + eapply genFaultHandlerMem_spec_Some; eauto.
     + eapply genFaultHandlerReturn_specEscape_Some; auto.
+Qed.
+
+Lemma faultHandler_specEscape_None: forall raddr,
+  ar = None -> 
+  forall s0,
+    HTEscape raddr (faultHandler fetch_rule_impl)
+             (fun m s => m = m0 /\ s = s0)
+             (fun m s => (m = m0 /\ s = s0
+                         , Failure)).
+Proof.
+  intros.
+  unfold faultHandler.
+  eapply HTEscape_compose.
+  - eapply genFaultHandlerStack_spec.
+  - eapply HTEscape_compose.
+    + eapply genFaultHandlerMem_spec_None; eauto.
+    + eapply genFaultHandlerReturn_specEscape_None; auto.
 Qed.
 
 End FaultHandlerSpec.
@@ -1076,13 +1110,22 @@ Proof.
   apply P4. 
 Qed.  
               
-Conjecture handler_correct_fail : 
+Theorem handler_correct_fail : 
   forall opcode vls pcl c m raddr s i,
   forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = None),
     exists st,
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
                  nil (CState c m handler i st (-1,handlerTag) true).
+Proof.
+  intros.   
+  edestruct (faultHandler_specEscape_None get_rule opcode vls pcl c) with (raddr := (0,0))
+      as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 
+   eapply init_enough; eauto. 
+   eapply code_at_id. 
+  inv P3. 
+  eexists; eauto.
+Qed.
 
 (*  We also have the following: 
     - the handler code terminates DONE
