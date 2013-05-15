@@ -273,10 +273,12 @@ Inductive cstep : CS -> option CEvent -> CS -> Prop :=
      cstep (CState c m fh i s  (pcv,pcl) false)
            None (CState c m fh i s' (pcret, rpcl) false)
 
-| cstep_ret_f: forall c c' fh m i s' s pcv pcl pcret pcretl,
+| cstep_ret_f: forall c c' fh m i s' s pcv pcl pret pcret pcretl,
    forall(INST: i @ pcv # Ret)
          (CMISS: ~ cache_hit c (opCodeToZ OpRet) (pcretl, __, __) pcl)
-         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false false)::s')) (*DD: same thing *)
+         (POP:  c_pop_to_return s ((CRet (pcret,pcretl) false pret)::s')) 
+         (*DD: same thing, but we need not to constraint the return
+               mode here, actually. *)
          (CUPD : c' = build_cache (opCodeToZ OpRet) (pcretl,__,__) pcl),
      cstep (CState c m fh i s  (pcv,pcl) false)
            None (CState c' m fh i ((fh_ret pcv pcl)::s) fh_start true)
