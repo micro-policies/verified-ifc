@@ -47,7 +47,7 @@ Module Type MEM.
 
 End MEM.
 
-Module Mem.
+Module Mem: MEM.
   Definition block := (Z * privilege)%type.
 
   Lemma block_eq : forall (x y:block), {x=y}+{x<>y}.
