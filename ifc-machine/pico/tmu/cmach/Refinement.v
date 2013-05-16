@@ -219,7 +219,7 @@ Inductive match_states : @AS L -> CS -> Prop :=
  ms: forall am cm i astk tmuc cstk apc cpc
               (CACHE: cache_up2date tmuc)
               (STKS: match_stacks astk cstk)
-              (MEM: cm = mem_labToZ am)
+              (MEM: Mem.get_frame cm Mem.ublock = Some (mem_labToZ am))
               (PC: cpc = atom_labToZ apc),
          match_states (AState am i astk apc)
                       (CState tmuc cm faultHandler i cstk cpc false).
@@ -250,7 +250,11 @@ Hint Rewrite match_stacks_obs.
 Definition observe_cstate (cs: CS) : @AS L := 
   match cs with 
     | CState c m fh i s pc p => 
-      AState (mem_ZToLab m) i (c_to_a_stack s) (atom_ZToLab pc)
+      let am := match Mem.get_frame m Mem.ublock with
+                  | None => nil
+                  | Some fr => fr
+                end in 
+      AState (mem_ZToLab am) i (c_to_a_stack s) (atom_ZToLab pc)
   end.
 
            
@@ -420,7 +424,9 @@ Lemma match_observe:
 Proof.
   intros.
   inv H. 
-  simpl. erewrite match_stacks_obs; eauto.
+  simpl. 
+  rewrite MEM.
+  erewrite match_stacks_obs; eauto.
   rewrite <- atom_ZToLab_labToZ_id.  
   rewrite <- mem_ZToLab_labToZ_id.
   auto.
@@ -463,7 +469,7 @@ Ltac renaming :=
       end
   end; 
   match goal with 
-    | [ HH: match_states (AState ?m _ _ _) _ |- _ ] => set (cm := mem_labToZ m)
+    | [ HH: match_states (AState ?m _ _ _) _ |- _ ] => set (ufr := mem_labToZ m)
   end.
 
 Ltac solve_read_m :=
@@ -532,8 +538,6 @@ Ltac priv_steps :=
       try (match goal with 
           | [ |- cstep _ _ _ ] => 
             econstructor (solve [ eauto | eauto; solve_read_m ])
-          | [ |- cstep _ _ _ ] => 
-            econstructor ; eauto 
            end);
       try match goal with 
             | [ |- plus _ _ _ _ ] => 
@@ -627,14 +631,19 @@ Proof.
      * eapply plus_step ; eauto. 
        eapply cstep_load ; eauto.        
        eapply CACHE with (1:= H1); eauto.
+       unfold Mem.uread; rewrite MEM.
        solve_read_m. auto.
      * eauto.         
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i ((xv,rt):::cs) (pcv+1, rpct) false). split.
      * simpl in Hruns. simpl. 
        priv_steps.
+       eapply cstep_load_f; eauto.
+       unfold Mem.uread; rewrite MEM; eauto.
+       solve_read_m.
        eapply handler_final_cache_hit_preserved; eauto.
        eapply handler_cache_hit_read_some; eauto.            
+       unfold Mem.uread; rewrite MEM; eauto.
        solve_read_m.
        auto.
      * econstructor ; eauto. 
@@ -644,21 +653,32 @@ Proof.
   inv STKS. inv H5. 
   exploit upd_m_mem_labToZ ; eauto. intros Hcm'.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].  
-   + exists (CState tmuc (mem_labToZ m') faultHandler i cs0 (pcv+1,rpct) false).
+   + set (cm':=Mem.upd_frame cm Mem.ublock (mem_labToZ m')).
+     exists (CState tmuc cm' faultHandler i cs0 (pcv+1,rpct) false).
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_store  ; eauto.        
        eapply CACHE with (1:= H2); eauto.       
-       solve_read_m. auto.
+       unfold Mem.uread; rewrite MEM.
+       solve_read_m. 
+       unfold Mem.uupd; rewrite MEM; unfold Atom; rewrite Hcm'; auto.
+       auto.
      * econstructor; eauto.
+       unfold cm'; rewrite Mem.get_upd_frame_new; auto.
    + build_cache_and_tmu. 
-     exists (CState c (mem_labToZ m') faultHandler i cs0 (pcv+1, rpct) false). split.
+     set (cm':=Mem.upd_frame cm Mem.ublock (mem_labToZ m')).
+      exists (CState c cm' faultHandler i cs0 (pcv+1, rpct) false). split.
      * priv_steps.
+       eapply cstep_store_f; eauto.
+       unfold Mem.uread; rewrite MEM; solve_read_m.
        eapply handler_final_cache_hit_preserved; eauto.
        eapply handler_cache_hit_read_some; eauto.            
-       solve_read_m. auto.
+       unfold Mem.uread; rewrite MEM; solve_read_m.
+       unfold Mem.uupd; rewrite MEM; unfold Atom; rewrite Hcm'; auto.
+       auto.
      * econstructor ; eauto. 
        inv_cache_update.
+       unfold cm'; rewrite Mem.get_upd_frame_new; auto.
 
 - Case " Jump ". 
   inv STKS. 
@@ -792,7 +812,7 @@ Proof.
      * (eapply runsToEscape_plus in Hruns; [| congruence]);
        (generalize Hmfinal; intros [[ll Hll] Hspec]);
        (simpl atom_labToZ).       
-       (eapply plus_trans with (s2:= (CState tmuc' (mem_labToZ m) faultHandler i
+       (eapply plus_trans with (s2:= (CState tmuc' cm faultHandler i
                                              (CRet (pcv, pct) false false
                                                    :: (resv, labToZ resl)
                                                    ::: args' ++ CRet (pcv', labToZ pcl') true false :: cs)

@@ -161,14 +161,14 @@ Inductive cstep : CS -> option CEvent -> CS -> Prop :=
    forall(INST: i @ pcv # Load)
          (CHIT: cache_hit c (opCodeToZ OpLoad) (addrl, xl, __) pcl)
          (CREAD: cache_hit_read c rl rpcl)
-         (MREAD: read_m addrv m = Some (xv,xl)),
+         (MREAD: Mem.uread addrv m = Some (xv,xl)),
      cstep (CState c m fh i ((addrv,addrl):::s) (pcv,pcl)   false)
            None (CState c m fh i ((xv,rl):::s) (pcv+1,rpcl) false)
 
 | cstep_load_f: forall c c' fh m i s pcv pcl addrv addrl xv xl,
    forall(INST: i @ pcv # Load)
          (CMISS: ~ cache_hit c (opCodeToZ OpLoad) (addrl,xl,__) pcl)
-         (MREAD: read_m addrv m = Some (xv,xl))
+         (MREAD: Mem.uread addrv m = Some (xv,xl))
          (CUPD : c' = build_cache (opCodeToZ OpLoad) (addrl,xl,__) pcl),
      cstep (CState c  m fh i ((addrv,addrl):::s) (pcv,pcl)   false)
            None (CState c' m fh i ((fh_ret pcv pcl)::(addrv,addrl):::s) fh_start true)
@@ -183,15 +183,15 @@ Inductive cstep : CS -> option CEvent -> CS -> Prop :=
    forall(INST: i @ pcv # Store)
          (CHIT: cache_hit c (opCodeToZ OpStore) (addrl, xl, ml) pcl)
          (CREAD: cache_hit_read c rl rpcl)
-         (MREAD: read_m addrv m = Some (mv,ml))
-         (MUPDT: upd_m addrv (xv,rl) m = Some m'),
+         (MREAD: Mem.uread addrv m = Some (mv,ml))
+         (MUPDT: Mem.uupd addrv (xv,rl) m = Some m'),
      cstep (CState c m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl)   false)
            None (CState c m' fh i s (pcv+1,rpcl) false)
 
 | cstep_store_f: forall c c' fh m i s pcv pcl addrv addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)
          (CMISS: ~ cache_hit c (opCodeToZ OpStore) (addrl,xl,ml) pcl)
-         (MREAD: read_m addrv m = Some (mv,ml))
+         (MREAD: Mem.uread addrv m = Some (mv,ml))
          (CUPD : c' = build_cache (opCodeToZ OpStore) (addrl,xl,ml) pcl),
      cstep (CState c  m fh i ((addrv,addrl):::(xv,xl):::s) (pcv,pcl)   false)
            None (CState c' m fh i ((fh_ret pcv pcl)::(addrv,addrl):::(xv,xl):::s) fh_start true)
