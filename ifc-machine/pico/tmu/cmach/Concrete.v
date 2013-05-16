@@ -8,96 +8,6 @@ Require Import TMUInstr.
 Set Implicit Arguments.
 Local Open Scope Z_scope.
 
-Inductive privilege := User | Kernel.
-
-Module Type MEM.
-  Parameter t : Type.
-
-  Parameter block : Type.
-  Parameter privilege_bit : block -> privilege.
-
-  (* user block *)
-  Parameter ublock : block.
-
-  Parameter get_frame : t -> block -> option (list (@Atom Z)).  
-  Parameter upd_frame : t -> block -> list (@Atom Z) -> t.
-  Parameter get_upd_frame_new : forall m b fr,
-    get_frame (upd_frame m b fr) b = Some fr.
-  Parameter get_upd_frame_old : forall m b1 b2 fr,
-    b1 <> b2 ->                                  
-    get_frame (upd_frame m b1 fr) b2 = get_frame m b2.
-
-  (* user read *)
-  Definition uread (addr:Z) (m:t) : option (@Atom Z) :=
-    match get_frame m ublock with
-      | None => None
-      | Some fr => index_list_Z addr fr
-    end.
-
-  (* user update *)
-  Definition uupd (addr:Z) (a:@Atom Z) (m:t) : option t :=
-    match get_frame m ublock with
-      | None => None
-      | Some fr => 
-        match update_list_Z addr a fr with
-          | None => None
-          | Some fr' => Some (upd_frame m ublock fr')
-        end
-    end.
-
-End MEM.
-
-Module Mem: MEM.
-  Definition block := (Z * privilege)%type.
-
-  Lemma block_eq : forall (x y:block), {x=y}+{x<>y}.
-  Proof. repeat decide equality. Qed.
-
-  Definition privilege_bit : block -> privilege := snd.
-
-  Definition ublock := (1,User).
-
-  Definition t := block -> option (list (@Atom Z)).
-
-  Definition get_frame (m:t) := m.
-
-  Definition upd_frame (m:t) (b0:block) (fr:list (@Atom Z)) :=
-    fun b => if block_eq b b0 then Some fr else m b.
-
-  Lemma get_upd_frame_new : forall m b fr,
-    get_frame (upd_frame m b fr) b = Some fr.
-  Proof.
-    unfold get_frame, upd_frame; intros.
-    destruct block_eq; congruence.
-  Qed.
-
-  Lemma get_upd_frame_old : forall m b1 b2 fr,
-    b1 <> b2 ->                                  
-    get_frame (upd_frame m b1 fr) b2 = get_frame m b2.
-  Proof.
-    unfold get_frame, upd_frame; intros.
-    destruct block_eq; congruence.
-  Qed.
-
-  (* user read *)
-  Definition uread (addr:Z) (m:t) : option (@Atom Z) :=
-    match get_frame m ublock with
-      | None => None
-      | Some fr => index_list_Z addr fr
-    end.
-
-  (* user update *)
-  Definition uupd (addr:Z) (a:@Atom Z) (m:t) : option t :=
-    match get_frame m ublock with
-      | None => None
-      | Some fr => 
-        match update_list_Z addr a fr with
-          | None => None
-          | Some fr' => Some (upd_frame m ublock fr')
-        end
-    end.
-End Mem.
-
 Section CMach.
 
 (** Definition of states for the concrete machine *)
@@ -113,7 +23,7 @@ Inductive CStkElmt :=
 (* DD: the privileged parts of the states are now separate *)
 Record CS  := CState {
   cache: list (@Atom Z);
-  mem : Mem.t;
+  mem : list (@Atom Z);
   fhdl:  list Instr; (* fault handler code *)
   imem : list Instr;
   stk : list CStkElmt;
