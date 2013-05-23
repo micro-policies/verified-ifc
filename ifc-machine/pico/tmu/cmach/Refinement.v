@@ -6,7 +6,7 @@ Require Import FunctionalExtensionality.
 Require Import Utils Lattices CLattices WfCLattices.
 
 Require Import TMUInstr.
-Require Import Abstract Rules AbstractMachine.
+Require Import Abstract Rules QuasiAbstractMachine.
 
 Require Import Concrete ConcreteMachineSmallStep CodeGen CodeSpecs.
 Require Import FaultRoutine.
