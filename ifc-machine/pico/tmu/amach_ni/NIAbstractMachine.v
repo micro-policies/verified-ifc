@@ -11,6 +11,7 @@ Require Import Rules.
 Require Import AbstractCommon.
 Require Import AbstractMachine.
 Require Import LNIwithEvents.
+Require TINI.
 
 Set Implicit Arguments.
 
@@ -395,6 +396,80 @@ Proof.
           econstructor 2; eauto with lat.
           congruence.
 Qed.
+
+Program Instance AMUnwindingSemantics : TINI.UnwindingSemantics := {
+  state := AS;
+  event := option Event;
+  step := step_rules;
+
+  observer := T;
+
+  s_equiv := low_equiv_full_state;
+  s_low := low_pc;
+  s_low_dec := low_pc_dec;
+
+  e_equiv := low_equiv_event;
+  e_low := visible_event;
+  e_low_dec := visible_event_dec
+}.
+
+Next Obligation.
+  intros x y H. rewrite <- H. reflexivity.
+Qed.
+
+Next Obligation.
+  inv H; split; intros H; inv H; try congruence;
+  unfold low_pc; simpl; trivial.
+Qed.
+
+Next Obligation.
+  inv H; split; intros H; inv H; auto;
+  match goal with
+    | H : ~ visible_event o (Some (EInt (?i, ?l))) |- _ =>
+      contradict H
+  end;
+  constructor;
+  trivial.
+Qed.
+
+Next Obligation.
+  unfold low_pc.
+  inv H; simpl;
+  try match goal with
+        | H : visible_event _ _ |- _ =>
+          inv H
+      end.
+  eauto with lat.
+Qed.
+
+Next Obligation.
+  repeat match goal with
+           | e1 : option Event,
+             e2 : option Event |- _ =>
+             destruct e1; destruct e2
+         end;
+  try solve [constructor (solve [eauto])].
+Qed.
+
+Next Obligation.
+Admitted.
+
+Next Obligation.
+  eapply lowstep; eauto.
+Qed.
+
+Next Obligation.
+  rewrite <- H0.
+  symmetry.
+  eapply highstep; eauto.
+Qed.
+
+Next Obligation.
+  eapply highlowstep; eauto.
+Qed.
+
+Theorem noninterference : TINI.tini.
+Proof. apply TINI.noninterference. Qed.
 
 (* Theorem lockstep_ni_amach : *)
 (*   lockstep_ni_state_evt step_rules low_pc success low_equiv_full_state. *)
