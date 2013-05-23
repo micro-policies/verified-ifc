@@ -6,4 +6,6 @@
                      "../tmu" "../../tmu"
                      "../tmu/amach" "../../tmu/amach"
                      "../tmu/cmach" "../../tmu/cmach"
-                     "../tmu/amach_ni" "../../tmu/amach_ni")))))
+                     "../tmu/amach_ni" "../../tmu/amach_ni"
+                     "../tmu/abstract_ni" "../../tmu/abstract_ni")))))
+
