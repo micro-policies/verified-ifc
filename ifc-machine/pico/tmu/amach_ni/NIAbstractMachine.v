@@ -8,7 +8,7 @@ Require Import AbstractObsEquiv.
 Require Import TMUInstr.
 Require Import Abstract.
 Require Import Rules.
-Require Import AbstractMachine.
+Require Import QuasiAbstractMachine.
 Require Import LNIwithEvents.
 
 Set Implicit Arguments.

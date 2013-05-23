@@ -14,7 +14,7 @@ Require Import LNIwithEvents.
 
 (* Abstract Machine *)
 Require Import TMUInstr.
-Require Import Abstract Rules AbstractMachine.
+Require Import Abstract Rules QuasiAbstractMachine.
 Require Import AbstractObsEquiv NIAbstractMachine.
 
 (* Concrete Machine *)
