@@ -1,7 +1,9 @@
 Require Import Relations.
 Require Import List.
 
-Require Import Utils.
+(**  Useful tactics **)
+Ltac inv H := inversion H; clear H; subst.
+Ltac gdep x := generalize dependent x.
 
 Set Implicit Arguments.
 
