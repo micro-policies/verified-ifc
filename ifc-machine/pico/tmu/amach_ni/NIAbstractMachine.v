@@ -1,20 +1,17 @@
-Require Import Relations.
-Require Import EqNat.
 Require Import ZArith.
 Require Import List.
+
 Require Import Utils.
 Require Import Lattices.
 Require Import AbstractObsEquiv.
 Require Import TMUInstr.
 Require Import Abstract.
-Require Import Rules.
 Require Import AbstractCommon.
 Require Import AbstractMachine.
-Require Import LNIwithEvents.
-Require TINI.
 Require Import LowStep.
 Require Import HighStep.
 Require Import HighLowStep.
+Require TINI.
 
 Set Implicit Arguments.
 
