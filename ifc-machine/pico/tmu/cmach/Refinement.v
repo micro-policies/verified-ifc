@@ -7,6 +7,7 @@ Require Import Utils Lattices CLattices WfCLattices.
 
 Require Import TMUInstr.
 Require Import Abstract Rules QuasiAbstractMachine.
+Require Import AbstractCommon.
 
 Require Import Concrete ConcreteMachineSmallStep CodeGen CodeSpecs.
 Require Import FaultRoutine.
