@@ -450,7 +450,30 @@ Next Obligation.
 Qed.
 
 Next Obligation.
-Admitted.
+  inv H1; inv H2;
+  try solve [econstructor (intros H'; inv H'; solve [eauto])];
+  match goal with
+    | H : low_equiv_full_state _ _ _ |- _ =>
+      inv H
+  end;
+  try solve [
+        constructor; intros H; inv H;
+        match goal with
+          | H1 : ?pcl <: ?o = false,
+            H2 : ?l \_/ ?pcl <: ?o = true |- _ =>
+            apply join_2_rev in H2; congruence
+        end
+      ];
+  try solve [exploit @index_list_Z_low_eq_instr; eauto; intros H; inv H].
+  inv LEs.
+  inv H5.
+  inv LEa; try reflexivity.
+  constructor; intros H; inv H;
+  match goal with
+    | H : ?l \_/ ?pcl <: ?o = true |- _ =>
+      apply join_1_rev in H; congruence
+  end.
+Qed.
 
 Next Obligation.
   eapply lowstep; eauto.
