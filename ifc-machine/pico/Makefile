@@ -9,7 +9,8 @@ COMMON:= NotionsOfNI Simulation LNIwithEvents LockStepNI BwdSimNI
 
 TMU := 	TMUInstr
 
-TMU_A:=	Abstract Rules AbstractCommon QuasiAbstractMachine AbstractMachineFun
+TMU_A:= Abstract Rules AbstractCommon AbstractMachine	\
+	QuasiAbstractMachine AbstractMachineFun
 
 TMU_AMNI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine
 
