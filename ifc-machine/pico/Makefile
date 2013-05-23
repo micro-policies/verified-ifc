@@ -1,4 +1,4 @@
-DIRS=lib common tmu tmu/amach tmu/cmach tmu/amach_ni .
+DIRS=lib common tmu tmu/amach tmu/cmach tmu/amach_ni tmu/abstract_ni .
 INCLUDES=$(patsubst %,-I %, $(DIRS))
 
 FINAL := Altogether
@@ -11,7 +11,9 @@ TMU := 	TMUInstr
 
 TMU_A:=	Abstract Rules AbstractMachine AbstractMachineFun
 
-TMU_ANI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine
+TMU_AMNI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine
+
+TMU_ANI := TINI
 
 TMU_C := CLattices WfCLattices Concrete ConcreteMachineSmallStep \
 	CodeGen CodeSpecs FaultRoutine\
@@ -19,7 +21,8 @@ TMU_C := CLattices WfCLattices Concrete ConcreteMachineSmallStep \
 
 VS := $(LIB:%=lib/%.v) $(COMMON:%=common/%.v) $(TMU:%=tmu/%.v) \
 	$(TMU_A:%=tmu/amach/%.v) $(TMU_C:%=tmu/cmach/%.v) \
-	$(TMU_ANI:%=tmu/amach_ni/%.v) $(FINAL:%=%.v)
+	$(TMU_AMNI:%=tmu/amach_ni/%.v) $(TMU_ANI:%=tmu/abstract_ni/%.v) \
+	$(FINAL:%=%.v)
 
 EXTRACTDIR := extraction/
 EXTRACTION := $(EXTRACTDIR)Extraction.v
