@@ -5,72 +5,70 @@ Require Import Utils.
 
 Set Implicit Arguments.
 
-Module Type UNWINDINGSEMANTICS.
+Class UnwindingSemantics := {
+  state : Type;
+  event : Type;
+  step : state -> event -> state -> Prop;
 
-Variable state : Type.
-Variable event : Type.
-Variable step : state -> event -> state -> Prop.
+  observer : Type;
 
-Variable observer : Type.
+  s_equiv : observer -> relation state;
+  s_low : observer -> state -> Prop;
+  s_low_dec : forall o s, {s_low o s} + {~ s_low o s};
+  s_equiv_sym : forall o, symmetric _ (s_equiv o);
+  s_equiv_low : forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2);
 
-Variable s_equiv : observer -> relation state.
-Variable s_low : observer -> state -> Prop.
-Variable s_low_dec : forall o s, {s_low o s} + {~ s_low o s}.
-Hypothesis s_equiv_sym : forall o, symmetric _ (s_equiv o).
-Hypothesis s_equiv_low: forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2).
+  e_equiv : observer -> relation event;
+  e_low : observer -> event -> Prop;
+  e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
+  e_equiv_low: forall o e1 e2, e_equiv o e1 e2 -> (e_low o e1 <-> e_low o e2);
 
-Variable e_equiv : observer -> relation event.
-Variable e_low : observer -> event -> Prop.
-Variable e_low_dec : forall o e, {e_low o e} + {~ e_low o e}.
-Hypothesis e_equiv_low: forall o e1 e2, e_equiv o e1 e2 -> (e_low o e1 <-> e_low o e2).
+  e_low_s_low : forall o s1 e s2,
+                  step s1 e s2 ->
+                  e_low o e ->
+                  s_low o s1;
 
-Hypothesis e_low_s_low : forall o s1 e s2,
-                           step s1 e s2 ->
-                           e_low o e ->
-                           s_low o s1.
+  e_high_e_equiv : forall o e1 e2,
+                     ~ e_low o e1 ->
+                     ~ e_low o e2 ->
+                     e_equiv o e1 e2;
 
-Hypothesis e_high_e_equiv : forall o e1 e2,
-                              ~ e_low o e1 ->
-                              ~ e_low o e2 ->
-                              e_equiv o e1 e2.
+  (* Unwinding conditions *)
 
-(* Unwinding conditions *)
+  equiv_trace_low: forall o s1 s2 e1 e2 s1' s2',
+                     s_equiv o s1 s2 ->
+                     s_low o s1 ->
+                     step s1 e1 s1' ->
+                     step s2 e2 s2' ->
+                     e_equiv o e1 e2;
 
-Hypothesis equiv_trace_low: forall o s1 s2 e1 e2 s1' s2',
-  s_equiv o s1 s2 ->
-  s_low o s1 ->
-  step s1 e1 s1' ->
-  step s2 e2 s2' ->
-  e_equiv o e1 e2.
+  lowstep : forall o t1 t2 s1 s1' s2 s2',
+              s_equiv o s1 s2 ->
+              s_low o s1 ->
+              step s1 t1 s1' ->
+              step s2 t2 s2' ->
+              s_equiv o s1' s2';
 
-Hypothesis lowstep : forall o t1 t2 s1 s1' s2 s2',
-  s_equiv o s1 s2 ->
-  s_low o s1 ->
-  step s1 t1 s1' ->
-  step s2 t2 s2' ->
-  s_equiv o s1' s2'.
+  highstep : forall o s1 s1' s2 t,
+               ~ s_low o s1 ->
+               s_equiv o s1 s2 ->
+               step s1 t s1' ->
+               ~s_low o s1' ->
+               s_equiv o s1' s2;
 
-Hypothesis highstep : forall o s1 s1' s2 t,
-  ~s_low o s1 ->
-  s_equiv o s1 s2 ->
-  step s1 t s1' ->
-  ~s_low o s1' ->
-  s_equiv o s1' s2.
+  highlowstep : forall o s1 s1' s2 s2' t1 t2,
+                  s_equiv o s1 s2 ->
+                  ~s_low o s1 ->
+                  step s1 t1 s1' ->
+                  s_low o s1' ->
+                  step s2 t2 s2' ->
+                  s_low o s2' ->
+                  s_equiv o s1' s2'
+}.
 
-Hypothesis highlowstep : forall o s1 s1' s2 s2' t1 t2,
-  s_equiv o s1 s2 ->
-  ~s_low o s1 ->
-  step s1 t1 s1' ->
-  s_low o s1' ->
-  step s2 t2 s2' ->
-  s_low o s2' ->
-  s_equiv o s1' s2'.
+Section TINI.
 
-End UNWINDINGSEMANTICS.
-
-Module TINI (UnwindingSemantics : UNWINDINGSEMANTICS).
-
-Import UnwindingSemantics.
+Context {UC : UnwindingSemantics}.
 
 Definition trace := list event.
 
