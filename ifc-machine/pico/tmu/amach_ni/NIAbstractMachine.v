@@ -238,7 +238,6 @@ Proof.
     simpl. rewrite H2; auto.
        
    Case "Ret".
-    unfold Vector.nth_order in *; simpl in *. 
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto. intros. inv H0.
     exploit @pop_to_return_spec3; eauto. intros. inv H0.
@@ -251,7 +250,6 @@ Proof.
         auto. 
 
    Case "VRet".
-    unfold Vector.nth_order in *; simpl in *. 
     spec_pop_return. 
     exploit @pop_to_return_spec2; eauto. intros. inv H0.
     exploit @pop_to_return_spec3; eauto. intros. inv H0.
