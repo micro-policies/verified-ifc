@@ -553,6 +553,42 @@ Proof.
   eapply index_list_Z_low_equiv_some with (1:= LEi); eauto.
 Qed.
 
+Inductive visible_event (o : Label) : option (@Event Label) -> Prop :=
+| ve_low : forall i l, l <: o = true -> visible_event o (Some (EInt (i, l))).
+Hint Constructors visible_event.
+
+Lemma visible_event_dec : forall o e, {visible_event o e} + {~ visible_event o e}.
+Proof.
+  intros o [[[x l]]|].
+  - destruct (l <: o) eqn: Hl; auto.
+    right. intros H. inv H. congruence.
+  - right. intros H. inv H.
+Defined.
+
+Inductive low_equiv_event (o : Label) : option (@Event Label) ->
+                                        option (@Event Label) -> Prop :=
+| lee_visible : forall e, visible_event o e -> low_equiv_event o e e
+| lee_invisible : forall e1 e2,
+                    ~ visible_event o e1 ->
+                    ~ visible_event o e2 ->
+                    low_equiv_event o e1 e2.
+Hint Constructors low_equiv_event.
+
+Global Instance low_event (o : Label) : @Equivalence _ (low_equiv_event o).
+Proof.
+  constructor.
+  - intros [[[x l]]|].
+    + destruct (l <: o) eqn:Hl; auto.
+      constructor 2;
+      intros H; inv H; congruence.
+    + constructor 2;
+      intros H; inv H; congruence.
+  - intros x y H.
+    inv H; auto.
+  - intros x y z H1 H2.
+    inv H1; inv H2; auto.
+Qed.
+
 End ObsEquiv.
 
 Hint Resolve low_state.
