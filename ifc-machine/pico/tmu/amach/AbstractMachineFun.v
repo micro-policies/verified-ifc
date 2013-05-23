@@ -8,6 +8,8 @@ Require Import TMUInstr.
 Require Import Abstract.
 Require Import Rules.
 Require Import AbstractMachine.
+Require Import AbstractCommon.
+Require Import QuasiAbstractMachine.
 
 Require Vector.
 
