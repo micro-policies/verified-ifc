@@ -12,7 +12,8 @@ TMU := 	TMUInstr
 TMU_A:= Abstract Rules AbstractCommon AbstractMachine	\
 	QuasiAbstractMachine AbstractMachineFun
 
-TMU_AMNI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine
+TMU_AMNI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine \
+            LowStep HighStep HighLowStep
 
 TMU_ANI := TINI
 
