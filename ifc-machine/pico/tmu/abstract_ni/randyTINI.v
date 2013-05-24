@@ -7,12 +7,84 @@ Ltac gdep x := generalize dependent x.
 
 Set Implicit Arguments.
 
-Class UnwindingSemantics := {
-  state : Type;
-  event : Type;
-  step : state -> event -> state -> Prop;
-
+Class ObsblTrace := {
   observer : Type;
+  event : Type;
+  initial : Type;
+
+  e_equiv : observer -> relation event;
+  e_low : observer -> event -> Prop;
+  e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
+  i_equiv: observer -> relation initial}.
+
+Section ObsblTraceDefs.
+Context {OT: ObsblTrace}.
+
+Definition trace := list event.
+
+Inductive ti_trace_indist (o : observer) : relation trace :=
+| titi_nil1: forall t2, ti_trace_indist o nil t2
+| titi_nil2: forall t1, ti_trace_indist o t1 nil
+| titi_cons : forall e1 e2 t1 t2,
+    e_equiv o e1 e2 ->
+    ti_trace_indist o t1 t2 ->
+    e_low o e1 ->
+    e_low o e2 ->
+    ti_trace_indist o (e1 :: t1) (e2 :: t2).
+Hint Constructors ti_trace_indist.
+
+Definition observe (o : observer) (es : list event) : list event :=
+  filter (fun e => if e_low_dec o e then true else false) es.
+
+End ObsblTraceDefs.
+
+Class AbsSem `(OT: ObsblTrace) := {
+  state : Type;
+  initial_state: initial -> state;
+  step : state -> event -> state -> Prop}.
+
+Section AbsSemDefs.
+Context {OT: ObsblTrace} {AC: AbsSem OT}.
+
+Inductive exec : state -> trace -> state -> Prop :=
+| e_refl : forall s, exec s nil s
+| e_step : forall s e s' t s'',
+             step s e s' ->
+             exec s' t s'' ->
+             exec s (e :: t) s''.
+
+Definition tini : Prop := forall o i1 t1 s1' i2 t2 s2',
+                            i_equiv o i1 i2 ->
+                            exec (initial_state i1) t1 s1' ->
+                            exec (initial_state i2) t2 s2' ->
+                            ti_trace_indist o (observe o t1) (observe o t2).
+
+End AbsSemDefs.
+
+Section Refinement.
+Context {OT: ObsblTrace} {ACa ACc: AbsSem OT}.
+
+(** Notice the two occurrances of "initial_state" below are
+from different instances: ACa and ACc
+**)
+Hypothesis traceIncl:
+  forall (i:initial) (tr: trace) (sc:@state _ ACc),
+    (exec (initial_state i) tr sc) ->
+     exists (sa:@state _ ACa), exec (initial_state i) tr sa.
+
+Set Printing Implicit.
+Lemma abst_concr: (@tini _ ACa) -> (@tini _ ACc).
+unfold tini.
+intro ha. intros o i1 t1 s1 i2 t2 s2 hi he1 he2. 
+apply traceIncl in he1. destruct he1.
+apply traceIncl in he2. destruct he2.
+eapply (@ha o i1 t1 _ i2 t2 _ hi).
+eauto. eauto.
+Qed.
+
+End Refinement.
+
+Class UnwindingSemantics `(OT: ObsblTrace) `(AC: AbsSem) := {
 
   s_equiv : observer -> relation state;
   s_low : observer -> state -> Prop;
@@ -20,9 +92,6 @@ Class UnwindingSemantics := {
   s_equiv_sym : forall o, symmetric _ (s_equiv o);
   s_equiv_low : forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2);
 
-  e_equiv : observer -> relation event;
-  e_low : observer -> event -> Prop;
-  e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
   e_equiv_low: forall o e1 e2, e_equiv o e1 e2 -> (e_low o e1 <-> e_low o e2);
 
   e_low_s_low : forall o s1 e s2,
@@ -70,36 +139,7 @@ Class UnwindingSemantics := {
 
 Section TINI.
 
-Context {UC : UnwindingSemantics}.
-
-Definition trace := list event.
-
-Inductive ti_trace_indist (o : observer) : relation trace :=
-| titi_nil1: forall t2, ti_trace_indist o nil t2
-| titi_nil2: forall t1, ti_trace_indist o t1 nil
-| titi_cons : forall e1 e2 t1 t2,
-    e_equiv o e1 e2 ->
-    ti_trace_indist o t1 t2 ->
-    e_low o e1 ->
-    e_low o e2 ->
-    ti_trace_indist o (e1 :: t1) (e2 :: t2).
-Hint Constructors ti_trace_indist.
-
-Inductive exec : state -> trace -> state -> Prop :=
-| e_refl : forall s, exec s nil s
-| e_step : forall s e s' t s'',
-             step s e s' ->
-             exec s' t s'' ->
-             exec s (e :: t) s''.
-
-Definition observe (o : observer) (es : list event) : list event :=
-  filter (fun e => if e_low_dec o e then true else false) es.
-
-Definition tini : Prop := forall o s1 t1 s1' s2 t2 s2',
-                            s_equiv o s1 s2 ->
-                            exec s1 t1 s1' ->
-                            exec s2 t2 s2' ->
-                            ti_trace_indist o t1 t2.
+Context  {OT: ObsblTrace} {AC: AbsSem OT} {UC : UnwindingSemantics OT AC}.
 
 Lemma equiv_trace_high : forall o s1 e1 s1' s2 e2 s2'
                                 (Hstep1 : step s1 e1 s1')
@@ -286,8 +326,8 @@ Proof.
       * eapply highlowstep; eauto.
 Qed.
 
+Hint Constructors ti_trace_indist.
 (* Noninterference in terms of [oexec] *)
-
 Lemma oexec_equiv : forall o s1 t1 s1' s2 t2 s2'
                           (Hexec1 : oexec o s1 t1 s1')
                           (Hexec2 : oexec o s2 t2 s2')
@@ -296,7 +336,7 @@ Lemma oexec_equiv : forall o s1 t1 s1' s2 t2 s2'
 Proof.
   intros.
   gdep t2. gdep s2.
-  induction Hexec1;  eauto;
+  induction Hexec1; eauto;
   intros s2 Heq t2 Hexec2;
   inv Hexec2; eauto;
   match goal with
@@ -315,6 +355,7 @@ Qed.
 Theorem noninterference : tini.
 Proof.
   intros o s1 t1 s1' s2 t2 s2' Heq Ht1 Ht2.
+Check exec_oexec.
   eauto using exec_oexec, oexec_equiv.
 Qed.
 
