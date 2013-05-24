@@ -62,6 +62,8 @@ Program Instance AMObservableSemantics : TINI.ObservableSemantics := {
   step := step_rules;
 
   observer := T;
+  
+  s_equiv := low_equiv_full_state;
 
   e_equiv := low_equiv_event;
   e_low := visible_event;
@@ -88,7 +90,6 @@ Next Obligation.
 Qed.
 
 Program Instance AMUnwindingSemantics : TINI.UnwindingSemantics := {
-  s_equiv := low_equiv_full_state;
   s_low := low_pc;
   s_low_dec := low_pc_dec
 }.

@@ -29,6 +29,8 @@ Class ObservableSemantics := {
 
   observer : Type;
 
+  s_equiv : observer -> relation state;
+
   e_equiv : observer -> relation event;
   e_low : observer -> event -> Prop;
   e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
@@ -41,7 +43,6 @@ Class ObservableSemantics := {
 }.
 
 Class UnwindingSemantics `{OS : ObservableSemantics} := {
-  s_equiv : observer -> relation state;
   s_low : observer -> state -> Prop;
   s_low_dec : forall o s, {s_low o s} + {~ s_low o s};
   s_equiv_sym : forall o, symmetric _ (s_equiv o);
@@ -87,8 +88,7 @@ Class UnwindingSemantics `{OS : ObservableSemantics} := {
 
 Section TINI.
 
-Context {OS : ObservableSemantics}
-        {UC : UnwindingSemantics}.
+Context {OS : ObservableSemantics}.
 
 Definition trace := list event.
 
@@ -111,6 +111,10 @@ Definition tini : Prop := forall o s1 t1 s1' s2 t2 s2',
                             exec s1 t1 s1' ->
                             exec s2 t2 s2' ->
                             ti_trace_indist o (observe o t1) (observe o t2).
+
+Section TINIUnwinding.
+
+Context {UC : UnwindingSemantics}.
 
 Lemma equiv_trace_high : forall o s1 e1 s1' s2 e2 s2'
                                 (Hstep1 : step s1 e1 s1')
@@ -175,6 +179,8 @@ Proof.
   intuition.
 Qed.
 Hint Resolve ostep_step.
+
+Set Printing All.
 
 Inductive oexec (o : observer) : state -> trace -> state -> Prop :=
 | oe_refl : forall s, oexec o s nil s
@@ -328,5 +334,7 @@ Proof.
   intros o s1 t1 s1' s2 t2 s2' Heq Ht1 Ht2.
   eauto using exec_oexec, oexec_equiv.
 Qed.
+
+End TINIUnwinding.
 
 End TINI.
