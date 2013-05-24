@@ -56,7 +56,7 @@ Proof.
   eapply success_runSTO_None in H; eauto.
 Qed.
 
-Program Instance AMObserableEvent : TINI.ObservableEvent T (option Event) := {
+Program Instance AMObservableEvent : TINI.ObservableEvent T (option Event) := {
   e_equiv := low_equiv_event;
   e_low := visible_event;
   e_low_dec := visible_event_dec
@@ -82,14 +82,8 @@ Next Obligation.
   try solve [constructor (solve [eauto])].
 Qed.
 
-Program Instance AMObservableSemantics :
-  TINI.ObservableSemantics T (option Event) AS := {
-  step := step_rules;
-  s_equiv := low_equiv_full_state
-}.
-
 Program Instance AMUnwindingSemantics :
-  TINI.UnwindingSemantics (state:=AS) := {
+  TINI.UnwindingSemantics step_rules low_equiv_full_state := {
   s_low := low_pc;
   s_low_dec := low_pc_dec
 }.
@@ -153,7 +147,7 @@ Next Obligation.
   eapply highlowstep; eauto.
 Qed.
 
-Theorem noninterference : TINI.tini (state:=AS).
+Theorem noninterference : TINI.tini step_rules low_equiv_full_state.
 Proof. apply TINI.noninterference. exact AMUnwindingSemantics. Qed.
 
 (* Theorem lockstep_ni_amach : *)

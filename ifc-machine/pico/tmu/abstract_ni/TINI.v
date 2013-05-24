@@ -39,16 +39,12 @@ Class ObservableEvent := {
 }.
 
 Variable state : Type.
-
-Class ObservableSemantics := {
-  step : state -> event -> state -> Prop;
-  s_equiv : observer -> relation state
-}.
+Variable step : state -> event -> state -> Prop.
+Variable s_equiv : observer -> relation state.
 
 Section TINI.
 
-Context {OE : ObservableEvent}
-        {OS : ObservableSemantics}.
+Context {OE : ObservableEvent}.
 
 Definition trace := list event.
 
