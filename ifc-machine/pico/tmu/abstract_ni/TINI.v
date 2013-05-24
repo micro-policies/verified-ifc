@@ -7,6 +7,21 @@ Ltac gdep x := generalize dependent x.
 
 Set Implicit Arguments.
 
+Section Exec.
+
+Variable state : Type.
+Variable event : Type.
+Variable step : state -> event -> state -> Prop.
+
+Inductive exec : state -> list event -> state -> Prop :=
+| e_refl : forall s, exec s nil s
+| e_step : forall s e s' t s'',
+             step s e s' ->
+             exec s' t s'' ->
+             exec s (e :: t) s''.
+
+End Exec.
+
 Class UnwindingSemantics := {
   state : Type;
   event : Type;
@@ -83,12 +98,7 @@ Inductive ti_trace_indist (o : observer) : relation trace :=
     ti_trace_indist o (e1 :: t1) (e2 :: t2).
 Hint Constructors ti_trace_indist.
 
-Inductive exec : state -> trace -> state -> Prop :=
-| e_refl : forall s, exec s nil s
-| e_step : forall s e s' t s'',
-             step s e s' ->
-             exec s' t s'' ->
-             exec s (e :: t) s''.
+Let exec := @exec state event step.
 
 Definition observe (o : observer) (es : list event) : list event :=
   filter (fun e => if e_low_dec o e then true else false) es.
