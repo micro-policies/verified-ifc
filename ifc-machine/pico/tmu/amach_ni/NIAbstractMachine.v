@@ -56,30 +56,17 @@ Proof.
   eapply success_runSTO_None in H; eauto.
 Qed.
 
-Program Instance AMUnwindingSemantics : TINI.UnwindingSemantics := {
+Program Instance AMObservableSemantics : TINI.ObservableSemantics := {
   state := AS;
   event := option Event;
   step := step_rules;
 
   observer := T;
 
-  s_equiv := low_equiv_full_state;
-  s_low := low_pc;
-  s_low_dec := low_pc_dec;
-
   e_equiv := low_equiv_event;
   e_low := visible_event;
   e_low_dec := visible_event_dec
 }.
-
-Next Obligation.
-  intros x y H. rewrite <- H. reflexivity.
-Qed.
-
-Next Obligation.
-  inv H; split; intros H; inv H; try congruence;
-  unfold low_pc; simpl; trivial.
-Qed.
 
 Next Obligation.
   inv H; split; intros H; inv H; auto;
@@ -92,6 +79,30 @@ Next Obligation.
 Qed.
 
 Next Obligation.
+  repeat match goal with
+           | e1 : option Event,
+             e2 : option Event |- _ =>
+             destruct e1; destruct e2
+         end;
+  try solve [constructor (solve [eauto])].
+Qed.
+
+Program Instance AMUnwindingSemantics : TINI.UnwindingSemantics := {
+  s_equiv := low_equiv_full_state;
+  s_low := low_pc;
+  s_low_dec := low_pc_dec
+}.
+
+Next Obligation.
+  intros x y H. rewrite <- H. reflexivity.
+Qed.
+
+Next Obligation.
+  inv H; split; intros H; inv H; try congruence;
+  unfold low_pc; simpl; trivial.
+Qed.
+
+Next Obligation.
   unfold low_pc.
   inv H; simpl;
   try match goal with
@@ -99,15 +110,6 @@ Next Obligation.
           inv H
       end.
   eauto with lat.
-Qed.
-
-Next Obligation.
-  repeat match goal with
-           | e1 : option Event,
-             e2 : option Event |- _ =>
-             destruct e1; destruct e2
-         end;
-  try solve [constructor (solve [eauto])].
 Qed.
 
 Next Obligation.

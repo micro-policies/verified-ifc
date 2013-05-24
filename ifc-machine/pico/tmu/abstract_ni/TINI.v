@@ -22,33 +22,35 @@ Inductive exec : state -> list event -> state -> Prop :=
 
 End Exec.
 
-Class UnwindingSemantics := {
+Class ObservableSemantics := {
   state : Type;
   event : Type;
   step : state -> event -> state -> Prop;
 
   observer : Type;
 
+  e_equiv : observer -> relation event;
+  e_low : observer -> event -> Prop;
+  e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
+  e_equiv_low : forall o e1 e2, e_equiv o e1 e2 -> (e_low o e1 <-> e_low o e2);
+
+  e_high_e_equiv : forall o e1 e2,
+                     ~ e_low o e1 ->
+                     ~ e_low o e2 ->
+                     e_equiv o e1 e2
+}.
+
+Class UnwindingSemantics `{OS : ObservableSemantics} := {
   s_equiv : observer -> relation state;
   s_low : observer -> state -> Prop;
   s_low_dec : forall o s, {s_low o s} + {~ s_low o s};
   s_equiv_sym : forall o, symmetric _ (s_equiv o);
   s_equiv_low : forall o s1 s2, s_equiv o s1 s2 -> (s_low o s1 <-> s_low o s2);
 
-  e_equiv : observer -> relation event;
-  e_low : observer -> event -> Prop;
-  e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
-  e_equiv_low: forall o e1 e2, e_equiv o e1 e2 -> (e_low o e1 <-> e_low o e2);
-
   e_low_s_low : forall o s1 e s2,
                   step s1 e s2 ->
                   e_low o e ->
                   s_low o s1;
-
-  e_high_e_equiv : forall o e1 e2,
-                     ~ e_low o e1 ->
-                     ~ e_low o e2 ->
-                     e_equiv o e1 e2;
 
   (* Unwinding conditions *)
 
@@ -85,7 +87,8 @@ Class UnwindingSemantics := {
 
 Section TINI.
 
-Context {UC : UnwindingSemantics}.
+Context {OS : ObservableSemantics}
+        {UC : UnwindingSemantics}.
 
 Definition trace := list event.
 
