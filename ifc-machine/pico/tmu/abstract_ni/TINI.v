@@ -22,15 +22,11 @@ Inductive exec : state -> list event -> state -> Prop :=
 
 End Exec.
 
-Class ObservableSemantics := {
-  state : Type;
-  event : Type;
-  step : state -> event -> state -> Prop;
+Section Observable.
 
-  observer : Type;
+Variables observer event : Type.
 
-  s_equiv : observer -> relation state;
-
+Class ObservableEvent := {
   e_equiv : observer -> relation event;
   e_low : observer -> event -> Prop;
   e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
@@ -42,7 +38,41 @@ Class ObservableSemantics := {
                      e_equiv o e1 e2
 }.
 
-Class UnwindingSemantics `{OS : ObservableSemantics} := {
+Variable state : Type.
+
+Class ObservableSemantics := {
+  step : state -> event -> state -> Prop;
+  s_equiv : observer -> relation state
+}.
+
+Section TINI.
+
+Context {OE : ObservableEvent}
+        {OS : ObservableSemantics}.
+
+Definition trace := list event.
+
+Inductive ti_trace_indist (o : observer) : relation trace :=
+| titi_nil1: forall t2, ti_trace_indist o nil t2
+| titi_nil2: forall t1, ti_trace_indist o t1 nil
+| titi_cons : forall e1 e2 t1 t2,
+    e_equiv o e1 e2 ->
+    ti_trace_indist o t1 t2 ->
+    ti_trace_indist o (e1 :: t1) (e2 :: t2).
+Hint Constructors ti_trace_indist.
+
+Let exec := @exec state event step.
+
+Definition observe (o : observer) (es : list event) : list event :=
+  filter (fun e => if e_low_dec o e then true else false) es.
+
+Definition tini : Prop := forall o s1 t1 s1' s2 t2 s2',
+                            s_equiv o s1 s2 ->
+                            exec s1 t1 s1' ->
+                            exec s2 t2 s2' ->
+                            ti_trace_indist o (observe o t1) (observe o t2).
+
+Class UnwindingSemantics := {
   s_low : observer -> state -> Prop;
   s_low_dec : forall o s, {s_low o s} + {~ s_low o s};
   s_equiv_sym : forall o, symmetric _ (s_equiv o);
@@ -85,32 +115,6 @@ Class UnwindingSemantics `{OS : ObservableSemantics} := {
                   s_low o s2' ->
                   s_equiv o s1' s2'
 }.
-
-Section TINI.
-
-Context {OS : ObservableSemantics}.
-
-Definition trace := list event.
-
-Inductive ti_trace_indist (o : observer) : relation trace :=
-| titi_nil1: forall t2, ti_trace_indist o nil t2
-| titi_nil2: forall t1, ti_trace_indist o t1 nil
-| titi_cons : forall e1 e2 t1 t2,
-    e_equiv o e1 e2 ->
-    ti_trace_indist o t1 t2 ->
-    ti_trace_indist o (e1 :: t1) (e2 :: t2).
-Hint Constructors ti_trace_indist.
-
-Let exec := @exec state event step.
-
-Definition observe (o : observer) (es : list event) : list event :=
-  filter (fun e => if e_low_dec o e then true else false) es.
-
-Definition tini : Prop := forall o s1 t1 s1' s2 t2 s2',
-                            s_equiv o s1 s2 ->
-                            exec s1 t1 s1' ->
-                            exec s2 t2 s2' ->
-                            ti_trace_indist o (observe o t1) (observe o t2).
 
 Section TINIUnwinding.
 
@@ -338,3 +342,5 @@ Qed.
 End TINIUnwinding.
 
 End TINI.
+
+End Observable.
