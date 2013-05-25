@@ -127,3 +127,65 @@ Qed.
 End Strong.
 
 End Refinement.
+
+Section Composition.
+
+Variable state1 : Type.
+Variable event1 : Type.
+Variable step1 : state1 -> event1 -> state1 -> Prop.
+Let trace1 := list event1.
+Variable observe1 : trace1 -> trace1.
+
+Variable state2 : Type.
+Variable event2 : Type.
+Variable step2 : state2 -> event2 -> state2 -> Prop.
+Let trace2 := list event2.
+Variable observe2 : trace2 -> trace2.
+
+Variable state3 : Type.
+Variable event3 : Type.
+Variable step3 : state3 -> event3 -> state3 -> Prop.
+Let trace3 := list event3.
+Variable observe3 : trace3 -> trace3.
+
+Variable match_states12 : state1 -> state2 -> Prop.
+Variable match_events12 : event1 -> event2 -> Prop.
+
+Variable match_states23 : state2 -> state3 -> Prop.
+Variable match_events23 : event2 -> event3 -> Prop.
+
+Let match_states13 s1 s3 := exists s2, match_states12 s1 s2 /\
+                                       match_states23 s2 s3.
+Let match_events13 e1 e3 := exists e2, match_events12 e1 e2 /\
+                                       match_events23 e2 e3.
+
+Lemma match_events_composition : forall t1 t2 t3,
+                                   match_traces match_events12 t1 t2 ->
+                                   match_traces match_events23 t2 t3 ->
+                                   match_traces match_events13 t1 t3.
+Proof.
+  intros t1 t2 t3 H12.
+  gdep t3.
+  induction H12; intros t3 H23; inv H23; econstructor; unfold match_events13; eauto.
+Qed.
+
+Hypothesis bws12 : backward_simulation step1 step2
+                                       match_states12 match_events12 observe1 observe2.
+
+Hypothesis bws23 : backward_simulation step2 step3
+                                       match_states23 match_events23 observe2 observe3.
+
+Lemma bws_composition : backward_simulation step1 step3
+                                            match_states13 match_events13 observe1 observe3.
+Proof.
+  intros s11 s31 t3 s32 [s21 [H12 H23]] Hexec3.
+  exploit bws23; eauto.
+  intros H.
+  destruct H as [? [? [? ?]]].
+  exploit bws12; eauto.
+  intros H'.
+  destruct H' as [? [? [? ?]]].
+  eauto using match_events_composition.
+Qed.
+
+End Composition.
