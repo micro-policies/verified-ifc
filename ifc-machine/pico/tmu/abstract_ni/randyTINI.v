@@ -72,7 +72,6 @@ Hypothesis traceIncl:
     (exec (initial_state i) tr sc) ->
      exists (sa:@state _ ACa), exec (initial_state i) tr sa.
 
-Set Printing Implicit.
 Lemma abst_concr: (@tini _ ACa) -> (@tini _ ACc).
 unfold tini.
 intro ha. intros o i1 t1 s1 i2 t2 s2 hi he1 he2. 
@@ -84,9 +83,12 @@ Qed.
 
 End Refinement.
 
-Class UnwindingSemantics `(OT: ObsblTrace) `(AC: AbsSem) := {
+Class UnwindingSemantics `(AC: AbsSem) := {
 
   s_equiv : observer -> relation state;
+  ie_se: forall o i1 i2,
+           i_equiv o i1 i2 -> s_equiv o (initial_state i1) (initial_state i2);
+
   s_low : observer -> state -> Prop;
   s_low_dec : forall o s, {s_low o s} + {~ s_low o s};
   s_equiv_sym : forall o, symmetric _ (s_equiv o);
@@ -139,7 +141,7 @@ Class UnwindingSemantics `(OT: ObsblTrace) `(AC: AbsSem) := {
 
 Section TINI.
 
-Context  {OT: ObsblTrace} {AC: AbsSem OT} {UC : UnwindingSemantics OT AC}.
+Context  {OT: ObsblTrace} {AC: AbsSem OT} {UC : UnwindingSemantics AC}.
 
 Lemma equiv_trace_high : forall o s1 e1 s1' s2 e2 s2'
                                 (Hstep1 : step s1 e1 s1')
@@ -355,8 +357,10 @@ Qed.
 Theorem noninterference : tini.
 Proof.
   intros o s1 t1 s1' s2 t2 s2' Heq Ht1 Ht2.
-Check exec_oexec.
-  eauto using exec_oexec, oexec_equiv.
+  eapply oexec_equiv.
+  eapply exec_oexec. eapply Ht1.
+  eapply exec_oexec. eapply Ht2.
+  apply (ie_se _ _ _ Heq).
 Qed.
 
 End TINI.
