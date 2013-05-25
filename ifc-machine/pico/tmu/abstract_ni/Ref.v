@@ -4,6 +4,7 @@ Require Import Utils.
 Require TINI.
 
 Set Implicit Arguments.
+Hint Constructors TINI.exec.
 
 Section Refinement.
 
@@ -26,6 +27,7 @@ Inductive match_traces : trace1 -> trace2 -> Prop :=
               match_events e1 e2 ->
               match_traces t1 t2 ->
               match_traces (e1 :: t1) (e2 :: t2).
+Hint Constructors match_traces.
 
 Section Simulation.
 
@@ -85,5 +87,43 @@ Proof.
 Qed.
 
 End NI.
+
+Section Strong.
+
+(* To be used in the abstract <-> quasi-abtract layer *)
+
+Hypothesis lockstep : forall s11 s21 e2 s22,
+                        match_states s11 s21 ->
+                        step2 s21 e2 s22 ->
+                        exists e1 s12,
+                          step1 s11 e1 s12 /\ match_events e1 e2 /\ match_states s12 s22.
+
+Theorem strong_backward_simulation : backward_simulation (fun x => x) (fun x => x).
+Proof.
+  intros s11 s21 t2 s22 Hmt Hexec2.
+  gdep s11.
+  induction Hexec2; intros s11 Hmt.
+  - repeat eexists; eauto.
+  - match goal with
+      | H1 : match_states _ _,
+        H2 : step2 _ _ _ |- _ =>
+        generalize (lockstep H1 H2);
+        intros Hlock;
+        destruct Hlock as [? [? [? [? ?]]]]
+    end.
+    match goal with
+      | H : match_states _ _ |- _ =>
+        apply IHHexec2 in H;
+        destruct H as [? [? [? ?]]]
+    end.
+    match goal with
+      | H1 : step1 _ ?e1 _,
+        H2 : TINI.exec step1 _ ?t1 ?s12 |- _ =>
+        exists (e1 :: t1)
+    end.
+    eauto.
+Qed.
+
+End Strong.
 
 End Refinement.
