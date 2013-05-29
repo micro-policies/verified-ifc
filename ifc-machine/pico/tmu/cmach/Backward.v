@@ -208,6 +208,21 @@ Definition opcode_of_instr (i : Instr) : option OpCode :=
     | Output => Some OpOutput
   end.
 
+(* Reconstruct the quasi-abstract label vector *)
+Ltac quasi_abstract_labels :=
+  try match goal with
+        | H : cache_hit _ _ (dontCare, dontCare, dontCare) _ |- _ =>
+          pose (vls := Vector.nil L)
+        | H : cache_hit _ _ (labToZ ?l, dontCare, dontCare) _ |- _ =>
+          pose (vls := Vector.cons _ l _ (Vector.nil _))
+        | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, dontCare) _ |- _ =>
+          pose (vls := Vector.cons _ l1 _ (Vector.cons _ l2 _ (Vector.nil _)))
+        | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, labToZ ?l3) _ |- _ =>
+          pose (vls := Vector.cons _ l1 _
+                                   (Vector.cons _ l2 _
+                                                (Vector.cons _ l3 _ (Vector.nil _))))
+      end.
+
 Lemma cache_hit_simulation :
   forall s1 s2 e s2'
          (Hmatch : match_states s1 s2)
@@ -231,19 +246,7 @@ Proof.
              destruct a; simpl in H; inv H
          end;
 
-  (* Reconstruct the quasi-abstract label vector *)
-  try match goal with
-    | H : cache_hit _ _ (dontCare, dontCare, dontCare) _ |- _ =>
-      pose (vls := Vector.nil L)
-    | H : cache_hit _ _ (labToZ ?l, dontCare, dontCare) _ |- _ =>
-      pose (vls := Vector.cons _ l _ (Vector.nil _))
-    | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, dontCare) _ |- _ =>
-      pose (vls := Vector.cons _ l1 _ (Vector.cons _ l2 _ (Vector.nil _)))
-    | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, labToZ ?l3) _ |- _ =>
-      pose (vls := Vector.cons _ l1 _
-                               (Vector.cons _ l2 _
-                                            (Vector.cons _ l3 _ (Vector.nil _))))
-  end;
+  quasi_abstract_labels;
 
   (* Find the current opcode *)
   match goal with
