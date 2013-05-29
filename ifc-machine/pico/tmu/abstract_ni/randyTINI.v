@@ -33,7 +33,7 @@ Inductive ti_trace_indist (o : observer) : relation trace :=
     ti_trace_indist o (e1 :: t1) (e2 :: t2).
 Hint Constructors ti_trace_indist.
 
-Definition observe (o : observer) (es : list event) : list event :=
+Definition observe (o : observer) (es : trace) : trace :=
   filter (fun e => if e_low_dec o e then true else false) es.
 
 End ObsblTraceDefs.
