@@ -7,6 +7,7 @@ Require Import CLattices.
 Require Import WfCLattices.
 Require Import TMUInstr.
 Require Import Abstract.
+Require Import AbstractCommon.
 Require Import Rules.
 Require Import QuasiAbstractMachine.
 Require Import Concrete.
@@ -333,6 +334,57 @@ Proof.
     econstructor 2; eauto.
 Qed.
 
+Hint Constructors pop_to_return.
+
+Lemma match_stacks_c_pop_to_return :
+  forall astk cstk rpc rpcl b1 b2 cstk'
+         (MATCH : match_stacks astk cstk)
+         (POP : c_pop_to_return cstk (CRet (rpc, rpcl) b1 b2 :: cstk')),
+    exists rpcl' astk',
+      pop_to_return astk (ARet (rpc, rpcl') b1 :: astk') /\
+      rpcl = labToZ rpcl' /\
+      match_stacks astk' cstk'.
+Proof.
+  intros.
+  gdep astk.
+  match type of POP with
+    | c_pop_to_return _ ?CSTK =>
+      remember CSTK as cstk''
+  end.
+  induction POP; subst;
+  intros astk MATCH; inv MATCH; try inv Heqcstk''; eauto;
+  repeat match goal with
+           | A : Atom |- _ => destruct A; simpl in *
+           | H : (_, _) = (_, _) |- _ => inv H; simpl in *
+         end;
+  eauto.
+  guess tt IHPOP.
+  destruct IHPOP as [? [? [? [? ?]]]].
+  subst. eauto 7.
+Qed.
+Hint Resolve match_stacks_c_pop_to_return.
+
+Lemma upd_m_labToZ : forall i xv xl m cm'
+                            (UP : upd_m i (xv, labToZ xl) (mem_labToZ m) = Some cm'),
+                       exists m',
+                         upd_m i (xv, xl) m = Some m' /\
+                         cm' = mem_labToZ m'.
+Proof.
+  intros i; unfold upd_m; intros.
+  destruct (i <? 0). inv UP.
+  gdep cm'. gdep m.
+  generalize (Z.to_nat i). clear i.
+  intros i.
+  induction i as [|i IH];
+  intros [| [xv' xl']] cm' UP; simpl in *; inv UP.
+  repeat eexists.
+  destruct (update_list i (xv, labToZ xl) (mem_labToZ l)) eqn:E; inv H0.
+  guess tt IH.
+  destruct IH. intuition.
+  subst. eexists. rewrite H0.
+  eauto.
+Qed.
+
 Lemma cache_hit_simulation :
   forall s1 s2 e s2'
          (Hmatch : match_states s1 s2)
@@ -398,9 +450,83 @@ Proof.
         repeat (constructor; eauto); simpl; f_equal; intuition
       ].
 
-  - (* Store *) admit.
+  -
 
-Admitted.
+
+
+  match goal with
+    | CACHE : cache_up2date _ |- _ =>
+      let H := fresh "H" in
+      generalize (@CACHE OP vls apcl);
+      intros H; guess tt H;
+      unfold apply_rule in H; simpl in H;
+      guess tt H; simpl in H;
+      try match type of H with
+            | exists _, _ =>
+              destruct H as [? ?]
+          end
+      (*match goal with
+        | H1 : cache_hit_read _ _ _,
+          H2 : cache_hit_read _ _ _ |- _ =>
+          let H := fresh "H" in
+          generalize (cache_hit_read_determ H1 H2);
+          intros H;
+          destruct H;
+          subst;
+          clear H2
+      end*)
+  end.
+  match goal with
+    | H : context[if ?b then _ else _] |- _ =>
+      destruct b eqn:Hb
+  end.
+  + guess tt H0.
+    simpl in H0.
+    generalize (cache_hit_read_determ CREAD H0).
+    intros H'; destruct H'; subst; clear H0.
+
+    exploit upd_m_labToZ; eauto.
+    intros H'. destruct H'. intuition. subst.
+
+    eexists; split; try (econstructor (solve [compute; eauto])).
+    eapply step_store; eauto.
+    unfold run_tmr, apply_rule.
+    simpl.
+    subst vls. rewrite Hb. eauto.
+    constructor; eauto.
+
+  + admit.
+
+
+  - eexists; split; try (econstructor (solve [compute; eauto])).
+    eapply step_call; try solve [compute; eauto].
+    erewrite match_stacks_length; eauto.
+    eapply match_stacks_data'.
+    eauto.
+    eauto.
+    repeat (constructor; eauto); simpl; f_equal; intuition.
+    eauto using match_stacks_app.
+  -
+
+
+
+exploit match_stacks_c_pop_to_return; eauto.
+intros [? [? ?]]; intuition; subst.
+quasi_abstract_labels.
+analyze_cache_hit OP vls apcl.
+
+eexists; split; try (econstructor (solve [compute; eauto])).
+
+- exploit match_stacks_c_pop_to_return; eauto.
+  intros [? [? ?]]; intuition; subst.
+  quasi_abstract_labels.
+  analyze_cache_hit OP vls apcl.
+eexists; split; try (econstructor (solve [compute; eauto])).
+
+- eexists; split; try (econstructor (solve [compute; eauto])).
+  constructor; eauto. rewrite <- ZToLab_labToZ_id. compute. eauto.
+  constructor; eauto.
+Qed.
 
 End Simulation.
 
