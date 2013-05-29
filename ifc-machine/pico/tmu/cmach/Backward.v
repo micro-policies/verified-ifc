@@ -229,10 +229,10 @@ Proof.
 Qed.
 
 (* FIXME: Move this somewhere else *)
-Ltac intro_if_new :=
+Ltac intro_if_new k :=
   match goal with
     | H : ?P |- ?P -> _ => fail 1
-    | |- _ => let H := fresh "H" in intros H
+    | |- _ => k
   end.
 
 (* Reconstruct the quasi-abstract label vector *)
@@ -271,10 +271,16 @@ Proof.
            | a : _,
              H : (_, _) = atom_labToZ ?a |- _ =>
              destruct a; simpl in H; inv H
-           | H : read_m _ _ = Some _ |- _ =>
-             let H' := fresh "H'" in
-             exploit read_m_labToZ'; eauto; intro_if_new
          end;
+
+  try match goal with
+        | H : read_m _ _ = Some _ |- _ =>
+          let H' := fresh "H'" in
+          exploit read_m_labToZ'; eauto;
+          intro_if_new ltac:(
+            intros H' ; destruct H' as [? [? ?]]; subst
+          )
+      end;
 
   quasi_abstract_labels;
 
@@ -288,6 +294,7 @@ Proof.
   end;
 
   try (exploit (@CACHE OP vls apcl _ apcl eq_refl); eauto;
+       let H := fresh "H" in
        intros H;
        repeat match goal with
                 | H : exists t, _ |- _ =>
