@@ -300,6 +300,39 @@ Ltac analyze_cache_hit OP vls apcl:=
       end
   end.
 
+Lemma match_stacks_args' : forall s args cs,
+                             match_stacks s (args ++ cs) ->
+                             exists args' s',
+                               s = args' ++ s' /\ match_stacks args' args /\ match_stacks s' cs.
+Proof.
+Hint Constructors match_stacks.
+  intros s args. gdep s.
+  induction args; intros.
+  simpl in *. exists nil; exists s. split; auto.
+  inv H;
+    (exploit IHargs; eauto; intros [args' [cs' [Heq [Hmatch Hmatch']]]]);
+    (inv Heq; (eexists; eexists; split; eauto ; try reflexivity)).
+Qed.
+
+Lemma match_stacks_data' : forall s cs,
+                              match_stacks s cs ->
+                              (forall a : CStkElmt, In a cs -> exists d : Atom, a = CData d) ->
+                              (forall a : StkElmt, In a s -> exists d : Atom, a = AData d).
+Proof.
+  induction 1;  intros.
+  - inv H0.
+  - inv H2.  eauto.
+    eapply IHmatch_stacks; eauto.
+    intros; eapply H1; eauto.
+    econstructor 2; eauto.
+  - inv H2.
+    eelim (H1 (CRet (atom_labToZ a) r false)); eauto. intros. inv H0.
+    constructor; auto.
+    eapply IHmatch_stacks; eauto.
+    intros; eapply H1; eauto.
+    econstructor 2; eauto.
+Qed.
+
 Lemma cache_hit_simulation :
   forall s1 s2 e s2'
          (Hmatch : match_states s1 s2)
@@ -318,6 +351,10 @@ Proof.
            | H : true = false |- _ => inv H
            | H : ?x = ?x |- _ => clear H
            | H : match_stacks _ (_ ::: _) |- _ => inv H
+           | H : match_stacks _ (_ ++ _) |- _ =>
+             apply match_stacks_args' in H;
+             destruct H as [? [? [? [? ?]]]];
+             subst
            | a : _,
              H : (_, _) = atom_labToZ ?a |- _ =>
              destruct a; simpl in H; inv H
