@@ -208,6 +208,15 @@ Proof.
 Qed.
           
 Definition cache_up2date tmuc :=
+  forall opcode vls pcl,
+    cache_hit tmuc (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
+    match apply_rule (fetch_rule opcode) vls pcl with
+      | Some (Some l, rpcl) => cache_hit_read tmuc (labToZ l) (labToZ rpcl)
+      | Some (None, rpcl) => exists t', cache_hit_read tmuc t' (labToZ rpcl)
+      | None => False
+    end.
+
+Definition cache_up2date_weak tmuc :=
   forall opcode vls pcl rl rpcl,
   forall (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (rl, rpcl)),
   forall (CHIT: cache_hit tmuc (opCodeToZ opcode) (labsToZs vls) (labToZ pcl)),
@@ -215,6 +224,16 @@ Definition cache_up2date tmuc :=
         | Some l => cache_hit_read tmuc (labToZ l) (labToZ rpcl)
         | None => exists t', cache_hit_read tmuc t' (labToZ rpcl)
     end.
+
+Lemma cache_up2date_success :
+  forall tmuc, cache_up2date tmuc -> cache_up2date_weak tmuc.
+Proof.
+  unfold cache_up2date, cache_up2date_weak.
+  intros.
+  specialize (H opcode vls pcl CHIT).
+  rewrite RULE in H.
+  trivial.
+Qed.
 
 Inductive match_states : @AS L -> CS -> Prop :=
  ms: forall am cm i astk tmuc cstk apc cpc
@@ -398,7 +417,8 @@ Qed.
 Hint Constructors cstep runsToEscape match_stacks match_states.
  
 Ltac inv_cache_update :=
-  unfold cache_up2date; intros; 
+  unfold cache_up2date in *;
+  unfold cache_up2date_weak; intros;
   exploit handler_final_cache_hit_preserved; eauto; intros; 
   let P1 := fresh in let P2 := fresh in let P3 := fresh in 
   match goal with 
@@ -410,7 +430,11 @@ Ltac inv_cache_update :=
        apply labsToZs_inj in P2; try (zify; omega); subst; 
        apply labToZ_inj in P3 ;subst
    end;
-  try allinv'; 
+  try allinv';
+  try match goal with
+        | [H : apply_rule _ _ _ = _ |- _] =>
+          rewrite H
+      end;
   try solve [eapply handler_cache_hit_read_none; eauto
             |eapply handler_cache_hit_read_some; eauto].
 
@@ -480,7 +504,7 @@ Ltac res_label :=
   end; 
   try match goal with 
     | [Hrule: apply_rule _ _ _ = Some (None,_), 
-       Hcache : cache_up2date _ , 
+       Hcache : cache_up2date_weak _ , 
        CHIT : cache_hit _ _ _ _ |- _ ] =>
       let ASSERT := fresh "Assert" in 
       let LL := fresh "ll" in 
@@ -504,7 +528,6 @@ Ltac build_cache_and_tmu :=
       edestruct (handler_correct cm i cstk (pcv,pct) _ _ CHIT Hrule) as [c [Hruns Hmfinal]];
       eauto
   end.
-
 
 Hint Resolve match_stacks_app match_stacks_data match_stacks_length.
 
@@ -555,7 +578,10 @@ Proof.
          Hmatch : match_states _ _ |- _ ] => 
           inv Hmatch ; 
           unfold run_tmr in Htmr
-    end.
+    end;
+    generalize (cache_up2date_success CACHE);
+    intros CACHE'.
+
   - Case "Noop".    
     destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
@@ -576,7 +602,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i ((x1v+x2v,rt):::cs0) (pcv+1,rpct) false).
      split. 
      * eapply plus_step ; eauto. eapply cstep_add ; eauto. 
-       eapply CACHE with (1:= H0); eauto.
+       eapply CACHE' with (1:= H0); eauto.
        auto.
      * eauto.         
    + build_cache_and_tmu.  
@@ -594,7 +620,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1,rpct) false).
      split. 
      * eapply plus_step ; eauto. eapply cstep_sub ; eauto.        
-       eapply CACHE with (1:= H0); eauto. auto.
+       eapply CACHE' with (1:= H0); eauto. auto.
      * eauto.         
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1, rpct) false). 
@@ -610,7 +636,7 @@ Proof.
    + exists (CState tmuc cm faultHandler i ((cv,rt):::cstk) (pcv+1,rpct) false).
      split. 
      * eapply plus_step ; eauto. eapply cstep_push ; eauto. 
-       eapply CACHE with (1:= H0); eauto. auto.
+       eapply CACHE' with (1:= H0); eauto. auto.
      * eauto.         
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i ((cv,rt):::cstk) (pcv+1, rpct) false). split.
@@ -627,7 +653,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_load ; eauto.        
-       eapply CACHE with (1:= H1); eauto.
+       eapply CACHE' with (1:= H1); eauto.
        solve_read_m. auto.
      * eauto.         
    + build_cache_and_tmu. 
@@ -649,7 +675,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_store  ; eauto.        
-       eapply CACHE with (1:= H2); eauto.       
+       eapply CACHE' with (1:= H2); eauto.       
        solve_read_m. auto.
      * econstructor; eauto.
    + build_cache_and_tmu. 
@@ -729,7 +755,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_call ; eauto. 
-       eapply CACHE with (1:= H0); eauto. auto.
+       eapply CACHE' with (1:= H0); eauto. auto.
      * econstructor; eauto. 
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i 
@@ -785,7 +811,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto. 
        eapply cstep_vret ; eauto.
-       eapply CACHE with (1:= H1); eauto. auto.
+       eapply CACHE' with (1:= H1); eauto. auto.
      * econstructor; eauto.        
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false). 
@@ -812,7 +838,7 @@ Proof.
      split. 
      * eapply plus_step ; eauto.        
        eapply cstep_out ; eauto. 
-       eapply CACHE with (1:= H0); eauto. auto.
+       eapply CACHE' with (1:= H0); eauto. auto.
      * econstructor; eauto. 
    + build_cache_and_tmu. 
      exists (CState c cm faultHandler i cs (pcv+1, rpct) false).
