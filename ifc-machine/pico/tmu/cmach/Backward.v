@@ -450,11 +450,7 @@ Proof.
         repeat (constructor; eauto); simpl; f_equal; intuition
       ].
 
-  -
-
-
-
-  match goal with
+  - match goal with
     | CACHE : cache_up2date _ |- _ =>
       let H := fresh "H" in
       generalize (@CACHE OP vls apcl);
@@ -465,22 +461,12 @@ Proof.
             | exists _, _ =>
               destruct H as [? ?]
           end
-      (*match goal with
-        | H1 : cache_hit_read _ _ _,
-          H2 : cache_hit_read _ _ _ |- _ =>
-          let H := fresh "H" in
-          generalize (cache_hit_read_determ H1 H2);
-          intros H;
-          destruct H;
-          subst;
-          clear H2
-      end*)
-  end.
-  match goal with
-    | H : context[if ?b then _ else _] |- _ =>
-      destruct b eqn:Hb
-  end.
-  + guess tt H0.
+    end.
+    match goal with
+      | H : context[if ?b then _ else _] |- _ =>
+        destruct b eqn:Hb
+    end; intuition.
+    guess tt H0.
     simpl in H0.
     generalize (cache_hit_read_determ CREAD H0).
     intros H'; destruct H'; subst; clear H0.
@@ -495,9 +481,6 @@ Proof.
     subst vls. rewrite Hb. eauto.
     constructor; eauto.
 
-  + admit.
-
-
   - eexists; split; try (econstructor (solve [compute; eauto])).
     eapply step_call; try solve [compute; eauto].
     erewrite match_stacks_length; eauto.
@@ -506,26 +489,22 @@ Proof.
     eauto.
     repeat (constructor; eauto); simpl; f_equal; intuition.
     eauto using match_stacks_app.
-  -
 
+  - exploit match_stacks_c_pop_to_return; eauto.
+    intros [? [? ?]]; intuition; subst.
+    quasi_abstract_labels.
+    analyze_cache_hit OP vls apcl.
+    eexists; split; try (econstructor (solve [compute; eauto])).
 
+  - exploit match_stacks_c_pop_to_return; eauto.
+    intros [? [? ?]]; intuition; subst.
+    quasi_abstract_labels.
+    analyze_cache_hit OP vls apcl.
+    eexists; split; try (econstructor (solve [compute; eauto])).
 
-exploit match_stacks_c_pop_to_return; eauto.
-intros [? [? ?]]; intuition; subst.
-quasi_abstract_labels.
-analyze_cache_hit OP vls apcl.
-
-eexists; split; try (econstructor (solve [compute; eauto])).
-
-- exploit match_stacks_c_pop_to_return; eauto.
-  intros [? [? ?]]; intuition; subst.
-  quasi_abstract_labels.
-  analyze_cache_hit OP vls apcl.
-eexists; split; try (econstructor (solve [compute; eauto])).
-
-- eexists; split; try (econstructor (solve [compute; eauto])).
-  constructor; eauto. rewrite <- ZToLab_labToZ_id. compute. eauto.
-  constructor; eauto.
+  - eexists; split; try (econstructor (solve [compute; eauto])).
+    constructor; eauto. rewrite <- ZToLab_labToZ_id. compute. eauto.
+    constructor; eauto.
 Qed.
 
 End Simulation.
