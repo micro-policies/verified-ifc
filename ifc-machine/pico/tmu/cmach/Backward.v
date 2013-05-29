@@ -263,7 +263,7 @@ Proof.
   destruct apc as [apc apcl].
   inv Hstep; simpl in *;
 
-  (* Invert some hypothesis *)
+  (* Invert some hypotheses *)
   repeat match goal with
            | H : true = false |- _ => inv H
            | H : ?x = ?x |- _ => clear H
