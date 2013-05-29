@@ -208,6 +208,33 @@ Definition opcode_of_instr (i : Instr) : option OpCode :=
     | Output => Some OpOutput
   end.
 
+Lemma read_m_labToZ' :
+  forall i m xv xl,
+    read_m i (mem_labToZ m) = Some (xv, xl) ->
+    exists xl',
+      read_m i m = Some (xv, xl') /\
+      xl = labToZ xl'.
+Proof.
+  unfold index_list_Z.
+  intros.
+  destruct (i <? 0). inv H.
+  gdep m.
+  generalize (Z.to_nat i). clear i.
+  intros i.
+  induction i as [|i IH];
+  intros m H;
+  destruct m as [|[xv' xl'] m'];
+  simpl in *; inv H; intuition.
+  eexists. split; repeat f_equal.
+Qed.
+
+(* FIXME: Move this somewhere else *)
+Ltac intro_if_new :=
+  match goal with
+    | H : ?P |- ?P -> _ => fail 1
+    | |- _ => let H := fresh "H" in intros H
+  end.
+
 (* Reconstruct the quasi-abstract label vector *)
 Ltac quasi_abstract_labels :=
   try match goal with
@@ -244,6 +271,9 @@ Proof.
            | a : _,
              H : (_, _) = atom_labToZ ?a |- _ =>
              destruct a; simpl in H; inv H
+           | H : read_m _ _ = Some _ |- _ =>
+             let H' := fresh "H'" in
+             exploit read_m_labToZ'; eauto; intro_if_new
          end;
 
   quasi_abstract_labels;
