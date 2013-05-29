@@ -145,17 +145,22 @@ Proof.
     eauto.
 Qed.
 
-(*
 Let remove_silent (ct : ctrace) :=
   filter (fun e => match e with Some _ => true | _ => false end) ct.
 
+Lemma cons_event_remove_silent :
+  forall e t,
+    remove_silent (e :: t) = cons_event e (remove_silent t).
+Proof.
+  intros [e|] t; reflexivity.
+Qed.
+
 Lemma exec_cexec : forall s t s',
                      exec s t s' ->
-                     exists t',
-                       cexec s t' s' /\
-                       remove_silent t = remove_silent t'.
+                     cexec s (remove_silent t) s'.
 Proof.
   intros s t s' Hexec.
   induction Hexec; eauto.
-  destruct IHHexec as [t' [H1 H2]].
-*)
+  rewrite cons_event_remove_silent.
+  eapply cexec_step; eauto.
+Qed.
