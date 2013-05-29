@@ -229,27 +229,20 @@ Proof.
   eexists. split; repeat f_equal.
 Qed.
 
-(* FIXME: Move this somewhere else *)
-Ltac intro_if_new k :=
-  match goal with
-    | H : ?P |- ?P -> _ => fail 1
-    | |- _ => k
-  end.
-
 (* Reconstruct the quasi-abstract label vector *)
 Ltac quasi_abstract_labels :=
-  try match goal with
-        | H : cache_hit _ _ (dontCare, dontCare, dontCare) _ |- _ =>
-          pose (vls := Vector.nil L)
-        | H : cache_hit _ _ (labToZ ?l, dontCare, dontCare) _ |- _ =>
-          pose (vls := Vector.cons _ l _ (Vector.nil _))
-        | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, dontCare) _ |- _ =>
-          pose (vls := Vector.cons _ l1 _ (Vector.cons _ l2 _ (Vector.nil _)))
-        | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, labToZ ?l3) _ |- _ =>
-          pose (vls := Vector.cons _ l1 _
-                                   (Vector.cons _ l2 _
-                                                (Vector.cons _ l3 _ (Vector.nil _))))
-      end.
+  match goal with
+    | H : cache_hit _ _ (dontCare, dontCare, dontCare) _ |- _ =>
+      pose (vls := Vector.nil L)
+    | H : cache_hit _ _ (labToZ ?l, dontCare, dontCare) _ |- _ =>
+      pose (vls := Vector.cons _ l _ (Vector.nil _))
+    | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, dontCare) _ |- _ =>
+      pose (vls := Vector.cons _ l1 _ (Vector.cons _ l2 _ (Vector.nil _)))
+    | H : cache_hit _ _ (labToZ ?l1, labToZ ?l2, labToZ ?l3) _ |- _ =>
+      pose (vls := Vector.cons _ l1 _
+                               (Vector.cons _ l2 _
+                                            (Vector.cons _ l3 _ (Vector.nil _))))
+  end.
 
 (* Borrowed from CPDT *)
 (* Instantiate a quantifier in a hypothesis [H] with value [v], or,
@@ -289,6 +282,11 @@ Ltac analyze_cache_hit OP vls apcl:=
             | exists _, _ =>
               destruct H as [? ?]
           end;
+      try match type of H with
+            | context[if ?b then _ else _] =>
+              destruct b eqn:Hb
+          end;
+      intuition;
       match goal with
         | H1 : cache_hit_read _ _ _,
           H2 : cache_hit_read _ _ _ |- _ =>
@@ -385,6 +383,16 @@ Proof.
   eauto.
 Qed.
 
+Ltac try_exploit l :=
+  try (exploit l;
+       try solve [eauto];
+       let H := fresh "H" in intros H;
+       repeat match goal with
+                | [H : (exists _, _) |- _ ] => destruct H
+                | [H : _ /\ _ |- _ ] => destruct H
+              end;
+       subst).
+
 Lemma cache_hit_simulation :
   forall s1 s2 e s2'
          (Hmatch : match_states s1 s2)
@@ -413,14 +421,10 @@ Proof.
          end;
 
   (* For the Load case *)
-  try match goal with
-        | H : read_m _ _ = Some _ |- _ =>
-          let H' := fresh "H'" in
-          exploit read_m_labToZ'; eauto;
-          intro_if_new ltac:(
-            intros H' ; destruct H' as [? [? ?]]; subst
-          )
-      end;
+  try_exploit read_m_labToZ';
+
+  (* For the Ret cases *)
+  try_exploit match_stacks_c_pop_to_return;
 
   quasi_abstract_labels;
 
@@ -433,7 +437,12 @@ Proof.
       end
   end;
 
-  try analyze_cache_hit OP vls apcl;
+  analyze_cache_hit OP vls apcl;
+
+  subst OP vls;
+
+  (* For the Store case *)
+  try_exploit upd_m_labToZ;
 
   (* For the BranchNZ case *)
   try match goal with
@@ -450,61 +459,24 @@ Proof.
         repeat (constructor; eauto); simpl; f_equal; intuition
       ].
 
-  - match goal with
-    | CACHE : cache_up2date _ |- _ =>
-      let H := fresh "H" in
-      generalize (@CACHE OP vls apcl);
-      intros H; guess tt H;
-      unfold apply_rule in H; simpl in H;
-      guess tt H; simpl in H;
-      try match type of H with
-            | exists _, _ =>
-              destruct H as [? ?]
-          end
-    end.
-    match goal with
-      | H : context[if ?b then _ else _] |- _ =>
-        destruct b eqn:Hb
-    end; intuition.
-    guess tt H0.
-    simpl in H0.
-    generalize (cache_hit_read_determ CREAD H0).
-    intros H'; destruct H'; subst; clear H0.
-
-    exploit upd_m_labToZ; eauto.
-    intros H'. destruct H'. intuition. subst.
-
-    eexists; split; try (econstructor (solve [compute; eauto])).
+  - eexists; split.
     eapply step_store; eauto.
-    unfold run_tmr, apply_rule.
-    simpl.
-    subst vls. rewrite Hb. eauto.
+    + unfold run_tmr, apply_rule.
+      simpl.
+      rewrite Hb. eauto.
+    + constructor; eauto.
+
+  - eexists; split.
+    + eapply step_call; try solve [compute; eauto].
+      * erewrite match_stacks_length; eauto.
+      * eapply match_stacks_data'; eauto.
+    + repeat (constructor; eauto); simpl; f_equal; intuition.
+      eauto using match_stacks_app.
+
+  - eexists; split.
     constructor; eauto.
-
-  - eexists; split; try (econstructor (solve [compute; eauto])).
-    eapply step_call; try solve [compute; eauto].
-    erewrite match_stacks_length; eauto.
-    eapply match_stacks_data'.
-    eauto.
-    eauto.
-    repeat (constructor; eauto); simpl; f_equal; intuition.
-    eauto using match_stacks_app.
-
-  - exploit match_stacks_c_pop_to_return; eauto.
-    intros [? [? ?]]; intuition; subst.
-    quasi_abstract_labels.
-    analyze_cache_hit OP vls apcl.
-    eexists; split; try (econstructor (solve [compute; eauto])).
-
-  - exploit match_stacks_c_pop_to_return; eauto.
-    intros [? [? ?]]; intuition; subst.
-    quasi_abstract_labels.
-    analyze_cache_hit OP vls apcl.
-    eexists; split; try (econstructor (solve [compute; eauto])).
-
-  - eexists; split; try (econstructor (solve [compute; eauto])).
-    constructor; eauto. rewrite <- ZToLab_labToZ_id. compute. eauto.
-    constructor; eauto.
+    + rewrite <- ZToLab_labToZ_id. reflexivity.
+    + constructor; eauto.
 Qed.
 
 End Simulation.
