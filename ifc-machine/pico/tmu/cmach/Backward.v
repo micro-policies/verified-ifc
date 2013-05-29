@@ -295,7 +295,8 @@ Ltac analyze_cache_hit OP vls apcl:=
           generalize (cache_hit_read_determ H1 H2);
           intros H;
           destruct H;
-          subst
+          subst;
+          clear H2
       end
   end.
 
@@ -322,6 +323,7 @@ Proof.
              destruct a; simpl in H; inv H
          end;
 
+  (* For the Load case *)
   try match goal with
         | H : read_m _ _ = Some _ |- _ =>
           let H' := fresh "H'" in
@@ -343,6 +345,15 @@ Proof.
   end;
 
   try analyze_cache_hit OP vls apcl;
+
+  (* For the BranchNZ case *)
+  try match goal with
+        | |- context[if (?z =? 0) then _ else _ ] =>
+          let H := fresh "H" in
+          assert (H := Z.eqb_spec z 0);
+          destruct (z =? 0);
+          inv H
+      end;
 
   try solve [
         eexists; split;
