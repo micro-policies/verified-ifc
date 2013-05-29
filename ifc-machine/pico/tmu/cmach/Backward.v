@@ -250,6 +250,55 @@ Ltac quasi_abstract_labels :=
                                                 (Vector.cons _ l3 _ (Vector.nil _))))
       end.
 
+(* Borrowed from CPDT *)
+(* Instantiate a quantifier in a hypothesis [H] with value [v], or,
+if [v] doesn't have the right type, with a new unification variable.
+Also prove the lefthand sides of any implications that this exposes,
+simplifying [H] to leave out those implications. *)
+
+Ltac guess v H :=
+ repeat match type of H with
+          | forall x : ?T, _ =>
+            match type of T with
+              | Prop =>
+                (let H' := fresh "H'" in
+                  assert (H' : T); [
+                    solve [ eauto 6 ]
+                    | specialize (H H'); clear H' ])
+                || fail 1
+              | _ =>
+                specialize (H v)
+                || let x := fresh "x" in
+                  evar (x : T);
+                  let x' := eval unfold x in x in
+                    clear x; specialize (H x')
+            end
+        end.
+
+(* Relate the results of a cache read to its arguments *)
+Ltac analyze_cache_hit OP vls apcl:=
+  match goal with
+    | CACHE : cache_up2date _ |- _ =>
+      let H := fresh "H" in
+      generalize (@CACHE OP vls apcl);
+      intros H; guess tt H;
+      unfold apply_rule in H; simpl in H;
+      guess tt H; simpl in H;
+      try match type of H with
+            | exists _, _ =>
+              destruct H as [? ?]
+          end;
+      match goal with
+        | H1 : cache_hit_read _ _ _,
+          H2 : cache_hit_read _ _ _ |- _ =>
+          let H := fresh "H" in
+          generalize (cache_hit_read_determ H1 H2);
+          intros H;
+          destruct H;
+          subst
+      end
+  end.
+
 Lemma cache_hit_simulation :
   forall s1 s2 e s2'
          (Hmatch : match_states s1 s2)
@@ -293,26 +342,15 @@ Proof.
       end
   end;
 
-  try (exploit (@CACHE OP vls apcl _ apcl eq_refl); eauto;
-       let H := fresh "H" in
-       intros H;
-       repeat match goal with
-                | H : exists t, _ |- _ =>
-                  destruct H as [t' H]
-              end;
-
-       match goal with
-         | H1 : cache_hit_read _ _ _,
-                H2 : cache_hit_read _ _ _ |- _ =>
-           let H := fresh "H" in
-           generalize (cache_hit_read_determ H1 H2); intros H
-       end);
+  try analyze_cache_hit OP vls apcl;
 
   try solve [
         eexists; split;
         try (econstructor (solve [compute; eauto]));
         repeat (constructor; eauto); simpl; f_equal; intuition
       ].
+
+  - (* Store *) admit.
 
 Admitted.
 
