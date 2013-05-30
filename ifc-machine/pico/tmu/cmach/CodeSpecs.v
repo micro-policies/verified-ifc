@@ -503,8 +503,8 @@ Proof.
   edestruct (H imem mem) as [sk [cache [HQ R]]]. eapply H1.  eapply H2. eapply H3. 
   edestruct (H0 imem mem) as [sk' [cache' [HQ' R']]]; eauto.
   exists sk. exists cache.
-  pose proof (@runsToEnd_determ cstep _ _ _ _ _ _ cmach_priv_determ_state R _ R').
-  inv H4. inv H5.
+  pose proof (@runsToEnd_determ cstep _ _ _ _ _ cmach_priv_determ_state R R').
+  inv H4. 
   intuition.
 Qed.
 
@@ -1550,11 +1550,9 @@ Proof.
 
   (* Run an instruction *)
   eapply rte_success; auto.
-  eapply star_step.
+  eapply kruu_end; simpl; eauto.
   eapply cstep_ret_p; auto.
   eapply cptr_done.
-  eapply star_refl.
-  auto.
 Qed.
 
 Lemma jump_specEscape_Failure: forall raddr (P: memory -> stack -> Prop),
@@ -1574,10 +1572,8 @@ Proof.
 
   (* Run an instruction *)
   eapply rte_fail; auto.
-  eapply star_step.
+  eapply kr_step; eauto.
   eapply cstep_jump_p; auto.
-  eapply star_refl.
-  auto.
   simpl; eauto; omega.
 Qed.
 
