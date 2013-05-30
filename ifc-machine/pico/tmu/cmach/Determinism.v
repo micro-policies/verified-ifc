@@ -10,6 +10,7 @@ Require Import TMUInstr.
 Require Import Abstract Rules AbstractMachine.
 
 Require Import Concrete ConcreteMachineSmallStep.
+Require Import CExec.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope. 
@@ -168,6 +169,30 @@ Proof.
     exploit @c_pop_to_return_spec3; eauto. intros. 
     inv H1. 
     split ; reflexivity.
+Qed.
+
+Lemma kernel_run_until_user_determ :
+  forall s1 s21 s22
+         (RUN1 : kernel_run_until_user s1 s21)
+         (RUN2 : kernel_run_until_user s1 s22),
+    s21 = s22.
+Proof.
+  intros.
+  induction RUN1; inv RUN2;
+  try match goal with
+        | [ H1 : cstep ?s _ _,
+            H2 : cstep ?s _ _
+            |- _ ] =>
+          let H := fresh "H" in
+          generalize (cmach_priv_determ_state H1 H2);
+          intros [? ?]; subst
+      end; eauto;
+  try match goal with
+        | [ H : kernel_run_until_user _ _ |- _ ] =>
+          generalize (kernel_run_until_user_l H);
+          intros
+      end;
+  congruence.
 Qed.
 
 (* APT: This doesn't seem to be used.... 
