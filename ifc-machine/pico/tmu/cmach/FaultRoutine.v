@@ -15,6 +15,7 @@ Require Import CodeSpecs.
 Require Import CodeGen.
 Require Import CLattices.
 Require Import WfCLattices.
+Require Import CExec.
 
 Section TMU. 
 
@@ -1065,7 +1066,7 @@ Conjecture handler_correct :
     cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
     exists c' st pc priv, 
       runsToEscape (CState c m fhdl imem (CRet retaddr false false::s) (0,handlerTag) true)
-                   nil (CState c' m fhdl imem st pc priv) /\ 
+                   (CState c' m fhdl imem st pc priv) /\ 
       match apply_rule (projT2 am) vls pcl with
         | Some (olr,lpc) => handler_final_mem_matches' olr lpc c c' 
                      /\ pc = retaddr
@@ -1090,7 +1091,7 @@ Theorem handler_correct_succeed :
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = Some (olr,lpc)),
     exists c',
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
-                 nil (CState c' m handler i s raddr false) /\
+                 (CState c' m handler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros.
@@ -1116,7 +1117,7 @@ Theorem handler_correct_fail :
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = None),
     exists st,
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
-                 nil (CState c m handler i st (-1,handlerTag) true).
+                 (CState c m handler i st (-1,handlerTag) true).
 Proof.
   intros.   
   edestruct (faultHandler_specEscape_None get_rule opcode vls pcl c) with (raddr := (0,0))

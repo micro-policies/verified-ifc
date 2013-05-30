@@ -12,7 +12,7 @@ Require Import AbstractCommon.
 Require Import Concrete ConcreteMachineSmallStep CodeGen CodeSpecs.
 Require Import FaultRoutine.
 Require Import Determinism.
-
+Require Import CExec.
 Require Import Simulation.
 
 Set Implicit Arguments.
@@ -37,7 +37,7 @@ Lemma handler_correct :
          (RULE: apply_rule (fetch_rule opcode) vls pcl = Some (olr,lpc)), 
     exists c',
     runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerTag) true)
-                 nil (CState c' m faultHandler i s raddr false) /\
+                 (CState c' m faultHandler i s raddr false) /\
     handler_final_mem_matches' olr lpc c c'.
 Proof.
   intros.
@@ -542,9 +542,9 @@ Proof. reflexivity. Qed.
 
 Ltac hint_event := rewrite op_cons_ZToLab_none.
 
-Ltac priv_steps := 
-  match goal with 
-    | [Hruns : runsToEscape ?s _ ?s', 
+Ltac priv_steps :=
+  match goal with
+    | [Hruns : runsToEscape ?s ?s',
        Hmfinal: handler_final_mem_matches' _ _ _ _ |- _ ] =>
       (eapply runsToEscape_plus in Hruns; [| congruence]);
         let ll := fresh "ll" in
