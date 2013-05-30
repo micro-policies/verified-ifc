@@ -86,62 +86,72 @@ Qed.
 
 (* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
 [pc1] and runs until pc [pc2]. *)
-Inductive runsToEnd (Rstep: CS -> option CEvent -> CS -> Prop) : Z -> Z -> CS -> list CEvent -> CS -> Prop :=
+Inductive runsToEnd (Rstep: CS -> option CEvent -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=
 | runsToEndDone : forall n cs,
-  fst (pc cs) = n -> 
-  runsToEnd Rstep n n cs nil cs
-  (* NC: do we need to worry about [n <= n' <= n'']? *)
-| runsToEndStep: forall n n' n'' cs e cs' t cs'',
   fst (pc cs) = n ->
+  priv cs = true ->
+  runsToEnd Rstep n n cs cs
+  (* NC: do we need to worry about [n <= n' <= n'']? *)
+| runsToEndStep: forall n n' n'' cs e cs' cs'',
+  fst (pc cs) = n ->
+  priv cs = true ->
   Rstep cs e cs' ->
   fst (pc cs') = n' ->
   (* DD: I just comment out these for now, as the new hyp breaks composition lemma below *)
   (* n <> n'' ->  *)  n < n'' -> (* BEFORE: n < n' -> *) 
-  runsToEnd Rstep n' n'' cs' t cs'' -> 
-  runsToEnd Rstep n  n'' cs  (op_cons e t) cs''.
+  runsToEnd Rstep n' n'' cs' cs'' -> 
+  runsToEnd Rstep n  n'' cs  cs''.
 
 (* APT: With second option above ( n < n'') it is
    easy enough to prove the following two lemmas.
    But at the moment, Nathan and I don't see any
    strong reason to include this restriction...
 *)
-Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1 t, 
-  runsToEnd step pc0 pc1 s0 t s1 -> pc0 <= pc1. 
+Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1,
+  runsToEnd step pc0 pc1 s0 s1 -> pc0 <= pc1. 
 Proof.
   intros.  inv H; omega.
 Qed.
 
-Lemma runsToEnd_compose : forall step pc0 pc1 s0 t1 s1,
-  runsToEnd step pc0 pc1 s0 t1 s1 ->
-  forall pc2 s2 t2,
-  runsToEnd step pc1 pc2 s1 t2 s2 ->
-  runsToEnd step pc0 pc2 s0 (t1++t2) s2.
+Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
+  runsToEnd step pc0 pc1 s0 s1 ->
+  forall pc2 s2,
+  runsToEnd step pc1 pc2 s1 s2 ->
+  runsToEnd step pc0 pc2 s0 s2.
 Proof.
   induction 1. 
   intros; simpl; auto.
   intros. 
-  rewrite op_cons_app. econstructor; eauto.
-  apply runsToEnd_bounded in H4. 
+  econstructor; eauto.
+  apply runsToEnd_bounded in H5. 
   omega.
 Qed.
 
-Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) pc0 pc1 s0 t1 s1 s1',
+(* AAA: Move to CExec *)
+Hint Constructors kernel_run.
+Lemma kernel_run_trans : forall cs1 cs2 cs3,
+                           kernel_run cs1 cs2 ->
+                           kernel_run cs2 cs3 ->
+                           kernel_run cs1 cs3.
+Proof. induction 1; eauto. Qed.
+Hint Resolve kernel_run_trans.
+
+Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) pc0 pc1 s0 s1 s1',
   forall (STEP_DET: forall s e s' e' s'', step s e s' -> step s e' s'' -> s' = s'' /\ e = e') ,
-  runsToEnd step pc0 pc1 s0 t1 s1 ->
-  forall t2, runsToEnd step pc0 pc1 s0 t2 s1' ->
-  s1 = s1' /\ t1 = t2.
+  runsToEnd step pc0 pc1 s0 s1 ->
+  runsToEnd step pc0 pc1 s0 s1' ->
+  s1 = s1'.
 Proof.
   intros until 1. 
   induction 1; intros.
-    inv H0. 
+    inv H1. 
       auto.
       exfalso; omega. 
-    inv H4.
+    inv H5.
       exfalso; omega. 
       assert (cs' = cs'0) by (eapply STEP_DET; eauto). 
       assert (e = e0) by (eapply STEP_DET; eauto). subst.
-      exploit IHrunsToEnd; eauto. intros [Heq Heq'].
-      subst. split; eauto.
+      exploit IHrunsToEnd; eauto.
 Qed.
   
 (* Hoare triple for a list of instructions *)
@@ -156,7 +166,6 @@ Definition HT   (c: code)
   Q cache1 stk1 /\
   runsToEnd cstep n n' 
              (CState cache0 mem fh imem stk0 (n, handlerTag) true)
-             nil 
              (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
 Inductive Outcome :=
@@ -194,14 +203,27 @@ Proof.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
-Lemma runsToEnd_star: forall n1 n2 s1 t s2,
-  runsToEnd cstep n1 n2 s1 t s2 ->
-  star cstep s1 t s2.
+Lemma runsToEnd_kernel_run :
+  forall n1 n2 s1 s2
+         (RUNS : runsToEnd cstep n1 n2 s1 s2),
+    kernel_run s1 s2.
 Proof.
-  induction 1; econstructor; eauto.
+  induction 1; eauto.
+  assert (e = None). {
+    abstract (inv H1; simpl in *; try congruence).
+  }
+  subst. eauto.
+Qed.  
+
+Lemma runsToEnd_star: forall n1 n2 s1 s2,
+  runsToEnd cstep n1 n2 s1 s2 ->
+  star cstep s1 nil s2.
+Proof.
+  intros. 
+  eauto using kernel_run_star, runsToEnd_kernel_run.
 Qed.
 
-Lemma HT_star: forall c P Q,
+Lemma HT_kernel_run: forall c P Q,
   HT c P Q ->
   forall imem mem stk0 cache0 fh n n',
   code_at n fh c ->
@@ -209,17 +231,17 @@ Lemma HT_star: forall c P Q,
   n' = n + Z_of_nat (length c) ->
   exists cache1 stk1,
   Q cache1 stk1 /\
-  star cstep (CState cache0 mem fh imem stk0 (n, handlerTag) true)
-             nil
+  kernel_run (CState cache0 mem fh imem stk0 (n, handlerTag) true)
              (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 Proof.
   unfold HT.
   introv HTcPQ; intros.
   edestruct HTcPQ as [stk2 [cache2 [HQ RTE2]]]; eauto; clear HTcPQ.
   repeat eexists; eauto.
-  eapply runsToEnd_star; eauto.
+  eapply runsToEnd_kernel_run; eauto.
 Qed.
 
+(*
 Lemma HTEscape_star: forall raddr c P Q,
   HTEscape raddr c P Q ->
   forall imem mem stk0 cache0 fh n,
@@ -241,6 +263,15 @@ Proof.
   destruct (Q cache1 stk1); intuition.
   eapply runsToEscape_star; eauto.
 Qed.
+*)
+
+(* AAA: Move this *)
+Hint Constructors kernel_run_until_user.
+Lemma kernel_run_until_user_trans : forall s1 s2 s3,
+                                      kernel_run s1 s2 ->
+                                      kernel_run_until_user s2 s3 ->
+                                      kernel_run_until_user s1 s3.
+Proof. induction 1; eauto. Qed.
 
 Lemma HTEscape_compose: forall r c1 c2 P Q R,
   HT         c1 P Q ->
@@ -250,25 +281,32 @@ Proof.
   introv H_HT H_HTE.
   intro; intros.
 
-  edestruct (HT_star _ _ _ H_HT) as [cache1 [stk1 [HQ Hstar1]]]; eauto.
+  edestruct (HT_kernel_run _ _ _ H_HT) as [cache1 [stk1 [HQ Hstar1]]]; eauto.
   eapply code_at_compose_1; eauto.
 
+  edestruct H_HTE as [stk2 [cache2 [pc2 [priv2 Hlet]]]]; eauto.
+  eapply code_at_compose_2; eauto.
+
+(*
   edestruct (HTEscape_star _ _ _ _ H_HTE) as [stk2 [cache2 [pc2 [priv2 Hlet]]]]; eauto.
   eapply code_at_compose_2; eauto.
+*)
 
   exists stk2 cache2 pc2 priv2.
   destruct (R cache2 stk2).
   destruct Hlet as [? [Houtcome ?]].
   destruct o; unfold predicted_outcome in Houtcome; simpl; intuition; subst.
   - eapply rte_success.
-    + reflexivity.
-    + eapply star_trans with (t:=[]) (t':=[]); eauto.
-    + reflexivity.
+    eapply kernel_run_until_user_trans; eauto.
+    inv H2; eauto.
+    apply kernel_run_r in STAR.
+    simpl in STAR. congruence.
   - eapply rte_fail.
-    + reflexivity.
-    + eapply star_trans with (t:=[]) (t':=[]); eauto.
-    + reflexivity.
-    + simpl; omega.
+    eapply kernel_run_trans; eauto.
+    inv H2; eauto.
+    + apply kernel_run_until_user_r in STAR.
+      simpl in STAR. congruence.
+    + simpl. omega.
 Qed.
 
 Lemma HTEscape_append: forall r c1 c2 P Q,
