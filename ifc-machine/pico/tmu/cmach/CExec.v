@@ -80,6 +80,19 @@ Lemma kernel_run_star :
 Proof. induction 1; eauto. Qed.
 Hint Resolve kernel_run_star.
 
+Lemma kernel_run_trans : forall cs1 cs2 cs3,
+                           kernel_run cs1 cs2 ->
+                           kernel_run cs2 cs3 ->
+                           kernel_run cs1 cs3.
+Proof. induction 1; eauto. Qed.
+Hint Resolve kernel_run_trans.
+
+Lemma kernel_run_until_user_trans : forall s1 s2 s3,
+                                      kernel_run s1 s2 ->
+                                      kernel_run_until_user s2 s3 ->
+                                      kernel_run_until_user s1 s3.
+Proof. induction 1; eauto. Qed.
+
 Inductive runsToEscape : CS -> CS -> Prop :=
 | rte_success: (* executing until a return to user mode *)
     forall cs cs',

@@ -127,15 +127,6 @@ Proof.
   omega.
 Qed.
 
-(* AAA: Move to CExec *)
-Hint Constructors kernel_run.
-Lemma kernel_run_trans : forall cs1 cs2 cs3,
-                           kernel_run cs1 cs2 ->
-                           kernel_run cs2 cs3 ->
-                           kernel_run cs1 cs3.
-Proof. induction 1; eauto. Qed.
-Hint Resolve kernel_run_trans.
-
 Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) pc0 pc1 s0 s1 s1',
   forall (STEP_DET: forall s e s' e' s'', step s e s' -> step s e' s'' -> s' = s'' /\ e = e') ,
   runsToEnd step pc0 pc1 s0 s1 ->
@@ -203,6 +194,8 @@ Proof.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
+Hint Constructors kernel_run.
+
 Lemma runsToEnd_kernel_run :
   forall n1 n2 s1 s2
          (RUNS : runsToEnd cstep n1 n2 s1 s2),
@@ -241,38 +234,6 @@ Proof.
   eapply runsToEnd_kernel_run; eauto.
 Qed.
 
-(*
-Lemma HTEscape_star: forall raddr c P Q,
-  HTEscape raddr c P Q ->
-  forall imem mem stk0 cache0 fh n,
-  code_at n fh c ->
-  P cache0 stk0 ->
-  exists stk1 cache1 pc1 priv1,
-  let (prop, outcome) := Q cache1 stk1 in
-  prop /\
-  predicted_outcome outcome raddr pc1 priv1 /\
-  star cstep
-    (CState cache0 mem fh imem stk0 (n, handlerTag) true)
-    nil
-    (CState cache1 mem fh imem stk1 pc1             priv1).
-Proof.
-  unfold HTEscape.
-  introv HTcPQ; intros.
-  edestruct HTcPQ as [stk1 [cache1 [pc1 [priv1 RTE2]]]]; eauto; clear HTcPQ.
-  exists stk1 cache1 pc1 priv1.
-  destruct (Q cache1 stk1); intuition.
-  eapply runsToEscape_star; eauto.
-Qed.
-*)
-
-(* AAA: Move this *)
-Hint Constructors kernel_run_until_user.
-Lemma kernel_run_until_user_trans : forall s1 s2 s3,
-                                      kernel_run s1 s2 ->
-                                      kernel_run_until_user s2 s3 ->
-                                      kernel_run_until_user s1 s3.
-Proof. induction 1; eauto. Qed.
-
 Lemma HTEscape_compose: forall r c1 c2 P Q R,
   HT         c1 P Q ->
   HTEscape r c2 Q R ->
@@ -286,11 +247,6 @@ Proof.
 
   edestruct H_HTE as [stk2 [cache2 [pc2 [priv2 Hlet]]]]; eauto.
   eapply code_at_compose_2; eauto.
-
-(*
-  edestruct (HTEscape_star _ _ _ _ H_HTE) as [stk2 [cache2 [pc2 [priv2 Hlet]]]]; eauto.
-  eapply code_at_compose_2; eauto.
-*)
 
   exists stk2 cache2 pc2 priv2.
   destruct (R cache2 stk2).
