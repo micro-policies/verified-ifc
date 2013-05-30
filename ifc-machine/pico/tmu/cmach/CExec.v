@@ -2,24 +2,19 @@ Require Import List.
 Require Import ZArith.
 
 Require Import Utils.
-Require Import Lattices.
 Require Import TMUInstr.
-Require Import Abstract.
-Require Import AbstractCommon.
-Require Import Rules.
-Require Import QuasiAbstractMachine.
 Require Import Concrete.
 Require Import ConcreteMachineSmallStep.
 Require TINI.
-
 Open Scope Z_scope.
 
 Set Implicit Arguments.
 
-Section Backward.
+Section CExec.
 
-Let ctrace := list (option CEvent).
-Let exec := TINI.exec cstep.
+(* congruence fails if these are let-bound *)
+Local Notation ctrace := (list (option CEvent)).
+Local Notation exec := (TINI.exec cstep).
 
 Inductive kernel_run_until_user : CS -> CS -> Prop :=
 | kruu_end : forall s s',
@@ -48,6 +43,13 @@ Proof.
   intros. induction H; auto.
 Qed.
 
+Lemma kernel_run_until_user_star :
+  forall cs cs',
+    kernel_run_until_user cs cs' ->
+    star cstep cs nil cs'.
+Proof. induction 1; eauto. Qed.
+Hint Resolve kernel_run_until_user_star.
+
 Inductive kernel_run : CS -> CS -> Prop :=
 | kr_refl : forall s, priv s = true -> kernel_run s s
 | kr_step : forall s s' s'',
@@ -69,6 +71,72 @@ Lemma kernel_run_r : forall s s',
                        priv s' = true.
 Proof.
   intros. induction H; auto.
+Qed.
+
+Lemma kernel_run_star :
+  forall cs cs',
+    kernel_run cs cs' ->
+    star cstep cs nil cs'.
+Proof. induction 1; eauto. Qed.
+Hint Resolve kernel_run_star.
+
+Inductive runsToEscape : CS -> CS -> Prop :=
+| rte_success: (* executing until a return to user mode *)
+    forall cs cs',
+    forall (STAR: kernel_run_until_user cs cs' ),
+      runsToEscape cs cs'
+| rte_fail : (* executing the tmu until it fails at a neg. pc in priv mode *)
+    forall cs cs',
+    forall (STAR: kernel_run cs cs')
+           (FAIL: fst (pc cs') < 0),
+      runsToEscape cs cs'
+| rte_upriv: (* in unpriv. mode, it already escaped *)
+    forall cs,
+    forall (UPRIV: priv cs = false),
+      runsToEscape cs cs.
+
+Lemma step_star_plus :
+  forall (S E: Type)
+         (Rstep: S -> option E -> S -> Prop) s1 t s2
+         (STAR : star Rstep s1 t s2)
+         (NEQ : s1 <> s2),
+    plus Rstep s1 t s2.
+Proof.
+  intros. inv STAR. congruence.
+  clear NEQ.
+  gdep e. gdep s1.
+  induction H0; subst; eauto.
+Qed.
+Hint Resolve step_star_plus.
+
+Lemma runsToEscape_plus: forall s1 s2,
+ runsToEscape s1 s2 ->
+ s1 <> s2 ->
+ plus cstep s1 nil s2.
+Proof.
+  induction 1 ; intros; eauto.
+Qed.
+
+Lemma runsToEscape_star: forall s1 s2,
+ runsToEscape s1 s2 ->
+ star cstep s1 nil s2.
+Proof.
+  inversion 1; eauto.
+Qed.
+
+Lemma star_trans: forall S E (Rstep: S -> option E -> S -> Prop) s0 t s1,
+  star Rstep s0 t s1 ->
+  forall t' s2,
+  star Rstep s1 t' s2 ->
+  star Rstep s0 (t++t') s2.
+Proof.
+  induction 1.
+  - auto.
+  - inversion 1.
+    + rewrite app_nil_r.
+      subst; econstructor; eauto.
+    + subst; econstructor; eauto.
+      rewrite op_cons_app; reflexivity.
 Qed.
 
 Let cons_event e t : ctrace :=
@@ -174,4 +242,4 @@ Proof.
   eapply cexec_step; eauto.
 Qed.
 
-End Backward.
+End CExec.

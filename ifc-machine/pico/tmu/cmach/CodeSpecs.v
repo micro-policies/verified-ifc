@@ -13,6 +13,7 @@ Require Import CodeGen.
 Require Import ConcreteMachineSmallStep.
 Require Import Determinism.
 Require Import Coq.Arith.Compare_dec.
+Require Import CExec.
 
 Section CodeSpecs.
 Local Open Scope Z_scope.
@@ -195,7 +196,6 @@ Definition HTEscape raddr
   predicted_outcome outcome raddr pc1 priv1 /\
   runsToEscape
     (CState cache0 mem fh imem stk0 (n, handlerTag) true)
-    nil
     (CState cache1 mem fh imem stk1 pc1             priv1).
 
 Lemma HTEscape_strengthen_premise: forall r c (P' P: memory -> stack -> Prop) Q,
