@@ -19,7 +19,7 @@ TMU_ANI := TINI
 
 TMU_C := CLattices WfCLattices Concrete ConcreteMachineSmallStep \
 	CodeGen CodeSpecs FaultRoutine\
-	Refinement Determinism BackwardCacheHit CExec
+	Refinement Determinism BackwardCommon BackwardCacheHit CExec 
 
 VS := $(LIB:%=lib/%.v) $(COMMON:%=common/%.v) $(TMU:%=tmu/%.v) \
 	$(TMU_A:%=tmu/amach/%.v) $(TMU_C:%=tmu/cmach/%.v) \
