@@ -32,24 +32,6 @@ Definition abstract_event (ce : option CEvent) : option (@Event L) :=
     | None => None
   end.
 
-(* FIXME: Move this somewhere else *)
-Definition opcode_of_instr (i : Instr) : option OpCode :=
-  match i with
-    | Noop => Some OpNoop
-    | Add => Some OpAdd
-    | Sub => Some OpSub
-    | Push _ => Some OpPush
-    | Load => Some OpLoad
-    | Store => Some OpStore
-    | Jump => Some OpJump
-    | BranchNZ _ => Some OpBranchNZ
-    | Call _ _ => Some OpCall
-    | Ret => Some OpRet
-    | VRet => Some OpVRet
-    | Halt => None
-    | Output => Some OpOutput
-  end.
-
 Lemma read_m_labToZ' :
   forall i m xv xl,
     read_m i (mem_labToZ m) = Some (xv, xl) ->
@@ -245,11 +227,10 @@ Proof.
   intros.
   inv Hmatch.
   destruct apc as [apc apcl].
-  inv Hstep; simpl in *;
+  inv Hstep; simpl in *; try congruence;
 
   (* Invert some hypotheses *)
   repeat match goal with
-           | H : true = false |- _ => inv H
            | H : ?x = ?x |- _ => clear H
            | H : match_stacks _ (_ ::: _) |- _ => inv H
            | H : match_stacks _ (_ ++ _) |- _ =>

@@ -42,3 +42,20 @@ Inductive OpCode : Type :=
 | OpRet 
 | OpVRet
 | OpOutput.
+
+Definition opcode_of_instr (i : Instr) : option OpCode :=
+  match i with
+    | Noop => Some OpNoop
+    | Add => Some OpAdd
+    | Sub => Some OpSub
+    | Push _ => Some OpPush
+    | Load => Some OpLoad
+    | Store => Some OpStore
+    | Jump => Some OpJump
+    | BranchNZ _ => Some OpBranchNZ
+    | Call _ _ => Some OpCall
+    | Ret => Some OpRet
+    | VRet => Some OpVRet
+    | Halt => None
+    | Output => Some OpOutput
+  end.
