@@ -144,20 +144,6 @@ Proof.
       subst. split; eauto.
 Qed.
   
-(*
-Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
-  runsToEnd step pc0 pc1 s0 s1 ->
-  forall pc2 s2,
-  runsToEnd step pc1 pc2 s1 s2 ->
-  runsToEnd step pc0 pc2 s0 s2.
-Proof.
-  induction 1. 
-  intros; auto.
-  intros. 
-  econstructor; eauto.
-Qed.
-*)
-
 (* Hoare triple for a list of instructions *)
 Definition HT   (c: code)
                 (P: memory -> stack -> Prop) (* pre-condition *)
