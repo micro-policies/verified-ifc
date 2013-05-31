@@ -228,27 +228,5 @@ Proof.
   congruence.
 Qed.
 
-Lemma step_rules_equiv : forall s e s',
-                           step_rules s e s' <->
-                           AbstractMachine.step_rules s e s'.
-Proof.
-  intros.
-  split; intro H; inv H;
-  unfold run_tmr, apply_rule in *;
-  simpl in *;
-  repeat match goal with
-           | H : Some _ = Some _ |- _ =>
-             inv H
-           | H : (if ?b then _ else _) = _ |- _ =>
-             destruct b eqn:E; inv H
-         end;
-  unfold Vector.nth_order in *; simpl in *;
-  try econstructor (solve [compute; eauto]).
-
-  econstructor; eauto.
-  unfold run_tmr, apply_rule. simpl.
-  unfold Vector.nth_order. simpl.
-  rewrite H2. trivial.
-Qed.
 
 End ARuleMachine.
