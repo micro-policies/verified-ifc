@@ -238,8 +238,14 @@ Proof.
     eapply ce_kernel_begin; eauto.
 Qed.
 
+Definition is_some T (o : option T) :=
+  match o with
+    | Some _ => true
+    | None => false
+  end.
+
 Let remove_silent (ct : ctrace) :=
-  filter (fun e => match e with Some _ => true | _ => false end) ct.
+  filter (@is_some _) ct.
 
 Lemma cons_event_remove_silent :
   forall e t,

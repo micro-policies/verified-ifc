@@ -20,7 +20,7 @@ TMU_ANI := TINI Ref
 TMU_C := CLattices WfCLattices Concrete ConcreteMachineSmallStep \
 	CodeGen CodeSpecs FaultRoutine\
 	Refinement Determinism BackwardCommon BackwardCacheHit CExec \
-        BackwardCacheMiss
+        BackwardCacheMiss Backward
 
 VS := $(LIB:%=lib/%.v) $(COMMON:%=common/%.v) $(TMU:%=tmu/%.v) \
 	$(TMU_A:%=tmu/amach/%.v) $(TMU_C:%=tmu/cmach/%.v) \
