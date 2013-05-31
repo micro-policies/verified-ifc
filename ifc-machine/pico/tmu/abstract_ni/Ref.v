@@ -50,14 +50,39 @@ Context {observer : Type}
 Variable s_equiv1 : observer -> relation state1.
 Variable s_equiv2 : observer -> relation state2.
 
+Section Weaken.
+
+Variable observe1 : trace1 -> trace1.
+Variable observe1' : trace1 -> trace1.
+Variable observe2 : trace2 -> trace2.
+Variable observe2' : trace2 -> trace2.
+
+Definition observations_compatible :=
+  forall t1 t2,
+    match_traces (observe1 t1) (observe2 t2) ->
+    match_traces (observe1' t1) (observe2' t2).
+
+Hypothesis oc : observations_compatible.
+Hypothesis bs : backward_simulation observe1 observe2.
+
+Lemma weaken_backward_simulation : backward_simulation observe1' observe2'.
+Proof.
+  intros until 2.
+  exploit bs; eauto.
+  intros [? [? [? ?]]]; eauto.
+Qed.
+
+End Weaken.
+
 Section NI.
 
 Variable observe1 : trace1 -> trace1.
 Variable observe2 : trace2 -> trace2.
-Hypothesis observations_compatible :
-  forall o t1 t2,
-    match_traces (observe1 t1) (observe2 t2) ->
-    match_traces (TINI.observe o t1) (TINI.observe o t2).
+
+Hypothesis oc :
+  forall o, observations_compatible observe1 (TINI.observe o)
+                                    observe2 (TINI.observe o).
+
 Hypothesis bs : backward_simulation observe1 observe2.
 Hypothesis noninterference1 : TINI.tini step1 s_equiv1.
 Hypothesis match_states_eq : forall o s21 s22,
@@ -74,18 +99,13 @@ Hypothesis match_events_equiv : forall o e11 e12 e21 e22,
 
 Theorem noninterference2 : TINI.tini step2 s_equiv2.
 Proof.
-  assert (bs' : forall o, backward_simulation (TINI.observe o)
-                                              (TINI.observe o)).
-  { repeat intro.
-    exploit bs; eauto.
-    intros [? [? [? ?]]]; eauto.
-  }
   intros o s21 t21 s21' s22 t22 s22' Heq2 Hexec21 Hexec22.
+  assert (bs' := weaken_backward_simulation (oc o) bs).
   assert (H := match_states_eq Heq2).
   destruct H as [s11 [s12 [Heq1 [Hm1 Hm2]]]].
-  assert (H := bs' o _ _ _ _ Hm1 Hexec21).
+  assert (H := bs' _ _ _ _ Hm1 Hexec21).
   destruct H as [t11 [s11' [Hexec11 Hmt1]]].
-  assert (H := bs' o _ _ _ _ Hm2 Hexec22).
+  assert (H := bs' _ _ _ _ Hm2 Hexec22).
   destruct H as [t12 [s12' [Hexec12 Hmt2]]].
   assert (Hindist := noninterference1 Heq1 Hexec11 Hexec12).
   gdep (TINI.observe o t22). gdep (TINI.observe o t21).
