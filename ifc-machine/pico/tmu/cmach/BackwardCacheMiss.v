@@ -29,11 +29,6 @@ Context {L: Type}
         {CLatt: ConcreteLattice L}
         {WFCLatt: WfConcreteLattice L Latt CLatt}.
 
-(** The fault handler code and its correctness *)
-Definition fetch_rule_withsig :=
-  (fun opcode => existT _ (labelCount opcode) (fetch_rule opcode)).
-Definition faultHandler := faultHandler fetch_rule_withsig.
-
 Lemma invalid_pc_no_step :
   forall s1 e s2
          (STEP : cstep s1 e s2)
@@ -125,14 +120,19 @@ Proof.
   try congruence.
 Qed.
 
-Lemma cache_configuration_at_miss :
+Lemma configuration_at_miss :
   forall s1 s21 e2 s22
          (MATCH : match_states s1 s21)
          (STEP : cstep s21 e2 s22)
          (PRIV : priv s22 = true),
-    exists opcode (vls : Vector.t L (labelCount opcode)),
+    exists opcode (vls : Vector.t L (projT1 (fetch_rule_withsig opcode))),
       cache_hit (cache s22) (opCodeToZ opcode)
-                (labsToZs vls) (labToZ (snd (apc s1))).
+                (labsToZs vls) (labToZ (snd (apc s1))) /\
+      mem s22 = mem s21 /\
+      fhdl s22 = fhdl s21 /\
+      imem s22 = imem s21 /\
+      stk s22 = CRet (pc s21) false false :: stk s21 /\
+      pc s22 = (0, handlerTag).
 Proof.
   intros.
   inv MATCH.
@@ -171,6 +171,31 @@ Proof.
   exists vls; repeat econstructor; eauto.
 Qed.
 
+Lemma update_cache_spec_rvec_cache_hit :
+  forall orl l cache cache' op tags pc
+         (MATCH : handler_final_mem_matches' orl l cache cache')
+         (HIT : cache_hit cache op tags pc),
+    cache_hit cache' op tags pc.
+Proof.
+  intros.
+  inv HIT;
+  repeat match goal with
+           | H : tag_in_mem _ _ _ |- _ =>
+             inv H
+         end.
+  destruct MATCH as [RES UP].
+  assert (HIT : exists t, cache_hit_read cache' t (labToZ l)) by
+    (destruct orl; eauto).
+  destruct HIT as [t []].
+  econstructor; eauto; econstructor;
+  try solve [rewrite <- UP; eauto; compute; omega];
+  repeat match goal with
+           | H : tag_in_mem _ _ _ |- _ =>
+             inv H
+         end;
+  eauto.
+Qed.
+
 Lemma cache_miss_simulation :
   forall s1 s21 e21 s22 s23
          (MATCH : match_states s1 s21)
@@ -179,10 +204,42 @@ Lemma cache_miss_simulation :
     match_states s1 s23.
 Proof.
   intros.
-  exploit cache_configuration_at_miss;
-  eauto using kernel_run_until_user_l.
-  intros [op [vls HIT]].
-  destruct (apply_rule (projT2 (fetch_rule_withsig op)) vls (snd (apc s1))) eqn:E.
-Admitted.
+  exploit kernel_run_until_user_l; eauto.
+  intros PRIV.
+  exploit configuration_at_miss; eauto.
+  intros [op [vls [HIT EQS]]].
+  destruct s22; simpl in EQS, PRIV; subst.
+  inv MATCH; simpl.
+  intuition. subst.
+  destruct (apply_rule (projT2 (fetch_rule_withsig op)) vls (snd apc))
+    as [[orl rpcl]|] eqn:E.
+  - exploit handler_correct_succeed; eauto.
+    intros [cache' [ESCAPE1 MATCH']].
+    exploit rte_success; eauto.
+    intros ESCAPE2.
+    unfold Refinement.faultHandler, handler in *.
+    generalize (runsToEscape_determ ESCAPE1 ESCAPE2).
+    intros H. subst.
+    constructor; eauto.
+    simpl in *.
+    exploit update_cache_spec_rvec_cache_hit; eauto.
+    clear HIT. intros HIT.
+    intros op' vls' pcl' HIT'.
+    generalize (cache_hit_unique HIT HIT').
+    intros [E1 [E2 E3]].
+    apply Refinement.opCodeToZ_inj in E1. subst.
+    apply labToZ_inj in E3. subst.
+    apply labsToZs_inj in E2.
+    + subst. rewrite E.
+      destruct MATCH'. trivial.
+    + destruct op'; simpl; omega.
+  - exploit handler_correct_fail; eauto.
+    simpl in *.
+    intros [stk' ESCAPE1].
+    inv ESCAPE1.
+    + apply kernel_run_until_user_r in STAR. simpl in STAR. congruence.
+    + exfalso.
+      eapply kernel_run_success_fail_contra; eauto.
+Qed.
 
 End CacheMissSimulation.
