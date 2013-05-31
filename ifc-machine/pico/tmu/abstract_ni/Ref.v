@@ -186,10 +186,17 @@ Variable match_events12 : event1 -> event2 -> Prop.
 Variable match_states23 : state2 -> state3 -> Prop.
 Variable match_events23 : event2 -> event3 -> Prop.
 
-Let match_states13 s1 s3 := exists s2, match_states12 s1 s2 /\
-                                       match_states23 s2 s3.
-Let match_events13 e1 e3 := exists e2, match_events12 e1 e2 /\
-                                       match_events23 e2 e3.
+Variable match_states13 : state1 -> state3 -> Prop.
+Variable match_events13 : event1 -> event3 -> Prop.
+
+Hypothesis ms13 : forall s1 s3,
+                    match_states13 s1 s3 ->
+                    exists s2,
+                      match_states12 s1 s2 /\ match_states23 s2 s3.
+Hypothesis me13 : forall e1 e2 e3,
+                    match_events12 e1 e2 ->
+                    match_events23 e2 e3 ->
+                    match_events13 e1 e3.
 
 Lemma match_events_composition : forall t1 t2 t3,
                                    match_traces match_events12 t1 t2 ->
@@ -198,7 +205,7 @@ Lemma match_events_composition : forall t1 t2 t3,
 Proof.
   intros t1 t2 t3 H12.
   gdep t3.
-  induction H12; intros t3 H23; inv H23; econstructor; unfold match_events13; eauto.
+  induction H12; intros t3 H23; inv H23; econstructor; eauto.
 Qed.
 
 Hypothesis bws12 : backward_simulation step1 step2
@@ -210,10 +217,11 @@ Hypothesis bws23 : backward_simulation step2 step3
 Lemma bws_composition : backward_simulation step1 step3
                                             match_states13 match_events13 observe1 observe3.
 Proof.
-  intros s11 s31 t3 s32 [s21 [H12 H23]] Hexec3.
+  intros s11 s31 t3 s32 H13 Hexec3.
+  exploit ms13; eauto.
+  intros [s2 [H12 H23]].
   exploit bws23; eauto.
-  intros H.
-  destruct H as [? [? [? ?]]].
+  intros [? [? [? ?]]].
   exploit bws12; eauto.
   intros H'.
   destruct H' as [? [? [? ?]]].
