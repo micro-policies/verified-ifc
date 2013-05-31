@@ -9,7 +9,8 @@ Require Import TMUInstr.
 Require Import Abstract.
 Require Import AbstractCommon.
 Require Import Rules.
-Require Import QuasiAbstractMachine.
+Require AbstractMachine.
+Require QuasiAbstractMachine.
 Require Import Concrete.
 Require Import ConcreteMachineSmallStep.
 Require Import Determinism.
@@ -18,6 +19,7 @@ Require Import CExec.
 Require Import BackwardCacheMiss.
 Require Import BackwardCacheHit.
 Require Import Ref.
+Require Import AbstractSimulation.
 
 Open Scope Z_scope.
 
@@ -46,8 +48,8 @@ Proof.
   inv H. eauto.
 Qed.
 
-Lemma backward_simulation_pre_obs :
-  backward_simulation step_rules cstep match_states match_events
+Lemma quasi_abstract_concrete_bwdsim :
+  backward_simulation QuasiAbstractMachine.step_rules cstep match_states match_events
                       remove_none remove_none.
 Proof.
   intros s1 s2 t2 s2' MATCH EXEC.
@@ -79,6 +81,25 @@ Proof.
     constructor; auto.
     reflexivity.
   - exploit cache_miss_simulation; eauto.
+Qed.
+
+Lemma abstract_concrete_bwdsim :
+  backward_simulation AbstractMachine.step_rules cstep match_states match_events
+                      remove_none remove_none.
+Proof.
+  eapply bws_composition with (state2 := AS)
+                              (step2 := QuasiAbstractMachine.step_rules)
+                              (observe2 := remove_none)
+                              (match_states12 := eq)
+                              (match_events12 := eq)
+                              (match_events23 := match_events);
+  eauto; intros; subst; trivial.
+  - refine (weaken_backward_simulation _ abstract_quasi_abstract_bwdsim).
+    induction 1. constructor.
+    subst.
+    simpl. destruct (is_some e2); trivial.
+    constructor; trivial.
+  - exact quasi_abstract_concrete_bwdsim.
 Qed.
 
 End Backward.
