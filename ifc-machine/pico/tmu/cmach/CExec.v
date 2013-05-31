@@ -35,6 +35,7 @@ Lemma kernel_run_until_user_l : forall s s',
 Proof.
   intros. inv H; trivial.
 Qed.
+Hint Resolve kernel_run_until_user_l.
 
 Lemma kernel_run_until_user_r : forall s s',
                                   kernel_run_until_user s s' ->
@@ -158,81 +159,83 @@ Let cons_event e t : ctrace :=
     | None => t
   end.
 
+Inductive exec_end : CS -> CS -> Prop :=
+| ee_refl : forall s, exec_end s s
+| ee_kernel_end : forall s s', kernel_run s s' -> exec_end s s'
+| ee_final_fault : forall s s' s'',
+                     priv s = false ->
+                     cstep s None s' ->
+                     kernel_run s' s'' ->
+                     exec_end s s''.
+Hint Constructors exec_end.
+
 Inductive cexec : CS -> ctrace -> CS -> Prop :=
-| ce_refl : forall s, cexec s nil s
-| ce_kernel_end : forall s s', kernel_run s s' -> cexec s nil s'
-| ce_kernel_user : forall s s' t s'',
-                     kernel_run_until_user s s' ->
-                     cexec s' t s'' ->
-                     cexec s t s''
-| ce_user_step : forall s e s' t s'',
+| ce_end : forall s s', exec_end s s' -> cexec s nil s'
+| ce_kernel_begin : forall s s' t s'',
+                      kernel_run_until_user s s' ->
+                      cexec s' t s'' ->
+                      cexec s t s''
+| ce_user_hit : forall s e s' t s'',
+                  priv s = false ->
+                  cstep s e s' ->
+                  priv s' = false ->
+                  cexec s' t s'' ->
+                  cexec s (cons_event e t) s''
+| ce_user_miss : forall s s' s'' t s''',
                    priv s = false ->
-                   cstep s e s' ->
-                   cexec s' t s'' ->
-                   cexec s (cons_event e t) s''.
+                   cstep s None s' ->
+                   kernel_run_until_user s' s'' ->
+                   cexec s'' t s''' ->
+                   cexec s t s'''.
 Hint Constructors cexec.
+
+Lemma priv_no_event_l : forall s e s'
+                               (STEP : cstep s e s')
+                               (PRIV : priv s = true),
+                          e = None.
+Proof.
+  intros.
+  inv STEP; simpl in *; try congruence; auto.
+Qed.
+
+Lemma priv_no_event_r : forall s e s'
+                               (STEP : cstep s e s')
+                               (PRIV : priv s' = true),
+                          e = None.
+Proof.
+  intros.
+  inv STEP; simpl in *; try congruence; auto.
+Qed.
+
+Lemma exec_end_step : forall s e s' s''
+                             (STEP : cstep s e s')
+                             (EXEC : exec_end s' s''),
+                        cexec s (cons_event e nil) s''.
+Proof.
+  intros.
+  destruct (priv s) eqn:PRIV;
+  [exploit priv_no_event_l; eauto; intros ?; subst|];
+  (destruct (priv s') eqn:PRIV';
+  [exploit priv_no_event_r; eauto; intros ?; subst|]);
+  inv EXEC; eauto.
+Qed.
+Hint Resolve exec_end_step.
 
 Lemma cexec_step : forall s e s' t s''
                           (Hstep : cstep s e s')
                           (Hexec : cexec s' t s''),
                           cexec s (cons_event e t) s''.
 Proof.
-  (* Automation disaster.... :( *)
   intros.
-  inv Hexec; simpl;
-  destruct (priv s) eqn:Hs; eauto.
-
-  - destruct (priv s'') eqn:Hs'; eauto;
-
-    (* congruence is not working here... *)
-    inversion Hstep; subst; simpl in *;
-    repeat match goal with
-             | H : false = true |- _ =>
-               inversion H
-             | H : true = false |- _ =>
-               inversion H
-             | H : ?x = ?x |- _ => clear H
-           end; eauto.
-
-    eapply ce_kernel_user; eauto; solve [eauto].
-
-  - generalize (kernel_run_l H). intros H'.
-
-    inversion Hstep; subst; simpl in *;
-    repeat match goal with
-             | H : false = true |- _ =>
-               inversion H
-             | H : true = false |- _ =>
-               inversion H
-             | H : ?x = ?x |- _ => clear H
-           end; eauto.
-
-  - generalize (kernel_run_until_user_l H). intros H'.
-
-    inversion Hstep; subst; simpl in *;
-    repeat match goal with
-             | H : false = true |- _ =>
-               inversion H
-             | H : true = false |- _ =>
-               inversion H
-             | H : ?x = ?x |- _ => clear H
-           end; eauto.
-
-  - inversion Hstep; subst; simpl in *;
-    repeat match goal with
-             | H : false = true |- _ =>
-               inversion H
-             | H : true = false |- _ =>
-               inversion H
-             | H : ?x = ?x |- _ => clear H
-           end; eauto.
-
-    subst.
-    eapply ce_kernel_user; eauto.
-    eapply kruu_end; eauto.
+  inv Hexec; simpl; eauto;
+  (destruct (priv s) eqn:PRIV;
+   [assert (e = None) by (eapply priv_no_event_l; eauto); subst|]);
+  eauto.
+  - exploit priv_no_event_r; eauto.
+    intros ?. subst.
     eauto.
-
-    eauto.
+  - subst. simpl.
+    eapply ce_kernel_begin; eauto.
 Qed.
 
 Let remove_silent (ct : ctrace) :=

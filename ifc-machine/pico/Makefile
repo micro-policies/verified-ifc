@@ -15,7 +15,7 @@ TMU_A:= Abstract Rules AbstractCommon AbstractMachine	\
 TMU_AMNI := AbstractObsEquiv AbstractObsEquivFun NIAbstractMachine \
             LowStep HighStep HighLowStep
 
-TMU_ANI := TINI
+TMU_ANI := TINI Ref
 
 TMU_C := CLattices WfCLattices Concrete ConcreteMachineSmallStep \
 	CodeGen CodeSpecs FaultRoutine\
