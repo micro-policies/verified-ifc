@@ -56,7 +56,7 @@ Proof.
   eapply success_runSTO_None in H; eauto.
 Qed.
 
-Program Instance AMObservableEvent : TINI.ObservableEvent T (option Event) := {
+Global Program Instance AMObservableEvent : TINI.ObservableEvent T (option Event) := {
   e_equiv := low_equiv_event;
   e_low := visible_event;
   e_low_dec := visible_event_dec
