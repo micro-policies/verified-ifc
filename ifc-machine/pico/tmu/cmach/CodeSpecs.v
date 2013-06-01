@@ -145,10 +145,10 @@ Proof.
       exploit IHrunsToEnd; eauto.
 Qed.
   
+Definition HProp := memory -> stack -> Prop.
+
 (* Hoare triple for a list of instructions *)
-Definition HT   (c: code)
-                (P: memory -> stack -> Prop) (* pre-condition *)
-                (Q: memory -> stack -> Prop) (* post-condition when code "falls through" *)
+Definition HT (c: code) (P Q: HProp)
 := forall imem mem stk0 cache0 fh n n',
   code_at n fh c ->
   P cache0 stk0 ->
@@ -184,7 +184,7 @@ Definition HTEscape raddr
     (CState cache0 mem fh imem stk0 (n, handlerTag) true)
     (CState cache1 mem fh imem stk1 pc1             priv1).
 
-Lemma HTEscape_strengthen_premise: forall r c (P' P: memory -> stack -> Prop) Q,
+Lemma HTEscape_strengthen_premise: forall r c (P' P: HProp) Q,
   HTEscape r c P  Q ->
   (forall m s, P' m s -> P m s) ->
   HTEscape r c P' Q.
@@ -313,7 +313,7 @@ Qed.
 (* ================================================================ *)
 (* Lemmas on Hoare Triples *)
 
-Lemma HT_strengthen_premise: forall c (P' P Q: memory -> stack -> Prop),
+Lemma HT_strengthen_premise: forall c (P' P Q: HProp),
   HT   c P  Q ->
   (forall m s, P' m s -> P m s) ->
   HT   c P' Q.
@@ -323,7 +323,7 @@ Proof.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
 
-Lemma HT_weaken_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+Lemma HT_weaken_conclusion: forall c (P Q Q': HProp),
   HT   c P  Q ->
   (forall m s, Q m s -> Q' m s) ->
   HT   c P Q'.
@@ -333,7 +333,7 @@ Proof.
   edestruct HTPQ as [stk2 [c2 [HR RTE2]]]; eauto.
 Qed.
 
-Lemma HT_consequence: forall c (P' P Q Q': memory -> stack -> Prop),
+Lemma HT_consequence: forall c (P' P Q Q': HProp),
   HT   c P Q ->
   (forall m s, P' m s -> P m s) ->
   (forall m s, Q m s -> Q' m s) ->
@@ -348,7 +348,7 @@ Qed.
    need only be provable under the assumption that [P] is true for
    *some* state.  This lets us utilize any "pure" content in [P] when
    establishing [Q]. *)
-Lemma HT_consequence': forall c (P' P Q Q': memory -> stack -> Prop),
+Lemma HT_consequence': forall c (P' P Q Q': HProp),
   HT   c P Q ->
   (forall m s, P' m s -> P m s) ->
   (forall m s, (exists m' s', P' m' s') -> Q m s -> Q' m s) ->
@@ -449,7 +449,7 @@ Proof.
   iauto.
 Qed.
 
-Lemma HT_split_conclusion: forall c (P Q Q': memory -> stack -> Prop),
+Lemma HT_split_conclusion: forall c (P Q Q': HProp),
   HT c P Q ->
   HT c P Q' ->
   HT c P (fun m s => Q m s /\ Q' m s).
@@ -1149,8 +1149,6 @@ Proof.
   intuition; subst; auto.
 Qed.
 
-(* XXX: move some of these defs up *)
-Definition HProp := memory -> stack -> Prop.
 (* [HProp] with ghost variables *)
 Definition GProp := memory -> stack -> HProp.
 (* Ghost prop Hoare triple *)
@@ -1416,7 +1414,7 @@ Proof.
 Qed.
 
 Lemma HT_compose_bwd:
-  forall (c1 c2 : code) (P Q R : memory -> stack -> Prop),
+  forall (c1 c2 : code) (P Q R : HProp),
     HT c2 Q R -> HT c1 P Q -> HT (c1 ++ c2) P R.
 Proof.
   intros; eapply HT_compose; eauto.
@@ -1489,7 +1487,7 @@ Proof.
   apply_f_equal runsToEndDone; rec_f_equal ltac:(try omega; eauto).
 Qed.
 
-Lemma ret_specEscape: forall raddr (P: memory -> stack -> Prop),
+Lemma ret_specEscape: forall raddr (P: HProp),
   HTEscape raddr [Ret]
     (fun m s => exists s', s = (CRet raddr false false::s') /\ P m s')
     (fun m s => (P m s , Success)).
@@ -1511,7 +1509,7 @@ Proof.
   eapply cptr_done.
 Qed.
 
-Lemma jump_specEscape_Failure: forall raddr (P: memory -> stack -> Prop),
+Lemma jump_specEscape_Failure: forall raddr (P: HProp),
   HTEscape raddr [Jump]
            (fun m s => exists s0, (-1, handlerTag) ::: s0 = s /\ P m s0)
            (fun m s => (P m s , Failure)).
