@@ -82,11 +82,33 @@ Next Obligation.
   try solve [constructor (solve [eauto])].
 Qed.
 
+Definition abstract_initial_data := (list (@Atom T) * list Instr)%type.
+
+Definition abstract_i_equiv (o : T) (i1 i2 : abstract_initial_data) :=
+  low_equiv_list (low_equiv_atom o) (fst i1) (fst i2) /\
+  low_equiv_list (low_equiv_instr o) (snd i1) (snd i2).
+
+Definition abstract_initial_state (i : abstract_initial_data) :=
+  {| amem := fst i;
+     aimem := snd i;
+     astk := nil;
+     apc := (0%Z, bot) |}.
+
 Program Instance AMUnwindingSemantics :
-  TINI.UnwindingSemantics step_rules low_equiv_full_state := {
+  TINI.UnwindingSemantics abstract_initial_state
+                          step_rules abstract_i_equiv := {
+  s_equiv := low_equiv_full_state;
   s_low := low_pc;
   s_low_dec := low_pc_dec
 }.
+
+Next Obligation.
+  destruct i1 as [m1 p1].
+  destruct i2 as [m2 p2].
+  destruct H as [H1 H2].
+  unfold abstract_initial_state.
+  constructor 2; eauto with lat.
+Qed.
 
 Next Obligation.
   intros x y H. rewrite <- H. reflexivity.
@@ -147,7 +169,7 @@ Next Obligation.
   eapply highlowstep; eauto.
 Qed.
 
-Theorem noninterference : TINI.tini step_rules low_equiv_full_state.
+Theorem noninterference : TINI.tini abstract_initial_state step_rules abstract_i_equiv.
 Proof. apply TINI.noninterference. exact AMUnwindingSemantics. Qed.
 
 (* Theorem lockstep_ni_amach : *)

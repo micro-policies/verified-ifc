@@ -47,9 +47,6 @@ Context {observer : Type}
         {OE1 : TINI.ObservableEvent observer event1}
         {OE2 : TINI.ObservableEvent observer event2}.
 
-Variable s_equiv1 : observer -> relation state1.
-Variable s_equiv2 : observer -> relation state2.
-
 Section Weaken.
 
 Variable observe1 : trace1 -> trace1.
@@ -76,36 +73,51 @@ End Weaken.
 
 Section NI.
 
+Variable initial_data1 : Type.
+Variable i_equiv1 : observer -> relation initial_data1.
+Variable initial_state1 : initial_data1 -> state1.
 Variable observe1 : trace1 -> trace1.
+
+Variable initial_data2 : Type.
+Variable i_equiv2 : observer -> relation initial_data2.
+Variable initial_state2 : initial_data2 -> state2.
 Variable observe2 : trace2 -> trace2.
+
+Variable match_initial_data : initial_data1 ->
+                              initial_data2 ->
+                              Prop.
 
 Hypothesis oc :
   forall o, observations_compatible observe1 (TINI.observe o)
                                     observe2 (TINI.observe o).
 
 Hypothesis bs : backward_simulation observe1 observe2.
-Hypothesis noninterference1 : TINI.tini step1 s_equiv1.
-Hypothesis match_states_eq : forall o s21 s22,
-                               s_equiv2 o s21 s22 ->
-                               exists s11 s12,
-                                 s_equiv1 o s11 s12 /\
-                                 match_states s11 s21 /\
-                                 match_states s12 s22.
+Hypothesis noninterference1 : TINI.tini initial_state1 step1 i_equiv1.
+Hypothesis i_equiv2_i_equiv1 : forall o i21 i22,
+                                 i_equiv2 o i21 i22 ->
+                                 exists i11 i12,
+                                   i_equiv1 o i11 i12 /\
+                                   match_initial_data i11 i21 /\
+                                   match_initial_data i12 i22.
+Hypothesis match_initial_data_match_states : forall i1 i2,
+                                               match_initial_data i1 i2 ->
+                                               match_states (initial_state1 i1)
+                                                            (initial_state2 i2).
 Hypothesis match_events_equiv : forall o e11 e12 e21 e22,
                                   TINI.e_equiv o e11 e12 ->
                                   match_events e11 e21 ->
                                   match_events e12 e22 ->
                                   TINI.e_equiv o e21 e22.
 
-Theorem noninterference2 : TINI.tini step2 s_equiv2.
+Theorem noninterference2 : TINI.tini initial_state2 step2 i_equiv2.
 Proof.
-  intros o s21 t21 s21' s22 t22 s22' Heq2 Hexec21 Hexec22.
+  intros o i21 t21 s21' i22 t22 s22' Heq2 Hexec21 Hexec22.
   assert (bs' := weaken_backward_simulation (oc o) bs).
-  assert (H := match_states_eq Heq2).
-  destruct H as [s11 [s12 [Heq1 [Hm1 Hm2]]]].
-  assert (H := bs' _ _ _ _ Hm1 Hexec21).
+  assert (H := i_equiv2_i_equiv1 Heq2).
+  destruct H as [i11 [i12 [Heq1 [Hm1 Hm2]]]].
+  assert (H := bs' _ _ _ _ (match_initial_data_match_states Hm1) Hexec21).
   destruct H as [t11 [s11' [Hexec11 Hmt1]]].
-  assert (H := bs' _ _ _ _ Hm2 Hexec22).
+  assert (H := bs' _ _ _ _ (match_initial_data_match_states Hm2) Hexec22).
   destruct H as [t12 [s12' [Hexec12 Hmt2]]].
   assert (Hindist := noninterference1 Heq1 Hexec11 Hexec12).
   gdep (TINI.observe o t22). gdep (TINI.observe o t21).

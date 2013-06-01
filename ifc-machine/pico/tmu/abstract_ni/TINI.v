@@ -38,9 +38,11 @@ Class ObservableEvent := {
                      e_equiv o e1 e2
 }.
 
+Variable initial_data : Type.
 Variable state : Type.
+Variable initial_state : initial_data -> state.
 Variable step : state -> event -> state -> Prop.
-Variable s_equiv : observer -> relation state.
+Variable i_equiv : observer -> relation initial_data.
 
 Section TINI.
 
@@ -62,13 +64,17 @@ Let exec := @exec state event step.
 Definition observe (o : observer) (es : list event) : list event :=
   filter (fun e => if e_low_dec o e then true else false) es.
 
-Definition tini : Prop := forall o s1 t1 s1' s2 t2 s2',
-                            s_equiv o s1 s2 ->
-                            exec s1 t1 s1' ->
-                            exec s2 t2 s2' ->
+Definition tini : Prop := forall o i1 t1 s1 i2 t2 s2,
+                            i_equiv o i1 i2 ->
+                            exec (initial_state i1) t1 s1 ->
+                            exec (initial_state i2) t2 s2 ->
                             ti_trace_indist o (observe o t1) (observe o t2).
 
 Class UnwindingSemantics := {
+  s_equiv : observer -> relation state;
+  i_equiv_s_equiv : forall o i1 i2,
+                      i_equiv o i1 i2 ->
+                      s_equiv o (initial_state i1) (initial_state i2);
   s_low : observer -> state -> Prop;
   s_low_dec : forall o s, {s_low o s} + {~ s_low o s};
   s_equiv_sym : forall o, symmetric _ (s_equiv o);
@@ -332,7 +338,7 @@ Qed.
 Theorem noninterference : tini.
 Proof.
   intros o s1 t1 s1' s2 t2 s2' Heq Ht1 Ht2.
-  eauto using exec_oexec, oexec_equiv.
+  eauto using i_equiv_s_equiv, exec_oexec, oexec_equiv.
 Qed.
 
 End TINIUnwinding.
