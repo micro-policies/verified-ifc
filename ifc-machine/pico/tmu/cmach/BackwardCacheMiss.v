@@ -235,7 +235,7 @@ Proof.
     + destruct op'; simpl; omega.
   - exploit handler_correct_fail; eauto.
     simpl in *.
-    intros [stk' ESCAPE1].
+    intros [stk' [tag' ESCAPE1]].
     inv ESCAPE1.
     + apply kernel_run_until_user_r in STAR. simpl in STAR. congruence.
     + exfalso.

@@ -15,6 +15,13 @@ Require Import Determinism.
 Require Import Coq.Arith.Compare_dec.
 Require Import CExec.
 
+(* NC: Ltac is not exported from [Section]. This is for simplifying
+the existential in [predicted_outcome]. *)
+Ltac simpl_exists_tag :=
+  match goal with
+  | [ H: exists _, ?x = (_,_) |- _ ] => destruct H; subst x; simpl
+  end.
+
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
@@ -166,7 +173,7 @@ Inductive Outcome :=
 Definition predicted_outcome (o: Outcome) raddr pc priv :=
   match o with
   | Success => priv = false /\ pc = raddr
-  | Failure => priv = true  /\ pc = (-1, handlerTag)
+  | Failure => priv = true  /\ exists (tag:Z), pc = (-1, tag)
   end.
 
 Definition HTEscape raddr
@@ -262,7 +269,8 @@ Proof.
     inv H2; eauto.
     + apply kernel_run_until_user_r in STAR.
       simpl in STAR. congruence.
-    + simpl. omega.
+
+    + simpl_exists_tag; omega.
 Qed.
 
 Lemma HTEscape_append: forall r c1 c2 P Q,
@@ -1508,9 +1516,9 @@ Proof.
   eapply cptr_done.
 Qed.
 
-Lemma jump_specEscape_Failure: forall raddr (P: HProp),
+Lemma jump_specEscape_Failure: forall tag raddr (P: HProp),
   HTEscape raddr [Jump]
-           (fun m s => exists s0, (-1, handlerTag) ::: s0 = s /\ P m s0)
+           (fun m s => exists s0, (-1, tag) ::: s0 = s /\ P m s0)
            (fun m s => (P m s , Failure)).
 Proof.
   intros.

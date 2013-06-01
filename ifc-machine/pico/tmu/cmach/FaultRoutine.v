@@ -668,9 +668,9 @@ Qed.
 Lemma H_indexed_hyps: indexed_hyps _ genC genB genQ genV (fun m s => m = m0) opcodes.
 Proof.
   simpl.
-  intuition; solve
+  intuition; try (solve
     [ eapply genCheckOp_spec_GT_push_v
-    | eapply genApplyRule'_spec_GT_guard_v ].
+    | eapply genApplyRule'_spec_GT_guard_v ]).
 Qed.
 
 Lemma genFaultHandlerStack_spec_GT:
@@ -1115,17 +1115,17 @@ Theorem handler_correct_fail :
   forall opcode vls pcl c m raddr s i,
   forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
          (RULE: apply_rule (projT2 (get_rule opcode)) vls pcl = None),
-    exists st,
+    exists st tag,
     runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
-                 (CState c m handler i st (-1,handlerTag) true).
+                 (CState c m handler i st (-1,tag) true).
 Proof.
   intros.   
   edestruct (faultHandler_specEscape_None get_rule opcode vls pcl c) with (raddr := (0,0))
       as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 
    eapply init_enough; eauto. 
    eapply code_at_id. 
-  inv P3. 
-  eexists; eauto.
+  inv P3.
+  simpl_exists_tag; eexists; eexists. eauto.
 Qed.
 
 (*  We also have the following: 
