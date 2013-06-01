@@ -1027,23 +1027,19 @@ Qed.
    here.  I.e., this version has an implicit use of
    [HT_strengthen_premise] in it, which could always be inserted
    manually when needed. *)
-Lemma ite_spec: forall c t f P Pt Pf Qc Q,
-  HT   c P  Qc ->
+Lemma ite_spec: forall c t f (P Pt Pf: HProp) Q,
+  let P' := fun m s => exists v l s', s = (v,l) ::: s' /\
+                                      (v <> 0 -> Pt m s') /\
+                                      (v =  0 -> Pf m s') in
+  HT   c P P' ->
   HT   t Pt Q ->
   HT   f Pf Q ->
-  (forall m s, Qc m s -> (exists v l s', s = CData (v,l) :: s' /\
-                                         (v <> 0 -> Pt m s') /\
-                                         (v =  0 -> Pf m s')))
-  ->
   HT   (ite c t f) P Q.
 Proof.
-  intros c t f P Pt Pf Qc Q HTc HTt HTf HQcP.
+  intros c t f P Pt Pf Q P' HTc HTt HTf.
   unfold ite.
   eapply HT_compose.
   apply HTc.
-  eapply HT_strengthen_premise.
-  Focus 2.
-  apply HQcP.
   apply ifNZ_spec_existential.
   auto.
   auto.
@@ -1056,8 +1052,7 @@ Qed.
    [m0], so, here it helps to make the memory a parameter. *)
 Lemma ite_spec_specialized: forall v c t f Q, forall m0 s0,
   let P := fun m s => m = m0 /\ s = s0 in
-  HT c (fun m s => m = m0 /\ s = s0)
-       (fun m s => m = m0 /\ s = (v,handlerTag) ::: s0) ->
+  HT c P  (fun m s => m = m0 /\ s = (v,handlerTag) ::: s0) ->
   (v <> 0 -> HT t P Q) ->
   (v =  0 -> HT f P Q) ->
   HT (ite c t f) P Q.
@@ -1066,12 +1061,15 @@ Proof.
   eapply ite_spec with (Pt := fun m s => v <> 0 /\ m = m0 /\ s = s0)
                        (Pf := fun m s => v =  0 /\ m = m0 /\ s = s0).
   eauto.
-  eapply HT_fold_constant_premise; auto.
-  eapply HT_fold_constant_premise; auto.
+  eapply HT_weaken_conclusion.
+  eauto.
 
   introv Heq.
   simpl in Heq.
   jauto.
+
+  eapply HT_fold_constant_premise; auto.
+  eapply HT_fold_constant_premise; auto.
 Qed.
 
 Lemma cases_spec_base: forall d P Q,
@@ -1080,14 +1078,13 @@ Proof.
   auto.
 Qed.
 
-Lemma cases_spec_step: forall c b cbs d P Qc Pt Pf Q,
-  HT   c P Qc ->
+Lemma cases_spec_step: forall c b cbs d P (Pt Pf Q: HProp),
+  let P' := fun m s => exists v l s', s = (v,l) ::: s' /\
+                                      (v <> 0 -> Pt m s') /\
+                                      (v =  0 -> Pf m s') in
+  HT   c P P' ->
   HT   b Pt Q ->
   HT   (cases cbs d) Pf Q ->
-  (forall m s, Qc m s -> (exists v l s', s = CData (v,l) :: s' /\
-                                         (v <> 0 -> Pt m s') /\
-                                         (v =  0 -> Pf m s')))
-  ->
   HT   (cases ((c,b)::cbs) d) P Q.
 Proof.
   intros.
@@ -1134,19 +1131,20 @@ Proof.
   pose (Hc m0 s0) as Hcm0s0.
   eapply ite_spec with (Pt := (fun m s => P m s /\ vc m0 s0 <> 0))
                        (Pf := (fun m s => P m s /\ vc m0 s0 =  0)).
+  eapply HT_weaken_conclusion.
   exact Hcm0s0.
-
-  apply (HT_consequence' _ _ _ _ _ Hb); intuition.
-  elimtype False; jauto.
-
-  apply (HT_consequence' _ _ _ _ _ Hcbs); intuition.
-  elimtype False; jauto.
 
   intuition.
   exists (vc m0 s0).
   exists handlerTag.
   exists s0.
   intuition; subst; auto.
+
+  apply (HT_consequence' _ _ _ _ _ Hb); intuition.
+  elimtype False; jauto.
+
+  apply (HT_consequence' _ _ _ _ _ Hcbs); intuition.
+  elimtype False; jauto.
 Qed.
 
 (* [HProp] with ghost variables *)
@@ -1198,7 +1196,14 @@ Proof.
   pose (Hc m0 s0) as Hcm0s0.
   eapply ite_spec with (Pt := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 <> 0))
                        (Pf := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 =  0)).
+  eapply HT_weaken_conclusion.
   exact Hcm0s0.
+
+  intuition.
+  exists (vc m0 s0).
+  exists handlerTag.
+  exists s0.
+  intuition; subst; auto.
 
   apply (HT_consequence' _ _ _ _ _ (Hb m0 s0)); intuition.
   elimtype False; jauto.
@@ -1206,12 +1211,6 @@ Proof.
   fold cases.
   apply (HT_consequence' _ _ _ _ _ (Hcbs m0 s0)); intuition.
   elimtype False; jauto.
-
-  intuition.
-  exists (vc m0 s0).
-  exists handlerTag.
-  exists s0.
-  intuition; subst; auto.
 Qed.
 
 Section IndexedCasesSpec.
