@@ -64,6 +64,44 @@ Definition concrete_initial_state (i : concrete_initial_data) :=
      pc := (0, labToZ bot);
      priv := false |}.
 
+Definition ac_match_initial_data (ai : abstract_initial_data)
+                                 (ci : concrete_initial_data) :=
+  mem_labToZ (fst ai) = fst ci /\
+  snd ai = snd ci.
+
+Lemma concrete_equiv_abstract_equiv :
+  forall o ci1 ci2,
+    concrete_i_equiv o ci1 ci2 ->
+    exists ai1 ai2,
+      abstract_i_equiv o ai1 ai2 /\
+      ac_match_initial_data ai1 ci1 /\
+      ac_match_initial_data ai2 ci2.
+Proof.
+  intros o [cm1 ?] [cm2 p] [? [am1 [am2 [? [? ?]]]]].
+  simpl in *.
+  subst.
+  exists (am1, p). exists (am2, p).
+  eauto.
+  repeat split; simpl; eauto.
+Qed.
+
+Lemma ac_match_initial_data_match_initial_states :
+  forall ai ci,
+    ac_match_initial_data ai ci ->
+    match_states (abstract_initial_state ai)
+                 (concrete_initial_state ci).
+Proof.
+  intros [am ?] [cm p] [H1 H2].
+  simpl in *.
+  subst.
+  constructor; simpl; eauto.
+  - intros op vls pcl contra.
+    inv contra.
+    inv TAG1.
+    inv H.
+  - constructor.
+Qed.
+
 Lemma noninterference : TINI.tini concrete_initial_state cstep concrete_i_equiv.
 Proof.
 Admitted.
