@@ -5,7 +5,7 @@ FINAL := Altogether
 
 LIB := 	Utils Monad Lattices LatticeHL LibTactics
 
-COMMON:= NotionsOfNI Simulation LNIwithEvents LockStepNI BwdSimNI
+COMMON:= LNIwithEvents Simulation BwdSimNI
 
 TMU := 	TMUInstr
 
@@ -29,7 +29,7 @@ VS := $(LIB:%=lib/%.v) $(COMMON:%=common/%.v) $(TMU:%=tmu/%.v) \
 
 EXTRACTDIR := extraction/
 EXTRACTION := $(EXTRACTDIR)Extraction.v
-ALLDIRS := $(EXTRACTDIR) $(DIRS) driver
+ALLDIRS := $(EXTRACTDIR) $(DIRS)
 
 COQEXEC=coqtop $(INCLUDES) -batch -load-vernac-source
 
@@ -66,8 +66,7 @@ clean:
 	rm -f $(patsubst %, %/*.hi, $(ALLDIRS))
 	rm -f $(patsubst %, %/*.ho, $(ALLDIRS))
 	rm -f $(patsubst %, %/*.o, $(ALLDIRS))
-	rm -f driver/Driver
-	rm -f $(EXTRACTDIR)*.hs
+	ls $(EXTRACTDIR)*.hs | grep -vE Adaptor\|Main | xargs rm -rf
 	rm -f $(EXTRACTDIR)extraction.timestamp
 	rm -f coq.timestamp
 
