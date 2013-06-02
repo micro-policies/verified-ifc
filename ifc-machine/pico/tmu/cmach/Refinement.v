@@ -13,11 +13,13 @@ Require Import Concrete ConcreteMachineSmallStep CodeGen CodeSpecs.
 Require Import FaultRoutine.
 Require Import Determinism.
 Require Import CExec.
-Require Import Simulation.
+(* Require Import Simulation. *)
 
 Set Implicit Arguments.
 Local Open Scope Z_scope. 
 Coercion Z_of_nat : nat >-> Z.
+
+Axiom classic : forall P, P \/ ~P.
 
 Section Refinement.
 
@@ -887,7 +889,7 @@ Proof.
      (destruct i0 ; intuition)).
 Qed.
   
-Require Import LNIwithEvents.
+(* Require Import LNIwithEvents. *)
 
 (* Let aexec_with_trace := sys_trace step_rules success (fun x => x). *)
 (* Let cexec_with_trace := sys_trace cstep c_success observe_cstate. *)

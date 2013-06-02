@@ -5,7 +5,7 @@ FINAL := Altogether
 
 LIB := 	Utils Monad Lattices LatticeHL LibTactics
 
-COMMON:= LNIwithEvents Simulation BwdSimNI
+COMMON:= 
 
 TMU := 	TMUInstr
 
