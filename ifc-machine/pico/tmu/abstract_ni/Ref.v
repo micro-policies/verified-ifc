@@ -109,7 +109,7 @@ Hypothesis match_events_equiv : forall o e11 e12 e21 e22,
                                   match_events e12 e22 ->
                                   TINI.e_equiv o e21 e22.
 
-Theorem noninterference2 : TINI.tini initial_state2 step2 i_equiv2.
+Theorem bwdsim_preserves_noninterference : TINI.tini initial_state2 step2 i_equiv2.
 Proof.
   intros o i21 t21 s21' i22 t22 s22' Heq2 Hexec21 Hexec22.
   assert (bs' := weaken_backward_simulation (oc o) bs).

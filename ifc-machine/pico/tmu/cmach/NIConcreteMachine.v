@@ -225,8 +225,16 @@ Proof.
   exact H.
 Qed.
 
-Lemma noninterference : TINI.tini concrete_initial_state cstep concrete_i_equiv.
+Lemma concrete_noninterference :
+  TINI.tini concrete_initial_state cstep concrete_i_equiv.
 Proof.
-Admitted.
+  exact (bwdsim_preserves_noninterference _ _ _
+                                          ac_observations_compatible
+                                          abstract_concrete_bwdsim
+                                          abstract_noninterference
+                                          concrete_equiv_abstract_equiv
+                                          ac_match_initial_data_match_initial_states
+                                          ac_match_events_equiv).
+Qed.
 
 End NI.

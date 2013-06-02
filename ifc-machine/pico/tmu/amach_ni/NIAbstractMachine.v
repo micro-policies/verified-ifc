@@ -169,7 +169,8 @@ Next Obligation.
   eapply highlowstep; eauto.
 Qed.
 
-Theorem noninterference : TINI.tini abstract_initial_state step_rules abstract_i_equiv.
+Theorem abstract_noninterference :
+  TINI.tini abstract_initial_state step_rules abstract_i_equiv.
 Proof. apply TINI.noninterference. exact AMUnwindingSemantics. Qed.
 
 (* Theorem lockstep_ni_amach : *)
