@@ -13,7 +13,6 @@ Require Import Concrete ConcreteMachineSmallStep CodeGen CodeSpecs.
 Require Import FaultRoutine.
 Require Import Determinism.
 Require Import CExec.
-(* Require Import Simulation. *)
 
 Set Implicit Arguments.
 Local Open Scope Z_scope. 
@@ -889,21 +888,4 @@ Proof.
      (destruct i0 ; intuition)).
 Qed.
   
-(* Require Import LNIwithEvents. *)
-
-(* Let aexec_with_trace := sys_trace step_rules success (fun x => x). *)
-(* Let cexec_with_trace := sys_trace cstep c_success observe_cstate. *)
-
-(* The fwd simulation is not a lockstep diagram anymore *)
-(* Theorem refinement: forall s1 s2 T,  *)
-(*                       match_states s1 s2 -> *)
-(*                       cexec_with_trace s2 T -> *)
-(*                       aexec_with_trace s1 T.  *)
-(* Proof. *)
-(*   eapply forward_backward_sim; eauto. *)
-(*   exact step_preserved_observ. *)
-(*   exact succ_preserved. *)
-(*   exact cmach_determ. *)
-(* Qed.   *)
-
 End Refinement.
