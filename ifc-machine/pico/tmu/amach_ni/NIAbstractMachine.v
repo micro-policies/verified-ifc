@@ -173,19 +173,4 @@ Theorem abstract_noninterference :
   TINI.tini abstract_initial_state step_rules abstract_i_equiv.
 Proof. apply TINI.noninterference. exact AMUnwindingSemantics. Qed.
 
-(* Theorem lockstep_ni_amach : *)
-(*   lockstep_ni_state_evt step_rules low_pc success low_equiv_full_state. *)
-(* Proof.  *)
-(*   eapply lockstep_ni_state_evt_holds ; eauto. *)
-
-(*   intros; split ; eauto using pc_labels1, pc_labels2.  *)
-(*   exact low_pc_dec.  *)
-(*   exact success_dec. *)
-  
-(*   eapply lowstep; eauto. *)
-(*   eapply highstep; eauto. *)
-(*   eapply highlowstep; eauto. *)
-(*   eapply low_lockstep_end; eauto.   *)
-(* Qed. *)
-
 End ParamMachine.
