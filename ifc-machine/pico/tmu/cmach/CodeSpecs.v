@@ -93,59 +93,68 @@ Qed.
 
 (* Self contained code: [runsToEnd pc1 pc2 cs1 cs2] starts at pc2
 [pc1] and runs until pc [pc2]. *)
-Inductive runsToEnd (Rstep: CS -> option CEvent -> CS -> Prop) : Z -> Z -> CS -> CS -> Prop :=
-| runsToEndDone : forall n cs,
-  fst (pc cs) = n ->
+Inductive runsToEnd (Rstep: CS -> option CEvent -> CS -> Prop) : CS -> CS -> Prop :=
+| runsToEndDone : forall cs,
   priv cs = true ->
-  runsToEnd Rstep n n cs cs
-  (* NC: do we need to worry about [n <= n' <= n'']? *)
-| runsToEndStep: forall n n' n'' cs e cs' cs'',
+  runsToEnd Rstep cs cs
+| runsToEndStep: forall n n'' cs e cs' cs'',
   fst (pc cs) = n ->
+  fst (pc cs'') = n'' ->
   priv cs = true ->
   Rstep cs e cs' ->
-  fst (pc cs') = n' ->
-  (* DD: I just comment out these for now, as the new hyp breaks composition lemma below *)
-  (* n <> n'' ->  *)  n < n'' -> (* BEFORE: n < n' -> *) 
-  runsToEnd Rstep n' n'' cs' cs'' -> 
-  runsToEnd Rstep n  n'' cs  cs''.
+  n < n'' ->
+  runsToEnd Rstep cs' cs'' ->
+  runsToEnd Rstep cs  cs''.
 
 (* APT: With second option above ( n < n'') it is
    easy enough to prove the following two lemmas.
    But at the moment, Nathan and I don't see any
    strong reason to include this restriction...
 *)
-Lemma runsToEnd_bounded: forall step pc0 pc1 s0 s1,
-  runsToEnd step pc0 pc1 s0 s1 -> pc0 <= pc1. 
+Lemma runsToEnd_bounded: forall step s0 s1,
+  runsToEnd step s0 s1 -> fst (pc s0) <= fst (pc s1).
 Proof.
   intros.  inv H; omega.
 Qed.
 
-Lemma runsToEnd_compose : forall step pc0 pc1 s0 s1,
-  runsToEnd step pc0 pc1 s0 s1 ->
-  forall pc2 s2,
-  runsToEnd step pc1 pc2 s1 s2 ->
-  runsToEnd step pc0 pc2 s0 s2.
+Lemma runsToEnd_compose : forall step s0 s1,
+  runsToEnd step s0 s1 ->
+  forall s2,
+  runsToEnd step s1 s2 ->
+  runsToEnd step s0 s2.
 Proof.
   induction 1. 
   intros; simpl; auto.
-  intros. 
+  intros.
   econstructor; eauto.
-  apply runsToEnd_bounded in H5. 
+  eapply runsToEnd_bounded in H5.
   omega.
 Qed.
 
-Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) pc0 pc1 s0 s1 s1',
+Lemma runsToEnd_base_inversion: forall step cs cs',
+  fst (pc cs) = fst (pc cs') ->
+  runsToEnd step cs cs' ->
+  cs = cs'.
+Proof.
+  introv Heq Hruns.
+  inversion Hruns.
+  - auto.
+  - exfalso; omega.
+Qed.
+
+Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) s0 s1 s1',
   forall (STEP_DET: forall s e s' e' s'', step s e s' -> step s e' s'' -> s' = s'' /\ e = e') ,
-  runsToEnd step pc0 pc1 s0 s1 ->
-  runsToEnd step pc0 pc1 s0 s1' ->
+  runsToEnd step s0 s1 ->
+  runsToEnd step s0 s1' ->
+  fst (pc s1) = fst (pc s1') ->
   s1 = s1'.
 Proof.
   intros until 1. 
-  induction 1; intros.
-    inv H1. 
+  induction 1; intros H' ?.
+    inv H'.
       auto.
       exfalso; omega. 
-    inv H5.
+    inv H'.
       exfalso; omega. 
       assert (cs' = cs'0) by (eapply STEP_DET; eauto). 
       assert (e = e0) by (eapply STEP_DET; eauto). subst.
@@ -162,7 +171,7 @@ Definition HT (c: code) (P Q: HProp)
   n' = n + Z_of_nat (length c) -> 
   exists stk1 cache1,
   Q cache1 stk1 /\
-  runsToEnd cstep n n' 
+  runsToEnd cstep
              (CState cache0 mem fh imem stk0 (n, handlerTag) true)
              (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
@@ -204,19 +213,19 @@ Qed.
 Hint Constructors kernel_run.
 
 Lemma runsToEnd_kernel_run :
-  forall n1 n2 s1 s2
-         (RUNS : runsToEnd cstep n1 n2 s1 s2),
+  forall s1 s2
+         (RUNS : runsToEnd cstep s1 s2),
     kernel_run s1 s2.
 Proof.
   induction 1; eauto.
   assert (e = None). {
-    abstract (inv H1; simpl in *; try congruence).
+    abstract (inv H2; simpl in *; try congruence).
   }
   subst. eauto.
 Qed.  
 
-Lemma runsToEnd_star: forall n1 n2 s1 s2,
-  runsToEnd cstep n1 n2 s1 s2 ->
+Lemma runsToEnd_star: forall s1 s2,
+  runsToEnd cstep s1 s2 ->
   star cstep s1 nil s2.
 Proof.
   intros. 
@@ -467,7 +476,7 @@ Proof.
   edestruct (H imem mem) as [sk [cache [HQ R]]]. eapply H1.  eapply H2. eapply H3. 
   edestruct (H0 imem mem) as [sk' [cache' [HQ' R']]]; eauto.
   exists sk. exists cache.
-  pose proof (@runsToEnd_determ cstep _ _ _ _ _ cmach_priv_determ_state R R').
+  pose proof (@runsToEnd_determ cstep _ _ _ cmach_priv_determ_state R R' eq_refl).
   inv H4. 
   intuition.
 Qed.
@@ -500,7 +509,7 @@ Proof.
   nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_add_p ; eauto.
-  omega.
+  simpl; omega.
   
   (* Finish running *)
   eapply runsToEndDone; auto.
@@ -527,7 +536,7 @@ Proof.
   nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_add_p; eauto.
-  omega. 
+  simpl; omega.
   
   (* Run an instruction *)
   nil_help.
@@ -558,7 +567,7 @@ Proof.
   (* Run an instruction *)
   nil_help. eapply runsToEndStep; auto.
   eapply cstep_sub_p; eauto.
-  omega.
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -580,7 +589,7 @@ Proof.
   (* Run an instruction *)
   nil_help. eapply runsToEndStep; auto.
   eapply cstep_push_p ; eauto.
-  omega. 
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -605,7 +614,7 @@ Proof.
   nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_push_p ; eauto.
-  omega. 
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -634,7 +643,7 @@ Proof.
   nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_push_p; eauto.
-  omega. 
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -659,7 +668,7 @@ Proof.
   (* Run an instruction *)
   nil_help. eapply runsToEndStep; auto.
   eapply cstep_load_p; eauto.
-  omega.
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
@@ -696,7 +705,7 @@ Proof.
   nil_help.
   eapply runsToEndStep; auto.
   eapply cstep_branchnz_p; eauto.
-  omega.
+  simpl; omega.
   simpl.
   destruct (v =? 0); constructor; auto.
 Qed.
@@ -875,7 +884,7 @@ Proof.
   nil_help. 
   eapply runsToEndStep; eauto. 
   eapply cstep_branchnz_p ; eauto. 
-  zify ; omega.
+  zify ; simpl; omega.
 
   simpl. assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
   rewrite Hif.
@@ -905,7 +914,7 @@ Proof.
   nil_help. 
   eapply runsToEndStep; auto.
   eapply cstep_branchnz_p ; eauto. 
-  omega.
+  simpl; omega.
   simpl.
   constructor; auto.
 Qed.
