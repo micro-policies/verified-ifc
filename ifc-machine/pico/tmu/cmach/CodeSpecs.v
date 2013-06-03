@@ -131,17 +131,6 @@ Proof.
   omega.
 Qed.
 
-Lemma runsToEnd_base_inversion: forall step cs cs',
-  fst (pc cs) = fst (pc cs') ->
-  runsToEnd step cs cs' ->
-  cs = cs'.
-Proof.
-  introv Heq Hruns.
-  inversion Hruns.
-  - auto.
-  - exfalso; omega.
-Qed.
-
 Lemma runsToEnd_determ : forall (step : CS -> option CEvent -> CS -> Prop) s0 s1 s1',
   forall (STEP_DET: forall s e s' e' s'', step s e s' -> step s e' s'' -> s' = s'' /\ e = e') ,
   runsToEnd step s0 s1 ->
