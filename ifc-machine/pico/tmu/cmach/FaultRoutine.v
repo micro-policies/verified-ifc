@@ -1058,6 +1058,7 @@ Definition handler_final_mem_matches (rv: (option T * T)) (m: @memory T) (m': me
   /\ update_cache_spec_rvec m m'.
 *)
 
+(*
 Conjecture handler_correct : 
   forall (fetch_rule_impl : (forall (opcode:OpCode), {n:nat & AllowModify n})),
   forall  opcode vls pcl m retaddr c imem fhdl s,
@@ -1074,7 +1075,7 @@ Conjecture handler_correct :
                      /\ priv = false
         | None => c' = c /\ pc = (-1,handlerTag) /\ priv = true
     end.
-
+*)
 (* TODO for Nathan: relate [runsToEscape] to [runsToEnd].*)
 
 Section HandlerCorrect.

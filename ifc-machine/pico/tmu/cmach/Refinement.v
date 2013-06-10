@@ -586,9 +586,47 @@ Proof.
   - Case "Noop".    
     destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
+
+
+  match goal with 
+    | [Hrule: apply_rule _ _ _ = Some (?rl,_) |- _ ] =>
+      destruct rl; 
+        try (solve [inv Hrule])
+  end; 
+  match goal with 
+    | [Hrule: apply_rule _ _ _ = Some (None,_), 
+       Hcache : cache_up2date_weak _ , 
+       CHIT : cache_hit _ _ _ _ |- _ ] =>
+      let ASSERT := fresh "Assert" in 
+      let LL := fresh "ll" in 
+      let HLL := fresh "Hll" in 
+      assert (ASSERT := Hcache _ _ _ _ _ Hrule CHIT); eauto; 
+      simpl in ASSERT; 
+      destruct ASSERT as [LL HLL]
+      end.
+
+res_label.
+  match goal with 
+    | [Hrule: apply_rule _ _ _ = Some (?rl,_) |- _ ] =>
+      destruct rl; 
+        try (solve [inv Hrule])
+  end;
+
+  try match goal with 
+    | [Hrule: apply_rule _ _ _ = Some (None,_), 
+       Hcache : cache_up2date _ , 
+       CHIT : cache_hit _ _ _ _ |- _ ] =>
+      let ASSERT := fresh "Assert" in 
+      let LL := fresh "ll" in 
+      let HLL := fresh "Hll" in 
+      assert (ASSERT := Hcache _ _ _ _ _ Hrule CHIT); eauto; 
+      simpl in ASSERT; 
+      destruct ASSERT as [LL HLL]
+      end.
+
       res_label. subst pct. 
       split; inv H0; eauto.
-      hint_event. eapply plus_step; eauto. eapply cstep_nop ; eauto. 
+      hint_event. eapply plus_step; eauto. eapply cstep_nop. ; eauto. 
      
     + build_cache_and_tmu. res_label.
       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
