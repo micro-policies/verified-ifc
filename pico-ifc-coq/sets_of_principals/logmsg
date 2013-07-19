@@ -1,0 +1,7 @@
+- Change concrete machine to use Z tags instead of labels throughout.
+- Change Push instruction to take a bare Z rather than an atom; many consequent
+simplifications since instructions no longer depend on lattice.
+- Add BOT as a symbolic label expression, with associated genBot code
+and proof of correctness.  (This is needed so that rule for Push can 
+return bottom.)
+- Rename glue functions and move them to FaultHandler.v

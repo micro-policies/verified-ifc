@@ -1,0 +1,20 @@
+This directory contains the Coq developments corresponding to the machines
+described in the paper "A Verified Information-Flow Architecture."
+
+There are three subdirectories:
+
+/basic_machines         corresponds to the basic model discussed in sections 3-10 of the paper. 
+/dyn_allocation         corresponds to the extension to dynamic allocation discussed in section 11
+/sets_of_principals	corresponds to the extension to sets of principals discussed in section 11
+
+Nearly everything developed in /basic_machines reappears in the other two directories,
+but sometimes in modified form.
+
+We recommend that you start by exploring /basic_machines. Consult the README
+and the Main.v file to get a top-level view of the results.
+
+The other two directories contain longer READMEs that are intended to help
+guide you to the important differences in these developments.
+
+The code in the three directories is known to work with Coq 8.4.
+

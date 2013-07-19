@@ -1,0 +1,75 @@
+This directory contains the Coq development corresponding to the set
+of machines described in the paper "A Verified Information-Flow
+Architecture" that have a block-based memory model, used to enable
+dynamic allocation.
+
+-- Contents
+
+-- List of important files: 
+
+   Instr.v           
+       instruction for allocation
+
+   Memory.v
+       module type for the block-based memory model
+       and proof technique based on memory injections
+                     
+   AbstractMachine.v
+   QuasiAbstractMachine.v
+   ConcreteMachine.v               
+        - for the semantics of allocation at various levels
+        (see below for an explanations of the differences)
+
+        - each machine file defines its own memory model.
+
+
+-- Compile
+        make all
+   This will compile the coq definitions and proofs.
+   This code is known to work with Coq 8.4.
+
+-- Glossary
+
+   There are a few differences in terminology between this development and the paper:
+
+   Development			Paper
+
+   TMU ("Tag Management Unit")	Concrete machine hardware rule cache and its lookup mechanism
+   Quasi-Abstract Machine	Symbolic rule machine
+   tini_quasi_abstract_machine	Symbolic rule machine instantiated with rule table R^{abs}
+   tini_concrete_machine	Concrete machine instantiated with fault handler generated from R^{abs}
+   etc.
+        
+-- Summary 
+
+This development is mostly similar to the one in the basic_machines
+directory, with a few differences. The most important one is its
+memory model, described in Memory.v. Instead of using plain lists for
+the memory, the machines use a richer memory type, which is
+essentially a map from block names to frames (lists of atoms). A new
+frame can be allocated at any point, returning a fresh block name
+that references it. Among some new instructions, there is now Alloc,
+which allows the machines to allocate new frames both in user and
+kernel mode. Block names can't be forged, ensuring that a pointer can
+only be use to reference the frame it was meant for.
+
+In the concrete machine, the cache becomes a dedicated frame in
+memory. Each block name is marked as either "kernel" or "user". These
+marks are checked on each memory access, providing some additional
+memory safety guarantees. In the abstract machine, we stamp blocks
+with labels that represent the security level of their context of
+allocation. This makes the definition of the indistinguishability
+relation on states easier to define. In file Memory.v, we define a
+notion of memory injections that is used when proving state
+refinements for our machines.
+
+A few minor differences include the formulation of the semantics
+record for general machines, which considers more general step
+relations that don't necessarily produce a distinguished silent
+action. This generality is not necessary to the development, but is
+present here because some files are slightly outdated compared to the
+ones in basic_machines. We have also omitted the file TINI_inf.v in
+basic_machines, that relates our basic notion of TINI to an infinite
+one, since that is not fundamentally different in this setting.
+
+

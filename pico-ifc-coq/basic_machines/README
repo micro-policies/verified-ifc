@@ -1,0 +1,51 @@
+This directory contains the Coq development corresponding to
+the basic set of machines described in the main part of 
+the paper "A Verified Information-Flow Architecture."
+
+
+-- Contents
+   
+   Main.v		top-level summary of main results
+
+   Instr.v		instruction set shared by all machines
+   Semantics.v		generic definition of a machine semantics
+   Lattices.v		generic definition of semi-lattices; two-point lattice
+   AbstractCommon.v	basic definitions shared by Abstract and Quasi-Abstract machine
+   AbstractMachine.v	semantics of Abstract Machine
+   Rules.v		definition and evaluation of rules DSL
+   QuasiAbstractMachine.v  semantics of Quasi-Abstract Machine (= Symbolic Rule Machine)
+   TINI.v		definition of non-interference (and execution, observer)
+   TINI_inf.v		relating finite and infinite notions of TINI
+   Refinement.v		definition of refinement between two semantics
+   NIAbstractMachine.v	Abstract machine enjoys TINI
+   CLattices.v		generic definition of concrete lattices; two-point concrete lattice
+   Concrete.v		basic definitions for Concrete machine
+   ConcreteMachine.v	semantics of Concrete machine
+   ConcreteExecutions.v	predicates about concrete machine execution
+   Determinism.v	determinism of Concrete machine
+   CodeGen.v		definitions of generic code generators
+   CodeTriples.v        definition and lemmas of triples
+   CodeSpecs.v		definition of triples and lemmas on generic code generators
+   FaultRoutine.v	definition and correctness proof for fault handler generator 
+   RefinementAC.v	Concrete machine refines Abstract machine
+   NIConcreteMachine.v  Concrete machine enjoys TINI
+   RefinementCA.v	Abstract Machine refines Concrete machine      
+   Utils.v		utility lemmas and tactics
+   LibTactics.v		more tactics (from Arthur Chargeraud)
+
+-- Compile
+        make all
+   This will compile the coq definitions and proofs.
+   This code is known to work with Coq 8.4.
+ 
+-- Glossary 
+
+   There are a few differences in terminology between this development and the paper:
+
+   Development			Paper
+
+   TMU ("Tag Management Unit")	Concrete machine hardware rule cache and its lookup mechanism
+   Quasi-Abstract Machine	Symbolic rule machine
+   tini_quasi_abstract_machine	Symbolic rule machine instantiated with rule table R^{abs}
+   tini_concrete_machine	Concrete machine instantiated with fault handler generated from R^{abs}
+   etc. 
