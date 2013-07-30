@@ -27,6 +27,7 @@ Notation HT := (HT SysTable).
 Notation HTEscape := (HTEscape SysTable).
 
 Ltac apply_wp :=
+  try unfold pop, nop, push, dup, swap;
   match goal with
   | |- HT [Store] _ _ => eapply store_spec_wp'
   | |- HT [Add] _ _  => eapply add_spec_wp'
@@ -35,7 +36,6 @@ Ltac apply_wp :=
   | |- HT [Load] _ _ => eapply load_spec_wp'
   | |- HT [Push ?N] _ _ => eapply push_spec_wp
   | |- HT [Pop] _ _ => eapply pop_spec_wp
-  | |- HT pop _ _ => eapply pop_spec_wp
   end;
   simpl.
 
@@ -43,8 +43,21 @@ Ltac build_vc wptac :=
   let awp := (try apply_wp; try wptac) in 
   try (eapply HT_compose_flip; [(build_vc wptac; awp)| (awp; eapply HT_strengthen_premise; awp)]).
 
+(* This version doesn't progress past introductions, which makes it useful when
+   we need to do some manual work after an introduction but before doing an eexists *)
+Ltac split_vc' := 
+  (try subst; simpl; 
+   match goal with 
+   | H: exists X,_ |- _ => (destruct H; split_vc')
+   | H: ?P /\ ?Q |- _ => (destruct H; split_vc')
+   | |- exists X, _ => (eexists; split_vc')
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc'])
+   | _ => (eauto; try (zify; omega))
+   end).
+
+(* This version is more aggressive. *)
 Ltac split_vc := 
-  (simpl; 
+  (try subst; simpl; 
    match goal with 
    | H: exists X,_ |- _ => (destruct H; split_vc)
    | H: ?P /\ ?Q |- _ => (destruct H; split_vc)
@@ -54,9 +67,25 @@ Ltac split_vc :=
    | _ => (eauto; try (zify; omega))
    end).
 
+Section with_hints.  (* Limit hints to this section. *)
+
+(* These are intended to work with split_vc. *)
 Hint Resolve extends_refl. 
 Hint Resolve extends_trans.
 Hint Resolve extends_valid_address.
+
+(* TODO: Move to CodeSpecs.v *)
+Lemma extends_update : forall m m1 m2 a x v, 
+  extends m m1 ->
+  upd_m a (x,v) m1 = Some m2 ->
+  ~ valid_address a m ->
+  extends m m2.                        
+Proof.
+  unfold extends.  intros. pose proof (H _ _ H2). erewrite <- update_list_Z_spec2; eauto.
+    intro. subst. eapply H1. eapply index_list_Z_valid; eauto.
+Qed.
+
+Hint Resolve extends_update. 
 
 (* Memory copy.  *)
 
@@ -78,7 +107,8 @@ Definition Icopy (sz:Z) (dst:Z) (src:Z) m0 s0 :=
     (forall z, cnt < z <= sz -> read_m (src+z) m = read_m (dst+z) m) /\
     (forall z, ~ (dst+cnt < z <= dst+sz) -> read_m z m = read_m z m0).
 
-
+(* These are no longer strictly necessary, but they might be easier to understand
+than the combined proof...
 Lemma copy_spec : forall sz dst src s0 m0,
   0 <= sz -> 
   HT copy 
@@ -91,45 +121,37 @@ Proof.
    (Q := (fun m s => exists s', s = CData(0,handlerTag)::s' /\ Icopy sz dst src m0 s0 m s)).
   eapply genRepeat_spec; eauto. 
   intros. 
-  repeat eapply HT_compose_flip; try apply_wp; eapply HT_strengthen_premise; try apply_wp.    
-  intros m s [s' [S0 HI]]. 
-  inversion HI as [cnt [S1 [BND [V1 [V2 [DISJ [CPD FR]]]]]]].
-  rewrite S1 in S0. inv S0. 
-  destruct (valid_read (src+i) m) as [(v,vl) E].
-    eapply V1. omega. 
-  destruct (valid_store (dst+i) (v,vl) m) as [m' W].
-    eapply V2. omega. 
+
+  unfold Icopy.
+  build_vc ltac:idtac.
   split_vc. 
-  split.  replace (i+src) with (src+i) by omega. eauto.
+  rewrite H1 in H2. inv H2. 
+  destruct (valid_read (x0 + src) m) as [(v,vl) E].
+    intuition. 
+  destruct (valid_store (x0 + dst) (v,vl) m) as [m' W].
+    intuition.
   split_vc. 
-  split. replace (i+dst) with (dst+i) by omega. eauto. 
+  split. intros. eapply valid_address_upd; eauto; intuition.  
+  split. intros. eapply valid_address_upd; eauto; intuition.
   split_vc. 
-  unfold Icopy. split_vc. 
-  split. intros. eapply valid_address_upd. eapply V1. omega. 
-  eauto. 
-  split.  intros. eapply valid_address_upd. eapply V2. omega. 
-  eauto. 
-  split. intros. eapply DISJ. omega. omega.
-  split.  intros. destruct (Z.eq_dec i z). 
+  split. intros. destruct (Z.eq_dec x0 z). 
     subst.  
-      assert (read_m (dst+z) m' = Some (v,vl)). 
+      assert (read_m (z + dst) m' = Some (v,vl)). 
           erewrite update_list_Z_spec; eauto. 
-      assert (read_m (src+z) m' = Some (v,vl)).
+      assert (read_m (z+src) m' = Some (v,vl)).
           erewrite <- update_list_Z_spec2.
-          instantiate (1:= m). rewrite E. auto. eapply W.  specialize (DISJ (src+z) (dst+z)).  omega. 
-      congruence.
-    assert (i < z <= sz).  omega. clear n H1. 
+          eapply E. eapply W. eapply H6; omega. 
+      replace (src + z) with (z+src) by omega. replace (dst + z) with (z+dst) by omega. congruence.
+    assert (x0 < z <= sz).  omega. clear n H1. 
       assert (read_m (src+z) m' = read_m (src+z) m). 
          erewrite <- update_list_Z_spec2. eauto.
-         eauto. specialize (DISJ (src+z) (dst+i)). omega. 
+         eauto. specialize (H6 (src+z) (dst+x0)). omega. 
       assert (read_m (dst + z) m' = read_m (dst+z) m). 
          erewrite <- update_list_Z_spec2. eauto.
          eauto. omega.
-      rewrite H1. rewrite H3.  eapply CPD. omega. 
+      rewrite H1. rewrite H9.  eauto. 
   intros. 
-      erewrite <- update_list_Z_spec2. 
-      eapply FR. intro.  apply H1.  omega. 
-      eauto.  intro. apply H1. split. omega.  omega.
+     erewrite <- update_list_Z_spec2. eapply H8;  intuition. eauto; intuition. intuition. 
       
   intros. inv H0. destruct s. inv H1. inv H0. inv H1. 
   simpl in H2. exists s. intuition congruence.
@@ -179,8 +201,6 @@ Proof.
   auto.
 Qed.
 
-
-
 Lemma copy_spec_wp : forall (Q : memory -> stack -> Prop),
   HT copy
   (fun m s => exists sz dst src s0,
@@ -195,7 +215,7 @@ Lemma copy_spec_wp : forall (Q : memory -> stack -> Prop),
                    Q m1 ((0,handlerTag):::(dst,handlerTag):::(src,handlerTag):::s0)))
   Q.
 Proof.                
-  intros.
+  intros. 
   eapply HT_strengthen_premise with 
   (fun m s => exists sz dst src s0 m0,
                 0 <= sz /\
@@ -220,8 +240,89 @@ Proof.
   split_vc. 
   subst s. eapply H5; eauto.  
 Qed.
+*)
 
+Lemma copy_spec_wp : forall (Q : memory -> stack -> Prop),
+  HT copy
+  (fun m s => exists sz dst src s0,
+                0 <= sz /\
+                s = (sz,handlerTag):::(dst,handlerTag):::(src,handlerTag):::s0 /\
+                (forall z, src < z <= src+sz -> valid_address z m) /\
+                (forall z, dst < z <= dst+sz -> valid_address z m) /\
+                (forall z1 z2, src < z1 <= src+sz -> dst < z2 <= dst+sz -> z1 <> z2) (* disjoint *) /\
+                (forall m1, 
+                   (forall z, 0 < z <= sz -> read_m (src+z) m1 = read_m (dst+z) m1) ->
+                   (forall z, ~ (dst < z <= dst+sz) -> read_m z m1 = read_m z m) ->
+                   Q m1 ((0,handlerTag):::(dst,handlerTag):::(src,handlerTag):::s0)))
+  Q.
+Proof.                
+  intros. unfold copy. 
+  eapply HT_strengthen_premise with 
+  (fun m s => exists sz dst src s0 m0,
+                0 <= sz /\
+                m = m0 /\
+                s = (sz,handlerTag):::(dst,handlerTag):::(src,handlerTag):::s0 /\
+                (forall z, src < z <= src+sz -> valid_address z m) /\
+                (forall z, dst < z <= dst+sz -> valid_address z m) /\
+                (forall z1 z2, src < z1 <= src+sz -> dst < z2 <= dst+sz -> z1 <> z2) (* disjoint *) /\
+                (forall m1, 
+                   (forall z, 0 < z <= sz -> read_m (src+z) m1 = read_m (dst+z) m1) ->
+                   (forall z, ~ (dst < z <= dst+sz) -> read_m z m1 = read_m z m) ->
+                   Q m1 ((0,handlerTag):::(dst,handlerTag):::(src,handlerTag):::s0))).
+  2: split_vc. 
+  eapply HT_forall_exists. intro sz. 
+  eapply HT_forall_exists. intro dst. 
+  eapply HT_forall_exists. intro src. 
+  eapply HT_forall_exists. intro s0.
+  eapply HT_forall_exists. intro m0.
+  eapply HT_fold_constant_premise; intro.
+  rename Q into Q0. 
+  eapply HT_consequence' with
+    (P := (fun m s => exists s', s = CData(sz,handlerTag)::s' /\ Icopy sz dst src m0 s0 m s))  
+    (Q := (fun m s => exists s', s = CData(0,handlerTag)::s' /\ Icopy sz dst src m0 s0 m s)). 
+  eapply genRepeat_spec; eauto. 
+  intros. 
 
+  unfold Icopy.
+  build_vc ltac:idtac.
+  split_vc. 
+  inv H1. 
+  destruct (valid_read (x0 + src) m) as [(v,vl) E].
+    intuition. 
+  destruct (valid_store (x0 + dst) (v,vl) m) as [m' W].
+    intuition.
+  split_vc. 
+  split. intros. eapply valid_address_upd; eauto; intuition.  
+  split. intros. eapply valid_address_upd; eauto; intuition.
+  split_vc. 
+  split. intros. destruct (Z.eq_dec x0 z). 
+    subst.  
+      assert (read_m (z + dst) m' = Some (v,vl)). 
+          erewrite update_list_Z_spec; eauto. 
+      assert (read_m (z+src) m' = Some (v,vl)).
+          erewrite <- update_list_Z_spec2.
+          eapply E. eapply W. eapply H5; omega. 
+      replace (src + z) with (z+src) by omega. replace (dst + z) with (z+dst) by omega. congruence.
+    assert (x0 < z <= sz).  omega. clear n H1. 
+      assert (read_m (src+z) m' = read_m (src+z) m). 
+         erewrite <- update_list_Z_spec2. eauto.
+         eauto. specialize (H5 (src+z) (dst+x0)). omega. 
+      assert (read_m (dst + z) m' = read_m (dst+z) m). 
+         erewrite <- update_list_Z_spec2. eauto.
+         eauto. omega.
+      rewrite H1. rewrite H9.  eauto. 
+  intros. 
+     erewrite <- update_list_Z_spec2. eapply H7;  intuition. eauto; intuition. intuition. 
+      
+  intros m s [E [S H1]]. subst.  eexists. split. eauto. unfold Icopy. 
+  eexists; split; eauto. intuition. 
+
+  intros. inversion H1 as [s' [R1 R2]]. clear H1. 
+  destruct H0 as [m' [s'' [R3 [R4 [R5 [R6 [R7 R8]]]]]]].
+  unfold Icopy in R2.  destruct R2 as [cnt [R9 [R10 [R11 [R12 [R13 [R14 R15]]]]]]].
+  subst. inv R9. 
+  eapply R8. eauto. intros. eapply R15. omega. 
+Qed.
 
 (* A (counted) array is a sequence of values in memory, proceeded by their count: 
 
@@ -254,6 +355,8 @@ Proof.
     subst. eapply index_list_Z_valid; eauto.
   eapply IHmemseq. zify; omega. 
 Qed.
+
+Hint Resolve memseq_valid.
 
 Lemma memseq_read : forall m a vs,
   memseq m a vs -> 
@@ -359,30 +462,15 @@ Lemma alloc_array_spec_wp: forall (Q : memory -> stack -> Prop),
                                    Q m1 ((a,handlerTag):::s0)))
      Q.                                  
 Proof.
-Ltac split_vc' := 
-  (try subst; simpl; 
-   match goal with 
-   | H: exists X,_ |- _ => (destruct H; split_vc')
-   | H: ?P /\ ?Q |- _ => (destruct H; split_vc')
-(*    | |- forall P, _ => (intro; try subst; split_vc) *)
-   | |- exists X, _ => (eexists; split_vc')
-   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc'])
-   | _ => (eauto; try (zify; omega))
-   end).
   intros. 
   Opaque Z.add. (* not sure why this is necessary this time *)
-  unfold alloc_array. unfold dup,push.
+  unfold alloc_array.
   build_vc ltac: (try apply alloc_spec_wp). 
-  split_vc'.  intros. split_vc'.  
-  intros. 
-  edestruct (valid_store a (x,handlerTag) m0) as [m1 U]. apply H3; omega. 
-  split_vc'. 
-  eapply H0.
-  unfold extends in *. intros. pose proof (H1 _ _ H4). erewrite <- update_list_Z_spec2; eauto. 
-    intro; subst.  eapply H2.  instantiate (1:= a).  omega. eapply index_list_Z_valid; eauto.
-  eauto with zarith. 
-  eauto  using valid_address_upd with zarith. 
-  eapply update_list_Z_spec. eauto.
+  split_vc'; intros.
+  split_vc'; intros. 
+  edestruct (valid_store a (x,handlerTag) m0) as [m1 U]. intuition. 
+  split_vc. 
+  eapply H0; eauto using valid_address_upd, update_list_Z_spec with zarith. 
 Qed.
 
 
@@ -407,7 +495,6 @@ Lemma sum_array_lengths_spec_wp : forall Q,
 Proof.
   intros. unfold sum_array_lengths. 
   build_vc ltac:idtac.
-  split_vc. subst s. 
   split_vc. 
 Qed.
 
@@ -447,7 +534,6 @@ Definition concat_arrays :=      (* a2 a1 *)
 .
 
 
-
 Lemma concat_arrays_spec_wp : forall (Q :memory -> stack -> Prop),
   HT
    concat_arrays
@@ -472,13 +558,13 @@ Proof.
   build_vc ltac:(try apply copy_spec_wp; try apply alloc_array_spec_wp; try apply sum_array_lengths_spec_wp).
 
   split_vc. 
-  inv H1; split_vc. 
+  inv H; split_vc. 
   inv H0; split_vc. 
   split.  instantiate (1:= Z.of_nat (length x1)); omega. 
   split_vc. 
-  split. intros. eapply extends_valid_address; eauto. eapply (memseq_valid _ _ _ H1); eauto. omega.
-  split. intros. eapply H6. zify; omega. 
-  split. intros. intro; subst. pose proof (memseq_valid _ _ _ H1). eapply H5. instantiate (1:= z2). omega. 
+  split. intros. eapply extends_valid_address; eauto with zarith. 
+  split. intros. eauto with zarith. 
+  split. intros. intro; subst.  pose proof (memseq_valid _ _ _ H3). eapply H5. instantiate (1:= z2). omega. 
     eapply H10. omega. 
   split_vc. 
   split. erewrite H9. eapply H0. eauto. intro. eapply H5. instantiate (1:= x0). omega. 
@@ -496,7 +582,7 @@ Proof.
     destruct (valid_read _ _ H11) as [v ?]. erewrite <- H9 in H12. eapply index_list_Z_valid; eauto. omega. 
   split. intros. intro; subst. eapply H5.  instantiate (1:= z2).  omega. apply (memseq_valid _ _ _ H4); eauto. omega. 
   split_vc. 
-  eapply H2. 
+  eapply H1. 
   unfold extends. intros. 
   assert (valid_address p m).  eapply index_list_Z_valid; eauto. 
   apply H0 in H12.  erewrite <- H9 in H12. erewrite <- H11 in H12. auto.
@@ -514,7 +600,7 @@ Proof.
     intro. eapply H5.  instantiate (1:= x0+z).  omega. eapply index_list_Z_valid; eauto. 
     auto.
     intro. omega. 
-    destruct (memseq_read _ _ _ H1 (x0+z)) as [v ?].  omega. 
+    destruct (memseq_read _ _ _ H3 (x0+z)) as [v ?].  omega. 
     rewrite H13 in E; inv E. 
   assert (forall z:Z, 0 < z <= Z.of_nat(length x2) ->
                       read_m (a + Z.of_nat(length x1) + z) m2 = read_m (x + z) m).
@@ -594,7 +680,7 @@ Proof.
   unfold fold_array_body.
   build_vc ltac:(try apply H). 
   split_vc. 
-  destruct H2 as [i' [ v' [? [? [? [? ?]]]]]]. subst.  inv H5.  inv H3.
+  destruct H1 as [i' [ v' [? [? [? [? ?]]]]]]. subst.  inv H4.  inv H2. 
   destruct (memseq_read _ _ _ H4 (i'+a)) as [v ?].  zify; omega. 
   split_vc. 
   econstructor. 
@@ -625,7 +711,7 @@ Proof.
   rewrite Z2Nat.id in H9; auto.
   assert (EE : a + 1 + Z.pred i' = i' + a) by omega.
   rewrite EE in H9.
-  rewrite H9 in H3. inv H3.
+  rewrite H9 in H2. inv H2.
   assumption.
 Qed.
 
@@ -685,11 +771,9 @@ Proof.
  eapply HT_strengthen_premise. 
  eapply H. 
  split_vc.
- subst.  split; eauto.
- exists (Z.of_nat (length vs)). 
- eexists. 
- split.  zify; try omega. 
- split_vc. 
+ split; eauto.
+ instantiate (1:= (Z.of_nat (length vs))).  omega. 
+ split.  eauto. 
  unfold Ifab.
  split_vc. 
  split. instantiate (1:= Z.of_nat(length vs)). omega.
@@ -727,7 +811,7 @@ Proof.
   eapply HT_fold_constant_premise.  intros.
   eapply HT_consequence'. eapply fold_array_spec; eauto. 
   split_vc.  
-  split_vc.  subst. auto.
+  split_vc.  
 Qed.  
 
 
@@ -778,15 +862,14 @@ Proof.
            (n:= fun _ _ => boolToZ false)
            (f:= fun m0 s0 x v => orz (boolToZ (f m0 s0 x)) v); eauto. 
   intro. eapply HT_strengthen_premise. eapply genFalse_spec_wp. 
-  split_vc. subst; eauto.
+  split_vc. 
   intro.
   eapply HT_compose_flip.
   eapply genOr_spec_general_wp. 
   eapply HT_strengthen_premise.
   eapply H. 
-  split_vc.  subst.
-  split_vc. subst.  split_vc. 
-  rewrite boolToZ_existsb in H3.  auto.
+  split_vc.  
+  split_vc. rewrite boolToZ_existsb in H2.  auto.
 Qed.  
 
 
@@ -837,15 +920,14 @@ Proof.
            (n:= fun _ _ => boolToZ true)
            (f:= fun m0 s0 x v => andz (boolToZ (f m0 s0 x)) v); eauto. 
   intro. eapply HT_strengthen_premise. eapply genTrue_spec_wp. 
-  split_vc. subst; eauto.
+  split_vc. 
   intro.
   eapply HT_compose_flip.
   eapply genAnd_spec_general_wp. 
   eapply HT_strengthen_premise.
   eapply H. 
   split_vc. 
-  split_vc. subst.  split_vc. 
-  rewrite boolToZ_forallb in H3.  auto.
+  split_vc. rewrite boolToZ_forallb in H2.  auto.
 Qed.  
 
 (* In_array *)
@@ -884,8 +966,8 @@ Proof.
   eapply genEq_spec_wp. 
   eapply HT_strengthen_premise.
   eapply dup_spec_wp.
-  split_vc. subst. split_vc.  
-  split_vc. subst; split_vc.
+  split_vc. 
+  split_vc. 
 Qed.
 
 Lemma in_array_spec_wp : forall (Q: memory -> stack -> Prop), 
@@ -947,8 +1029,8 @@ Proof.
   eapply in_array_spec_wp. 
   eapply HT_strengthen_premise.
   eapply dup_spec_wp.
-  split_vc.  subst. split_vc. clear H0. 
-  split_vc. subst. split_vc. 
+  split_vc. clear H0. 
+  split_vc. 
 Qed.
 
 Lemma subset_arrays_spec_wp : forall (Q: memory -> stack -> Prop), 
@@ -1025,28 +1107,28 @@ Proof.
   build_vc ltac:(try apply copy_spec_wp; try apply alloc_array_spec_wp). 
 
   split_vc. 
-  inv H0. 
+  inv H. 
   Opaque Z.add. (* not sure why this is necessary this time *)
   split_vc. 
   split.  instantiate (1:= Z.of_nat (length x0)); omega. 
   split_vc. 
   split. intros. eapply extends_valid_address; eauto. eapply memseq_valid; eauto. omega. 
   split. intros. eapply H4. omega. 
-  split. intros.  intro. subst. eapply H0. instantiate (1:= z2).  omega.  eapply memseq_valid; eauto. omega. 
+  split. intros.  intro. subst. eapply H3. instantiate (1:= z2).  omega.  eauto with zarith. 
   split_vc. 
-  split. rewrite H7.  erewrite <- H. eauto. eauto.  intro.  eapply H0. instantiate (1:= x).  omega.  
-     eapply index_list_Z_valid; eauto. 
-  (* this is a rather random spot to get the following asserted *)
+  (* rather luckily, we stop here, which is the earliest point where we can assert the following *)
   destruct (valid_store (1+Z.of_nat (length x0) + a) (x1,handlerTag) m0) as [m' W].
     edestruct (valid_read (1+ Z.of_nat (length x0) + a)).  eapply H4.  omega.  
     eapply index_list_Z_valid; eauto.  rewrite H7; try omega.  eauto.
+  split. rewrite H7.  erewrite <- H. eauto. eauto.  intro.  eapply H3. instantiate (1:= x).  omega.  
+     eapply index_list_Z_valid; eauto. 
   split_vc. 
-  eapply H1. 
+  eapply H0. 
   unfold extends. intros.
   erewrite <- update_list_Z_spec2.  2: eauto. erewrite H7. eapply H. eauto. 
-    intro. eapply H0.  instantiate (1:= p). omega.  eapply index_list_Z_valid; eauto. 
-    intro. subst. eapply H0. instantiate (1:= (1 + Z.of_nat (length x0) + a)). omega. eapply index_list_Z_valid; eauto.
-  eapply H0; omega. 
+    intro. eapply H3.  instantiate (1:= p). omega.  eapply index_list_Z_valid; eauto. 
+    intro. subst. eapply H3. instantiate (1:= (1 + Z.of_nat (length x0) + a)). omega. eapply index_list_Z_valid; eauto.
+  eapply H3; omega. 
   econstructor.  
     3: rewrite app_length; simpl; eauto. 
     replace (Z.of_nat (S(length x0+0))) with (1 +Z.of_nat(length x0)) by (zify;omega).     
@@ -1056,8 +1138,8 @@ Proof.
   assert (forall z, 0 < z <= (Z.of_nat(length x0)) -> read_m (a+z) m' = read_m (x+z) m). 
     intros.  erewrite <- update_list_Z_spec2. 2:eauto. 
         rewrite <- H6.  rewrite H7.  
-        destruct (memseq_read _ _ _ H3 (x+z)).  omega. pose proof (H _ _ H9). rewrite H9. auto.
-        intro. eapply H0. instantiate (1:= x+z).  omega.  eapply memseq_valid. eauto. omega. omega. 
+        destruct (memseq_read _ _ _ H2 (x+z)).  omega. pose proof (H _ _ H9). rewrite H9. auto.
+        intro. eapply H3. instantiate (1:= x+z).  omega.  eapply memseq_valid. eauto. omega. omega. 
         intro. omega. 
   apply memseq_app; split.
   eapply memseq_eq; intros. 2:eauto. replace (x+1+z) with (x+(1+z)) by omega. 
@@ -1066,5 +1148,6 @@ Proof.
      apply update_list_Z_spec in W. unfold Atom in W. (* argh *) rewrite <- W.  f_equal. omega. 
 Qed.
 
+End with_hints.
 
 End with_systable.

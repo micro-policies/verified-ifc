@@ -107,8 +107,7 @@ Definition genImpl :=
 Definition some c: code := c ++ push 1.
 Definition none:   code := push 0.
 
-Definition sub: code := [Sub].
-
+(* Definition sub: code := [Sub]. *)
 
 Definition genEq := [Sub] ++ genNot.
 
