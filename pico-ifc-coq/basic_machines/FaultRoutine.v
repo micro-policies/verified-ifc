@@ -13,83 +13,35 @@ Require Import Concrete.
 Require Import ConcreteMachine.
 Require Import Rules.
 Require Import CLattices.
-Require Import CodeTriples. 
-Require Import CodeSpecs. 
+Require Import CodeTriples.
+Require Import CodeSpecs.
 Require Import CodeGen.
 Require Import CLattices.
 Require Import ConcreteExecutions.
 Require Import Encodable.
-
-Section TMU. 
-
-Open Local Scope Z_scope.
-
-Context {T: Type}
-        {Latt: JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}
-        {ELatt : Encodable T}
-        {WFCLatt: WfConcreteLattice T Latt CLatt ELatt}.
-
-(* --------------------- TMU Fault Handler code ----------------------------------- *)
-
-(* Compilation of rules *)
-
-Definition genError :=
-  push (-1) ++ [Jump].
-
-Definition genVar {n:nat} (l:LAB n) :=
-  match l with
-  (* NC: We assume the operand labels are stored at these memory
-     addresses when the fault handler runs. *)
-  | lab1 _ => loadFrom addrTag1
-  | lab2 _ => loadFrom addrTag2
-  | lab3 _ => loadFrom addrTag3
-  | labpc => loadFrom addrTagPC
-  end.
-
-Fixpoint genExpr {n:nat} (e: rule_expr n) :=
-  match e with
-  | L_Bot => genBot
-  | L_Var l => genVar l
-  (* NC: push the arguments in reverse order. *)
-  | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
- end.
-
-Fixpoint genCond {n:nat} (s: rule_cond n) : code :=
-  match s with
-  | A_True => genTrue
-  | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
-  | A_And s1 s2 => genCond s2 ++ genCond s1 ++ genAnd 
-  | A_Or s1 s2 => genCond s2 ++ genCond s1 ++ genOr 
-  end.
-
-Definition genApplyRule {n:nat} (am:AllowModify n): code :=
-  ite (genCond (allow am))
-      (some 
-        (genExpr (labResPC am) ++
-         genExpr (labRes am))
-      )
-      none.
-
-Definition genCheckOp (op:OpCode): code :=
-  genTestEqual (push (opCodeToZ op)) (loadFrom addrOpLabel).
-
+Require Import CLabels.
+Require Import QuasiAbstractMachine.
 
 Section FaultHandler.
 
-Definition fetch_rule_impl_type: Type := forall (opcode:OpCode),  {n:nat & AllowModify n}.
-Variable fetch_rule_impl: fetch_rule_impl_type.
+Context {T : Type}
+        {ET : Encodable T}
+        {labelCount : OpCode -> nat}
+        {run_tmr : run_tmr_type labelCount T}
+        {CT : ConcreteLabels T ET labelCount run_tmr}.
 
-Definition genApplyRule' op := genApplyRule (projT2 (fetch_rule_impl op)).
-
-Definition opcodes := 
-  [OpNoop; OpAdd; OpSub; OpPush; OpPop; 
-   OpLoad; OpStore; OpJump; OpBranchNZ; 
+Definition opcodes :=
+  [OpNoop; OpAdd; OpSub; OpPush; OpPop;
+   OpLoad; OpStore; OpJump; OpBranchNZ;
    OpCall; OpRet; OpVRet; OpOutput].
+
+(** Check if top of stack is an encoding of opcode [op] *)
+Definition genCheckOp (op:OpCode): code :=
+  genTestEqual (push (opCodeToZ op)) (loadFrom addrOpLabel).
 
 (** Put rule application results on stack. *)
 Definition genComputeResults: code :=
-  indexed_cases nop genCheckOp genApplyRule' opcodes.
+  indexed_cases nop genCheckOp genRule opcodes.
 
 (** Write fault handler results to memory. *)
 Definition genStoreResults: code :=
@@ -98,282 +50,64 @@ Definition genStoreResults: code :=
         genTrue)
        genFalse.
 
+Definition genError :=
+  push (-1) ++ [Jump].
+
 (** The entire handler *)
 Definition faultHandler: code :=
   genComputeResults ++
   genStoreResults ++
   ifNZ [Ret] genError.
 
-End FaultHandler.
 
 (* ================================================================ *)
 (* Fault-handler Code Specifications                                *)
 Section TMUSpecs.
 
-Definition handlerLabel := bot. 
 
-Definition handler_initial_mem_matches 
-           (opcode: Z)
-           (tag1: Z) (tag2: Z) (tag3: Z) (pctag: Z) 
-           (m: memory) : Prop := 
-     index_list_Z addrOpLabel m = Some (opcode,handlerTag)
-  /\ index_list_Z addrTag1 m = Some (tag1,handlerTag)
-  /\ index_list_Z addrTag2 m = Some (tag2,handlerTag)
-  /\ index_list_Z addrTag3 m = Some (tag3,handlerTag)
-  /\ index_list_Z addrTagPC m = Some (pctag,handlerTag).
+(* Connecting to the definition used in Concrete.v *)
+Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
+    cache_hit m (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
+    handler_initial_mem_matches
+      (opCodeToZ opcode)
+      (labsToZs vls)
+      (labToZ pcl)
+      m.
+Proof.
+  intros. unfold labsToZs in H.
+  inv H. inv UNPACK. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC.
+  econstructor; jauto.
+Qed.
 
-Variable fetch_rule_impl: fetch_rule_impl_type.
 Variable opcode: OpCode.
-Definition n := projT1 (fetch_rule_impl opcode).
-Definition am := projT2 (fetch_rule_impl opcode).
 
-Variable vls: Vector.t T n.
+Variable vls: Vector.t T (labelCount opcode).
 Variable pcl: T.
 Variable m0: memory.
 Hypothesis initial_mem_matches: handler_initial_mem_matches
                                   (opCodeToZ opcode)
-                                  (nth_labToZ vls 0)
-                                  (nth_labToZ vls 1)
-                                  (nth_labToZ vls 2)
+                                  (labsToZs vls)
                                   (labToZ pcl) m0.
-
-Definition eval_var := mk_eval_var vls pcl.
-
 
 Ltac clean_up_initial_mem :=
   unfold handler_initial_mem_matches in *;
   intuition;
   jauto_set_hyps; intros.
 
-Lemma genVar_spec_wp: forall v (Q: memory -> stack -> Prop),
-      HT (genVar v)
-         (fun m s => m = m0 /\ Q m ((labToZ (eval_var v),handlerTag):::s))
-         Q.
-Proof.
-  intros v Q. 
-  unfold genVar; subst. inv initial_mem_matches. intuition.
-  destruct v; (* split_vc seems to loop *)
-    (eapply HT_strengthen_premise;
-    try eapply loadFrom_spec_wp; 
-    simpl; intros m s [Hmem HQ]; subst;
-    try erewrite <- nth_order_valid in HQ; eauto).
-Qed.
-
-Lemma genExpr_spec_wp: forall (e: rule_expr n) (Q:memory->stack->Prop),
-      HT   (genExpr e)
-           (fun m s => m = m0 /\ Q m ((labToZ (eval_expr eval_var e),handlerTag):::s))
-           Q.
-Proof.
-  induction e.  
-  - intros.
-    eapply HT_strengthen_premise.
-    eapply genBot_spec. 
-    split_vc. 
- - intros.
-   simpl. eapply HT_strengthen_premise.
-   eapply genVar_spec_wp. 
-   split_vc.  
- - intros. simpl. 
-   repeat eapply HT_compose_flip. 
-   eapply genJoin_spec. 
-   eapply IHe1. 
-   eapply HT_strengthen_premise.
-   eapply IHe2. 
-   split_vc. 
-Qed.
-
-Lemma genScond_spec_wp: forall (c: rule_cond n) (Q:memory-> stack ->Prop),
-      HT   (genCond c)
-           (fun m s =>  m = m0  /\
-                        Q m ((boolToZ (eval_cond eval_var c),handlerTag):::s))
-           Q.
-
-Proof.
-  induction c; intros; simpl. 
-
-  - eapply HT_strengthen_premise.
-    eapply genTrue_spec_wp.   
-    split_vc. 
-
-  - repeat eapply HT_compose_flip. 
-    eapply genFlows_spec. 
-    eapply genExpr_spec_wp. 
-    eapply HT_strengthen_premise.
-    eapply genExpr_spec_wp. 
-    split_vc. 
-    
-  - eapply HT_compose_flip.
-    eapply HT_compose_flip. 
-    eapply genAnd_spec_wp. 
-    eapply IHc1. 
-    eapply HT_strengthen_premise.
-    eapply IHc2. 
-    split_vc. 
-
-  - eapply HT_compose_flip.
-    eapply HT_compose_flip. 
-    eapply genOr_spec_wp. 
-    eapply IHc1. 
-    eapply HT_strengthen_premise.
-    eapply IHc2. 
-    split_vc. 
-Qed.
-
-Lemma genApplyRule_spec_Some_wp:
-  forall lrpc lr,
-    apply_rule am pcl vls = Some (lrpc, lr) ->
-    forall Q,
-      HT   (genApplyRule am)
-           (fun m s => m = m0 /\
-                       Q m ((        1, handlerTag)  ::: (* [Some (...)] *)
-                            (labToZ lr, handlerTag)  :::
-                            (labToZ lrpc, handlerTag)::: s))
-           Q.
-Proof.
-  introv Happly. intros.
-  unfold genApplyRule.
-  unfold apply_rule in Happly.
-  cases_if in Happly.
-  inv Happly; subst.
-  
-  eapply HT_strengthen_premise. unfold ite.
-  eapply HT_compose_bwd.
-  eapply ifNZ_spec_existential.
-  eapply HT_compose_bwd.
-  eapply push_spec_wp.
-  
-  eapply HT_compose_bwd.
-  eapply genExpr_spec_wp.
-  eapply genExpr_spec_wp.
-  eapply push_spec_wp.
-  eapply genScond_spec_wp.
-  split_vc.
-  unfold eval_var in H2. 
-  rewrite H in H2 at 1.
-  false; omega.
-Qed.
 
 
-Lemma genApplyRule_spec_None_wp:
-    apply_rule am pcl vls = None ->
-    forall Q,
-      HT   (genApplyRule am)
-           (fun m s => m = m0 /\
-                       Q m ((0, handlerTag) ::: (* [None] *)
-                                         s))
-           Q.
-Proof.
-  introv Happly. intros.
-  unfold genApplyRule.
-  unfold apply_rule in Happly.
-  cases_if in Happly.
-  eapply HT_strengthen_premise. unfold ite.
-  eapply HT_compose_bwd.
-  eapply ifNZ_spec_existential.
-  eapply HT_compose_bwd.
-  eapply push_spec_wp.
-  
-  eapply HT_compose_bwd.
-  eapply genExpr_spec_wp.
-  eapply genExpr_spec_wp.
-  eapply push_spec_wp.
-  eapply genScond_spec_wp.
-  split_vc. substs.
-  split; intros;
-  (unfold eval_var in H0; 
-  rewrite H in H0 at 1);
-  intuition.
-Qed.
-  
-Definition listify_apply_rule (ar: option (T * T)) (s0: stack): stack :=
-  match ar with
-  | None            => CData (0, handlerTag) :: s0
-  | Some (lrpc, lr) => CData (1, handlerTag) ::
-                        CData (labToZ lr, handlerTag) ::
-                        CData (labToZ lrpc, handlerTag) :: s0
-  end.
-
-Lemma genApplyRule_spec_wp:
+Lemma genRule_spec_GT :
   forall ar,
-    apply_rule am pcl vls = ar ->
-    forall Q,
-      HT   (genApplyRule am)
-           (fun m s => m = m0 /\
-                       Q m (listify_apply_rule ar s))
-           Q.
-Proof.
-  intros.
-  case_eq ar; intros p ?; subst.
-  - destruct p as [lrpc lr].
-    eapply genApplyRule_spec_Some_wp; eauto.
-  - eapply genApplyRule_spec_None_wp; eauto.
-Qed.
-
-Lemma genCond_spec_wp: forall (c: rule_cond n),
-  forall b,
-    eval_cond eval_var c = b ->
-    forall Q,
-      HT   (genCond c)
-           (fun m s => m = m0 /\ Q m ((boolToZ b, handlerTag) ::: s))
-           Q .
-Proof.
-  induction c; intros; simpl;
-    try (simpl in H); subst.
-
-  (* True *)
-  eapply HT_strengthen_premise.
-  eapply genTrue_spec_wp. split_vc.
-
-  (* Flows *)
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
-  eapply genFlows_spec. 
-  eapply genExpr_spec_wp. 
-  eapply HT_strengthen_premise.  
-  eapply genExpr_spec_wp. split_vc; eauto.
-
-  (* And *)
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
-  eapply genAnd_spec_wp.
-  eapply IHc1; eauto.
-  eapply HT_strengthen_premise. 
-  eapply IHc2; eauto. split_vc; eauto.
-
-  (* Or *)
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
-  eapply genOr_spec_wp.
-  eapply IHc1; eauto.
-  eapply HT_strengthen_premise. 
-  eapply IHc2; eauto. split_vc; eauto.
-Qed.
-
-(* XXX: how to best model [option]s and monadic sequencing in the code
-   gens?  E.g., for [genApplyRule_spec], I need to handle both [Some
-   (Some l1, l2)] and [Some (None, l2)].  Do I do different things to
-   memory in these cases? If so I need to distinguish these cases in
-   my stack returns.
-
-   Also, modeling [option]s in the generated code might make the
-   correctness proof easier? *)
-
-(* NC: Nota bene: we should only need to reason about what
-   [genApplyRule] does for the current opcode, since that's the only
-   code that is going to run. *)
-
-Lemma genApplyRule_spec_GT:
-  forall ar,
-    apply_rule am pcl vls = ar ->
-      GT (genApplyRule am)
-         (fun m s => m = m0)
-         (fun m0' s0 m s => m = m0 /\
-                            s = listify_apply_rule ar s0).
+    run_tmr opcode pcl vls = ar ->
+    GT (genRule opcode)
+       (fun m s => m = m0)
+       (fun m0' s0 m s => m = m0 /\
+                          s = listify_apply_rule ar s0).
 Proof.
   unfold GT; intros.
   eapply HT_strengthen_premise; eauto.
-  - eapply genApplyRule_spec_wp; eauto.
-  - simpl; intuition (subst; eauto).
+  - eapply genRuleCorrect; eauto.
+  - intros m s (H1 & H2 & H3). subst. eauto.
 Qed.
 
 Lemma genCheckOp_spec:
@@ -391,9 +125,11 @@ Proof.
   eapply genTestEqual_spec.
   intros. eapply HT_strengthen_premise.
   eapply push_spec_wp.
-  split_vc. subst; eauto. 
+  split_vc. subst; eauto.
   intros. eapply HT_strengthen_premise. eapply loadFrom_spec_wp.
-  split_vc. subst; eauto. 
+  split_vc. subst; eauto.
+  destruct (labsToZs vls) as [[tag1 tag2] tag3].
+  intuition eauto.
 Qed.
 
 Lemma genCheckOp_spec_GT:
@@ -414,14 +150,17 @@ Qed.
 Section FaultHandlerSpec.
 
 Variable ar: option (T * T).
-Hypothesis H_apply_rule: apply_rule am pcl vls = ar.
+Hypothesis H_apply_rule: run_tmr opcode pcl vls = ar.
 
 (* Don't really need to specify [Qnil] since it will never run *)
 Definition Qnil: GProp := fun m0' s0 m s => True.
 Definition genV: OpCode -> HFun :=
   fun i _ _ => boolToZ (opCodeToZ i =? opCodeToZ opcode).
 Definition genC: OpCode -> code := genCheckOp.
-Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl.
+
+(*
+Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl. *)
+
 Definition genQ: OpCode -> GProp :=
          (fun i m0' s0 m s => m = m0 /\
                               s = listify_apply_rule ar s0).
@@ -438,7 +177,6 @@ Proof.
   intuition (subst; intuition).
 Qed.
 
-
 Lemma opCodeToZ_inj: forall opcode opcode',
   (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode) <> 0) ->
   opcode' = opcode.
@@ -447,9 +185,9 @@ Proof.
   destruct o; destruct o'; simpl; solve [ auto | intros; false; omega ].
 Qed.
 
-Lemma genApplyRule'_spec_GT_guard_v:
+Lemma genRule_spec_GT_guard_v :
   forall opcode',
-    GT_guard_v (genB opcode')
+    GT_guard_v (genRule opcode')
                (fun m s => m = m0)
                (genV opcode')
                (genQ opcode').
@@ -457,30 +195,27 @@ Proof.
   intros.
   cases (dec_eq_OpCode opcode' opcode) as Eq; clear Eq.
   - eapply GT_consequence'.
-    + unfold genB, genApplyRule'.
-      subst opcode'.
-      fold am.
-      eapply genApplyRule_spec_GT; eauto.
+    + subst opcode'.
+      eapply genRule_spec_GT. eauto.
     + iauto.
-    + (* why does iauto no longer work here?? *)
-      subst ar. intros.  subst m1. econstructor. intuition. subst ar. intuition.
+    + iauto.
   - unfold GT_guard_v, GT, HT.
     intros.
     unfold genV in *.
     pose (opCodeToZ_inj opcode opcode').
-    false; intuition. 
-Qed. 
+    false; intuition.
+Qed.
 
-Lemma H_indexed_hyps: indexed_hyps _ genC genB genQ genV (fun m s => m = m0) opcodes.
+Lemma H_indexed_hyps: indexed_hyps _ genC genRule genQ genV (fun m s => m = m0) opcodes.
 Proof.
   simpl.
   intuition; try (solve
     [ eapply genCheckOp_spec_GT_push_v
-    | eapply genApplyRule'_spec_GT_guard_v ]).
+    | eapply genRule_spec_GT_guard_v ]).
 Qed.
 
 Lemma genComputeResults_spec_GT:
-  GT (genComputeResults fetch_rule_impl)
+  GT genComputeResults
      (fun m s => m = m0)
      (fun m0' s0 m s => m = m0 /\
                         s = listify_apply_rule ar s0).
@@ -491,7 +226,7 @@ Proof.
   eapply indexed_cases_spec with (Qnil:=Qnil).
   - Case "default case that we never reach".
     unfold GT; intros.
-    eapply HT_strengthen_premise.    
+    eapply HT_strengthen_premise.
     eapply nop_spec_wp.
     unfold Qnil; iauto.
   - exact H_indexed_hyps.
@@ -512,7 +247,7 @@ Qed.
    [genApplyRule]: *)
 Lemma genComputeResults_spec:
     forall s0,
-      HT   (genComputeResults fetch_rule_impl)
+      HT   genComputeResults
            (fun m s => m = m0 /\
                        s = s0)
            (fun m s => m = m0 /\
@@ -626,7 +361,7 @@ Proof.
 Qed.
 
 Definition handler_final_mem_matches (lrpc: T) (lr: T) (m: memory) (m': memory) :Prop :=
-     cache_hit_read m' (labToZ lr) (labToZ lrpc) 
+     cache_hit_read m' (labToZ lr) (labToZ lrpc)
   /\ update_cache_spec_rvec m m'.   (* Nothing else changed *)
 
 Lemma genStoreResults_spec_Some': forall lr lpc,
@@ -681,7 +416,7 @@ Proof.
   eapply jump_specEscape_Failure.
   eapply HT_strengthen_premise.
   eapply push_spec_wp.
-  split_vc. 
+  split_vc.
 Qed.
 
 Definition genFaultHandlerReturn: code := ifNZ [Ret] genError.
@@ -715,21 +450,21 @@ Proof.
   intros.
   unfold genFaultHandlerReturn.
   eapply HTEscape_strengthen_premise.
-  - eapply ifNZ_specEscape with (v := 0) (Pt := fun m s => True); intros. 
+  - eapply ifNZ_specEscape with (v := 0) (Pt := fun m s => True); intros.
     + intuition.
-    + eapply genError_specEscape. 
-  - intros. 
-    subst. 
+    + eapply genError_specEscape.
+  - intros.
+    subst.
     intuition.
     jauto_set_goal; eauto.
 Qed.
- 
+
 Lemma faultHandler_specEscape_Some: forall raddr lr lpc,
   valid_address addrTagRes m0 ->
   valid_address addrTagResPC m0 ->
   ar = Some (lpc, lr) ->
   forall s0,
-    HTEscape raddr (faultHandler fetch_rule_impl)
+    HTEscape raddr faultHandler
              (fun m s => m = m0 /\
                          s = (CRet raddr false false::s0))
              (fun m s => ( s = s0 /\
@@ -746,9 +481,9 @@ Proof.
 Qed.
 
 Lemma faultHandler_specEscape_None: forall raddr,
-  ar = None -> 
+  ar = None ->
   forall s0,
-    HTEscape raddr (faultHandler fetch_rule_impl)
+    HTEscape raddr faultHandler
              (fun m s => m = m0 /\ s = s0)
              (fun m s => (m = m0 /\ s = s0
                          , Failure)).
@@ -769,65 +504,332 @@ End TMUSpecs.
 (** Main result of this file : the correctness theorems of the fault handler generator *)
 Section HandlerCorrect.
 
-Variable get_rule : forall (opcode:OpCode), {n:nat & AllowModify n}.
-Definition handler : list Instr := faultHandler get_rule.
-
-(* Connecting to the definition used in Concrete.v *)
-Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
-    cache_hit m (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
-    handler_initial_mem_matches 
-      (opCodeToZ opcode) 
-      (nth_labToZ vls 0)  
-      (nth_labToZ vls 1)
-      (nth_labToZ vls 2)
-      (labToZ pcl)
-      m.
-Proof.
-  intros. unfold labsToZs in H. 
-  inv H. inv UNPACK. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC. 
-  econstructor; jauto.
-Qed.
-
 Theorem handler_correct_succeed :
   forall opcode vls pcl c m raddr s i lr lpc,
   forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
-         (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = Some (lpc,lr)),
+         (RULE: run_tmr opcode pcl vls = Some (lpc,lr)),
     exists c',
-    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
-                 (CState c' m handler i s raddr false) /\
+    runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerTag) true)
+                 (CState c' m faultHandler i s raddr false) /\
     handler_final_mem_matches lpc lr c c'.
 Proof.
   intros.
   assert (valid_address addrTagRes c).
-    inv INPUT. inv TAGR. eapply index_list_Z_valid; eauto. 
+    inv INPUT. inv TAGR. eapply index_list_Z_valid; eauto.
   assert (valid_address addrTagResPC c).
     inv INPUT. inv TAGRPC. eapply index_list_Z_valid; eauto.
-  edestruct (faultHandler_specEscape_Some get_rule opcode vls pcl c) 
-      as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 
-   eapply init_enough; auto. 
-  apply code_at_id. 
-  exists cache1. 
-  inversion P3.  subst. 
+  edestruct (faultHandler_specEscape_Some opcode vls pcl c)
+      as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto.
+   eapply init_enough; auto.
+  apply code_at_id.
+  exists cache1.
+  inversion P3.  subst.
   intuition.
-  apply P4. 
-Qed.  
-              
-Theorem handler_correct_fail : 
+  apply P4.
+Qed.
+
+Theorem handler_correct_fail :
   forall opcode vls pcl c m raddr s i,
   forall (INPUT: cache_hit c (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
-         (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = None),
+         (RULE: run_tmr opcode pcl vls = None),
     exists st,
-    runsToEscape (CState c m handler i (CRet raddr false false::s) (0,handlerTag) true)
-                 (CState c m handler i st (-1,handlerTag) true).
+    runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerTag) true)
+                 (CState c m faultHandler i st (-1,handlerTag) true).
 Proof.
-  intros.   
-  edestruct (faultHandler_specEscape_None get_rule opcode vls pcl c) with (raddr := (0,0))
-      as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto. 
-   eapply init_enough; eauto. 
-   eapply code_at_id. 
+  intros.
+  edestruct (faultHandler_specEscape_None opcode vls pcl c) with (raddr := (0,0))
+      as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto.
+   eapply init_enough; eauto.
+   eapply code_at_id.
    inv P3. eexists. eauto.
 Qed.
 
 End HandlerCorrect.
 
+End FaultHandler.
+
+Section TMU.
+
+Open Local Scope Z_scope.
+
+Context {T: Type}
+        {Latt: JoinSemiLattice T}
+        {CLatt: ConcreteLattice T}
+        {ELatt : Encodable T}
+        {WFCLatt: WfConcreteLattice T Latt CLatt ELatt}.
+
+(* --------------------- TMU Fault Handler code ----------------------------------- *)
+
+(* Compilation of rules *)
+
+
+Definition genVar {n:nat} (l:LAB n) :=
+  match l with
+  (* NC: We assume the operand labels are stored at these memory
+     addresses when the fault handler runs. *)
+  | lab1 _ => loadFrom addrTag1
+  | lab2 _ => loadFrom addrTag2
+  | lab3 _ => loadFrom addrTag3
+  | labpc => loadFrom addrTagPC
+  end.
+
+Fixpoint genExpr {n:nat} (e: rule_expr n) :=
+  match e with
+  | L_Bot => genBot
+  | L_Var l => genVar l
+  (* NC: push the arguments in reverse order. *)
+  | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
+ end.
+
+Fixpoint genCond {n:nat} (s: rule_cond n) : code :=
+  match s with
+  | A_True => genTrue
+  | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
+  | A_And s1 s2 => genCond s2 ++ genCond s1 ++ genAnd
+  | A_Or s1 s2 => genCond s2 ++ genCond s1 ++ genOr
+  end.
+
+Definition genApplyRule {n:nat} (am:AllowModify n): code :=
+  ite (genCond (allow am))
+      (some
+        (genExpr (labResPC am) ++
+         genExpr (labRes am))
+      )
+      none.
+
 End TMU.
+
+Section IFC.
+
+Context {T : Type}
+        {LT : JoinSemiLattice T}
+        {ET : Encodable T}
+        {CT : ConcreteLattice T}
+        {WT : WfConcreteLattice T LT CT ET}.
+
+Definition fetch_rule_impl_type: Type := forall (opcode:OpCode),  {n:nat & AllowModify n}.
+Variable fetch_rule_impl: fetch_rule_impl_type.
+
+Section Specs.
+
+Variable opcode : OpCode.
+Variable pcl : T.
+Definition n := projT1 (fetch_rule_impl opcode).
+Definition am := projT2 (fetch_rule_impl opcode).
+Variable vls : Vector.t T n.
+Variable m0: memory.
+Hypothesis initial_mem_matches: handler_initial_mem_matches
+                                  (opCodeToZ opcode)
+                                  (labsToZs vls)
+                                  (labToZ pcl) m0.
+
+Definition eval_var := mk_eval_var vls pcl.
+
+Lemma genVar_spec_wp: forall v (Q: memory -> stack -> Prop),
+      HT (genVar v)
+         (fun m s => m = m0 /\ Q m ((labToZ (eval_var v),handlerTag):::s))
+         Q.
+Proof.
+  intros v Q.
+  unfold genVar; subst. inv initial_mem_matches. intuition.
+  destruct v; (* split_vc seems to loop *)
+    (eapply HT_strengthen_premise;
+    try eapply loadFrom_spec_wp;
+    simpl; intros m s [Hmem HQ]; subst;
+    try erewrite <- nth_order_valid in HQ; eauto).
+Qed.
+
+Lemma genExpr_spec_wp: forall (e: rule_expr n) (Q:memory->stack->Prop),
+      HT   (genExpr e)
+           (fun m s => m = m0 /\ Q m ((labToZ (eval_expr eval_var e),handlerTag):::s))
+           Q.
+Proof.
+  induction e.
+  - intros.
+    eapply HT_strengthen_premise.
+    eapply genBot_spec.
+    split_vc.
+ - intros.
+   simpl. eapply HT_strengthen_premise.
+   eapply genVar_spec_wp.
+   split_vc.
+ - intros. simpl.
+   repeat eapply HT_compose_flip.
+   eapply genJoin_spec.
+   eapply IHe1.
+   eapply HT_strengthen_premise.
+   eapply IHe2.
+   split_vc.
+Qed.
+
+Lemma genScond_spec_wp: forall (c: rule_cond n) (Q:memory-> stack ->Prop),
+      HT   (genCond c)
+           (fun m s =>  m = m0  /\
+                        Q m ((boolToZ (eval_cond eval_var c),handlerTag):::s))
+           Q.
+
+Proof.
+  induction c; intros; simpl.
+
+  - eapply HT_strengthen_premise.
+    eapply genTrue_spec_wp.
+    split_vc.
+
+  - repeat eapply HT_compose_flip.
+    eapply genFlows_spec.
+    eapply genExpr_spec_wp.
+    eapply HT_strengthen_premise.
+    eapply genExpr_spec_wp.
+    split_vc.
+
+  - eapply HT_compose_flip.
+    eapply HT_compose_flip.
+    eapply genAnd_spec_wp.
+    eapply IHc1.
+    eapply HT_strengthen_premise.
+    eapply IHc2.
+    split_vc.
+
+  - eapply HT_compose_flip.
+    eapply HT_compose_flip.
+    eapply genOr_spec_wp.
+    eapply IHc1.
+    eapply HT_strengthen_premise.
+    eapply IHc2.
+    split_vc.
+Qed.
+
+Lemma genApplyRule_spec_Some_wp:
+  forall lrpc lr,
+    apply_rule am pcl vls = Some (lrpc, lr) ->
+    forall Q,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       Q m ((        1, handlerTag)  ::: (* [Some (...)] *)
+                            (labToZ lr, handlerTag)  :::
+                            (labToZ lrpc, handlerTag)::: s))
+           Q.
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+  inv Happly; subst.
+
+  eapply HT_strengthen_premise. unfold ite.
+  eapply HT_compose_bwd.
+  eapply ifNZ_spec_existential.
+  eapply HT_compose_bwd.
+  eapply push_spec_wp.
+
+  eapply HT_compose_bwd.
+  eapply genExpr_spec_wp.
+  eapply genExpr_spec_wp.
+  eapply push_spec_wp.
+  eapply genScond_spec_wp.
+  split_vc.
+  unfold eval_var in H2.
+  rewrite H in H2 at 1.
+  false; omega.
+Qed.
+
+Lemma genApplyRule_spec_None_wp:
+    apply_rule am pcl vls = None ->
+    forall Q,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       Q m ((0, handlerTag) ::: (* [None] *)
+                                         s))
+           Q.
+Proof.
+  introv Happly. intros.
+  unfold genApplyRule.
+  unfold apply_rule in Happly.
+  cases_if in Happly.
+  eapply HT_strengthen_premise. unfold ite.
+  eapply HT_compose_bwd.
+  eapply ifNZ_spec_existential.
+  eapply HT_compose_bwd.
+  eapply push_spec_wp.
+
+  eapply HT_compose_bwd.
+  eapply genExpr_spec_wp.
+  eapply genExpr_spec_wp.
+  eapply push_spec_wp.
+  eapply genScond_spec_wp.
+  split_vc. substs.
+  split; intros;
+  (unfold eval_var in H0;
+  rewrite H in H0 at 1);
+  intuition.
+Qed.
+
+Lemma genApplyRule_spec_wp:
+  forall ar,
+    apply_rule am pcl vls = ar ->
+    forall Q,
+      HT   (genApplyRule am)
+           (fun m s => m = m0 /\
+                       Q m (listify_apply_rule ar s))
+           Q.
+Proof.
+  intros.
+  case_eq ar; intros p ?; subst.
+  - destruct p as [lrpc lr].
+    eapply genApplyRule_spec_Some_wp; eauto.
+  - eapply genApplyRule_spec_None_wp; eauto.
+Qed.
+
+Lemma genCond_spec_wp: forall (c: rule_cond n),
+  forall b,
+    eval_cond eval_var c = b ->
+    forall Q,
+      HT   (genCond c)
+           (fun m s => m = m0 /\ Q m ((boolToZ b, handlerTag) ::: s))
+           Q .
+Proof.
+  induction c; intros; simpl;
+    try (simpl in H); subst.
+
+  (* True *)
+  eapply HT_strengthen_premise.
+  eapply genTrue_spec_wp. split_vc.
+
+  (* Flows *)
+  eapply HT_compose_flip.
+  eapply HT_compose_flip.
+  eapply genFlows_spec.
+  eapply genExpr_spec_wp.
+  eapply HT_strengthen_premise.
+  eapply genExpr_spec_wp. split_vc; eauto.
+
+  (* And *)
+  eapply HT_compose_flip.
+  eapply HT_compose_flip.
+  eapply genAnd_spec_wp.
+  eapply IHc1; eauto.
+  eapply HT_strengthen_premise.
+  eapply IHc2; eauto. split_vc; eauto.
+
+  (* Or *)
+  eapply HT_compose_flip.
+  eapply HT_compose_flip.
+  eapply genOr_spec_wp.
+  eapply IHc1; eauto.
+  eapply HT_strengthen_premise.
+  eapply IHc2; eauto. split_vc; eauto.
+Qed.
+
+End Specs.
+
+Instance LatticeConcreteLabels :
+  ConcreteLabels T ET _ (fun op pcl vls => apply_rule (am op) pcl vls) := {
+  genRule op := genApplyRule (am op)
+}.
+
+Proof.
+  intros.
+  eapply genApplyRule_spec_wp; eauto.
+Qed.
+
+End IFC.

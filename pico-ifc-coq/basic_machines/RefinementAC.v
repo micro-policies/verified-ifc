@@ -304,6 +304,8 @@ Variable fetch_rule_g : forall (o: OpCode), AllowModify (labelCount o).
 Definition fetch_rule_impl : fetch_rule_impl_type :=
   fun o => existT _ (labelCount o) (fetch_rule_g o).
 
+Definition LCL := LatticeConcreteLabels fetch_rule_impl.
+
 Definition cache_up2date tmuc :=
   forall opcode vls pcl,
     cache_hit tmuc (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
@@ -328,7 +330,9 @@ Proof.
   trivial.
 Qed.
 
-Definition faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
+Definition faultHandler := @FaultRoutine.faultHandler L ELatt labelCount
+                                                      (ifc_run_tmr fetch_rule_g)
+                                                      LCL.
 
 Inductive match_states : @AS L -> CS -> Prop :=
  ms: forall am cm i astk tmuc cstk apc cpc
@@ -764,11 +768,11 @@ Proof.
   intuition. subst.
   destruct (apply_rule (projT2 (fetch_rule_impl op)) (snd apc) vls)
     as [[orl rpcl]|] eqn:E.
-  - exploit handler_correct_succeed; eauto.
+  - exploit (handler_correct_succeed (CT := LCL)); eauto.
     intros [cache' [ESCAPE1 MATCH']].
     exploit rte_success; eauto.
     intros ESCAPE2.
-    unfold faultHandler, handler in *.
+    unfold faultHandler in *.
     generalize (runsToEscape_determ ESCAPE1 ESCAPE2).
     intros H. subst.
     constructor; eauto.
@@ -784,7 +788,7 @@ Proof.
     + subst. rewrite E.
       destruct MATCH'. trivial.
     + destruct op'; simpl; omega.
-  - exploit handler_correct_fail; eauto.
+  - exploit (handler_correct_fail (CT := LCL)); eauto.
     simpl in *.
     intros [stk' ESCAPE1].
     inv ESCAPE1.
@@ -1010,7 +1014,10 @@ Definition tini_fetch_rule_withsig :=
   (fun opcode => existT _
                         (QuasiAbstractMachine.labelCount opcode)
                         (QuasiAbstractMachine.fetch_rule opcode)).
-Definition tini_faultHandler := FaultRoutine.faultHandler tini_fetch_rule_withsig.
+Definition tini_faultHandler := @FaultRoutine.faultHandler observer ELatt
+                                                           labelCount
+                                                           (ifc_run_tmr fetch_rule)
+                                                           (LatticeConcreteLabels (fetch_rule_impl fetch_rule)).
 Definition tini_match_states := match_states QuasiAbstractMachine.fetch_rule.
 
 Definition tini_concrete_machine := concrete_machine tini_faultHandler.
@@ -1020,7 +1027,7 @@ Program Definition abstract_concrete_ref :
   @ref_composition _ _ _
                    abstract_quasi_abstract_ref
                    (quasi_abstract_concrete_ref fetch_rule)
-                   (@ac_match_initial_data _ _ _ _ fetch_rule)
+                   (@ac_match_initial_data _ _ _ _ _ fetch_rule)
                    match_events
                    _ _.
 

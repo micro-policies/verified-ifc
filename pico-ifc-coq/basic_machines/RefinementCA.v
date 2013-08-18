@@ -57,10 +57,15 @@ Context {L: Type}
         {ELatt: Encodable L}
         {WFCLatt: WfConcreteLattice L Latt CLatt ELatt}.
 
+
+
 (** The fault handler code and its correctness *)
 Notation fetch_rule_g := fetch_rule. (* Should be able to replace this with a generic one later *)
 Definition fetch_rule_withsig := (fun opcode => existT _ (labelCount opcode) (fetch_rule_g opcode)).
-Definition faultHandler := FaultRoutine.faultHandler fetch_rule_withsig.
+Definition LCL := LatticeConcreteLabels fetch_rule_withsig.
+Definition faultHandler := @FaultRoutine.faultHandler L ELatt labelCount
+                                                      (ifc_run_tmr fetch_rule_g)
+                                                      LCL.
 
 (* Bit more glue *)
 Lemma handler_correct :
@@ -73,7 +78,7 @@ Lemma handler_correct :
     handler_final_mem_matches (T:=L) olr lpc c c'.
 Proof.
   intros.
-  exploit (@handler_correct_succeed _ _ _ _ _ fetch_rule_withsig opcode); eauto.
+  exploit (handler_correct_succeed (CT := LCL)); unfold fetch_rule_withsig; eauto.
 Qed.
 
 Lemma match_stacks_args' : forall args s cs,
@@ -719,7 +724,7 @@ Definition concrete_quasi_abstract_ref :
   @refinement_from_state_refinement _ _
                                     concrete_quasi_abstract_sref
                                     (fun i1 i2 => ac_match_initial_data i2 i1)
-                                    (fun i1 i2 => @ac_match_initial_data_match_initial_states _ _ _ _ _ i2 i1).
+                                    (fun i1 i2 => @ac_match_initial_data_match_initial_states _ _ _ _ _ _ i2 i1).
 
 Lemma step_preserved_observ:
   forall s1 e s1' s2,
@@ -765,7 +770,10 @@ Definition tini_fetch_rule_withsig :=
   (fun opcode => existT _
                         (QuasiAbstractMachine.labelCount opcode)
                         (QuasiAbstractMachine.fetch_rule opcode)).
-Definition tini_faultHandler := FaultRoutine.faultHandler tini_fetch_rule_withsig.
+Definition tini_faultHandler := @FaultRoutine.faultHandler observer ELatt
+                                                           labelCount
+                                                           (ifc_run_tmr fetch_rule)
+                                                           (LatticeConcreteLabels (fetch_rule_impl fetch_rule)).
 Definition tini_match_states := match_states QuasiAbstractMachine.fetch_rule.
 
 Program Definition concrete_abstract_ref :
@@ -773,7 +781,7 @@ Program Definition concrete_abstract_ref :
   @ref_composition _ _ _
                    concrete_quasi_abstract_ref
                    quasi_abstract_abstract_ref
-                   (fun i1 i2 => @ac_match_initial_data _ _ _ _ fetch_rule i2 i1)
+                   (fun i1 i2 => @ac_match_initial_data _ _ _ _ _ fetch_rule i2 i1)
                    (fun e1 e2 => match_events e2 e1)
                    _ _.
 

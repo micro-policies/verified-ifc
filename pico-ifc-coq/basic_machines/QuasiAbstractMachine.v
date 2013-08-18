@@ -17,6 +17,12 @@ Require Vector.
 
 Set Implicit Arguments.
 
+Definition run_tmr_type (labelCount : OpCode -> nat) (T : Type) :=
+  forall (opcode : OpCode)
+         (pclab : T)
+         (labs : Vector.t T (labelCount opcode)),
+    option (T * T).
+
 (* How many argument labels come with this OpCode ? *)
 Definition labelCount (c:OpCode) : nat :=
 match c with
@@ -49,10 +55,7 @@ argument labels ([labs]). It should return [Some (rpcl, rl)] if
 execution is allowed, where [rpcl] is the new PC label and [rl] is a
 label for a possible result; otherwise, it should return [None] *)
 
-Variable run_tmr : forall (opcode : OpCode)
-                          (pclab : T)
-                          (labs : Vector.t T (labelCount opcode)),
-                     option (T * T).
+Variable run_tmr : run_tmr_type labelCount T.
 
 (** Step relation *)   
 Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop := 
