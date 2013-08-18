@@ -38,7 +38,7 @@ Lemma abstract_step_equiv : forall s e s',
 Proof.
   intros.
   split; intro H; inv H;
-  unfold QuasiAbstractMachine.run_tmr, apply_rule in *;
+  unfold QuasiAbstractMachine.ifc_run_tmr, apply_rule in *;
   simpl in *;
   repeat match goal with
            | H : Some _ = Some _ |- _ =>
@@ -50,7 +50,7 @@ Proof.
   try econstructor (solve [compute; eauto]).
 
   econstructor; eauto.
-  unfold QuasiAbstractMachine.run_tmr, apply_rule. simpl.
+  unfold QuasiAbstractMachine.ifc_run_tmr, apply_rule. simpl.
   unfold Vector.nth_order. simpl.
   rewrite CHECK. trivial.
 Qed.
@@ -478,7 +478,7 @@ Lemma cache_hit_simulation :
          (Hmatch : match_states s1 s2)
          (Hs2' : priv s2' = false)
          (Hstep : cstep s2 e2 s2'),
-    exists a1 s1', step_rules fetch_rule_g s1 a1 s1' /\
+    exists a1 s1', step_rules (ifc_run_tmr fetch_rule_g) s1 a1 s1' /\
                    match_actions a1 e2 /\
                    match_states s1' s2'.
 Proof.
@@ -544,7 +544,7 @@ Proof.
     exploit match_stacks_args; eauto. intros [args' [s' [Hargs' [Hmatchargs' Hmatchs']]]].
     subst. eexists. split.
 
-    + eapply (step_call fetch_rule_g); try solve [compute; eauto].
+    + eapply (step_call (ifc_run_tmr fetch_rule_g)); try solve [compute; eauto].
       * symmetry. eapply match_stacks_length; eauto.
       * eapply match_stacks_data; eauto.
 
@@ -940,7 +940,7 @@ Definition match_events (e1:@Event L) (e2:CEvent) : Prop :=
   end.
 
 Lemma quasi_abstract_concrete_sref_prop :
-  @state_refinement_statement (quasi_abstract_machine fetch_rule_g)
+  @state_refinement_statement (ifc_quasi_abstract_machine fetch_rule_g)
                               (concrete_machine faultHandler)
                               match_states match_events.
 Proof.
@@ -981,7 +981,7 @@ Definition quasi_abstract_concrete_sref :=
   {| sref_prop := quasi_abstract_concrete_sref_prop |}.
 
 Definition quasi_abstract_concrete_ref :
-  refinement (quasi_abstract_machine fetch_rule_g)
+  refinement (ifc_quasi_abstract_machine fetch_rule_g)
              (concrete_machine faultHandler) :=
   @refinement_from_state_refinement _ _
                                     quasi_abstract_concrete_sref

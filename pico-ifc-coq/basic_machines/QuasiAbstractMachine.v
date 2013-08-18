@@ -39,20 +39,20 @@ Local Open Scope Z_scope.
 
 Section QAMachine.
 
-Context {T: Type}
-        {Latt: JoinSemiLattice T}.
+Context {T: Type}.
 
 (** * Rules of the abstract machine :  *)
 
-(** Get the "rule" for a given operation. *)
-Variable fetch_rule : forall opcode : OpCode, AllowModify (labelCount opcode).
+(** The [run_tmr opcode pclab labs] should say if an instruction is
+allowed to execute on a given combination of PC label ([pclab]) and
+argument labels ([labs]). It should return [Some (rpcl, rl)] if
+execution is allowed, where [rpcl] is the new PC label and [rl] is a
+label for a possible result; otherwise, it should return [None] *)
 
-(** run_tmr (TMR for Tag Managment Rules): fetches the rule for the
-   given opcode and applies it.  *)
-
-Definition run_tmr (opcode: OpCode) (pclab: T) (vlabs:Vector.t T (labelCount opcode)) :  option (T * T) :=  
-  let r := (fetch_rule opcode) in
-  apply_rule r pclab vlabs.
+Variable run_tmr : forall (opcode : OpCode)
+                          (pclab : T)
+                          (labs : Vector.t T (labelCount opcode)),
+                     option (T * T).
 
 (** Step relation *)   
 Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop := 
@@ -180,6 +180,26 @@ Qed.
 
 End QAMachine.
 
+(** A version of the previous machine specialized for rules given as
+symbolic lattice expressions, as defined in [Rules.v] *)
+
+Section IFCQuasiAbstractMachine.
+
+Context {T : Type}
+        {Latt : JoinSemiLattice T}.
+
+(** Get the "rule" for a given operation. *)
+Variable fetch_rule : forall opcode : OpCode, AllowModify (labelCount opcode).
+
+Definition ifc_run_tmr (opcode: OpCode) (pclab: T) (vlabs:Vector.t T (labelCount opcode)) :  option (T * T) :=
+  let r := (fetch_rule opcode) in
+  apply_rule r pclab vlabs.
+
+Definition ifc_quasi_abstract_machine :=
+  quasi_abstract_machine ifc_run_tmr.
+
+End IFCQuasiAbstractMachine.
+
 (** An instantiation of the Quasi-abstract machine with a particular
     symbolic rule table corresponding to the Abstract machine. *)
 
@@ -207,12 +227,12 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
     | OpOutput => ≪ TRUE, LabPC , JOIN Lab1 LabPC ≫ (* output value *)
     end.
 
-Definition tini_quasi_abstract_machine := quasi_abstract_machine fetch_rule.
+Definition tini_quasi_abstract_machine := ifc_quasi_abstract_machine fetch_rule.
 
-Ltac step_tmr := 
+Ltac step_tmr :=
   match goal with
-    | [ H: run_tmr _ _ _ _ = _  |- _ ] => inv H
-  end. 
+    | [ H: ifc_run_tmr _ _ _ _ = _  |- _ ] => inv H
+  end.
 
 Lemma step_rules_non_ret_label_pc: forall m i stk pc l s instr e,
   step tini_quasi_abstract_machine (AState m i stk (pc, l)) e s ->
@@ -224,8 +244,8 @@ Proof.
   intros. simpl in H.
   inv H; try step_tmr ; simpl in *; eauto.
 
-  unfold run_tmr, apply_rule  in H3. simpl in H3. 
-  unfold Vector.nth_order in H3. simpl in H3. 
+  unfold ifc_run_tmr, apply_rule  in H3. simpl in H3.
+  unfold Vector.nth_order in H3. simpl in H3.
   set (assert1 := addrl \_/ l <: ml) in *.
   case_eq assert1; intros;
   (unfold assert1 in * );

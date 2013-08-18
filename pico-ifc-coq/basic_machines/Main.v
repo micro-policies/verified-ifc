@@ -51,15 +51,15 @@ Notation "tq ▷Rt tc" := (match_traces (quasi_abstract_machine _)
 
 Theorem refinement_symbolic_concrete :
   forall (rule_table : forall o : Instr.OpCode, Rules.AllowModify (labelCount o))
-         (iq : init_data (quasi_abstract_machine rule_table))
+         (iq : init_data (ifc_quasi_abstract_machine rule_table))
          (ic : init_data (concrete_machine (faultHandler rule_table)))
          (tc : list (event (concrete_machine (faultHandler rule_table))))
          (sc : state (concrete_machine (faultHandler rule_table))),
     iq ▷i ic ->
     init_state (concrete_machine (faultHandler rule_table)) ic →* [tc] sc ->
-    exists (tq : list (event (quasi_abstract_machine rule_table)))
-           (sq : state (quasi_abstract_machine rule_table)),
-      init_state (quasi_abstract_machine rule_table) iq →* [tq] sq /\
+    exists (tq : list (event (ifc_quasi_abstract_machine rule_table)))
+           (sq : state (ifc_quasi_abstract_machine rule_table)),
+      init_state (ifc_quasi_abstract_machine rule_table) iq →* [tq] sq /\
       tq ▷Rt tc.
 Proof. 
   intros. eapply (ref_prop (quasi_abstract_concrete_ref rule_table)) ; eauto. 

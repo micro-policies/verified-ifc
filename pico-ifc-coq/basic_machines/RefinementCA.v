@@ -265,7 +265,7 @@ Qed.
 
 Ltac renaming :=
   match goal with
-    | [ Hrule : run_tmr _ ?opcode ?pcl ?v = Some (?rpcl, ?rl) |- _ ]  =>
+    | [ Hrule : ifc_run_tmr _ ?opcode ?pcl ?v = Some (?rpcl, ?rl) |- _ ]  =>
       set (tags := labsToZs v);
       set (op := opCodeToZ opcode);
       set (pct := labToZ pcl);
@@ -361,17 +361,17 @@ Require RefinementAC.
 
 Lemma step_preserved:
   forall s1 s1' e s2,
-    step_rules fetch_rule_g s1 e s1' ->
+    step_rules (ifc_run_tmr fetch_rule_g) s1 e s1' ->
     match_states fetch_rule_g s1 s2 ->
     (exists s2', plus (step (concrete_machine faultHandler)) s2 (op_cons_ZToLab e nil) s2' /\ match_states fetch_rule_g s1' s2').
 Proof.
   intros s1 s1' e s2 Hstep Hmatch.
   inv Hstep; renaming;
   match goal with
-    | [Htmr : run_tmr _ _ _ _ = _ ,
+    | [Htmr : ifc_run_tmr _ _ _ _ = _ ,
        Hmatch : match_states _ _ _ |- _ ] =>
       inv Hmatch;
-      unfold run_tmr in Htmr
+      unfold ifc_run_tmr in Htmr
   end;
   generalize (cache_up2date_success CACHE);
   intros CACHE'.
@@ -671,7 +671,7 @@ Proof. induction 1; simpl; eauto. Qed.
 
 Lemma concrete_quasi_abstract_sref_prop :
   state_refinement_statement (concrete_machine faultHandler)
-                             (quasi_abstract_machine fetch_rule_g)
+                             (ifc_quasi_abstract_machine fetch_rule_g)
                              (fun cs qas => match_states fetch_rule_g qas cs)
                              (fun e1 e2 => RefinementAC.match_events e2 e1).
 Proof.
@@ -713,7 +713,7 @@ Definition concrete_quasi_abstract_sref :=
 
 Definition concrete_quasi_abstract_ref :
   refinement (concrete_machine faultHandler)
-             (quasi_abstract_machine fetch_rule_g) :=
+             (ifc_quasi_abstract_machine fetch_rule_g) :=
   @refinement_from_state_refinement _ _
                                     concrete_quasi_abstract_sref
                                     (fun i1 i2 => ac_match_initial_data i2 i1)
@@ -721,7 +721,7 @@ Definition concrete_quasi_abstract_ref :
 
 Lemma step_preserved_observ:
   forall s1 e s1' s2,
-    step_rules fetch_rule_g s1 e s1' ->
+    step_rules (ifc_run_tmr fetch_rule_g) s1 e s1' ->
     match_states fetch_rule_g s1 s2 ->
     s1 = observe_cstate s2 /\ (exists s2', plus cstep s2 (op_cons_ZToLab e nil) s2' /\ match_states fetch_rule_g s1' s2').
 Proof.
