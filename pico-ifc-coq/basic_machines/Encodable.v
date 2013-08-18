@@ -1,6 +1,8 @@
 Require Import ZArith.
 Require Import Lattices.
 Require Import CodeGen.
+Require Import Concrete.
+Require Import LibTactics.
 
 Open Scope Z_scope.
 
@@ -28,11 +30,69 @@ Program Instance EncodableHL : Encodable Lab := {
 
 Next Obligation. destruct l; auto. Qed.
 
-Lemma labToZ_inj: forall {L} {W: Encodable L} (l1 l2: L),
-  labToZ l1 = labToZ l2 -> l1 = l2.
+Section Encodable.
+
+Context {T : Type}
+        {ET : Encodable T}.
+
+Lemma labToZ_inj: forall (l1 l2: T), labToZ l1 = labToZ l2 -> l1 = l2.
 Proof.
   intros.
   rewrite (ZToLab_labToZ_id l1).
   rewrite (ZToLab_labToZ_id l2).
   apply f_equal; auto.
 Qed.
+
+(* Connecting vectors of labels to triples of tags. *)
+Import Vector.VectorNotations.
+Local Open Scope nat_scope.
+
+Definition nth_labToZ {n:nat} (vls: Vector.t T n) (m:nat) : Z :=
+  match le_lt_dec n m with
+  | left _ => dontCare
+  | right p => labToZ (Vector.nth_order vls p)
+  end.
+
+Lemma of_nat_lt_proof_irrel:
+  forall (m n: nat) (p q: m < n),
+    Fin.of_nat_lt p = Fin.of_nat_lt q.
+Proof.
+  induction m; intros.
+    destruct n.
+      false; omega.
+      reflexivity.
+    destruct n.
+      false; omega.
+      simpl; erewrite IHm; eauto.
+Qed.
+
+Lemma nth_order_proof_irrel:
+  forall (m n: nat) (v: Vector.t T n) (p q: m < n),
+    Vector.nth_order v p = Vector.nth_order v q.
+Proof.
+  intros.
+  unfold Vector.nth_order.
+  erewrite of_nat_lt_proof_irrel; eauto.
+Qed.
+
+Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m,
+  forall (lt: m < n),
+  nth_labToZ vls m = labToZ (Vector.nth_order vls lt).
+Proof.
+  intros.
+  unfold nth_labToZ.
+  destruct (le_lt_dec n m).
+  false; omega.
+  (* NC: Interesting: here we have two different proofs [m < n0] being
+  used as arguments to [nth_order], and we need to know that the
+  result of [nth_order] is the same in both cases.  I.e., we need
+  proof irrelevance! *)
+  erewrite nth_order_proof_irrel; eauto.
+Qed.
+
+Definition labsToZs {n:nat} (vls :Vector.t T n) : (Z * Z * Z) :=
+(nth_labToZ vls 0,
+ nth_labToZ vls 1,
+ nth_labToZ vls 2).
+
+End Encodable.
