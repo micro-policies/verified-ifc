@@ -18,6 +18,7 @@ Require Import CodeSpecs.
 Require Import CodeGen.
 Require Import CLattices.
 Require Import ConcreteExecutions.
+Require Import Encodable.
 
 Section TMU. 
 
@@ -26,7 +27,8 @@ Open Local Scope Z_scope.
 Context {T: Type}
         {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}
-        {WFCLatt: WfConcreteLattice T Latt CLatt}. 
+        {ELatt : Encodable T}
+        {WFCLatt: WfConcreteLattice T Latt CLatt ELatt}.
 
 (* --------------------- TMU Fault Handler code ----------------------------------- *)
 

@@ -19,6 +19,7 @@ Require Import Determinism.
 Require Import Refinement.
 Require Import FaultRoutine.
 Require Import Semantics.
+Require Import Encodable.
 
 Open Scope Z_scope.
 Coercion Z_of_nat : nat >-> Z.
@@ -86,7 +87,8 @@ Section MatchAbstractConcrete.
 Context {L: Type}
         {Latt: JoinSemiLattice L}
         {CLatt: ConcreteLattice L}
-        {WFCLatt: WfConcreteLattice L Latt CLatt}.
+        {ELatt : Encodable L}
+        {WFCLatt: WfConcreteLattice L Latt CLatt ELatt}.
 
 Definition atom_labToZ (a:@Atom L) : (@Atom Z) :=
   let (v,l) := a in (v,labToZ l).
@@ -1001,7 +1003,8 @@ Section RefAC.
 Context {observer: Type}
         {Latt: JoinSemiLattice observer}
         {CLatt: ConcreteLattice observer}
-        {WFCLatt: WfConcreteLattice observer Latt CLatt}.
+        {ELatt : Encodable observer}
+        {WFCLatt: WfConcreteLattice observer Latt CLatt ELatt}.
 
 Definition tini_fetch_rule_withsig :=
   (fun opcode => existT _
@@ -1017,7 +1020,7 @@ Program Definition abstract_concrete_ref :
   @ref_composition _ _ _
                    abstract_quasi_abstract_ref
                    (quasi_abstract_concrete_ref fetch_rule)
-                   (@ac_match_initial_data _ _ _ fetch_rule)
+                   (@ac_match_initial_data _ _ _ _ fetch_rule)
                    match_events
                    _ _.
 

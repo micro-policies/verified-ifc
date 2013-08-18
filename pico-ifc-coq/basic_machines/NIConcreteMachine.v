@@ -16,6 +16,7 @@ Require Import ConcreteExecutions.
 Require Import Semantics.
 Require Import Refinement.
 Require Import RefinementAC.
+Require Import Encodable.
 Require TINI.
 
 Open Scope Z_scope.
@@ -28,7 +29,8 @@ Section NI.
 Context {observer: Type}
         {Latt: JoinSemiLattice observer}
         {CLatt: ConcreteLattice observer}
-        {WFCLatt: WfConcreteLattice observer Latt CLatt}.
+        {ELatt : Encodable observer}
+        {WFCLatt: WfConcreteLattice observer Latt CLatt ELatt}.
 
 Inductive concrete_i_equiv (o : observer) :
   init_data tini_concrete_machine -> init_data tini_concrete_machine -> Prop :=

@@ -17,6 +17,7 @@ Require Import Determinism.
 Require Import ConcreteExecutions.
 Require Import Refinement.
 Require Import RefinementAC.
+Require Import Encodable.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope.
@@ -53,7 +54,8 @@ Section Refinement.
 Context {L: Type}
         {Latt: JoinSemiLattice L}
         {CLatt: ConcreteLattice L}
-        {WFCLatt: WfConcreteLattice L Latt CLatt}.
+        {ELatt: Encodable L}
+        {WFCLatt: WfConcreteLattice L Latt CLatt ELatt}.
 
 (** The fault handler code and its correctness *)
 Notation fetch_rule_g := fetch_rule. (* Should be able to replace this with a generic one later *)
@@ -63,7 +65,7 @@ Definition faultHandler := FaultRoutine.faultHandler fetch_rule_withsig.
 (* Bit more glue *)
 Lemma handler_correct :
   forall m i s raddr c opcode vls pcl olr lpc,
-  forall (INPUT: cache_hit c (opCodeToZ opcode) (@labsToZs L CLatt _ vls) (labToZ pcl))
+  forall (INPUT: cache_hit c (opCodeToZ opcode) (@labsToZs L ELatt _ vls) (labToZ pcl))
          (RULE: apply_rule (fetch_rule_g opcode) pcl vls = Some (olr,lpc)),
     exists c',
     runsToEscape (CState c m faultHandler i (CRet raddr false false::s) (0,handlerTag) true)
@@ -71,7 +73,7 @@ Lemma handler_correct :
     handler_final_mem_matches (T:=L) olr lpc c c'.
 Proof.
   intros.
-  exploit (@handler_correct_succeed _ _ _ _ fetch_rule_withsig opcode); eauto.
+  exploit (@handler_correct_succeed _ _ _ _ _ fetch_rule_withsig opcode); eauto.
 Qed.
 
 Lemma match_stacks_args' : forall args s cs,
@@ -717,7 +719,7 @@ Definition concrete_quasi_abstract_ref :
   @refinement_from_state_refinement _ _
                                     concrete_quasi_abstract_sref
                                     (fun i1 i2 => ac_match_initial_data i2 i1)
-                                    (fun i1 i2 => @ac_match_initial_data_match_initial_states _ _ _ _ i2 i1).
+                                    (fun i1 i2 => @ac_match_initial_data_match_initial_states _ _ _ _ _ i2 i1).
 
 Lemma step_preserved_observ:
   forall s1 e s1' s2,
@@ -756,7 +758,8 @@ Section RefCA.
 Context {observer: Type}
         {Latt: JoinSemiLattice observer}
         {CLatt: ConcreteLattice observer}
-        {WFCLatt: WfConcreteLattice observer Latt CLatt}.
+        {ELatt : Encodable observer}
+        {WFCLatt: WfConcreteLattice observer Latt CLatt ELatt}.
 
 Definition tini_fetch_rule_withsig :=
   (fun opcode => existT _
@@ -770,7 +773,7 @@ Program Definition concrete_abstract_ref :
   @ref_composition _ _ _
                    concrete_quasi_abstract_ref
                    quasi_abstract_abstract_ref
-                   (fun i1 i2 => @ac_match_initial_data _ _ _ fetch_rule i2 i1)
+                   (fun i1 i2 => @ac_match_initial_data _ _ _ _ fetch_rule i2 i1)
                    (fun e1 e2 => match_events e2 e1)
                    _ _.
 

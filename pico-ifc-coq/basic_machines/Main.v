@@ -13,7 +13,7 @@ Require Import NIAbstractMachine.
 Require Import RefinementCA.
 Require Import RefinementAC.
 Require Import NIConcreteMachine.
-
+Require Import Encodable.
 
 Section Main.
 
@@ -24,7 +24,8 @@ Section Main.
 Variable T : Type.
 Variable L : JoinSemiLattice T.
 Variable CL : ConcreteLattice T.
-Variable WF : WfConcreteLattice T L CL.
+Variable EL : Encodable T.
+Variable WF : WfConcreteLattice T L CL EL.
 
 (* Some handy notations *)
 Notation "s1 →* [ t ] s2" := (exec s1 t s2) (at level 60).

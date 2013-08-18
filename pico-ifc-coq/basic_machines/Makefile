@@ -17,7 +17,7 @@ TMU_ANI := TINI Refinement TINI_inf
 TMU_C := CLattices Concrete ConcreteMachine \
 	CodeGen CodeTriples CodeSpecs FaultRoutine\
 	Determinism RefinementAC ConcreteExecutions \
-	NIConcreteMachine RefinementCA
+	NIConcreteMachine RefinementCA Encodable
 
 ALLV := $(LIB) $(FINAL) $(TMU) $(TMU_A) $(TMU_AMNI) $(TMU_ANI) $(TMU_C) 
 
