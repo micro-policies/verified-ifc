@@ -41,25 +41,23 @@ Inductive concrete_i_equiv (o : observer) :
                    (p, (map pcatom_labToZ s1), labToZ l)
                    (p, (map pcatom_labToZ s2), labToZ l).
 
-Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) observer := {
-  e_low := fun o e => TINI.e_low o (abstract_event e);
-  e_low_dec := fun o e => TINI.e_low_dec o (abstract_event e);
+Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event observer) := {
+  out e := abstract_event e;
+  e_low := fun o e => TINI.e_low o e;
+  e_low_dec := fun o e => TINI.e_low_dec o e;
   i_equiv := concrete_i_equiv
 }.
 
-Lemma ac_observations_compatible :
-  forall o,
-    observations_compatible (abstract_concrete_ref stamp_cblock)
-                            (TINI.observe AMObservation o)
-                            (TINI.observe CMObservation o).
+Lemma ac_low_compatible :
+  forall o e1 e2,
+    ref_match_events (abstract_concrete_ref stamp_cblock) e1 e2 ->
+    (TINI.e_low o (TINI.out e1)
+       <-> TINI.e_low o (TINI.out e2)).
 Proof.
-  unfold observations_compatible.
-  eapply observations_compatible_option; simpl;
-  try (intros o H; inv H).
-  intros.
+  simpl.
+  intros o [a1] [a2] H; simpl.
   inv H.
-  rewrite (abstract_event_concretize_event (cblock := cblock)).
-  intuition.
+  erewrite <- atom_ZToLab_labToZ_id; eauto; reflexivity.
 Qed.
 
 Lemma concrete_equiv_abstract_equiv :
@@ -77,18 +75,28 @@ Proof.
   repeat split; simpl; eauto.
 Qed.
 
-Lemma ac_match_events_equiv : forall o e11 e12 e21 e22,
-                                @TINI.e_equiv abstract_machine _ _ o e11 e12 ->
-                                match_events e11 e21 ->
-                                match_events e12 e22 ->
-                                @TINI.e_equiv (tini_concrete_machine cblock) _ _ o e21 e22.
+Lemma ac_match_events_equiv :
+  forall o e11 e12 e21 e22
+         (EQ : @TINI.a_equiv abstract_machine _ _ o (E e11) (E e12))
+         (MATCH1 : ref_match_events (abstract_concrete_ref stamp_cblock) e11 e21)
+         (MATCH2 : ref_match_events (abstract_concrete_ref stamp_cblock) e12 e22),
+    @TINI.a_equiv (tini_concrete_machine cblock) _ _ o (E e21) (E e22).
 Proof.
-  unfold match_events.
+  simpl.
   intros.
-  subst.
-  inv H; constructor; auto; simpl;
-  rewrite (abstract_event_concretize_event (cblock := cblock));
-  auto.
+  inv EQ; inv MATCH1; inv MATCH2;
+  simpl in *; subst;
+  constructor (solve [simpl in *; auto;
+                          try rewrite (abstract_event_concretize_event (cblock := cblock)); eauto]).
+Qed.
+
+Lemma ac_tini_preservation_premises :
+  tini_preservation_hypothesis (abstract_concrete_ref stamp_cblock).
+Proof.
+  intros o. exists o.
+  split. { apply ac_low_compatible. }
+  split. { apply concrete_equiv_abstract_equiv. }
+  apply ac_match_events_equiv.
 Qed.
 
 Lemma concrete_noninterference :
@@ -98,10 +106,8 @@ Proof.
           abstract_machine (tini_concrete_machine cblock)
           _ _ _
           (abstract_concrete_ref stamp_cblock)
-          ac_observations_compatible
           abstract_noninterference
-          concrete_equiv_abstract_equiv
-          ac_match_events_equiv).
+          ac_tini_preservation_premises).
 Qed.
 
 End NI.

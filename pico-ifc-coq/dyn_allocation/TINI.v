@@ -14,31 +14,36 @@ Definition trace := list (event S).
 
 Inductive exec : state S -> trace -> state S -> Prop :=
 | e_refl : forall s, exec s nil s
-| e_step : forall s e s' t s'',
-             step S s e s' ->
-             exec s' t s'' ->
-             exec s (e :: t) s''.
+| e_event_step : forall s e s' t s'',
+                   step S s (E e) s' ->
+                   exec s' t s'' ->
+                   exec s (e :: t) s''
+| e_silent_step : forall s s' t s'',
+                    step S s Silent s' ->
+                    exec s' t s'' ->
+                    exec s t s''.
 
 End Exec.
 
 Section OBSERVATION.
 
 Variable S: semantics.
-Variable observer: Type.
 Let exec := @exec S.
 Let trace := @trace S.
 
-Class Observation := {
-  e_low : observer -> (event S) -> Prop;
+Class Observation (e_obs: Type) := {
+  observer : Type;
+  out : event S -> e_obs;
+  e_low : observer -> e_obs -> Prop;
   e_low_dec : forall o e, {e_low o e} + {~ e_low o e};
   i_equiv : observer -> relation (init_data S)
 }.
 
 Section TINI.
 
-Context (OE : Observation).
+Context (e_obs:Type) (OE : Observation e_obs).
 
-Inductive ti_trace_indist : relation trace :=
+Inductive ti_trace_indist : relation (list e_obs) :=
 | titi_nil1: forall t2, ti_trace_indist nil t2
 | titi_nil2: forall t1, ti_trace_indist t1 nil
 | titi_cons : forall e t1 t2,
@@ -47,34 +52,45 @@ Inductive ti_trace_indist : relation trace :=
 Hint Constructors ti_trace_indist.
 
 Definition observe (o : observer) (es : trace) : trace :=
-  filter (fun e => if e_low_dec o e then true else false) es.
+  filter (fun e => if e_low_dec o (out e) then true else false) es.
 
-Lemma observe_forall : forall o es, Forall (e_low o) (observe o es).
+Lemma observe_forall : forall o es, Forall (fun e => e_low o (out e)) (observe o es).
 Proof.
   induction es as [|e es IH]; simpl.
   - constructor.
-  - destruct (e_low_dec o e); auto.
+  - destruct (e_low_dec o (out e)); auto.
 Qed.
+
 
 Definition tini : Prop := forall o i1 t1 s1 i2 t2 s2,
                             i_equiv o i1 i2 ->
                             exec (init_state _ i1) t1 s1 ->
                             exec (init_state _ i2) t2 s2 ->
-                            ti_trace_indist (observe o t1) (observe o t2).
+                            ti_trace_indist (map out (observe o t1)) (map out (observe o t2)).
 
-Inductive e_equiv (o : observer) : relation (event S) :=
-| ee_low : forall e, e_low o e -> e_equiv o e e
-| ee_high : forall e1 e2, ~ e_low o e1 ->
-                          ~ e_low o e2 ->
-                          e_equiv o e1 e2.
-Hint Constructors e_equiv.
+Inductive a_equiv (o : observer) : relation ((event S)+τ) :=
+| ee_low_silent : a_equiv o Silent Silent
+| ee_low_E : forall e1 e2, out e1 = out e2 ->
+                           e_low o (out e1) ->
+                           e_low o (out e2) ->
+                           a_equiv o (E e1) (E e2)
+| ee_high_silent : forall e, ~ e_low o (out e) ->
+                             a_equiv o (E e) Silent
+| ee_silent_high : forall e, ~ e_low o (out e) ->
+                             a_equiv o Silent (E e)
+| ee_high : forall e1 e2, ~ e_low o (out e1) ->
+                          ~ e_low o (out e2) ->
+                          a_equiv o (E e1) (E e2).
+Hint Constructors a_equiv.
 
-Global Instance e_equiv_equiv (o: observer) : @Equivalence _ (e_equiv o).
+Global Instance a_equiv_equiv (o: observer) : @Equivalence _ (a_equiv o).
 Proof.
   constructor.
-  - intros e. destruct (e_low_dec o e); auto.
+  - intros [e|]; auto.
+    destruct (e_low_dec o (out e)); auto.
   - intros x y Hxy. inv Hxy ; auto.
-  - intros x y z Hxy Hyz. inv Hxy; auto. inv Hyz; auto.
+  - intros x y z Hxy Hyz; inv Hxy; inv Hyz; auto.
+    econstructor; auto; congruence.
 Qed.
 
 Class UnwindingSemantics := {
@@ -92,8 +108,8 @@ Class UnwindingSemantics := {
   s_inv_step : forall s1 e s2, step S s1 e s2 -> s_inv s1 -> s_inv s2;
 
   e_low_s_low : forall o s1 e s2,
-                  step S s1 e s2 ->
-                  e_low o e ->
+                  step S s1 (E e) s2 ->
+                  e_low o (out e) ->
                   s_low o s1;
 
   (* Unwinding conditions *)
@@ -103,7 +119,7 @@ Class UnwindingSemantics := {
                      s_low o s1 ->
                      step S s1 e1 s1' ->
                      step S s2 e2 s2' ->
-                     e_equiv o e1 e2;
+                     a_equiv o e1 e2;
 
   lowstep : forall o t1 t2 s1 s1' s2 s2',
               s_equiv o s1 s2 ->
@@ -140,11 +156,14 @@ Lemma equiv_trace_high : forall o s1 e1 s1' s2 e2 s2'
                                 (Hstep2 : step S s2 e2 s2')
                                 (Hhigh1 : ~ s_low o s1)
                                 (Heq : s_equiv o s1 s2),
-                           e_equiv o e1 e2.
+                           a_equiv o e1 e2.
 Proof.
   intros.
   assert (Hhigh2 : ~ s_low o s2) by (apply s_equiv_low in Heq; intuition).
-  constructor; eauto using e_low_s_low.
+  destruct e1; destruct e2; try (constructor (auto; fail)).
+  constructor 5; eauto using e_low_s_low.
+  constructor 3; eauto using e_low_s_low.
+  constructor 4; eauto using e_low_s_low.
 Qed.
 
 (* We define an alternative notion of execution ([oexec]) that is
@@ -174,7 +193,7 @@ Lemma high_run_high_r : forall o s s',
                           ~ s_low o s'.
 Proof. intros. induction H; eauto. Qed.
 
-Inductive ostep (o : observer) : state S -> event S -> state S -> Prop :=
+Inductive ostep (o : observer) : state S -> (event S)+τ -> state S -> Prop :=
 | os_l : forall s e s',
            s_low o s ->
            step S s e s' ->
@@ -198,36 +217,41 @@ Proof.
 Qed.
 Hint Resolve ostep_step.
 
-Inductive oexec (o : observer) : state S -> trace -> state S -> Prop :=
+Inductive oexec (o : observer) : state S -> list e_obs -> state S -> Prop :=
 | oe_refl : forall s, s_inv s -> oexec o s nil s
 | oe_high_run : forall s s', s_inv s -> high_run o s s' -> oexec o s nil s'
 | oe_low : forall s e s' t s'',
              s_inv s ->
-             ostep o s e s' ->
-             e_low o e ->
+             ostep o s (E e) s' ->
+             e_low o (out e) ->
              oexec o s' t s'' ->
-             oexec o s (e :: t) s''
+             oexec o s (out e :: t) s''
+| oe_silent : forall s s' t s'',
+              s_inv s ->
+              ostep o s Silent s' ->
+              oexec o s' t s'' ->
+              oexec o s t s''
 | oe_high : forall s e s' t s'',
-             s_inv s ->
-              ostep o s e s' ->
-              ~ e_low o e ->
+              s_inv s ->
+              ostep o s (E e) s' ->
+              ~ e_low o (out e) ->
               oexec o s' t s'' ->
               oexec o s t s''.
 Hint Constructors oexec.
 
 Lemma oexec_low : forall o s e s' t s''
                          (Hi: s_inv s)
-                         (Hstep : step S s e s')
-                         (Hlow : e_low o e)
+                         (Hstep : step S s (E e) s')
+                         (Hlow : e_low o (out e))
                          (Hexec : oexec o s' t s''),
-                   oexec o s (e :: t) s''.
-Proof. intros. eauto using e_low_s_low, s_inv_step. Qed.
+                   oexec o s (out e :: t) s''.
+Proof. intros. eauto using e_low_s_low. Qed.
 Hint Resolve oexec_low.
 
 Lemma oexec_high : forall o s e s' t s''
                           (Hi: s_inv s)
-                          (Hstep : step S s e s')
-                          (Hhigh : ~ e_low o e)
+                          (Hstep : step S s (E e) s')
+                          (Hhigh : ~ e_low o (out e))
                           (Hexec : oexec o s' t s''),
                     oexec o s t s''.
 Proof.
@@ -238,17 +262,30 @@ Proof.
 Qed.
 Hint Resolve oexec_high.
 
+Lemma oexec_silent : forall o s s' t s''
+                          (Hi : s_inv s)
+                          (Hstep : step S s Silent s')
+                          (Hexec : oexec o s' t s''),
+                    oexec o s t s''.
+Proof.
+  intros.
+  destruct (s_low_dec o s);
+  destruct (s_low_dec o s'); eauto.
+  inv Hexec; eauto.
+Qed.
+Hint Resolve oexec_silent.
+
 Lemma exec_oexec : forall o s t s',
                      exec s t s' ->
                      s_inv s ->
-                     oexec o s (observe o t) s'.
+                     oexec o s (map out (observe o t)) s'.
 Proof.
   intros o s t s' H.
   unfold observe.
   induction H; intro; simpl;
   try match goal with
         | e : event S |- _ =>
-          try destruct (e_low_dec o e); simpl
+          try destruct (e_low_dec o (out e)); simpl
       end; eauto using s_inv_step.
 Qed.
 
@@ -301,7 +338,7 @@ Lemma ostep_equiv : forall o s1 e1 s1' s2 e2 s2'
                            (Hi1: s_inv s1)
                            (Hi2: s_inv s2)
                            (Heq : s_equiv o s1 s2),
-                      e_equiv o e1 e2 /\ s_equiv o s1' s2'.
+                      a_equiv o e1 e2 /\ s_equiv o s1' s2'.
 Proof.
   intros.
   inversion Hstep1 as [? ? ? Hs1 Hstep1'|? s1'' ? ? Hhr1 Hstep1' Hs1']; subst. clear Hstep1.
@@ -336,22 +373,23 @@ Lemma oexec_equiv : forall o s1 t1 s1' s2 t2 s2'
 Proof.
   intros.
   gdep t2. gdep s2.
-  induction Hexec1;  eauto;
+  induction Hexec1; eauto;
   intros s2 Heq t2 Hexec2;
   inv Hexec2; eauto;
   match goal with
     | Hstep1 : ostep _ ?s1 _ _,
       Hstep2 : ostep _ ?s2 _ _,
-      Hi1 : s_inv ?s1,         
-      Hi2 : s_inv ?s2,         
+      Hi1 : s_inv ?s1,
+      Hi2 : s_inv ?s2,
       Heq : s_equiv _ ?s1 ?s2 |- _ =>
       let H := fresh "H" in
       generalize (ostep_equiv Hstep1 Hstep2 Hi1 Hi2 Heq); intros H; destruct H
   end; simpl in *; eauto;
   match goal with
-    | H : e_equiv _ _ _ |- _ =>
+    | H : a_equiv _ _ _ |- _ =>
       inv H; intuition; eauto
   end.
+  rewrite H10; eauto.
 Qed.
 
 Theorem noninterference : tini.

@@ -46,29 +46,14 @@ Definition tini_match_states := match_states cblock QuasiAbstractMachine.fetch_r
 
 Definition tini_concrete_machine := concrete_machine cblock tini_faultHandler.
 
-Program Definition weak_abstract_quasi_abstract_ref :
-  refinement abstract_machine tini_quasi_abstract_machine :=
-  @weaken_refinement _ _
-                     abstract_quasi_abstract_ref
-                     remove_none remove_none _.
-
-Next Obligation.
-  unfold observations_compatible. simpl.
-  induction 1.
-  - constructor.
-  - subst.
-    simpl. destruct (is_some e2); trivial.
-    constructor; trivial.
-Qed.
-
 Program Definition abstract_concrete_ref :
   refinement abstract_machine tini_concrete_machine :=
   @ref_composition _ _ _
-                   weak_abstract_quasi_abstract_ref
+                   abstract_quasi_abstract_ref
                    (quasi_abstract_concrete_ref stamp_cblock fetch_rule)
                    (@ac_match_initial_data _ _ _ fetch_rule)
                    match_events
-                   _ _ _.
+                   _ _.
 
 Next Obligation.
   eauto.

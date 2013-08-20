@@ -714,41 +714,16 @@ Proof.
 Qed.
 
 
-Inductive visible_event (o : Label) : option (@Event Label) -> Prop :=
-| ve_low : forall i l, l <: o = true -> visible_event o (Some (EInt (i, l))).
+Inductive visible_event (o : Label) : @Event Label -> Prop :=
+| ve_low : forall i l, l <: o = true -> visible_event o (EInt (i, l)).
 Hint Constructors visible_event.
 
 Lemma visible_event_dec : forall o e, {visible_event o e} + {~ visible_event o e}.
 Proof.
-  intros o [[[x l]]|].
-  - destruct (l <: o) eqn: Hl; auto.
-    right. intros H. inv H. congruence.
-  - right. intros H. inv H.
+  intros o [[x l]].
+  destruct (l <: o) eqn: Hl; auto.
+  right. intros H. inv H. congruence.
 Defined.
-
-Inductive low_equiv_event (o : Label) : option (@Event Label) ->
-                                        option (@Event Label) -> Prop :=
-| lee_visible : forall e, visible_event o e -> low_equiv_event o e e
-| lee_invisible : forall e1 e2,
-                    ~ visible_event o e1 ->
-                    ~ visible_event o e2 ->
-                    low_equiv_event o e1 e2.
-Hint Constructors low_equiv_event.
-
-Global Instance low_event (o : Label) : @Equivalence _ (low_equiv_event o).
-Proof.
-  constructor.
-  - intros [[[x l]]|].
-    + destruct (l <: o) eqn:Hl; auto.
-      constructor 2;
-      intros H; inv H; congruence.
-    + constructor 2;
-      intros H; inv H; congruence.
-  - intros x y H.
-    inv H; auto.
-  - intros x y z H1 H2.
-    inv H1; inv H2; auto.
-Qed.
 
 End ObsEquiv.
 
@@ -803,7 +778,8 @@ Inductive abstract_i_equiv (o : T) : relation (init_data abstract_machine) :=
                       (STK : low_equiv_list (low_equiv_atom o) d1 d2),
                  abstract_i_equiv o (p,d1,b) (p,d2,b).
 
-Global Program Instance AMObservation : TINI.Observation abstract_machine T := {
+Global Program Instance AMObservation : TINI.Observation abstract_machine (Event T) := {
+  out e := e;                                                                                
   e_low := visible_event;
   e_low_dec := visible_event_dec;
   i_equiv := abstract_i_equiv
@@ -866,8 +842,6 @@ Proof.
     destruct (Mem.alloc Local m1 lbl fr) as [b2 m2] eqn:E2.
     simpl.
     eapply (Mem.alloc_local_comm _ _ _ m1 m1' m1'' m2 m1); eauto.
-    Set Printing All.
-
     congruence.
 Qed.
 
@@ -1509,6 +1483,10 @@ Next Obligation.
     | H : low_equiv_full_state _ _ _ |- _ =>
       inv H
   end;
+  match goal with
+    | H : low_pc _ _ |- _ =>
+      unfold low_pc in H; simpl in H; try congruence
+  end;
   try solve [
         constructor; intros H; inv H;
         match goal with
@@ -1520,7 +1498,7 @@ Next Obligation.
   try congruence.
   exploit_low. 
   inv LEa; try reflexivity.
-  constructor; intros H; inv H;
+  constructor 5; intros H; inv H;
   match goal with
     | H : ?l \_/ ?pcl <: ?o = true |- _ =>
       apply join_1_rev in H; congruence
@@ -1550,7 +1528,7 @@ Qed.
 
 (* DD/AAA : Does writing things this way in the final theorem would make things less ambiguous? *)
 Theorem abstract_noninterference :
-  @TINI.tini abstract_machine T AMObservation.
+  @TINI.tini abstract_machine (Event T) AMObservation.
 Proof.
   apply TINI.noninterference.
   exact AMUnwindingSemantics.

@@ -22,11 +22,11 @@ Inductive runsUntilUser : CS -> CS -> Prop :=
 | ruu_end : forall s s',
               priv s = true ->
               priv s' = false ->
-              cstep cblock s None s' ->
+              cstep cblock s Silent s' ->
               runsUntilUser s s'
 | ruu_step : forall s s' s'',
                priv s = true ->
-               cstep cblock s None s' ->
+               cstep cblock s Silent s' ->
                runsUntilUser s' s'' ->
                runsUntilUser s s''.
 Hint Constructors runsUntilUser.
@@ -81,7 +81,7 @@ Inductive runsToEnd : CS -> CS -> Prop :=
 | rte_refl : forall s, priv s = true -> runsToEnd s s
 | rte_step : forall s s' s'',
                priv s = true ->
-               cstep cblock s None s' -> (* slippery to put None, but justified *)
+               cstep cblock s Silent s' -> (* slippery to put Silent, but justified *)
                runsToEnd s' s'' ->
                runsToEnd s s''.
 Hint Constructors runsToEnd.

@@ -345,24 +345,26 @@ Proof.
   reflexivity. zify; omega.
 Qed.
 
-Definition abstract_event (ce : option CEvent) : option (Event T) :=
+Definition abstract_event (ce : CEvent) : Event T :=
   match ce with
-    | Some (CEInt ca) => Some (EInt (pcatom_ZToLab ca))
-    | None => None
+    | CEInt ca => EInt (pcatom_ZToLab ca)
   end.
 
-Definition concretize_event (ae : option (Event T)) : option CEvent :=
+Definition concretize_event (ae : Event T) : CEvent :=
   match ae with
-    | Some (EInt aa) => Some (CEInt (pcatom_labToZ aa))
-    | None => None
+    | EInt aa => CEInt (pcatom_labToZ aa)
   end.
 
 Definition match_events e1 e2 := concretize_event e1 = e2.
 
+Definition match_actions := match_actions tini_quasi_abstract_machine
+                                          (concrete_machine cblock faultHandler)
+                                          match_events.
+
 Lemma abstract_event_concretize_event :
   forall ae, abstract_event (concretize_event ae) = ae.
 Proof.
-  intros [[[xv xl]]|]; simpl; auto.
+  intros [[xv xl]]; simpl; auto.
   erewrite <- ZToLab_labToZ_id; eauto.
 Qed.
 
@@ -538,17 +540,17 @@ Hint Resolve match_vals_eq.
 (** Cache hit case *)
 
 Lemma cache_hit_simulation :
-  forall s1 s2 e2 s2'
+  forall s1 s2 a2 s2'
          (Hmatch : match_states s1 s2)
          (Hs2' : priv s2' = false)
-         (Hstep : cstep cblock s2 e2 s2'),
-    exists e1 s1', step_rules fetch_rule_g s1 e1 s1' /\
-                   match_events e1 e2 /\
+         (Hstep : cstep cblock s2 a2 s2'),
+    exists a1 s1', step_rules fetch_rule_g s1 a1 s1' /\
+                   match_actions a1 a2 /\
                    match_states s1' s2'.
 Proof.
   intros.
   inv Hmatch.
-  unfold match_events.
+  unfold match_actions.
   inv Hstep; simpl in *; try congruence;
 
   match_inv;
@@ -990,20 +992,14 @@ Qed.
 Section CExec.
 
 (* congruence fails if this is let-bound *)
-Local Notation ctrace := (list (option CEvent)).
-
-Let cons_event e t : ctrace :=
-  match e with
-    | Some _ => e :: t
-    | None => t
-  end.
+Local Notation ctrace := (list CEvent).
 
 Inductive exec_end : CS -> CS -> Prop :=
 | ee_refl : forall s, exec_end s s
 | ee_kernel_end : forall s s', runsToEnd cblock s s' -> exec_end s s'
 | ee_final_fault : forall s s' s'',
                      priv s = false ->
-                     cstep cblock s None s' ->
+                     cstep cblock s Silent s' ->
                      runsToEnd cblock s' s'' ->
                      exec_end s s''.
 Hint Constructors exec_end.
@@ -1019,10 +1015,10 @@ Inductive cexec : CS -> ctrace -> CS -> Prop :=
                   cstep cblock s e s' ->
                   priv s' = false ->
                   cexec s' t s'' ->
-                  cexec s (cons_event e t) s''
+                  cexec s (op_cons e t) s''
 | ce_user_miss : forall s s' s'' t s''',
                    priv s = false ->
-                   cstep cblock s None s' ->
+                   cstep cblock s Silent s' ->
                    runsUntilUser cblock s' s'' ->
                    cexec s'' t s''' ->
                    cexec s t s'''.
@@ -1031,7 +1027,7 @@ Hint Constructors cexec.
 Lemma exec_end_step : forall s e s' s''
                              (STEP : cstep cblock s e s')
                              (EXEC : exec_end s' s''),
-                        cexec s (cons_event e nil) s''.
+                        cexec s (op_cons e nil) s''.
 Proof.
   intros.
   destruct (priv s) eqn:PRIV;
@@ -1045,12 +1041,12 @@ Hint Resolve exec_end_step.
 Lemma cexec_step : forall s e s' t s''
                           (Hstep : cstep cblock s e s')
                           (Hexec : cexec s' t s''),
-                          cexec s (cons_event e t) s''.
+                          cexec s (op_cons e t) s''.
 Proof.
   intros.
   inv Hexec; simpl; eauto;
   (destruct (priv s) eqn:PRIV;
-   [assert (e = None) by (eapply priv_no_event_l; eauto); subst|]);
+   [assert (e = Silent) by (eapply priv_no_event_l; eauto); subst|]);
   eauto.
   - exploit priv_no_event_r; eauto.
     intros ?. subst.
@@ -1059,23 +1055,14 @@ Proof.
     eapply ce_kernel_begin; eauto.
 Qed.
 
-Let remove_silent (ct : ctrace) := filter (@is_some _) ct.
-
-Lemma cons_event_remove_silent :
-  forall e t,
-    remove_silent (e :: t) = cons_event e (remove_silent t).
-Proof.
-  intros [e|] t; reflexivity.
-Qed.
-
 Lemma exec_cexec : forall s t s',
                      (@TINI.exec (concrete_machine cblock faultHandler)) s t s' ->
-                     cexec s (remove_silent t) s'.
+                     cexec s t s'.
 Proof.
   intros s t s' Hexec.
   induction Hexec; eauto.
-  rewrite cons_event_remove_silent.
-  eapply cexec_step; eauto.
+  - eapply cexec_step with (e := E e); eauto.
+  - eapply cexec_step with (e := Silent); eauto.
 Qed.
 
 End CExec.
@@ -1083,8 +1070,7 @@ End CExec.
 Lemma quasi_abstract_concrete_sref_prop :
   @state_refinement_statement (quasi_abstract_machine fetch_rule_g)
                               (concrete_machine cblock faultHandler)
-                              match_states match_events
-                              remove_none remove_none.
+                              match_states match_events.
 Proof.
   intros s1 s2 t2 s2' MATCH EXEC. simpl.
   apply exec_cexec in EXEC.
@@ -1097,23 +1083,23 @@ Proof.
   induction EXEC; intros s1 MATCH t2 Ht2; unfold remove_none.
   - exists nil. exists s1.
     split. constructor.
-    rewrite <- Ht2. constructor.
+    constructor.
   - inv MATCH.
     apply runsUntilUser_l in H.
     inv H.
   - exploit cache_hit_simulation; eauto.
     intros [e1 [s1' [STEP [ME MS]]]].
     unfold match_events in *. subst.
-    assert (exists t', t = filter (@is_some _) t') by
-        (destruct (concretize_event e1); eauto using filter_cons_inv).
-    inv H2.
+    (*assert (exists t', t = filter (@is_event _) t') by
+        (destruct (concretize_event e1); eauto using filter_cons_inv).*)
+    (*inv H2.*)
     exploit IHEXEC; eauto.
     intros [t1 [? [? ?]]].
-    exists (e1::t1). eexists.
-    split. econstructor 2; eauto.
-    rewrite <- Ht2.
+    exists (op_cons e1 t1). eexists.
+    split. destruct e1; econstructor; eauto.
 
-    simpl. destruct e1 as [[[? ?]]|]; simpl; eauto.
+    simpl.
+    inv ME; simpl; eauto.
     constructor; auto.
   - exploit cache_miss_simulation; eauto.
 Qed.

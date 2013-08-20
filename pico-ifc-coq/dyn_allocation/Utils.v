@@ -821,16 +821,18 @@ Definition is_some T (o : option T) :=
 Definition remove_none {T} (l : list (option T)) :=
   filter (@is_some _) l.
 
-(** Reflexive transitive closure. *)
+Inductive with_silent {T:Type} := | E (e:T) | Silent.
+Notation "T +τ" := (@with_silent T) (at level 1).
 
-Definition op_cons (E: Type) (oe: option E) (l: list E) :=
+(** Reflexive transitive closure. *)
+Definition op_cons (E: Type) (oe: E+τ) (l: list E) :=
   match oe with 
-      | Some e => e::l
-      | None => l
+      | E e => e::l
+      | Silent => l
   end.
 
 
-Inductive star (S E: Type) (Rstep: S -> option E -> S -> Prop): S -> list E -> S -> Prop :=
+Inductive star (S E: Type) (Rstep: S -> E+τ -> S -> Prop): S -> list E -> S -> Prop :=
   | star_refl: forall s,
       star Rstep s nil s
   | star_step: forall s1 s2 s3 e t t',
@@ -839,10 +841,10 @@ Inductive star (S E: Type) (Rstep: S -> option E -> S -> Prop): S -> list E -> S
       star Rstep s1 t' s3.
 Hint Constructors star.
 
-Lemma op_cons_app : forall E (e: option E) t t', (op_cons e t)++t' = op_cons e (t++t').
+Lemma op_cons_app : forall E (e: E+τ) t t', (op_cons e t)++t' = op_cons e (t++t').
 Proof. intros. destruct e; reflexivity. Qed.  
 
-Lemma star_right : forall S E (Rstep: S -> option E -> S -> Prop) s1 s2 t, 
+Lemma star_right : forall S E (Rstep: S -> E+τ -> S -> Prop) s1 s2 t, 
                      star Rstep s1 t s2 -> 
                      forall s3 e t', 
                        Rstep s2 e s3 -> 
@@ -855,7 +857,7 @@ Proof.
   inv H3. rewrite op_cons_app; eauto. 
 Qed.
 
-Inductive plus (S E: Type) (Rstep: S -> option E -> S -> Prop): S -> list E -> S -> Prop :=
+Inductive plus (S E: Type) (Rstep: S -> E+τ -> S -> Prop): S -> list E -> S -> Prop :=
   | plus_step: forall s t s' e,
       Rstep s e s' ->
       t = (op_cons e nil) ->
@@ -868,7 +870,7 @@ Inductive plus (S E: Type) (Rstep: S -> option E -> S -> Prop): S -> list E -> S
 Hint Constructors star.
 Hint Constructors plus.
 
-Lemma plus_right : forall E S (Rstep: S -> option E -> S -> Prop) s1 s2 t, 
+Lemma plus_right : forall E S (Rstep: S -> E+τ -> S -> Prop) s1 s2 t, 
                      plus Rstep s1 t s2 -> 
                      forall s3 e t',
                        t' = (t++(op_cons e nil)) ->
@@ -884,7 +886,7 @@ Qed.
 
 Lemma step_star_plus :
   forall (S E: Type)
-         (Rstep: S -> option E -> S -> Prop) s1 t s2
+         (Rstep: S -> E+τ -> S -> Prop) s1 t s2
          (STAR : star Rstep s1 t s2)
          (NEQ : s1 <> s2),
     plus Rstep s1 t s2.
@@ -896,7 +898,7 @@ Proof.
 Qed.
 Hint Resolve step_star_plus.
 
-Lemma star_trans: forall S E (Rstep: S -> option E -> S -> Prop) s0 t s1,
+Lemma star_trans: forall S E (Rstep: S -> E+τ -> S -> Prop) s0 t s1,
   star Rstep s0 t s1 ->
   forall t' s2,
   star Rstep s1 t' s2 ->

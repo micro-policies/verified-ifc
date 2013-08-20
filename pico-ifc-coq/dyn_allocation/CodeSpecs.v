@@ -42,7 +42,7 @@ Definition HProp := memory -> stack -> Prop.
 (* ================================================================ *)
 (* Specs for concrete code *)
 
-Ltac nil_help :=   replace (@nil CEvent) with (op_cons None (@nil CEvent)) by reflexivity.
+Ltac nil_help :=   replace (@nil CEvent) with (op_cons Silent (@nil CEvent)) by reflexivity.
 
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)

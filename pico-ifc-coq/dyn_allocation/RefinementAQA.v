@@ -280,7 +280,8 @@ Program Definition abstract_quasi_abstract_sref :=
 Next Obligation.
   exploit a_qa_simulation; eauto.
   intros [? [? ?]].
-  eauto.
+  repeat eexists; eauto.
+  destruct e2; constructor; auto.
 Qed.
 
 Definition emptyinj : meminj := fun _ => None.

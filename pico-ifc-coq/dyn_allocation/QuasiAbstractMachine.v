@@ -57,18 +57,18 @@ Definition run_tmr (opcode: OpCode) (pclab: T) (vlabs:Vector.t T (labelCount opc
   let r := (fetch_rule opcode) in
   apply_rule r pclab vlabs.
 
-Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
+Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
 | step_nop : forall m i s pcv pcl rpcl rl,
     index_list_Z pcv i = Some Noop ->
     run_tmr OpNoop pcl <||> = Some (rpcl,rl) ->
-    step_rules (AState m i s (pcv,pcl)) None (AState m i s (pcv+1,rpcl))
+    step_rules (AState m i s (pcv,pcl)) Silent (AState m i s (pcv+1,rpcl))
 
 | step_add: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l xv,
     index_list_Z pcv i = Some Add ->
     add x1v x2v = Some xv ->
     run_tmr OpAdd pcl <|x1l;x2l|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl))
-               None
+               Silent
                (AState m i ((AData (xv,rl))::s) (pcv+1,rpcl))
 
 | step_sub: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l xv,
@@ -76,14 +76,14 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     sub x1v x2v = Some xv ->
     run_tmr OpSub pcl <|x1l;x2l|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl))
-               None
+               Silent
                (AState m i ((AData (xv,rl))::s) (pcv+1,rpcl))
 
 | step_eq: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l,
     index_list_Z pcv i = Some Eq ->
     run_tmr OpEq pcl <|x1l;x2l|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl))
-               None
+               Silent
                (AState m i ((AData (val_eq x1v x2v,rl))::s) (pcv+1,rpcl))
 
 | step_dup : forall m i s1 s2 pcv pcl n xv xl rpcl rl
@@ -92,7 +92,7 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     (DATA: forall se, In se s1 -> exists a, se = AData a)
     (TMU: run_tmr OpDup pcl <|xl|> = Some (rpcl,rl)),
     step_rules (AState m i (s1 ++ s2) (pcv, pcl))
-               None
+               Silent
                (AState m i (AData (xv, rl) :: s1 ++ s2) (pcv+1,rpcl))
 
 | step_swap : forall m i s1 s1' s2 pcv pcl n rpcl rl
@@ -101,21 +101,21 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     (DATA: forall se, In se s1 -> exists a, se = AData a)
     (TMU: run_tmr OpSwap pcl <||> = Some (rpcl,rl)),
     step_rules (AState m i (s1 ++ s2) (pcv, pcl))
-               None
+               Silent
                (AState m i (s1' ++ s2) (pcv+1,rpcl))
 
 | step_push: forall m i s pcv pcl rpcl rl cv,
     index_list_Z pcv i = Some (Push cv) ->
     run_tmr OpPush pcl <||> = Some (rpcl,rl) ->
     step_rules (AState m i s (pcv,pcl))
-               None
+               Silent
                (AState m i ((AData (Vint cv,rl))::s) (pcv+1,rpcl))
 
 | step_pop: forall m i s pcv pcl rpcl rl a,
     index_list_Z pcv i = Some Pop ->
     run_tmr OpPop pcl <||> = Some (rpcl,rl) ->
     step_rules (AState m i (AData a :: s) (pcv,pcl))
-               None
+               Silent
                (AState m i s (pcv+1,rpcl))
 
 | step_alloc: forall m i s pcv pcl b size sizel xv xl m' rpcl rl,
@@ -123,7 +123,7 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     run_tmr OpAlloc pcl <|sizel|> = Some (rpcl,rl) ->
     qa_alloc size (xv,xl) m = Some (b,m') ->
     step_rules (AState m i (AData (Vint size,sizel)::AData (xv,xl)::s) (pcv,pcl))
-               None
+               Silent
                (AState m' i (AData (Vptr b 0,rl)::s) (pcv+1,rpcl))
 
 | step_load: forall m i s pcv pcl b ofs addrl xv xl rl rpcl,
@@ -131,7 +131,7 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     load b ofs m = Some (xv,xl) ->
     run_tmr OpLoad pcl <|addrl;xl|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (Vptr b ofs,addrl))::s) (pcv,pcl))
-               None
+               Silent
                (AState m i ((AData (xv, rl))::s) (pcv+1,rpcl))
 
 | step_store: forall m i s pcv pcl b ofs addrl xv xl mv ml rl rpcl m',
@@ -140,21 +140,21 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     store b ofs (xv,rl) m = Some m' ->
     run_tmr OpStore pcl <|addrl;xl;ml|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (Vptr b ofs,addrl))::(AData (xv,xl))::s) (pcv,pcl))
-               None
+               Silent
                (AState m' i s (pcv+1,rpcl))
 
 | step_jump: forall m i s pcv pcl pcv' pcl' rl rpcl,
     index_list_Z pcv i = Some Jump ->
     run_tmr OpJump pcl <|pcl'|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (Vint pcv',pcl'))::s) (pcv,pcl))
-               None
+               Silent
                (AState m i s (pcv',rpcl))
 
 | step_branchnz_true: forall m i s pcv pcl offv al rl rpcl,
     index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
     run_tmr OpBranchNZ pcl <|al|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (Vint 0,al))::s) (pcv,pcl))
-               None
+               Silent
                (AState m i s (pcv+1,rpcl))
 
 | step_branchnz_false: forall m i s pcv pcl offv av al rl rpcl,
@@ -162,7 +162,7 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     run_tmr OpBranchNZ pcl <|al|> = Some (rpcl,rl) ->
     av <> 0 ->
     step_rules (AState m i ((AData (Vint av,al))::s) (pcv,pcl))
-               None
+               Silent
                (AState m i s (pcv+offv,rpcl))
 
 | step_call: forall m i s pcv pcl pcv' pcl' rl rpcl args a r,
@@ -171,31 +171,31 @@ Inductive step_rules : qa_state -> option (@Event T) -> qa_state -> Prop :=
     length args = a ->
     (forall a, In a args -> exists d, a = AData d) ->
     step_rules (AState m i ((AData (Vint pcv',pcl'))::args++s) (pcv,pcl))
-               None
+               Silent
                (AState m i (args++(ARet (pcv+1,rl) r)::s) (pcv',rpcl))
 
 | step_ret: forall m i s pcv pcl pcv' pcl' rl rpcl s' ,
     index_list_Z pcv i = Some Ret ->
     pop_to_return s ((ARet (pcv',pcl') false)::s') ->
     run_tmr OpRet pcl <|pcl'|> = Some (rpcl,rl) ->
-    step_rules (AState m i s  (pcv,pcl)) None (AState m i s' (pcv',rpcl))
+    step_rules (AState m i s  (pcv,pcl)) Silent (AState m i s' (pcv',rpcl))
 
 | step_vret: forall m i s pcv pcl pcv' pcl' rl rpcl resv resl s' ,
     index_list_Z pcv i = Some VRet ->
     pop_to_return s ((ARet (pcv',pcl') true)::s') ->
     run_tmr OpVRet pcl <|resl;pcl'|> = Some (rpcl,rl) ->
     step_rules (AState m i (AData (resv,resl)::s) (pcv,pcl))
-               None (AState m i (AData (resv, rl)::s') (pcv',rpcl))
+               Silent (AState m i (AData (resv, rl)::s') (pcv',rpcl))
 
 | step_output: forall m i s pcv pcl rl rpcl xv xl,
     index_list_Z pcv i = Some Output ->
     run_tmr OpOutput pcl <|xl|> = Some (rpcl,rl) ->
     step_rules (AState m i (AData (Vint xv,xl)::s) (pcv,pcl))
-               (Some (EInt (xv,rl))) (AState m i s (pcv+1,rpcl)).
+               (E (EInt (xv,rl))) (AState m i s (pcv+1,rpcl)).
 
 Definition quasi_abstract_machine :=
   {| state := qa_state ;
-     event := option (Event T);
+     event := (Event T);
      step := step_rules ;
      init_data := abstract_init_data T;
      init_state := fun id =>
