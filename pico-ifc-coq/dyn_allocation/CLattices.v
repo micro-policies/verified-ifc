@@ -8,6 +8,7 @@ Require Import Lattices.
 Require Import Concrete.
 Require Import CodeGen.
 Require Import CodeSpecs.
+Require Import CodeTriples.
 
 Local Open Scope Z_scope. 
 

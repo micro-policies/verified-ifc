@@ -11,6 +11,7 @@ Require Import Concrete.
 Require Import ConcreteMachine.
 Require Import Rules.
 Require Import CLattices.
+Require Import CodeTriples.
 Require Import CodeSpecs. 
 Require Import CodeGen.
 Require Import CLattices.
@@ -601,7 +602,7 @@ Proof.
     + iauto.
     + (* why does iauto no longer work here?? *)
       subst ar. intros.  subst m1. econstructor. intuition. subst ar. intuition.
-  - unfold GT_guard_v, CodeSpecs.GT, CodeSpecs.HT.
+  - unfold GT_guard_v, CodeSpecs.GT, CodeTriples.HT.
     intros.
     unfold genV in *.
     pose (opCodeToZ_inj opcode opcode').

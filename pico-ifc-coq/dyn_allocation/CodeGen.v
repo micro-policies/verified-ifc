@@ -120,13 +120,13 @@ Definition dup := [Dup 0].
 
 Definition swap := [Swap 1]. 
 
-(* do c as along as top of stack is non-zero (destructive) *)
+(* do c as along as top of stack is non-zero *)
 Definition loopNZ (c : code) : code :=
-  c ++ (BranchNZ (- (Z_of_nat (length c))) :: nil).
+  c ++ dup ++ (BranchNZ (- (Z_of_nat (length (c ++ dup)))) :: nil).
 
 (* do c until (top of stack = 0) *)
 Definition genRepeat (c:code) :=
- dup ++ ifNZ (loopNZ (c ++ push (-1) ++ [Add] ++ dup)) nop.
+ dup ++ ifNZ (loopNZ (c ++ push (-1) ++ [Add])) nop.
 
 
 End CodeGeneration. 
