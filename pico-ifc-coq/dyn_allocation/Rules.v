@@ -43,6 +43,7 @@ Inductive rule_expr (n: nat) : Type :=
 (** Side conditions for rules: the Allow part *)
 Inductive rule_cond (n : nat) : Type :=
 | A_True: @rule_cond n
+| A_False: @rule_cond n
 | A_LE:  rule_expr n -> rule_expr n -> @rule_cond n
 | A_And: @rule_cond n -> @rule_cond n -> @rule_cond n
 | A_Or: @rule_cond n -> @rule_cond n -> @rule_cond n
@@ -83,6 +84,7 @@ end.
 Fixpoint eval_cond {n:nat} (eval_var:LAB n -> T) (c: rule_cond n) : bool :=
 match c with
   | A_True => true
+  | A_False => false
   | A_And c1 c2 => andb (eval_cond eval_var c1) (eval_cond eval_var c2)
   | A_Or c1 c2 =>  orb (eval_cond eval_var c1) (eval_cond eval_var c2)
   | A_LE e1 e2 => flows (eval_expr eval_var e1) (eval_expr eval_var e2)

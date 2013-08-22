@@ -4,7 +4,7 @@ Require Import ZArith.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
-Import ListNotations. 
+Import ListNotations.
 
 Require Utils.
 Require Import Instr Memory.
@@ -17,14 +17,52 @@ Require Import ConcreteExecutions.
 Require Import EquivDec.
 Require Import CodeTriples.
 
+Local Notation val := (val privilege).
+Local Notation Atom := (Atom Z privilege).
+Local Notation memory := (Mem.t Atom privilege).
+Local Notation PcAtom := (PcAtom Z).
+Local Notation block := (block privilege).
+Definition HProp := memory -> stack -> Prop.
+
+Definition extends (m1 m2 : memory) : Prop :=
+  forall b off v, load b off m1 = Some v -> load b off m2 = Some v.
+
+Lemma extends_refl : forall m, extends m m.
+Proof. unfold extends. auto. Qed.
+
+Lemma extends_trans : forall m1 m2 m3, extends m1 m2 -> extends m2 m3 -> extends m1 m3.
+Proof. unfold extends. auto. Qed.
+
+Definition extension_comp (P : HProp) :=
+  forall m1 m2 s, P m1 s -> extends m1 m2 -> P m2 s.
+
+Ltac go_match :=
+  try match goal with
+    | H1: extends ?m1 ?m2,
+      H2: extends ?m2 ?m3 |- _ => assert (Hext_trans: extends m1 m3) by (unfold extends in *; eauto)
+  end;
+  let H := fresh "H" in
+  try (simpl; intros ? ? H);
+    repeat match goal with
+             | [H: match ?sss with _ => _ end |- _ ] =>
+               destruct sss ; intuition ;
+               try (substs; eauto)
+           end.
+
+Ltac split_vc :=
+  (simpl;
+   match goal with
+   | H: exists X,_ |- _ => (destruct H; split_vc)
+   | H: ?P /\ ?Q |- _ => (destruct H; split_vc)
+   | |- forall P, _ => (intro; try subst; split_vc)
+   | |- exists X, _ => (eexists; split_vc)
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc])
+   | _ => (eauto; try (zify; omega))
+   end).
+
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
-Notation val := (val privilege).
-Notation Atom := (Atom Z privilege).
-Notation memory := (Mem.t Atom privilege).
-Notation PcAtom := (PcAtom Z).
-Notation block := (block privilege).
 
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
@@ -38,7 +76,7 @@ Definition imemory : Type := list Instr.
 Definition stack : Type := list CStkElmt.
 Definition code := list Instr.
 Definition state := CS.
-Definition HProp := memory -> stack -> Prop.
+
 (* ================================================================ *)
 (* Specs for concrete code *)
 
@@ -47,7 +85,7 @@ Ltac nil_help :=   replace (@nil CEvent) with (op_cons Silent (@nil CEvent)) by 
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
 Lemma add_spec: forall (z1 z2 z: val) (l1 l2: Z) (m: memory) (s: stack),
-  add z1 z2 = Some z ->                  
+  add z1 z2 = Some z ->
   HT  [Add]
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
       (fun m2 s2 => m2 = m /\ s2 = CData (z, handlerTag) :: s).
@@ -58,16 +96,56 @@ Proof.
   eexists.
   eexists.
   eexists.
-  intuition. 
+  intuition.
 
   (* Load an instruction *)
   subst. simpl.
-  unfold code_at in *. intuition. 
-  
+  unfold code_at in *. intuition.
+
   (* Run an instruction *)
   nil_help.
   econstructor; auto.
   eapply cstep_add_p ; eauto.
+Qed.
+
+Lemma add_spec_I: forall (z1 z2: val) (I: memory -> stack -> Prop),
+ HT  [Add]
+      (fun m1 s1 =>
+         match s1 with
+             | CData (z,l) :: CData (z',l') :: s =>
+               exists zr, Memory.add z1 z2 = Some zr /\
+               z = z1 /\ z' = z2 /\ I m1 s
+             | _ => False
+         end)
+      (fun m2 s2 =>
+         match s2 with
+             | CData (z,l) :: s => Memory.add z1 z2 = Some z /\ I m2 s
+             | _ => False
+         end).
+Proof.
+  (* Introduce hyps *)
+  intros.
+  unfold CodeTriples.HT. intros.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold code_at in *.
+  destruct stk0 as [| a stk0]; try solve [intuition].
+  destruct a; try intuition.
+  destruct a as [a l].
+  destruct stk0 as [| b stk0]; try solve [intuition].
+  destruct b as [[b l'] | ]; try intuition.
+  split_vc.
+  substs.
+
+  split.
+
+  Focus 2.
+  eapply rte_step; eauto.
+  split_vc. subst.
+  eapply cstep_add_p ; eauto.
+  (* Finish running *)
+  simpl. eauto.
 Qed.
 
 Lemma sub_spec: forall z1 l1 z2 l2 z, forall m0 s0,
@@ -91,6 +169,47 @@ Proof.
   eapply cstep_sub_p; eauto.
 Qed.
 
+Lemma sub_spec_I: forall (z1 z2: val) (I: memory -> stack -> Prop),
+  HT  [Sub]
+      (fun m1 s1 =>
+         match s1 with
+             | CData (z,l) :: CData (z',l') :: s =>
+               exists zr, Memory.sub z1 z2 = Some zr /\
+               z = z1 /\ z' = z2 /\ I m1 s
+             | _ => False
+         end)
+      (fun m2 s2 =>
+         match s2 with
+             | CData (z,l) :: s => Memory.sub z1 z2 = Some z /\ l = handlerTag /\ I m2 s
+             | _ => False
+         end).
+Proof.
+  (* Introduce hyps *)
+  intros.
+  unfold CodeTriples.HT. intros.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold code_at in *.
+  destruct stk0 as [| a stk0]; try solve [intuition].
+  destruct a; try intuition.
+  destruct a as [a l].
+  destruct stk0 as [| b stk0]; try solve [intuition].
+  destruct b as [[b l'] | ]; try intuition.
+  split_vc.
+  substs.
+
+  (* Run an instruction *)
+  intuition.
+
+  Focus 2.
+  eapply rte_step; eauto.
+  eapply cstep_sub_p ; eauto.
+
+  (* Finish running *)
+  simpl. auto.
+Qed.
+
 Lemma push_spec: forall v P,
   HT   (Push v :: nil)
        (fun m s => P m (CData (Vint v,handlerTag) :: s))
@@ -99,11 +218,11 @@ Proof.
   intros v P.
   intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
   eexists. eexists. intuition. eauto.
-  
+
   (* Load an instruction *)
   subst. simpl.
   unfold skipNZ in *.
-  unfold code_at in *. simpl in *. intuition. 
+  unfold code_at in *. simpl in *. intuition.
 
   (* Run an instruction *)
   nil_help. econstructor; auto.
@@ -120,7 +239,7 @@ Proof.
   intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
   exists (CData (Vint v, handlerTag) :: stk0). eexists c0.
   intuition.
-  
+
   (* Load an instruction *)
   subst. simpl.
   unfold skipNZ in *.
@@ -158,6 +277,50 @@ Proof.
   eapply cstep_push_p; eauto.
 Qed.
 
+Lemma push_spec_I: forall v I,
+  HT (push v)
+     I
+     (fun m s => match s with
+                   | CData (Vint z,t)::tl => I m tl /\ v = z /\ t = handlerTag
+                   | _ => False
+                 end).
+Proof.
+  intros.
+  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
+  eexists.
+  eexists.
+
+  (* Load an instruction *)
+  subst.
+  unfold push, code_at in *.
+  intuition.
+  Focus 2.
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_push_p; eauto.
+
+  simpl. auto.
+Qed.
+
+Lemma push_spec_wp : forall i Q,
+  HT [Push i]
+     (fun m s0 => Q m ((Vint i,handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  eexists.
+  eexists.
+  intuition eauto.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_push_p; eauto.
+Qed.
+
 Lemma PushCachePtr_spec: forall m0 s0,
   HT [PushCachePtr]
      (fun m s => m = m0 /\ s = s0)
@@ -165,7 +328,7 @@ Lemma PushCachePtr_spec: forall m0 s0,
 Proof.
   repeat intro.
   do 2 eexists.
-  intuition; subst. 
+  intuition; subst.
 
   (* Load an instruction *)
   subst. simpl.
@@ -187,7 +350,7 @@ Proof.
   exists ((CData (Vptr cblock 0, handlerTag))::stk0).
   exists mem0.
   simpl in H1.
-  intuition; subst. 
+  intuition; subst.
 
   (* Load an instruction *)
   subst. simpl.
@@ -197,6 +360,64 @@ Proof.
   nil_help.
   econstructor; auto.
   eapply cstep_push_cache_ptr_p; eauto.
+Qed.
+
+Lemma push_cptr_spec_I: forall v I,
+  HT (push_cptr v)
+     I
+     (fun m s => match s with
+                   | CData (Vptr b addr,t)::tl => I m tl /\ b = cblock /\ addr = v /\ t = handlerTag
+                   | _ => False
+                 end).
+Proof.
+  intros.
+  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
+  eexists.
+  eexists.
+
+  (* Load an instruction *)
+  subst.
+  unfold push_cptr, code_at in *.
+  intuition.
+  Focus 2.
+  (* Run an instruction *)
+  do 3 try (eapply rte_step); eauto.
+  eapply cstep_push_cache_ptr_p; eauto.
+  reflexivity.
+  eapply cstep_push_p; eauto.
+  reflexivity.
+  simpl.
+  replace (fh0 + 3) with (fh0 + 1 + 1 + 1) by omega.
+  eapply cstep_add_p; auto.
+  reflexivity.
+  simpl. intuition omega.
+Qed.
+
+Lemma push_cptr_spec_wp :
+  forall v Q,
+    HT (push_cptr v)
+       (fun m s => Q m ((Vptr cblock v, handlerTag) ::: s))
+       Q.
+Proof.
+  intros.
+  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
+  eexists. eexists.
+
+  subst.
+  unfold push_cptr, code_at in *.
+  intuition.
+  Focus 2.
+  do 3 try (eapply rte_step); eauto.
+  eapply cstep_push_cache_ptr_p; eauto.
+  reflexivity.
+  eapply cstep_push_p; eauto.
+  reflexivity.
+  simpl.
+  replace (fh0 + 3) with (fh0 + 1 + 1 + 1) by omega.
+  eapply cstep_add_p; auto.
+  reflexivity.
+  simpl. replace (v + 0) with v by omega.
+  assumption.
 Qed.
 
 Lemma load_spec: forall b ofs al v vl, forall m0 s0,
@@ -215,11 +436,49 @@ Proof.
   (* Load an instruction *)
   subst. simpl.
   unfold skipNZ in *.
-  unfold code_at in *. intuition. 
+  unfold code_at in *. intuition.
 
   (* Run an instruction *)
   nil_help. econstructor; auto.
   eapply cstep_load_p; eauto.
+Qed.
+
+Lemma load_spec_I: forall b a v I,
+  HT [Load]
+     (fun m s =>
+        match s with
+            | CData (Vptr b' a',al) :: tl =>
+              b' = b /\ a' = a /\
+              Mem.stamp b = Kernel /\
+              value_on_cache b m a v /\ (* This works, even though the name is slightly misleading *)
+              I m tl
+            | _ => False
+        end)
+     (fun m s =>
+        match s with
+            | CData (z,t) :: tl =>
+              v = z /\ I m tl
+            | _ => False
+        end).
+Proof.
+  intros b a v I. unfold CodeTriples.HT.
+  intros fh stk0 mem imem pc n Hcode HP' Hn'.
+  subst.
+  destruct stk0 as [| hd tl]; try solve [intuition].
+  destruct hd as [a' |]; try solve [intuition].
+  destruct a' as [a' ].
+  destruct a' as [|b' a']; intuition. subst.
+  destruct H2.
+  eexists. eexists.
+  simpl in *.
+  intuition.
+
+  Focus 2.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_load_p; eauto.
+  simpl. auto.
 Qed.
 
 Lemma push_cptr_spec: forall ofs, forall m0 s0,
@@ -259,13 +518,13 @@ Proof.
   exists ((CData (Vptr cblock ofs, handlerTag))::stk0).
   eexists.
   eexists.
-  intuition. 
+  intuition.
   simpl; eauto.
 
   (* Load an instruction *)
   subst. simpl.
-  unfold code_at in *. intuition. 
-  
+  unfold code_at in *. intuition.
+
   (* Run an instruction *)
   nil_help.
   econstructor; auto.
@@ -289,6 +548,29 @@ Proof.
   apply stamp_cblock.
 Qed.
 
+Lemma loadFromCache_spec_I: forall a v I,
+  HT (loadFromCache a)
+     (fun m s => value_on_cache cblock m a v /\
+                 I m s)
+     (fun m s =>
+        match s with
+            | CData (z,t) :: tl =>
+              v = z /\ I m tl
+            | _ => False
+        end).
+Proof.
+  intros.
+  eapply HT_compose.
+  eapply push_cptr_spec_I.
+  simpl.
+  eapply HT_strengthen_premise.
+  eapply load_spec_I with (b := cblock) (a:= a) (v:= v) (I:= I) ; eauto.
+  intros.
+  destruct s; try solve [intuition].
+  destruct c; try solve [intuition].
+  destruct a0 as [[?|b addr] t]; try solve [intuition].
+Qed.
+
 Lemma pop_spec: forall v vl, forall m0 s0,
   HT [Pop]
      (fun m s => m = m0 /\ s = CData (v,vl) :: s0)
@@ -309,6 +591,36 @@ Proof.
   eapply cstep_pop_p; eauto.
 Qed.
 
+Lemma pop_spec_I: forall v I,
+  HT [Pop]
+     (fun m s => match s with
+                     | CData (Vint z,l) :: tl => v = z /\ I m tl
+                     | _ => False
+                 end)
+     (fun m s => I m s).
+Proof.
+  unfold CodeTriples.HT.
+  intros.
+  subst. simpl.
+  destruct stk0 as [| a tl]; try solve [intuition].
+  destruct a as [z l|]; try solve [intuition].
+  destruct z.
+  destruct v0; try solve [intuition].
+  intuition. subst.
+  eexists.
+  eexists.
+  intuition.
+
+  Focus 2.
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_pop_p; eauto.
+  eauto.
+Qed.
+
 Lemma nop_spec: forall m0 s0,
   HT [Noop]
      (fun m s => m = m0 /\ s = s0)
@@ -323,10 +635,29 @@ Proof.
 
   (* Load an instruction *)
   subst. simpl.
-  unfold code_at in *. intuition. 
-  
+  unfold code_at in *. intuition.
+
   (* Run an instruction *)
   eapply rte_step; auto.
+  eapply cstep_nop_p ; eauto.
+Qed.
+
+Lemma nop_spec_I: forall I,  HT [Noop] I I.
+Proof.
+  unfold CodeTriples.HT.
+  intros.
+  exists stk0.
+  exists mem0.
+  intuition.
+  simpl in H1; subst.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold code_at in *.
+  intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; eauto.
   eapply cstep_nop_p ; eauto.
 Qed.
 
@@ -345,12 +676,12 @@ Proof.
   intros.
   destruct H as [v' Hv].
   destruct (Mem.get_frame m b) as [v''|] eqn:FRAME; try congruence.
-  
+
   exploit valid_update; eauto.
   intros [fr' Hfr'].
   rewrite Hfr'.
   eapply Mem.upd_get_frame; eauto.
-Qed. 
+Qed.
 
 Lemma store_spec_wp: forall Q b a al v,
   Mem.stamp b = Kernel ->
@@ -403,6 +734,71 @@ Proof.
   eapply cstep_store_p; eauto.
 Qed.
 
+Lemma store_spec_I: forall b a al v vl Is (Im: memory -> Z -> Prop),
+                    forall (IMperAddr: forall m a m' v,
+                                         Im m a ->
+                                         store b a v m = Some m' ->
+                                         (forall a', a' <> a -> Im m' a')),
+  HT [Store]
+     (fun m s =>
+        match s with
+            | (Vptr b' a',zl) ::: (vz,vzl) ::: tl =>
+              Mem.stamp b = Kernel /\
+              b' = b /\ a' = a /\ al = zl /\
+              v = vz /\ vl = vzl /\
+              valid_address b a m /\
+              Is tl /\ (forall a, Im m a)
+            | _ => False
+        end)
+     (fun m s => Is s /\
+                 (forall addr, addr <> a -> Im m addr) /\
+                 (load b a m = Some (v,vl))).
+Proof.
+  unfold CodeTriples.HT.
+  intros.
+  subst.
+  destruct stk0 ; try solve [intuition].
+  destruct c as [[z1 zl] |] ; try solve [intuition].
+  destruct z1; try solve [intuition].
+  destruct stk0 ; try solve [intuition].
+  destruct c as [[z2 zl2] |] ; try solve [intuition].
+  intuition. substs.
+
+  edestruct valid_store.
+  iauto.
+
+  eexists.
+  exists x.
+  intuition; subst.
+  eauto.
+  eapply IMperAddr; eauto.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  Focus 2.
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_store_p; eauto.
+  unfold code_at in *. intuition.
+  eapply load_store_new; eassumption.
+Qed.
+
+Lemma store_spec_wp' : forall Q,
+       HT [Store]
+         (fun (m0 : memory) (s0 : stack) =>
+          exists b a al v m s,
+          Mem.stamp b = Kernel /\
+          s0 = (Vptr b a, al) ::: v ::: s /\ store b a v m0 = Some m /\ Q m s)
+         Q.
+Proof.
+  intros. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. apply HT_fold_constant_premise. intro.
+  eapply store_spec_wp. assumption.
+Qed.
+
 Lemma storeAt_spec: forall a v vl m s,
   HT (storeAt a)
      (fun m0 s0 => m0 = m /\
@@ -449,17 +845,17 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma skipNZ_continuation_spec_NZ: forall c P v l,
+Lemma skipNZ_continuation_spec_NZ: forall c P v,
   v <> 0 ->
   HT   (skipNZ (length c) ++ c)
-       (fun m s => (exists s', s = CData (Vint v,l) :: s' 
-                               /\ P m s'))
+       (fun m s => (exists s' l, s = CData (Vint v,l) :: s'
+                                 /\ P m s'))
        P.
 Proof.
-  intros c P v l Hv.
+  intros c P v Hv.
   intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
   destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. exists c0. 
+  exists stk1. exists c0.
   intuition.
 
   (* Load an instruction *)
@@ -467,27 +863,27 @@ Proof.
   unfold skipNZ in *.
   unfold code_at in *. simpl in *. intuition. fold code_at in *.
 
-  (* Run an instruction *) 
-  nil_help.   eapply rte_step; eauto. 
-  match goal with 
+  (* Run an instruction *)
+  nil_help.   eapply rte_step; eauto.
+  match goal with
     | |- context[n + ?z] =>
       replace (n + z) with (if v =? 0 then n + 1 else n + z)
   end.
-  eapply cstep_branchnz_p ; eauto. 
+  eapply cstep_branchnz_p ; eauto.
 
-  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
+  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).
   rewrite Hif.
   reflexivity.
 Qed.
 
-Lemma skipNZ_spec_Z: forall n P v l,
+Lemma skipNZ_spec_Z: forall n P v,
   v = 0 ->
   HT   (skipNZ n)
-       (fun m s => (exists s', s = CData (Vint v,l) :: s' 
-                               /\ P m s'))
+       (fun m s => (exists s' l, s = CData (Vint v,l) :: s'
+                                 /\ P m s'))
        P.
 Proof.
-  intros c P v l Hv.
+  intros c P v Hv.
   intros imem stk0 c0 fh n n' Hcode HP Hn'.
   destruct HP as [stk1 [H_stkeq HPs']].
   exists stk1. eexists c0.
@@ -496,24 +892,24 @@ Proof.
   (* Load an instruction *)
   subst. simpl.
   unfold skipNZ in *.
-  unfold code_at in *. simpl in *. 
-  intuition. 
+  unfold code_at in *. simpl in *.
+  intuition.
 
   (* Run an instruction *)
-  nil_help. 
+  nil_help.
   eapply rte_step; auto.
 
-  replace (n + 1) with 
+  replace (n + 1) with
     (if 0 =? 0 then n + 1 else n + Z.pos (Pos.of_succ_nat c)); try reflexivity.
-  eapply cstep_branchnz_p ; eauto. 
+  eapply cstep_branchnz_p ; eauto.
 Qed.
 
-Lemma skipNZ_continuation_spec_Z: forall c P Q v l,
+Lemma skipNZ_continuation_spec_Z: forall c P Q v,
   v = 0 ->
   HT   c P Q  ->
   HT   (skipNZ (length c) ++ c)
-       (fun m s => (exists s', s = CData (Vint v,l) :: s' 
-                               /\ P m s'))
+       (fun m s => (exists s' l, s = CData (Vint v,l) :: s'
+                                 /\ P m s'))
        Q.
 Proof.
   intros c P Q v l Hv HTc.
@@ -529,10 +925,10 @@ Lemma skip_spec: forall c P,
 Proof.
   intros c P.
   unfold skip.
-  rewrite app_ass.  
+  rewrite app_ass.
   eapply HT_compose.
   eapply push_spec'.
-  eapply HT_strengthen_premise. 
+  eapply HT_strengthen_premise.
   eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
 
   intros.
@@ -541,18 +937,18 @@ Proof.
   destruct s; inversion H0; eauto.
 Qed.
 
-Lemma ifNZ_spec_Z: forall v l t f P Q,
+Lemma ifNZ_spec_Z: forall v t f P Q,
   HT   f P Q ->
   v = 0 ->
   HT   (ifNZ t f)
-       (fun m s => (exists s', s = CData (Vint v,l) :: s' /\ P m s'))
+       (fun m s => (exists s' l, s = CData (Vint v,l) :: s' /\ P m s'))
        Q.
 Proof.
   intros v l t f P Q HTf Hveq0.
   unfold ifNZ.
   rewrite app_ass.
   eapply HT_compose.
-  
+
   apply skipNZ_spec_Z; auto.
 
   eapply HT_compose; eauto.
@@ -560,11 +956,11 @@ Proof.
   apply skip_spec.
 Qed.
 
-Lemma ifNZ_spec_NZ: forall v l t f P Q,
+Lemma ifNZ_spec_NZ: forall v t f P Q,
   HT   t P Q ->
   v <> 0 ->
   HT   (ifNZ t f)
-       (fun m s => (exists s', s = CData (Vint v,l) :: s' /\ P m s'))
+       (fun m s => (exists s' l, s = CData (Vint v,l) :: s' /\ P m s'))
        Q.
 Proof.
   intros v l t f P Q HTt Hveq0.
@@ -574,12 +970,12 @@ Proof.
   apply skipNZ_continuation_spec_NZ; auto.
 Qed.
 
-Lemma ifNZ_spec_helper: forall v l t f Pt Pf Q,
+Lemma ifNZ_spec_helper: forall v t f Pt Pf Q,
   HT   t Pt Q ->
   HT   f Pf Q ->
   HT   (ifNZ t f)
-       (fun m s => ((v <> 0 -> exists s', s = CData (Vint v,l) :: s' /\ Pt m s') /\
-                    (v =  0 -> exists s', s = CData (Vint v,l) :: s' /\ Pf m s')))
+       (fun m s => ((v <> 0 -> exists s' l, s = CData (Vint v,l) :: s' /\ Pt m s') /\
+                    (v =  0 -> exists s' l, s = CData (Vint v,l) :: s' /\ Pf m s')))
        Q.
 Proof.
   intros v l t f Pt Pf Q HTt HTf.
@@ -605,7 +1001,7 @@ Proof.
   eapply ifNZ_spec_helper; eauto.
   intros m s [s' [s_eq [HNZ HZ]]].
   destruct (dec_eq v 0); subst; intuition;
-    eexists; intuition.
+    eexists; intuition eauto.
 Qed.
 
 (* I need to existentially bind [v] for the [ite_spec]. May have been
@@ -658,7 +1054,7 @@ Qed.
    [m0], so, here it helps to make the memory a parameter. *)
 Lemma ite_spec_specialized: forall v c t f Q, forall m0 s0,
   let P := fun m s => m = m0 /\ s = s0 in
-  HT c P  (fun m s => m = m0 /\ s = (Vint v,handlerTag) ::: s0) ->
+  HT c P  (fun m s => exists t, m = m0 /\ s = (Vint v,t) ::: s0) ->
   (v <> 0 -> HT t P Q) ->
   (v =  0 -> HT f P Q) ->
   HT (ite c t f) P Q.
@@ -676,6 +1072,72 @@ Proof.
 
   eapply HT_fold_constant_premise; auto.
   eapply HT_fold_constant_premise; auto.
+Qed.
+
+Lemma ite_spec_specialized_I: forall v c t f Q m0 I,
+  let P := fun m s => m = m0 /\ I m s in
+  HT c P
+       (fun m s => match s with
+                       | (Vint z,t):::tl => m = m0 /\ I m tl /\
+                                            v = z
+                       | _ => False
+                   end) ->
+  (v <> 0 -> HT t P Q) ->
+  (v =  0 -> HT f P Q) ->
+  HT (ite c t f) P Q.
+Proof.
+  introv HTc HZ HNZ.
+  eapply ite_spec with (Pt := fun m s => v <> 0 /\ m = m0 /\ I m s)
+                       (Pf := fun m s => v =  0 /\ m = m0 /\ I m s).
+  - eapply HT_weaken_conclusion; eauto.
+    go_match.
+    repeat eexists; eauto.
+
+  - eapply HT_fold_constant_premise; auto.
+  - eapply HT_fold_constant_premise; auto.
+Qed.
+
+Lemma ite_spec_specialized': forall v c t f Q, forall m0 s0,
+  let P := fun m s => extends m0 m /\ s = s0 in
+  HT c (fun m s => extends m0 m /\ s = s0)
+       (fun m s => exists t, extends m0 m /\ s = (Vint v,t) ::: s0) ->
+  (v <> 0 -> HT t P Q) ->
+  (v =  0 -> HT f P Q) ->
+  HT (ite c t f) P Q.
+Proof.
+  introv HTc HZ HNZ.
+  eapply ite_spec with (Pt := fun m s => v <> 0 /\ extends m0 m /\ s = s0)
+                       (Pf := fun m s => v =  0 /\ extends m0 m /\ s = s0).
+  - eapply HT_weaken_conclusion; eauto.
+    go_match.
+    split_vc.
+
+  - eapply HT_fold_constant_premise; auto.
+  - eapply HT_fold_constant_premise; auto.
+Qed.
+
+Lemma ite_spec_specialized_I': forall v c t f Q m0 I (Hext: extension_comp I),
+  let P := fun m s => extends m0 m /\ I m s in
+  HT c P
+       (fun m s => match s with
+                       | (Vint z,t):::tl => extends m0 m /\ I m tl /\
+                                            v = z
+                       | _ => False
+                   end) ->
+  (v <> 0 -> HT t P Q) ->
+  (v =  0 -> HT f P Q) ->
+  HT (ite c t f) P Q.
+Proof.
+  introv Hext HTc HZ HNZ.
+
+  eapply ite_spec with (Pt := fun m s => v <> 0 /\ extends m0 m /\ I m s)
+                       (Pf := fun m s => v =  0 /\ extends m0 m /\ I m s).
+  - eapply HT_weaken_conclusion; eauto.
+    go_match.
+    split_vc.
+
+  - eapply HT_fold_constant_premise; auto.
+  - eapply HT_fold_constant_premise; auto.
 Qed.
 
 Lemma cases_spec_base: forall d P Q,
@@ -721,7 +1183,7 @@ Lemma cases_spec_step_specialized: forall c vc b cbs d P Qb Qcbs,
                         m = m0 /\
                         s = s0)
             (fun m s => P m0 s0 /\
-                        m = m0 /\ 
+                        m = m0 /\
                         s = CData (Vint (vc m0 s0), handlerTag) :: s0)) ->
   HT   b P Qb ->
   HT   (cases cbs d) P Qcbs ->
@@ -863,9 +1325,127 @@ Qed.
 
 End IndexedCasesSpec.
 
+Section GT_ext.
+
+Definition GT_ext (c: code) (P: HProp) (Q: GProp) :=
+  forall m0 s0,
+    HT c
+       (fun m s => P m0 s0 /\ extends m0 m /\ s = s0)
+       (Q m0 s0).
+
+Lemma GT_consequence'_ext:
+  forall (c : code) (P' P: HProp) (Q Q': GProp),
+    GT_ext c P Q ->
+    (forall m s, P' m s -> P m s) ->
+    (forall m0 s0 m s, P m0 s0 -> Q m0 s0 m s -> Q' m0 s0 m s) ->
+    GT_ext c P' Q'.
+Proof.
+  unfold GT_ext; intros.
+  eapply HT_consequence'; jauto.
+Qed.
+
+Lemma cases_spec_base_GT_ext_specialized: forall cnil P Qnil,
+  GT_ext cnil P Qnil ->
+  GT_ext (cases [] cnil) P Qnil.
+Proof.
+unfold GT_ext; intros; eapply cases_spec_base.
+  eapply HT_strengthen_premise; eauto.
+Qed.
+
+Definition GT_push_v_ext (c: code) (P: HProp) (v: HFun): Prop :=
+  GT_ext c P (fun m0 s0 m s => exists t, P m0 s0 /\
+                               extends m0 m /\
+                               s = CData (Vint (v m0 s0), t) :: s0).
+Definition GT_guard_v_ext (b: code) (P: HProp) (v: HFun) (Q: GProp): Prop :=
+  GT_ext b (fun m s => P m s /\ v m s <> 0) Q.
+
+Lemma cases_spec_step_GT_ext_specialized: forall c v b cbs cnil P Qb Qcbs,
+  GT_push_v_ext c P v ->
+  GT_guard_v_ext b P v Qb ->
+  GT_ext (cases cbs cnil) P Qcbs ->
+  GT_ext (cases ((c,b)::cbs) cnil)
+     P
+     (fun m0 s0 m s =>   (v m0 s0 <> 0 -> Qb m0 s0 m s)
+                         /\ (v m0 s0 = 0 -> Qcbs m0 s0 m s)).
+Proof.
+  intros c vc b cbs d P Qb Qcbs Hc Hb Hcbs.
+  intros m0 s0.
+  pose (Hc m0 s0) as Hcm0s0.
+  eapply ite_spec with (Pt := (fun m s => P m0 s0 /\ extends m0 m /\ s = s0 /\ vc m0 s0 <> 0))
+                       (Pf := (fun m s => P m0 s0 /\ extends m0 m /\ s = s0 /\ vc m0 s0 =  0)).
+  - eapply HT_weaken_conclusion.
+    eapply Hc.
+    go_match.
+    split_vc.
+  - eapply HT_consequence'.
+    + eapply Hb; eauto.
+    + intros. intuition.
+      * eapply H0.
+      * elimtype False; jauto.
+      * auto.
+      * auto.
+    + intros.
+      destruct H as [m' [s' [HPm0s0 [Hextm0 [Hs' Hcond]]]]]. substs.
+      split; eauto.
+      intuition.
+  - fold cases.
+    eapply HT_consequence'.
+    eapply Hcbs.
+    simpl. iauto.
+    intros. intuition.
+    elimtype False; jauto.
+Qed.
+
+Section IndexedCasesSpec_EXT.
+
+Variable cnil: code.
+Variable Qnil: GProp.
+Variable I: Type.
+Variable genC genB: I -> code.
+Variable genQ: I -> GProp.
+Variable genV: I -> HFun.
+
+(* XXX: make these folds ? *)
+Definition indexed_post_ext: (list I) -> GProp :=
+  fix f (indices: list I) :=
+    fun m0 s0 m s =>
+      match indices with
+      | []            => Qnil m0 s0 m s
+      | i :: indices' =>
+                         (genV i m0 s0 <> 0 -> genQ i m0 s0 m s) /\
+                         (genV i m0 s0 =  0 -> f indices' m0 s0 m s)
+      end.
+
+Variable P: HProp.
+Definition indexed_hyps_ext: (list I) -> Prop :=
+  fix f (indices: list I) :=
+    match indices with
+    | []            => True
+    | i :: indices' => GT_push_v_ext (genC i) P (genV i) /\
+                       GT_guard_v_ext (genB i) P (genV i) (genQ i) /\
+                       f indices'
+    end.
+
+Lemma indexed_cases_spec_ext: forall is,
+  GT_ext cnil P Qnil ->
+  indexed_hyps_ext is ->
+  GT_ext (indexed_cases cnil genC genB is)
+     P
+     (indexed_post_ext is).
+Proof.
+  induction is; intros.
+  - eapply cases_spec_base_GT_ext_specialized; eauto.
+  - simpl in *.
+    eapply cases_spec_step_GT_ext_specialized; iauto.
+Qed.
+
+End IndexedCasesSpec_EXT.
+
+End GT_ext.
+
 (* NC: this might be a way to do "transformer" style ... *)
 Lemma some_spec: forall c, forall m0 s0 s1,
-  HT c 
+  HT c
      (fun m s => m = m0 /\ s = s0)
      (fun m s => m = m0 /\ s = s1) ->
   HT (some c)
@@ -877,6 +1457,24 @@ Proof.
   eapply HT_compose.
   eauto.
   eapply push_spec''.
+Qed.
+
+Lemma some_spec_I: forall c, forall P Q,
+  HT c P Q ->
+  HT (some c) P
+     (fun m s =>
+        match s with
+            | (Vint 1,t) ::: tl => Q m tl
+            | _ => False
+        end).
+Proof.
+  introv HTc.
+  unfold some.
+  eapply HT_compose.
+  eauto.
+  specialize (push_spec_I 1 Q). intros Hspec.
+  eapply HT_weaken_conclusion; eauto.
+  go_match.
 Qed.
 
 Definition none_spec     := push_spec''.
@@ -907,6 +1505,47 @@ Proof.
     simpl; jauto.
 Qed.
 
+Lemma genAnd_spec_I: forall b1 b2, forall I,
+  HT genAnd
+     (fun m s =>
+        match s with
+          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
+            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
+            I m tl
+          | _ => False
+        end)
+     (fun m s =>
+        match s with
+          | CData (Vint z,t) :: tl =>
+            z = boolToZ (andb b1 b2) /\
+            I m tl
+          | _ => False
+        end).
+Proof.
+  intros.
+  unfold genAnd.
+  destruct b1; eapply HT_strengthen_premise.
+    eapply ifNZ_spec_NZ with (v:=1).
+    apply nop_spec_I.
+    omega.
+    simpl; jauto.
+    go_match.
+    eexists. eexists. split ; eauto. eauto. simpl. split; eauto.
+
+    eapply ifNZ_spec_Z with (v:=0).
+    eapply HT_compose.
+    eapply pop_spec_I.
+    unfold genFalse.
+    eapply HT_weaken_conclusion.
+    eapply push_spec_I with (I:= I). go_match.
+    reflexivity.
+    simpl; jauto.
+    go_match. substs.
+    subst.
+    eexists. eexists.
+     split ; eauto. simpl. intuition eauto.
+Qed.
+
 Lemma genOr_spec: forall b1 b2, forall m0 s0,
   HT genOr
      (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
@@ -930,10 +1569,49 @@ Proof.
     simpl; jauto.
 Qed.
 
+Lemma genOr_spec_I: forall b1 b2, forall I,
+  HT genOr
+     (fun m s =>
+        match s with
+          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
+            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
+            I m tl
+          | _ => False
+        end)
+     (fun m s =>
+        match s with
+          | CData (Vint z,t) :: tl =>
+            z = boolToZ (orb b1 b2) /\
+            I m tl
+          | _ => False
+        end).
+Proof.
+  intros.
+  unfold genOr.
+  destruct b1; eapply HT_strengthen_premise.
+  eapply ifNZ_spec_NZ with (v:=1).
+  eapply HT_compose.
+  eapply pop_spec_I.
+  eapply HT_weaken_conclusion.
+  eapply push_spec_I with (I:= I). go_match.
+    omega.
+    simpl; jauto.
+    go_match. substs.
+    eexists. eexists.
+    split ; eauto. simpl. split; eauto.
+
+    eapply ifNZ_spec_Z with (v:=0).
+    apply nop_spec_I.
+    reflexivity.
+    simpl; jauto.
+    go_match. substs.
+    eexists. eexists. split ; eauto. simpl. split; eauto.
+Qed.
+
 Lemma genNot_spec_general: forall v, forall m0 s0,
   HT genNot
      (fun m s => m = m0 /\ s = CData (Vint v, handlerTag) :: s0)
-     (fun m s => m = m0 /\ 
+     (fun m s => m = m0 /\
                  s = CData (Vint (boolToZ (v =? 0)),handlerTag) :: s0).
 Proof.
   intros.
@@ -951,6 +1629,38 @@ Proof.
       * eapply genFalse_spec.
       * eauto.
     + jauto.
+Qed.
+
+Lemma genNot_spec_general_I: forall v, forall I,
+  HT genNot
+     (fun m s => match s with
+                   | (Vint z, t) ::: tl =>
+                     v = z /\ I m tl
+                   | _ => False
+                 end)
+     (fun m s => match s with
+                   | (Vint z,t) ::: tl =>
+                     boolToZ (v =? 0) = z /\ I m tl
+                   | _ => False
+                 end).
+Proof.
+  intros.
+  unfold genNot.
+  cases (v =? 0) as Heq.
+  - apply Z.eqb_eq in Heq.
+    eapply HT_strengthen_premise.
+    + eapply ifNZ_spec_Z.
+      * eapply HT_weaken_conclusion. eapply push_spec_I with (I:= I).
+        go_match.
+      * eauto.
+    + go_match.
+  - apply Z.eqb_neq in Heq.
+    eapply HT_strengthen_premise.
+    + eapply ifNZ_spec_NZ.
+      * eapply HT_weaken_conclusion. eapply push_spec_I with (I:= I).
+        go_match.
+      * eauto.
+    + go_match.
 Qed.
 
 Lemma genNot_spec: forall b, forall m0 s0,
@@ -1017,6 +1727,63 @@ Proof.
   Qed.
 
   rewrite basic_arithmetic in *; intuition.
+Qed.
+
+
+Lemma genTestEqual_spec_I: forall c1 c2, forall v1 v2, forall m0,
+  (forall I (Hext: extension_comp I),
+     HT c1
+        (fun m s => extends m0 m /\ I m s)
+        (fun m s => match s with
+                        | (Vint z1,t):::tl =>
+                          v1 = z1 /\ extends m0 m /\ I m tl
+                        | _ => False
+                    end)) ->
+  (forall I (Hext: extension_comp I),
+     HT c2
+        (fun m s => extends m0 m /\ I m s)
+        (fun m s => match s with
+                      | (Vint z2,t)::: tl =>
+                        extends m0 m /\ v2 = z2 /\ I m tl
+                      | _ => False
+                    end)) ->
+  (forall I (Hext: extension_comp I),
+     HT (genTestEqual c1 c2)
+        (fun m s => extends m0 m /\ I m s)
+        (fun m s => match s with
+                      | (Vint z,t)::: tl =>
+                        extends m0 m /\ boolToZ (v1 =? v2) = z /\
+                        I m tl
+                      | _ => False
+                    end)).
+Proof.
+  intros.
+  unfold genTestEqual.
+  eapply HT_compose.
+  eapply H; auto.
+  eapply HT_compose.
+  eapply HT_strengthen_premise.
+  eapply H0 with
+  (I:= fun m s =>  match s with
+                     | (Vint z1,t1):::tl =>
+                       z1 = v1 /\ I m tl /\ extends m0 m
+                     | _ => False
+                   end).
+  unfold extension_comp, extends.
+  intros; intuition. go_match.
+  go_match.
+  eapply HT_compose.
+  eapply HT_strengthen_premise.
+  eapply sub_spec_I with (I:= fun m s => extends m0 m /\ I m s).
+  go_match. eexists (Vint (n - v1)). intuition eauto. reflexivity.
+  eapply HT_weaken_conclusion.
+  eapply HT_strengthen_premise.
+  eapply (genNot_spec_general_I (v2-v1)) with (I:= fun m s => extends m0 m /\ I m s).
+  go_match.
+  go_match.
+  inv H2. eauto.
+  rewrite basic_arithmetic in *; intuition.
+  go_match.
 Qed.
 
 Lemma HT_compose_bwd:
@@ -1164,9 +1931,9 @@ Lemma skipNZ_specEscape: forall r c1 c2 v P1 P2 Q,
   (v =  0 -> HTEscape r c1 P1 Q) ->
   (v <> 0 -> HTEscape r c2 P2 Q) ->
   HTEscape r ((skipNZ (length c1) ++ c1) ++ c2)
-           (fun m s => exists s0, s = (Vint v, handlerTag) ::: s0 /\
-                                  (v =  0 -> P1 m s0) /\
-                                  (v <> 0 -> P2 m s0))
+           (fun m s => exists s0 l, s = (Vint v, l) ::: s0 /\
+                                    (v =  0 -> P1 m s0) /\
+                                    (v <> 0 -> P2 m s0))
            Q.
 Proof.
   intros.

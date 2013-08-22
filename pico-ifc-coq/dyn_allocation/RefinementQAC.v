@@ -816,8 +816,6 @@ Proof.
   repeat match goal with
            | H : tag_in_mem _ _ _ |- _ =>
              inv H
-           | H : tag_in_mem' _ _ _ |- _ =>
-             inv H
          end.
   destruct MATCH as [RES UP].
   unfold cache_hit_read_mem in *.
@@ -831,8 +829,6 @@ Proof.
   try solve [rewrite <- UP; eauto; compute; omega];
   repeat match goal with
            | H : tag_in_mem _ _ _ |- _ =>
-             inv H
-           | H : tag_in_mem' _ _ _ |- _ =>
              inv H
          end;
   eauto.
