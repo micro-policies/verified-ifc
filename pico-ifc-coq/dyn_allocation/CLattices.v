@@ -77,10 +77,7 @@ Qed.
 Inductive mem_eq_except_cache (m m' : memory) : Prop :=
 | meec_intro :
     mem_def_on_cache m ->
-    (forall b addr v,
-       b <> cblock ->
-       load b addr m = Some v ->
-       load b addr m' = Some v) ->
+    fault_handler_memory_update cblock m m' ->
     mem_eq_except_cache m m'.
 
 Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T) :=

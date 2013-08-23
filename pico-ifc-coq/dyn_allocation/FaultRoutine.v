@@ -1270,9 +1270,18 @@ Proof.
   {
     econstructor.
     - eapply INIT_MEM_def_on_cache; eauto using extension_comp_INIT_MEM.
-    - intros.
-      cut (load b addr m'' = load b addr m); try congruence.
-      transitivity (load b addr m'); eapply load_store_old; eauto; congruence.
+    - intros b.
+      unfold store in *.
+      split.
+      + intros USER.
+        transitivity (Mem.get_frame m' b);
+        eapply get_frame_store_neq; eauto;
+        congruence.
+      + intros fr KERNEL NEQ DEF.
+        rewrite <- DEF.
+        transitivity (Mem.get_frame m' b);
+        eapply get_frame_store_neq; eauto;
+        assumption.
   }
   do 2 eexists ; intuition; eauto.
   {  unfold labToZ_rule_res in *.
@@ -1297,15 +1306,14 @@ Proof.
     destruct (Mem.get_frame m'' cblock) as [fr|]; try congruence.
     econstructor; econstructor; eauto.
   }
-  (* AAA: Probably need to change definition of update_cache_spec_rvec and mem_eq_except_cache *)
-  unfold update_cache_spec_rvec.
-  split.
 
-
-  intros; jauto_set_hyps; intros.
-  eapply transitivity.
-  eapply update_list_Z_spec2; eauto.
-  eapply update_list_Z_spec2; eauto.
+  unfold update_cache_spec_rvec. destruct Hup.
+  split; auto.
+  clear - Hm' Hm''.
+  intros addr NEQ1 NEQ2.
+  symmetry.
+  transitivity (load cblock addr m');
+  eapply load_store_old; eauto; congruence.
 Qed.
 
 (* AAA: Stopped transcription here *)

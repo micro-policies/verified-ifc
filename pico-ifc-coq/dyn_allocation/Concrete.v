@@ -160,11 +160,21 @@ Inductive cache_hit_read (m: list Atom) : Z -> Z -> Prop :=
                      (TAG_ResPC: tag_in_mem m addrTagResPC (Vint tagrpc)),
                 cache_hit_read m tagr tagrpc.
 
-Definition update_mem_only_cache (m m': memory) :=
-  forall b, b <> cblock -> Mem.get_frame m' b = Mem.get_frame m b.
+(** [fault_handler_memory_update] expresses the changes to the memory
+that the fault handler is allowed to do. This means that the user
+memory doesn't change and that all kernel blocks that were already
+present stay untouched, with the possible exception of the cache block *)
+
+Definition fault_handler_memory_update (m m': memory) :=
+  forall b,
+    (Mem.stamp b = User -> Mem.get_frame m' b = Mem.get_frame m b) /\
+    (forall fr, Mem.stamp b = Kernel ->
+                b <> cblock ->
+                Mem.get_frame m b = Some fr ->
+                Mem.get_frame m' b = Some fr).
 
 Definition update_cache_spec_mvec (m m': memory) :=
-  update_mem_only_cache m m' /\
+  fault_handler_memory_update m m' /\
   (forall addr, addr <> addrOpLabel ->
                 addr <> addrTagPC   ->
                 addr <> addrTag1    ->
@@ -173,7 +183,7 @@ Definition update_cache_spec_mvec (m m': memory) :=
                 load cblock addr m = load cblock addr m').
 
 Definition update_cache_spec_rvec (m m': memory) :=
-  update_mem_only_cache m m' /\
+  fault_handler_memory_update m m' /\
   (forall addr, addr <> addrTagRes ->
                 addr <> addrTagResPC ->
                 load cblock addr m = load cblock addr m').
