@@ -19,9 +19,23 @@ Section Refinement.
 Context {T: Type}
         {Latt: JoinSemiLattice T}.
 
+Definition match_tags (t1 t2 : T) (m2 : memory T unit) : Prop :=
+  t1 = t2.
+Hint Unfold match_tags.
+
+Definition valid_update (m2 m2' : memory T unit) : Prop := True.
+Hint Unfold valid_update.
+
+Lemma valid_update_match_tags :
+  forall t1 t2 m2 m2',
+    match_tags t1 t2 m2 ->
+    valid_update m2 m2' ->
+    match_tags t1 t2 m2'.
+Proof. eauto. Qed.
+
 Notation meminj := (meminj T unit).
-Notation Meminj := (Meminj T T T unit eq).
-Notation match_atoms := (match_atoms T T T unit eq).
+Notation Meminj := (Meminj T T T unit match_tags).
+Notation match_atoms := (match_atoms T T T unit match_tags).
 Notation match_vals := (match_vals T unit).
 Notation update_meminj := (update_meminj T unit).
 
@@ -30,21 +44,21 @@ Hint Constructors Memory.match_atoms.
 Hint Constructors Memory.match_vals.
 Hint Resolve update_meminj_eq.
 
-Inductive match_stk_elmt (mi : meminj) : StkElmt T T -> StkElmt T unit -> Prop :=
-| mse_data : forall a1 a2
-                    (ATOMS : match_atoms mi a1 a2),
-               match_stk_elmt mi (AData a1) (AData a2)
-| mse_ret : forall pc b, match_stk_elmt mi (ARet pc b) (ARet pc b).
+Inductive match_stk_elmt (mi : meminj) : StkElmt T T -> StkElmt T unit -> memory T unit -> Prop :=
+| mse_data : forall a1 a2 m2
+                    (ATOMS : match_atoms mi a1 a2 m2),
+               match_stk_elmt mi (AData a1) (AData a2) m2
+| mse_ret : forall pc b m2, match_stk_elmt mi (ARet pc b) (ARet pc b) m2.
 Hint Constructors match_stk_elmt.
 
-Definition match_stacks (mi : meminj) : list (StkElmt T T) -> list (StkElmt T unit) -> Prop :=
-  Forall2 (match_stk_elmt mi).
+Definition match_stacks (mi : meminj) : list (StkElmt T T) -> list (StkElmt T unit) -> memory T unit -> Prop :=
+  fun s1 s2 m2 => Forall2 (fun se1 se2 => match_stk_elmt mi se1 se2 m2) s1 s2.
 Hint Unfold match_stacks.
 
 Inductive match_states : @a_state T -> @qa_state T -> Prop :=
 | aqa_intro : forall mi m1 m2 p stk1 stk2 pc
                      (INJ : Meminj m1 m2 mi)
-                     (STK : match_stacks mi stk1 stk2),
+                     (STK : match_stacks mi stk1 stk2 m2),
                 match_states (AState m1 p stk1 pc) (AState m2 p stk2 pc).
 Hint Constructors match_states.
 
@@ -53,11 +67,11 @@ Lemma alloc_match_stacks :
          lab a1 m1 b1 m1'
          a2 m2 b2 m2'
          mi stk1 stk2
-         (STK : match_stacks mi stk1 stk2)
+         (STK : match_stacks mi stk1 stk2 m2)
          (ALLOC1 : a_alloc size lab a1 m1 = Some (b1, m1'))
          (ALLOC2 : qa_alloc size a2 m2 = Some (b2, m2'))
          (INJ : Meminj m1 m2 mi),
-    match_stacks (update_meminj mi b2 b1) stk1 stk2.
+    match_stacks (update_meminj mi b2 b1) stk1 stk2 m2'.
 Proof.
   intros.
   induction STK; constructor; trivial.
@@ -74,12 +88,12 @@ Proof.
 Qed.
 
 Lemma match_stacks_app :
-  forall mi stk1 args2 stk2'
-         (STKS : match_stacks mi stk1 (args2 ++ stk2')),
+  forall mi stk1 args2 stk2' m2
+         (STKS : match_stacks mi stk1 (args2 ++ stk2') m2),
     exists args1 stk1',
       stk1 = args1 ++ stk1' /\
-      match_stacks mi args1 args2 /\
-      match_stacks mi stk1' stk2'.
+      match_stacks mi args1 args2 m2 /\
+      match_stacks mi stk1' stk2' m2.
 Proof.
   intros.
   gdep stk1.
@@ -94,15 +108,15 @@ Proof.
 Qed.
 
 Lemma match_stacks_length :
-  forall mi stk1 stk2
-         (STKS : match_stacks mi stk1 stk2),
+  forall mi stk1 stk2 m2
+         (STKS : match_stacks mi stk1 stk2 m2),
     length stk1 = length stk2.
 Proof. induction 1; simpl; eauto. Qed.
 Hint Resolve match_stacks_length.
 
 Lemma match_stacks_all_data :
-  forall mi stk1 stk2
-         (STKS : match_stacks mi stk1 stk2)
+  forall mi stk1 stk2 m2
+         (STKS : match_stacks mi stk1 stk2 m2)
          (DATA : forall se2, In se2 stk2 -> exists a2, se2 = AData a2),
     forall se1, In se1 stk1 -> exists a1, se1 = AData a1.
 Proof.
@@ -116,29 +130,29 @@ Qed.
 Hint Resolve match_stacks_all_data.
 
 Lemma match_stacks_app_2 :
-  forall mi stk11 stk12 stk21 stk22
-         (STKS1 : match_stacks mi stk11 stk21)
-         (STKS2 : match_stacks mi stk12 stk22),
-    match_stacks mi (stk11 ++ stk12) (stk21 ++ stk22).
+  forall mi stk11 stk12 stk21 stk22 m2
+         (STKS1 : match_stacks mi stk11 stk21 m2)
+         (STKS2 : match_stacks mi stk12 stk22 m2),
+    match_stacks mi (stk11 ++ stk12) (stk21 ++ stk22) m2.
 Proof. intros. eauto using Forall2_app. Qed.
 Hint Resolve match_stacks_app_2.
 
 Hint Constructors pop_to_return.
 
 Lemma match_stacks_pop_to_return :
-  forall mi stk1 stk2 stk2' pc b
-         (STKS : match_stacks mi stk1 stk2)
+  forall mi stk1 stk2 stk2' pc b m2
+         (STKS : match_stacks mi stk1 stk2 m2)
          (POP : pop_to_return stk2 (ARet pc b :: stk2')),
     exists stk1',
       pop_to_return stk1 (ARet pc b :: stk1') /\
-      match_stacks mi stk1' stk2'.
+      match_stacks mi stk1' stk2' m2.
 Proof.
   intros.
   gdep stk2.
   induction stk1 as [|se1 stk1 IH]; intros;
   inv POP; inv STKS;
   match goal with
-    | H : match_stk_elmt _ _ _ |- _ =>
+    | H : match_stk_elmt _ _ _ _ |- _ =>
       inv H; eauto
   end.
   exploit IH; eauto.
@@ -147,24 +161,24 @@ Proof.
 Qed.
 
 Lemma match_stacks_index_list :
-  forall mi n s1 s2 x2
+  forall mi n s1 s2 x2 m2
          (IDX : index_list n s2 = Some x2)
-         (STKS : match_stacks mi s1 s2),
+         (STKS : match_stacks mi s1 s2 m2),
     exists x1,
       index_list n s1 = Some x1 /\
-      match_stk_elmt mi x1 x2.
+      match_stk_elmt mi x1 x2 m2.
 Proof.
   induction n as [|n IH]; intros; inv STKS; simpl in *; allinv; eauto.
 Qed.
 
 Lemma match_stacks_update_list :
-  forall mi n se1 s1 se2 s2 s2'
-         (STKS : match_stacks mi s1 s2)
-         (STKELMTS : match_stk_elmt mi se1 se2)
+  forall mi n se1 s1 se2 s2 s2' m2
+         (STKS : match_stacks mi s1 s2 m2)
+         (STKELMTS : match_stk_elmt mi se1 se2 m2)
          (UPD : update_list n se2 s2 = Some s2'),
     exists s1',
       update_list n se1 s1 = Some s1' /\
-      match_stacks mi s1' s2'.
+      match_stacks mi s1' s2' m2.
 Proof.
   intros mi n.
   induction n as [|n IH]; intros; inv STKS; simpl in *; try congruence;
@@ -181,12 +195,12 @@ Proof.
 Qed.
 
 Lemma match_stacks_swap :
-  forall mi n s1 s2 s2'
+  forall mi n s1 s2 s2' m2
          (SWAP : swap n s2 = Some s2')
-         (STKS : match_stacks mi s1 s2),
+         (STKS : match_stacks mi s1 s2 m2),
     exists s1',
       swap n s1 = Some s1' /\
-      match_stacks mi s1' s2'.
+      match_stacks mi s1' s2' m2.
 Proof.
   unfold swap.
   intros.
@@ -199,8 +213,39 @@ Proof.
   eapply match_stacks_update_list; eauto.
 Qed.
 
+Lemma match_atoms_mem_irrel :
+  forall mi a1 a2 m2 m2'
+         (ATOMS : match_atoms mi a1 a2 m2),
+    match_atoms mi a1 a2 m2'.
+Proof. intros. inv ATOMS; eauto. Qed.
+Hint Resolve match_atoms_mem_irrel : mem_irrel.
+
+Lemma match_stk_elmt_mem_irrel :
+  forall mi se1 se2 m2 m2'
+         (STKELMT : match_stk_elmt mi se1 se2 m2),
+    match_stk_elmt mi se1 se2 m2'.
+Proof. intros. inv STKELMT; eauto with mem_irrel. Qed.
+Hint Resolve match_stk_elmt_mem_irrel : mem_irrel.
+
+Lemma match_stacks_mem_irrel :
+  forall mi s1 s2 m2 m2'
+         (STKS : match_stacks mi s1 s2 m2),
+    match_stacks mi s1 s2 m2'.
+Proof. intros. induction STKS; eauto with mem_irrel. Qed.
+Hint Resolve match_stacks_mem_irrel : mem_irrel.
+
 Hint Unfold a_alloc.
 Hint Unfold qa_alloc.
+
+Ltac inv_match :=
+  repeat match goal with
+           | STK : Forall2 _ _ (_ :: _) |- _ => inv STK
+           | STKELMT : match_stk_elmt _ _ _ _ |- _ => inv STKELMT
+           | ATOMS : match_atoms _ _ (_,_) _ |- _ => inv ATOMS
+           | VALS : match_vals _ _ (Vint _) |- _ => inv VALS
+           | VALS : match_vals _ _ (Vptr _ _) |- _ => inv VALS
+           | TAGS : match_tags _ _ _ |- _ => unfold match_tags in TAGS; subst
+         end.
 
 Lemma a_qa_simulation :
   forall s1 s2 e s2'
@@ -214,18 +259,12 @@ Proof.
   inv STEP;
   inv MATCH;
   unfold match_stacks in *;
+  inv_match;
   match goal with
     | H : run_tmr _ _ _ _ = Some _ |- _ =>
       unfold run_tmr, Rules.apply_rule in H; simpl in H;
       unfold Vector.nth_order in H; simpl in H
   end;
-  repeat match goal with
-           | STK : Forall2 _ _ (_ :: _) |- _ => inv STK
-           | STKELMT : match_stk_elmt _ _ _ |- _ => inv STKELMT
-           | ATOMS : match_atoms _ _ (_,_) |- _ => inv ATOMS
-           | VALS : match_vals _ _ (Vint _) |- _ => inv VALS
-           | VALS : match_vals _ _ (Vptr _ _) |- _ => inv VALS
-         end;
   simpl in *; unfold Vector.nth_order; simpl;
   try congruence;
   repeat match goal with
@@ -245,13 +284,13 @@ Proof.
         | SUB : sub _ _ = Some _ |- _ =>
           exploit (sub_defined T unit); eauto; intros [? [? ?]]
         | H : qa_alloc _ _ _ = Some _ |- _ =>
-          exploit (meminj_alloc T T T unit); eauto;
+          exploit (meminj_alloc T T T unit _ _ valid_update_match_tags); eauto;
           try solve [constructor; eauto];
           intros [? [? [? ?]]];
           exploit alloc_match_stacks; eauto; intro
         | H : load _ _ _ = Some _ |- _ =>
           exploit meminj_load; eauto; intros [[? ?] [? H']];
-          inv H'
+          inv H'; inv_match
         | H : Forall2 _ _ (_ ++ _) |- _ =>
           exploit match_stacks_app; eauto; intros [? [? [? [? ?]]]]; subst
         | H : pop_to_return _ _ |- _ =>
@@ -261,7 +300,8 @@ Proof.
   (* For some weird reason, trying to merge this match with the previous one doesn't work. *)
   try match goal with
         | H : store _ _ _ _ = Some _ |- _ =>
-          exploit (meminj_store T T T unit); eauto; try solve [econstructor; eauto]; intros [? [? ?]]
+          exploit (meminj_store T T T unit _ _ valid_update_match_tags);
+          eauto; try solve [econstructor; eauto]; intros [? [? ?]]
         | H : swap _ _ = Some _ |- _ =>
           exploit match_stacks_swap; eauto; intros [? [? ?]]
         | H1 : Forall2 _ _ _,
@@ -269,7 +309,8 @@ Proof.
           exploit match_stacks_index_list; eauto; intros [? [? ?]]
       end;
 
-  solve [eexists; split; econstructor (solve [simpl; eauto 7])].
+  (* Always using mem_irrel causes spurious existentials to be generated *)
+  try solve [eexists; split; econstructor (simpl; solve [eauto 7 | eauto 7 with mem_irrel])].
 
 Qed.
 
@@ -295,10 +336,11 @@ Proof.
 Qed.
 Hint Resolve emptyinj_meminj.
 
-Lemma match_init_stacks: forall d1,
+Lemma match_init_stacks: forall m2 d1,
  match_stacks emptyinj
               (map (fun a : PcAtom T => let (i,l) := a in AData (Vint i,l)) d1)
-              (map (fun a : PcAtom T => let (i,l) := a in AData (Vint i,l)) d1).
+              (map (fun a : PcAtom T => let (i,l) := a in AData (Vint i,l)) d1)
+              m2.
 Proof.
   induction d1 as [|[xv xl] d1 IH]; intros;
   (simpl; constructor; auto).
