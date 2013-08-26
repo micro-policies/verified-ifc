@@ -607,19 +607,26 @@ Inductive match_vals (mi : meminj) : val S1 -> val S2 -> Prop :=
              match_vals mi (Vptr b1 off) (Vptr b2 off).
 Hint Constructors match_vals.
 
-Variable match_tags : T1 -> T2 -> Prop.
+Variable match_tags : T1 -> T2 -> memory T2 S2 -> Prop.
+Variable valid_update : memory T2 S2 -> memory T2 S2 -> Prop.
+Hypothesis valid_update_match_tags :
+  forall t1 t2 m2 m2',
+    match_tags t1 t2 m2 ->
+    valid_update m2 m2' ->
+    match_tags t1 t2 m2'.
 
-Inductive match_atoms (mi : meminj) : Atom T1 S1 -> Atom T2 S2 -> Prop :=
-| ma_intro : forall v1 v2 t1 t2
+Inductive match_atoms (mi : meminj) : Atom T1 S1 -> Atom T2 S2 -> memory T2 S2 -> Prop :=
+| ma_intro : forall v1 v2 t1 t2 m2
                     (VALS : match_vals mi v1 v2)
-                    (TAGS : match_tags t1 t2),
-               match_atoms mi (v1, t1) (v2, t2).
+                    (TAGS : match_tags t1 t2 m2),
+               match_atoms mi (v1, t1) (v2, t2) m2.
 Hint Constructors match_atoms.
 
 Definition match_frames (mi : meminj) : list (Atom T1 S1) ->
                                         list (Atom T2 S2) ->
+                                        memory T2 S2 ->
                                         Prop :=
-  Forall2 (match_atoms mi).
+  fun f1 f2 m2 => Forall2 (fun a1 a2 => match_atoms mi a1 a2 m2) f1 f2.
 Hint Constructors Forall2.
 Hint Unfold match_frames.
 
@@ -630,7 +637,7 @@ Record Meminj (m1 : memory T1 S1) (m2 : memory T2 S2) (mi : meminj) := {
              exists f1 f2,
                Mem.get_frame m1 b1 = Some f1 /\
                Mem.get_frame m2 b2 = Some f2 /\
-               match_frames mi f1 f2;
+               match_frames mi f1 f2 m2;
 
   mi_invalid : forall b2,
                  Mem.get_frame m2 b2 = None ->
@@ -653,7 +660,7 @@ Lemma mi_valid' :
          (MATCH : mi b2 = Some b1),
     exists f1,
       Mem.get_frame m1 b1 = Some f1 /\
-      match_frames mi f1 f2.
+      match_frames mi f1 f2 m2.
 Proof.
   intros.
   exploit mi_valid; eauto.
@@ -693,9 +700,10 @@ Qed.
 Lemma meminj_mem_alloc :
   forall mi mode1 mode2 stamp1 stamp2 m1 b1 m1' f1 m2 b2 m2' f2,
   forall (INJ : Meminj m1 m2 mi)
-         (MATCH : match_frames mi f1 f2)
+         (MATCH : match_frames mi f1 f2 m2)
          (E1 :  Mem.alloc mode1 m1 stamp1 f1 = (b1, m1'))
-         (E2 : Mem.alloc mode2 m2 stamp2 f2 = (b2, m2')),
+         (E2 : Mem.alloc mode2 m2 stamp2 f2 = (b2, m2'))
+         (VALID : valid_update m2 m2'),
     Meminj m1' m2' (update_meminj mi b2 b1).
 Proof.
   intros.
@@ -713,12 +721,12 @@ Proof.
       assert (Hb2 : mi b2 = None).
       { eapply mi_invalid; eauto.
         eapply Mem.alloc_get_fresh; eauto. }
-      clear - Hb2 MATCH.
+      clear - Hb2 MATCH VALID valid_update_match_tags.
       induction MATCH; eauto.
       constructor; auto.
       inv H.
-      inv VALS; auto.
-      constructor; auto.
+      inv VALS; eauto.
+      constructor; eauto.
       constructor.
       rewrite update_meminj_neq; auto.
       congruence.
@@ -737,7 +745,7 @@ Proof.
         induction H3; auto.
         constructor; auto.
         inv H.
-        constructor; auto.
+        constructor; eauto.
         inv VALS; auto.
         constructor.
         rewrite update_meminj_neq; eauto.
@@ -773,16 +781,17 @@ Qed.
 
 Inductive match_oframes mi : option (list (Atom T1 S1)) ->
                              option (list (Atom T2 S2)) ->
+                             memory T2 S2 ->
                              Prop :=
-| mof_none : match_oframes mi None None
-| mof_some : forall f1 f2
-                    (FRAMES : match_frames mi f1 f2),
-               match_oframes mi (Some f1) (Some f2).
+| mof_none : forall m2, match_oframes mi None None m2
+| mof_some : forall f1 f2 m2
+                    (FRAMES : match_frames mi f1 f2 m2),
+               match_oframes mi (Some f1) (Some f2) m2.
 
 Lemma zreplicate_match_oframes :
-  forall z mi a1 a2,
-    match_atoms mi a1 a2 ->
-    match_oframes mi (zreplicate z a1) (zreplicate z a2).
+  forall z mi a1 a2 m2,
+    match_atoms mi a1 a2 m2 ->
+    match_oframes mi (zreplicate z a1) (zreplicate z a2) m2.
 Proof.
   intros.
   unfold zreplicate.
@@ -851,12 +860,12 @@ Proof.
 Qed.
 
 Lemma match_frames_valid_index :
-  forall mi f1 f2 off a2
-         (FRAMES : match_frames mi f1 f2)
+  forall mi f1 f2 off a2 m2
+         (FRAMES : match_frames mi f1 f2 m2)
          (INDEX : index_list_Z off f2 = Some a2),
     exists a1,
       index_list_Z off f1 = Some a1 /\
-      match_atoms mi a1 a2.
+      match_atoms mi a1 a2 m2.
 Proof.
   unfold index_list_Z.
   intros.
@@ -874,7 +883,7 @@ Lemma meminj_load :
          (MATCH : mi b2 = Some b1),
     exists a1,
       load b1 off m1 = Some a1 /\
-      match_atoms mi a1 a2.
+      match_atoms mi a1 a2 m2.
 Proof.
   unfold load.
   intros.
@@ -885,14 +894,14 @@ Proof.
   eapply match_frames_valid_index; eauto.
 Qed.
 
-Lemma match_frames_valid_update :
-  forall mi f1 f2 f2' off a1 a2
-         (FRAMES : match_frames mi f1 f2)
-         (ATOMS : match_atoms mi a1 a2)
+Lemma match_frames_update_success :
+  forall mi f1 f2 f2' off a1 a2 m2
+         (FRAMES : match_frames mi f1 f2 m2)
+         (ATOMS : match_atoms mi a1 a2 m2)
          (INDEX : update_list_Z off a2 f2 = Some f2'),
     exists f1',
       update_list_Z off a1 f1 = Some f1' /\
-      match_frames mi f1' f2'.
+      match_frames mi f1' f2' m2.
 Proof.
   unfold update_list_Z.
   intros.
@@ -913,13 +922,30 @@ Proof.
     eauto.
 Qed.
 
+Lemma match_atoms_valid_update :
+  forall mi a1 a2 m2 m2'
+         (ATOMS : match_atoms mi a1 a2 m2)
+         (VALID : valid_update m2 m2'),
+    match_atoms mi a1 a2 m2'.
+Proof. intros. inv ATOMS; eauto. Qed.
+Hint Resolve match_atoms_valid_update.
+
+Lemma match_frames_valid_update :
+  forall mi f1 f2 m2 m2'
+         (FRAMES : match_frames mi f1 f2 m2)
+         (VALID : valid_update m2 m2'),
+    match_frames mi f1 f2 m2'.
+Proof. intros. induction FRAMES; eauto. Qed.
+Hint Resolve match_frames_valid_update.
+
 Lemma match_frames_upd_frame :
   forall m1 m2 m2' mi
          b1 b2 f1 f2
          (INJ : Meminj m1 m2 mi)
-         (FRAMES : match_frames mi f1 f2)
+         (FRAMES : match_frames mi f1 f2 m2)
          (UPD : Mem.upd_frame m2 b2 f2 = Some m2')
-         (MATCH : mi b2 = Some b1),
+         (MATCH : mi b2 = Some b1)
+         (VALID : valid_update m2 m2'),
     exists m1',
       Mem.upd_frame m1 b1 f1 = Some m1' /\
       Meminj m1' m2' mi.
@@ -933,7 +959,7 @@ Proof.
   split; eauto.
   constructor.
 
-  - clear - INJ UPD MATCH FRAMES Hf1.
+  - clear - INJ UPD MATCH FRAMES Hf1 VALID valid_update_match_tags.
     intros b1' b2' Hb1b2.
     eapply Mem.get_upd_frame with (b' := b2') in UPD.
     destruct (b2 == b2') as [EQ|NEQ]; try congruence.
@@ -944,8 +970,10 @@ Proof.
       erewrite Mem.get_upd_frame; eauto.
       match goal with
         | |- context[if ?b then _ else _] =>
-          destruct b; eauto; congruence
+          destruct b; eauto; try congruence
       end.
+
+      repeat eexists. eauto.
     + rewrite UPD.
       clear UPD FRAMES.
       exploit mi_valid; eauto.
@@ -976,8 +1004,9 @@ Lemma meminj_store :
          b1 b2 off a1 a2 m2'
          (INJ : Meminj m1 m2 mi)
          (STORE : store b2 off a2 m2 = Some m2')
-         (VALS : match_atoms mi a1 a2)
-         (MATCH : mi b2 = Some b1),
+         (VALS : match_atoms mi a1 a2 m2)
+         (MATCH : mi b2 = Some b1)
+         (VALID : valid_update m2 m2'),
     exists m1',
       store b1 off a1 m1 = Some m1' /\
       Meminj m1' m2' mi.
@@ -989,7 +1018,7 @@ Proof.
   intros [f1 [H1 H2]].
   rewrite H1.
   destruct (update_list_Z off a2 f2) eqn:E; try congruence.
-  exploit match_frames_valid_update; eauto.
+  exploit match_frames_update_success; eauto.
   intros [f1' [Ef' ?]].
   rewrite Ef'.
   eapply match_frames_upd_frame; eauto.
@@ -998,7 +1027,8 @@ Qed.
 Lemma meminj_alloc : forall mi size mode2 stamp2 m1 a1 m2 a2 b2 m2',
                      forall (INJ : Meminj m1 m2 mi)
                             (ALLOC : alloc mode2 stamp2 size a2 m2 = Some (b2, m2'))
-                            (ATOMS : match_atoms mi a1 a2),
+                            (ATOMS : match_atoms mi a1 a2 m2)
+                            (VALID : valid_update m2 m2'),
                      forall mode1 stamp1,
                        exists b1 m1',
                          alloc mode1 stamp1 size a1 m1 = Some (b1, m1') /\
