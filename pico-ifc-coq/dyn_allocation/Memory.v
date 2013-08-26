@@ -592,6 +592,15 @@ Proof.
   destruct (b == b'); congruence.
 Qed.
 
+Definition extends {T S} (m1 m2 : memory T S) : Prop :=
+  forall b off v, load b off m1 = Some v -> load b off m2 = Some v.
+
+Lemma extends_refl : forall {T S} (m : memory T S), extends m m.
+Proof. unfold extends. auto. Qed.
+
+Lemma extends_trans : forall {T S} (m1 m2 m3 : memory T S), extends m1 m2 -> extends m2 m3 -> extends m1 m3.
+Proof. unfold extends. auto. Qed.
+
 Section Injections.
 
 Variables T1 T2 S1 S2 : Type.

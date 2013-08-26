@@ -24,15 +24,6 @@ Local Notation PcAtom := (PcAtom Z).
 Local Notation block := (block privilege).
 Definition HProp := memory -> stack -> Prop.
 
-Definition extends (m1 m2 : memory) : Prop :=
-  forall b off v, load b off m1 = Some v -> load b off m2 = Some v.
-
-Lemma extends_refl : forall m, extends m m.
-Proof. unfold extends. auto. Qed.
-
-Lemma extends_trans : forall m1 m2 m3, extends m1 m2 -> extends m2 m3 -> extends m1 m3.
-Proof. unfold extends. auto. Qed.
-
 Definition extension_comp (P : HProp) :=
   forall m1 m2 s, P m1 s -> extends m1 m2 -> P m2 s.
 
