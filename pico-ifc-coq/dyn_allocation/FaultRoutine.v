@@ -269,14 +269,6 @@ Hint Constructors INIT_MEM.
 Variable (m0: memory).
 Hypothesis initial_m0 : INIT_MEM m0.
 
-(*
-Ltac clean_up_initial_mem :=
-  unfold handler_initial_mem_matches in *;
-  intuition;
-  generalize initial_mem_matches; intros HH; clear initial_mem_matches;
-  jauto_set_hyps; intros.
-*)
-
 Lemma extension_comp_nth_labToZ : forall m1 m2 (n m:nat) (vls: Vector.t T n) z,
     nth_labToZ vls m z m1 ->
     extends m1 m2 ->
@@ -816,7 +808,6 @@ Proof.
     false; intuition.
 Qed.
 
-
 Lemma H_indexed_hyps: forall (I:HProp) (Hext: extension_comp I),
                         indexed_hyps_ext cblock _ genC genB (genQ I)
                         genV (fun m s => extends m0 m /\ I m s) opcodes.
@@ -995,52 +986,6 @@ Proof.
   eauto using extends_refl.
 Qed.
 
-(* DELETE?
-(* The irrelevant memory never changes *)
-Lemma genStoreResults_update_cache_spec_rvec:
-  valid_address cblock addrTagRes m0 ->
-  valid_address cblock addrTagResPC m0 ->
-  forall s0,
-    HT genStoreResults
-       (fun m s => m = m0 /\
-                   s = listify_apply_rule ar s0)
-       (fun m s => update_cache_spec_rvec cblock m0 m).
-Proof.
-  intros.
-  unfold update_cache_spec_rvec in *.
-
-  cases ar as Eq_ar.
-  destruct p.
-
-  + eapply HT_weaken_conclusion;
-    rewrite <- Eq_ar in *.
-
-    eapply genStoreResults_spec_Some; eauto.
-
-    simpl.
-    intros;
-
-    jauto_set_hyps; intros.
-    split.
-    * intros args NEQ.
-      symmetry.
-      exploit get_frame_store_neq; eauto.
-      intros E. rewrite E. clear E H2.
-      exploit get_frame_store_neq; eauto.
-    * intros.
-      rewrite (load_store_old H2); try congruence.
-      rewrite (load_store_old H1); congruence.
-
-  + eapply HT_weaken_conclusion;
-    rewrite <- Eq_ar in *.
-
-    eapply genStoreResults_spec_None; eauto.
-
-    simpl; intuition; subst; auto.
-    intros addr NEQ. trivial.
-Qed.
-*)
-
 Definition handler_final_mem_matches (lrpc lr: T) (m m': memory): Z -> Z -> Prop :=
   fun zpc zr =>
     exists m_ext,
@@ -1049,62 +994,6 @@ Definition handler_final_mem_matches (lrpc lr: T) (m m': memory): Z -> Z -> Prop
       labToZ lr zr m' /\
       cache_hit_read_mem cblock m' zr zpc /\
       update_cache_spec_rvec cblock m_ext m'. (* Nothing else changed since the extension *)
-
-(* DELETE?
-Lemma genStoreResults_spec_Some': forall lr lpc,
-  valid_address cblock addrTagRes m0 ->
-  valid_address cblock addrTagResPC m0 ->
-  ar = Some (lpc, lr) ->
-  forall s0,
-    HT genStoreResults
-       (fun m s => m = m0 /\
-                   s = listify_apply_rule ar s0)
-       (fun m s => handler_final_mem_matches lpc lr m0 m
-                   /\ s = (Vint 1,handlerTag) ::: s0).
-Proof.
-  introv HvalidRes HvalidResPC Har_eq; intros.
-  destruct HvalidRes as [m' Hm'].
-  destruct HvalidResPC as [m'' Hm''].
-  destruct (load_some_store_some Hm' (Vint (labToZ lr), handlerTag)) as [m''' T'].
-  assert (TT:exists m'''',
-            store cblock addrTagResPC (Vint (labToZ lpc), handlerTag) m''' = Some m'''').
-    eapply load_some_store_some.
-    erewrite load_store_old; eauto.
-    compute; congruence.
-  destruct TT as [m4 T4].
-  unfold genStoreResults.
-  eapply HT_strengthen_premise.
-  eapply ifNZ_spec_NZ with (v := 1); try omega.
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
-  eapply genTrue_spec_wp.
-  simpl.
-  eapply storeAt_spec_wp; auto.
-  eapply storeAt_spec_wp; auto.
-  rewrite Har_eq. simpl.
-  intros m s [Hm Hs]. subst.
-  eexists.
-  repeat (split; eauto); try econstructor; eauto.
-  + unfold cache_hit_read_mem.
-    generalize (load_store_new T4).
-    exploit (load_store_old T4 cblock addrTagRes).
-    compute; congruence.
-    intros EE.
-    generalize (load_store_new T').
-    rewrite <- EE.
-    unfold load.
-    destruct (Mem.get_frame m4 cblock) eqn:E; try congruence.
-    econstructor;
-    constructor; auto.
-  + intros addr NEQ.
-    exploit get_frame_store_neq; eauto.
-    intros E. rewrite E. clear T4.
-    exploit get_frame_store_neq; eauto.
-  + intros ofs H1 H2.
-    exploit (load_store_old T4 cblock ofs); try congruence.
-    exploit (load_store_old T' cblock ofs); try congruence.
-Qed.
-*)
 
 Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop),
   HTEscape cblock raddr genError
@@ -1125,29 +1014,6 @@ Proof.
 Qed.
 
 Definition genFaultHandlerReturn: code := ifNZ [Ret] genError.
-
-(* ???
-Lemma genFaultHandlerReturn_specEscape_Some: forall raddr lr lpc,
-  forall s0,
-  HTEscape cblock raddr genFaultHandlerReturn
-       (fun (m : memory) (s : stack) =>
-        handler_final_mem_matches lr lpc m0 m /\
-        s = (Vint 1, handlerTag) ::: CRet raddr false false :: s0)
-       (fun (m : memory) (s : stack) =>
-        (s = s0 /\ handler_final_mem_matches lr lpc m0 m, Success)).
-Proof.
-  intros.
-  unfold genFaultHandlerReturn.
-  eapply HTEscape_strengthen_premise.
-  - eapply ifNZ_specEscape with (v:=1) (Pf:=fun m s => True); auto; intros.
-    eapply ret_specEscape.
-    auto.
-    false.
-  - subst.
-    intuition.
-    jauto_set_goal; eauto.
-Qed.
-*)
 
 Lemma genFaultHandlerReturn_specEscape_Some: forall raddr (Q: memory -> stack -> Prop),
   HTEscape cblock raddr genFaultHandlerReturn
@@ -1183,25 +1049,6 @@ Proof.
     intuition.
     jauto_set_goal; eauto.
 Qed.
-
-(* DELETE?
-Lemma genFaultHandlerReturn_specEscape_None: forall raddr s0,
- HTEscape cblock raddr genFaultHandlerReturn
-   (fun (m : memory) (s : stack) => m = m0 /\ s = (Vint 0, handlerTag) ::: s0)
-   (fun (m : memory) (s : stack) => (m = m0 /\ s = s0, Failure)).
-Proof.
-  intros.
-  unfold genFaultHandlerReturn.
-  eapply HTEscape_strengthen_premise.
-  - eapply ifNZ_specEscape with (v := 0) (Pt := fun m s => True); auto; intros.
-    + intuition.
-    + eapply genError_specEscape.
-  - intros.
-    subst.
-    intuition.
-    jauto_set_goal; eauto.
-Qed.
-*)
 
 (* MOVE *)
 Lemma extends_valid_address: forall m m' a,
