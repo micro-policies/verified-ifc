@@ -61,6 +61,7 @@ Hint Resolve match_vals_eq.
 Hint Constructors Memory.match_atoms.
 Hint Constructors Memory.match_vals.
 Hint Resolve update_meminj_eq.
+Hint Unfold match_frames.
 
 Record Userinj (mi : meminj) : Prop := {
 
@@ -812,34 +813,61 @@ Qed.
 
 Open Scope Z_scope.
 
+(* AAA: Currently, this theorem is false, because mem_eq_except_cache
+requires that the cache frame be at least seven atoms wide. It should
+be possible to fix it by requiring that the cache frame exists
+instead. This will prevent the cache block from being allocated
+by accident, which is what this assumption should prevent (I think). *)
+
+Lemma cupd_mem_eq_except_cache :
+  forall m2 cache m2'
+         (UPD : cupd cblock m2 cache = Some m2'),
+    mem_eq_except_cache cblock m2 m2'.
+Proof.
+Admitted.
+Hint Resolve cupd_mem_eq_except_cache.
+
 Lemma configuration_at_miss :
   forall s1 s21 e2 s22
          (MATCH : match_states s1 s21)
          (STEP : cstep cblock s21 e2 s22)
          (PRIV : priv s22 = true),
-    exists opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))),
+    (exists opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) ts pct,
+      labsToZs vls (mem s22) ts /\
+      labToZ (snd (apc s1)) pct (mem s22) /\
       cupd cblock (mem s21)
-           (build_cache (opCodeToZ opcode)
-                        (labsToZs vls)
-                        (labToZ (snd (apc s1)))) = Some (mem s22) /\
+           (build_cache (opCodeToZ opcode) ts pct) = Some (mem s22) /\
       fhdl s22 = fhdl s21 /\
       imem s22 = imem s21 /\
       stk s22 = CRet (pc s21) false false :: stk s21 /\
-      pc s22 = (0, handlerTag).
+      pc s22 = (0, handlerTag)).
 Proof.
   intros.
   inv MATCH.
-  inv STEP; simpl in *; try congruence; match_inv;
+  inv STEP; simpl in *; try congruence;
 
-  (* For the Load case *)
-  try_exploit meminj_load; match_inv;
+  match_inv;
 
-  (* For the Ret cases *)
-  try_exploit match_stacks_pop_to_return;
+  on_case ltac:(first [instr OpLoad | instr OpStore])
+          "Couldn't analyze Load or Store"
+          ltac:(complete_exploit meminj_load; match_inv);
+
+  on_case ltac:(first [instr OpRet | instr OpVRet])
+          "Couldn't analyze Ret cases"
+          ltac:(complete_exploit match_stacks_pop_to_return);
 
   let opcode := get_opcode in
   let vls := quasi_abstract_labels opcode in
-  exists opcode; exists vls; eauto.
+  exists opcode; exists vls;
+  match goal with
+    | H : context[cache_hit_mem _ _ _ ?ts ?pct] |- _ =>
+      exists ts; exists pct
+  end;
+
+  simpl; repeat econstructor;
+  unfold nth_labToZ, Vector.nth_order; simpl; eauto;
+  eapply labToZ_cache; eauto.
+
 Qed.
 
 Lemma build_cache_cache_hit :
@@ -856,6 +884,7 @@ Qed.
 Lemma meminj_same_frames :
   forall mi m1 m2 m2'
          (INJ : Meminj m1 m2 mi)
+         (VALID : valid_update m2 m2')
          (EQ : forall b1 b2,
                  mi b2 = Some b1 ->
                  Mem.get_frame m2 b2 = Mem.get_frame m2' b2),
@@ -867,7 +896,12 @@ Proof.
   - intros.
     exploit EQ; eauto.
     intros E. rewrite <- E.
-    apply mi_valid; eauto.
+    exploit mi_valid; eauto.
+    intros (f1 & f2 & H1 & H2 & H3).
+    repeat eexists; eauto.
+    clear - H3 VALID.
+    induction H3; eauto.
+    constructor; eauto with valid_update.
 
   - intros.
     destruct (mi b2) as [b1|] eqn:Hb2; try congruence.
@@ -988,20 +1022,23 @@ Proof.
 Qed.
 
 Lemma handler_final_mem_meminj :
-  forall mi m1 m2 m2' rpcl rl
+  forall mi m1 m2 m2' rpcl rpct rl rt
          (MINJ : Meminj m1 m2 mi)
          (UINJ : Userinj mi)
-         (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2'),
+         (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2' rpct rt),
     Meminj m1 m2' mi.
 Proof.
   intros.
-  destruct MATCH as [_ [REST _]].
+  destruct MATCH as (m_ext & EXT & PC & RES & HIT & UP).
   eapply meminj_same_frames; eauto.
-  intros.
-  unfold update_mem_only_cache in *.
-  rewrite REST; eauto.
-  exploit ui_no_kernel; eauto.
-  congruence.
+  - destruct UP as [UP CACHE].
+    split.
+    + (* Really boring. Roughly, since the cache outputs are defined, the whole cache should be.
+         Would be easier if we just cared about the cache frame instead of each entry *)
+      admit.
+    + intros b fr KERNEL NEQ DEF.
+      admit.
+  - admit.
 Qed.
 Hint Resolve handler_final_mem_meminj.
 
