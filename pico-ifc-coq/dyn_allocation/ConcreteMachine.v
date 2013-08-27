@@ -377,7 +377,7 @@ Inductive cstep : CS -> CEvent+τ -> CS -> Prop :=
          (CHIT: cache_hit_mem m (opCodeToZ OpOutput) (cl, __, __) pcl)
          (CREAD: cache_hit_read_mem m rl rpcl),
      cstep (CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
-           (E (CEInt (cv,rl))) (CState m fh i s (pcv+1,rpcl) false)
+           (E (CEInt (cv,rl) m)) (CState m fh i s (pcv+1,rpcl) false)
 
 | cstep_out_f: forall c' fh m i s pcv pcl cv cl m',
    forall(INST: i @ pcv # Output)

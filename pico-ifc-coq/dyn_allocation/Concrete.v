@@ -46,7 +46,7 @@ Record CS  := CState {
 }.
 
 Inductive CEvent :=
-| CEInt : PcAtom -> CEvent.
+| CEInt : PcAtom -> memory -> CEvent.
 
 (** * Cache handling mechanism *)
 
