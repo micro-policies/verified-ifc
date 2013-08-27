@@ -109,7 +109,7 @@ Definition faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
 
 Inductive cache_up2date mem : Prop :=
 | cu2d_intro :
-    forall (DEF : exists fr, Mem.get_frame mem cblock = Some fr)
+    forall (DEF : mem_def_on_cache cblock mem)
            (UP2DATE : forall opcode vls tags pcl pct,
                         labsToZs vls mem tags ->
                         labToZ pcl pct mem ->
@@ -418,8 +418,7 @@ Proof.
   inv ALLOC.
   destruct CACHE.
   econstructor; eauto.
-  - destruct DEF as [fr H].
-    erewrite alloc_get_frame_old; eauto.
+  - admit.
   - (*intros.
     specialize (UP2DATE opcode vls tags pcl pct).
     unfold cache_hit_mem, cache_hit_read_mem in *.
@@ -452,8 +451,7 @@ Proof.
   destruct (Mem.get_frame m b) as [frame|] eqn:E; try congruence.
   destruct (upd_m off a frame) as [frame'|] eqn:E'; try congruence.
   constructor.
-  - destruct DEF as [fr H].
-    erewrite get_frame_upd_frame_neq; eauto; try congruence.
+  - admit.
   - (*erewrite Mem.get_upd_frame; eauto.
      match goal with
         | |- context[if ?b then _ else _] =>
@@ -477,26 +475,43 @@ Proof.
 Qed.
 Hint Resolve alloc_stamp.
 
-Lemma analyze_cache_hit :
-  forall m opcode (vls : Vector.t T (labelCount opcode)) pcl zrl zrpcl
-         (UP2DATE : cache_up2date m)
-         (CHIT : cache_hit_mem cblock m (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
-         (CREAD : cache_hit_read_mem cblock m zrl zrpcl),
-  exists rpcl rl,
-    zrl = labToZ rl /\
-    zrpcl = labToZ rpcl /\
-    apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl).
+Lemma cache_up2date_res :
+  forall tmuc opcode vls ts pcl pct
+         (UP2DATE : cache_up2date tmuc)
+         (Hvls : labsToZs vls tmuc ts)
+         (Hpc : labToZ pcl pct tmuc)
+         (HIT : cache_hit_mem cblock tmuc (opCodeToZ opcode) ts pct),
+    exists rpcl rpct rl rt,
+      labToZ rpcl rpct tmuc /\
+      labToZ rl rt tmuc /\
+      apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl) /\
+      cache_hit_read_mem cblock tmuc rt rpct.
 Proof.
   intros.
   destruct UP2DATE.
-  unfold cache_hit_mem in *.
-  rewrite FRAME in *.
-  exploit UP2DATE; eauto.
-  intros APPLY.
-  destruct (apply_rule (fetch_rule_g opcode) pcl vls) as [[rpcl rl]|];
-  try solve [intuition].
-  generalize (cache_hit_read_mem_determ _ _ _ _ _ _ CREAD APPLY).
-  intuition. subst. eauto.
+  eapply UP2DATE in HIT; eauto.
+  destruct (apply_rule (fetch_rule_g opcode) pcl vls) as [[rpcl rl]|]; try solve [intuition].
+  destruct HIT as (rpct & rt & H1 & H2 & H3).
+  repeat eexists; eauto.
+Qed.
+
+Lemma analyze_cache_hit :
+  forall m opcode (vls : Vector.t T (labelCount opcode)) ts pcl pct zrl zrpcl
+         (LABS : labsToZs vls m ts)
+         (PC : labToZ pcl pct m)
+         (UP2DATE : cache_up2date m)
+         (CHIT : cache_hit_mem cblock m (opCodeToZ opcode) ts pct)
+         (CREAD : cache_hit_read_mem cblock m zrl zrpcl),
+  exists rpcl rl,
+    labToZ rl zrl m /\
+    labToZ rpcl zrpcl m /\
+    apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl).
+Proof.
+  intros.
+  exploit cache_up2date_res; eauto.
+  intros (rpcl & rpct & rl & rt & H1 & H2 & H3 & H4).
+  generalize (cache_hit_read_mem_determ cblock m _ _ _ _ CREAD H4).
+  intuition (subst; eauto).
 Qed.
 
 Ltac get_opcode :=
@@ -508,34 +523,50 @@ Ltac get_opcode :=
       end
   end.
 
+Ltac abstract_tag tag :=
+  match goal with
+    | H : labToZ ?l tag _ |- _ => l
+    | H : match_tags ?l tag _ |- _ => l
+  end.
+
 Ltac quasi_abstract_labels opcode :=
   match goal with
     | H : context[cache_hit_mem _ _ _ ?tags _] |- _ =>
       match tags with
         | (dontCare, dontCare, dontCare) =>
           constr:(<||> : Vector.t T (labelCount opcode))
-        | (labToZ ?l, dontCare, dontCare) =>
-          constr:(<|l|> : Vector.t T (labelCount opcode))
-        | (labToZ ?l1, labToZ ?l2, dontCare) =>
+        | (?t1, dontCare, dontCare) =>
+          let l1 := abstract_tag t1 in
+          constr:(<|l1|> : Vector.t T (labelCount opcode))
+        | (?t1, ?t2, dontCare) =>
+          let l1 := abstract_tag t1 in
+          let l2 := abstract_tag t2 in
           constr:(<|l1; l2|> : Vector.t T (labelCount opcode))
-        | (labToZ ?l1, labToZ ?l2, labToZ ?l3) =>
+        | (?t1, ?t2, ?t3) =>
+          let l1 := abstract_tag t1 in
+          let l2 := abstract_tag t2 in
+          let l3 := abstract_tag t3 in
           constr:(<|l1; l2; l3|> : Vector.t T (labelCount opcode))
       end
+    | |- _ => fail 1 "quasi_abstract_labels" opcode
   end.
 
 Ltac analyze_cache_hit :=
   (* Find the current opcode, build the label vector use cache_up2date
   to build an equation about apply_rule. *)
+  let opcode := get_opcode in
   match goal with
     | CACHE : cache_up2date _,
-      CHIT : cache_hit_mem _ _ _ _ _,
-      CREAD : cache_hit_read_mem _ _ _ _ |- _ =>
-      let opcode := get_opcode in
+      CHIT : cache_hit_mem cblock ?tmuc _ ?tags ?pct,
+      CREAD : cache_hit_read_mem cblock _ _ _ |- _ =>
       let vls := quasi_abstract_labels opcode in
+      let pcl := abstract_tag pct in
+      exploit (@analyze_cache_hit tmuc opcode vls tags pcl pct);
+      unfold labsToZs, nth_labToZ; simpl; eauto;
       let rpcl := fresh "rpcl'" in
       let rl := fresh "rl'" in
-      generalize (@analyze_cache_hit _ _ vls _ _ _ CACHE CHIT CREAD);
       intros [rl [rpcl [? [? ?]]]]; subst
+    | |- _ => fail 1 "Failed in case" opcode
   end.
 
 Ltac match_inv :=
@@ -548,10 +579,10 @@ Ltac match_inv :=
              exploit Forall2_app_inv_r; eauto;
              intros [? [? [? [? ?]]]];
              clear H
-           | H : match_stk_elmt _ _ (CData _) |- _ => inv H
+           | H : match_stk_elmt _ _ (CData _) _ |- _ => inv H
          end;
   repeat match goal with
-           | H : match_atoms _ _ (?v, _) |- _ =>
+           | H : match_atoms _ _ (?v, _) _ |- _ =>
              match goal with
                | H : match_vals _ _ v |- _ => fail 1
                | |- _ => inversion H; subst
@@ -560,9 +591,32 @@ Ltac match_inv :=
   repeat match goal with
            | H : match_vals _ _ (Vint _) |- _ => inv H
            | H : match_vals _ _ (Vptr _ _) |- _ => inv H
-           | H : match_tags ?l ?t |- _ =>
+           | H : match_tags ?l ?t _ |- _ =>
              unfold match_tags in H; subst t
          end.
+
+Ltac on_case test message t :=
+  match goal with
+    | |- _ => test; (t || fail 1 message)
+    | |- _ => idtac
+  end.
+
+Ltac instr opcode :=
+  idtac;
+  let opcode' := get_opcode in
+  match opcode' with
+    | opcode => idtac
+  end.
+
+Ltac complete_exploit lemma :=
+  exploit lemma;
+  eauto;
+  [intros H;
+   repeat match goal with
+            | H : exists _, _ |- _ => destruct H
+            | H : _ /\ _ |- _ => destruct H
+          end;
+   subst].
 
 Lemma match_vals_eq :
   forall m1 m2 mi v11 v12 v21 v22
@@ -582,7 +636,109 @@ Proof.
 Qed.
 Hint Resolve match_vals_eq.
 
+Ltac focus_on t :=
+  first [t | admit].
+
+(* Maybe mem_def_on_cache should be defined in terms of cache_hit_mem? *)
+Lemma cache_hit_mem_mem_def_on_cache :
+  forall m o ts pct
+         (HIT : cache_hit_mem cblock m o ts pct),
+    mem_def_on_cache cblock m.
+Proof.
+  intros.
+  unfold cache_hit_mem in HIT.
+  destruct (Mem.get_frame m cblock) as [cache|] eqn:FRAME; intuition.
+  destruct HIT;
+  repeat match goal with
+           | H : tag_in_mem _ _ _ |- _ => inv H
+         end;
+  repeat econstructor; unfold load;
+  rewrite FRAME; eauto.
+Qed.
+Hint Resolve cache_hit_mem_mem_def_on_cache.
+
+Lemma store_user_valid_update :
+  forall b ofs a m2 m2'
+         (DEF : mem_def_on_cache cblock m2)
+         (STORE : store b ofs a m2 = Some m2')
+         (USER : Mem.stamp b = User),
+    valid_update m2 m2'.
+Proof.
+  intros.
+  constructor; eauto.
+  intros b' fr KERNEL NEQ H.
+  rewrite <- H.
+  eapply get_frame_store_neq; eauto.
+  congruence.
+Qed.
+Hint Resolve store_user_valid_update.
+
 (** Cache hit case *)
+
+Lemma cache_hit_simulation :
+  forall s1 s2 a2 s2'
+         (Hmatch : match_states s1 s2)
+         (Hs2' : priv s2' = false)
+         (Hstep : cstep cblock s2 a2 s2'),
+    exists a1 s1', step_rules fetch_rule_g s1 a1 s1' /\
+                   match_actions a1 a2 /\
+                   match_states s1' s2'.
+Proof.
+  intros.
+  inv Hmatch.
+  (*destruct apc as [apc apcl].*)
+  inv Hstep; simpl in *; try congruence;
+
+  match_inv;
+
+  on_case ltac:(instr OpAdd)
+          "Couldn't analyze Add"
+          ltac:(complete_exploit add_defined);
+
+  on_case ltac:(first [instr OpLoad | instr OpStore])
+          "Couldn't analyze Load or Store"
+          ltac:(complete_exploit meminj_load; match_inv);
+
+  on_case ltac:(first [instr OpRet | instr OpVRet])
+          "Couldn't analyze Ret cases"
+          ltac:(complete_exploit match_stacks_pop_to_return);
+
+  analyze_cache_hit;
+
+  on_case ltac:(instr OpStore)
+          "Couldn't construct memory update"
+          ltac:(exploit (meminj_store T Z unit privilege _ _ valid_update_match_tags);
+                eauto; try solve [constructor; eauto];
+                intros [? [? ?]]);
+
+  on_case ltac:(instr OpCall)
+          "Couldn't exploit Call case"
+          ltac:(idtac;
+                match goal with
+                  | MATCH : Forall2 (match_stk_elmt ?tmuc) ?aargs ?cargs,
+                    ARGS : forall se, In se ?cargs -> _ |- _ =>
+                    generalize (@match_stacks_data aargs cargs tmuc MATCH ARGS); intro
+                end);
+
+  (* For the BranchNZ case *)
+  on_case ltac:(instr OpBranchNZ)
+          "Case analysis for BranchNZ failed"
+          ltac:(idtac;
+                match goal with
+                  | |- context[if (?z =? 0) then _ else _ ] =>
+                    let H := fresh "H" in
+                    assert (H := Z.eqb_spec z 0);
+                    destruct (z =? 0);
+                    inv H
+                end);
+
+  solve [
+      eexists; eexists; split; try split;
+      try (econstructor (solve [compute; eauto]));
+      repeat (constructor; eauto); simpl; f_equal; intuition (auto 7)
+    ].
+
+Qed.
 
 Lemma cache_hit_simulation :
   forall s1 s2 a2 s2'
