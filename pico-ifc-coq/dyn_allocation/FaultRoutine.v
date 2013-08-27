@@ -286,9 +286,19 @@ Lemma extension_comp_value_on_cache :
     extends m1 m2 ->
     value_on_cache cblock m2 addr v.
 Proof.
-  intros m1 m2 addr v H1 H2. inv H1. econstructor. eauto.
+  intros m1 m2 addr v H1 H2. inv H1.
+  eapply extends_load in H; eauto.
+  econstructor. eauto.
 Qed.
 Hint Resolve extension_comp_value_on_cache.
+
+Lemma INIT_MEM_def_on_cache: forall m, INIT_MEM m -> mem_def_on_cache cblock m.
+Proof.
+  intros m H.
+  destruct H. inv H.
+  unfold load in *. unfold mem_def_on_cache.
+  destruct (Mem.get_frame m cblock); inv H1; eauto.
+Qed.
 
 Lemma extension_comp_INIT_MEM : forall m1 m2,
     INIT_MEM m1 ->
@@ -298,14 +308,7 @@ Proof.
   intros.
   destruct H.
   inv Hhandler.
-  assert (Hm1 : mem_def_on_cache cblock m1) by (econstructor; eauto).
-  econstructor; eauto 7 using extension_comp_nth_labToZ, labToZ_extension_comp.
-Qed.
-
-Lemma INIT_MEM_def_on_cache: forall m, INIT_MEM m -> mem_def_on_cache cblock m.
-Proof.
-  intros m H. destruct H. inv Hhandler.
-  econstructor; eauto using extension_comp_nth_labToZ, extension_comp_value_on_cache.
+  econstructor; eauto 7 using extension_comp_nth_labToZ, labToZ_extension_comp, INIT_MEM_def_on_cache.
 Qed.
 
 (* genVar is only loading things on the stack, so no need
@@ -327,7 +330,7 @@ Proof.
   intros v l Heval_var I.
   destruct initial_m0.
   inv Hhandler.
-  assert (Hmem0: mem_def_on_cache cblock m0) by (econstructor; eauto).
+  assert (Hmem0: mem_def_on_cache cblock m0) by (eapply INIT_MEM_def_on_cache; eauto).
   case_eq v; intros; subst; simpl;
   match goal with
     | [HH : value_on_cache cblock _ ?addr ?zz |-
@@ -1058,7 +1061,8 @@ Lemma extends_valid_address: forall m m' a,
 Proof.
   intros m m' a VALID EXT.
   inv VALID.
-  econstructor. apply EXT. eauto.
+  eapply extends_load in H; eauto.
+  econstructor. eauto.
 Qed.
 
 Lemma faultHandler_specEscape_Some: forall syscode raddr lr lpc m0,

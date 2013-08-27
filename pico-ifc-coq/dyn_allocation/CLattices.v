@@ -49,17 +49,8 @@ Instance TMUHL : ConcreteLattice Lab :=
   ;genFlows := genImpl
 }.
 
-Inductive mem_def_on_cache (m : memory) : Prop :=
-| mdoc_intro :
-    forall opcode pctag tag1 tag2 tag3 tagr tagrpc,
-      value_on_cache cblock m addrOpLabel (Vint opcode) ->
-      value_on_cache cblock m addrTag1 (Vint tag1) ->
-      value_on_cache cblock m addrTag2 (Vint tag2) ->
-      value_on_cache cblock m addrTag3 (Vint tag3) ->
-      value_on_cache cblock m addrTagPC (Vint pctag) ->
-      value_on_cache cblock m addrTagRes tagr ->
-      value_on_cache cblock m addrTagResPC tagrpc ->
-      mem_def_on_cache m.
+Definition mem_def_on_cache (m : memory) : Prop :=
+  exists fr, Mem.get_frame m cblock = Some fr.
 
 Lemma extends_mem_def_on_cache : forall m m',
                                    mem_def_on_cache m ->
@@ -68,10 +59,7 @@ Lemma extends_mem_def_on_cache : forall m m',
 Proof.
   intros m m' H EXT.
   destruct H.
-  repeat match goal with
-           | H : value_on_cache _ _ _ _ |- _ => inv H
-         end.
-  econstructor; econstructor; apply EXT; eauto.
+  econstructor; apply EXT; eauto.
 Qed.
 
 Definition kernel_memory_update (m m' : memory) : Prop :=

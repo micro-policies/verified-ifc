@@ -593,13 +593,24 @@ Proof.
 Qed.
 
 Definition extends {T S} (m1 m2 : memory T S) : Prop :=
-  forall b off v, load b off m1 = Some v -> load b off m2 = Some v.
+  forall b fr, Mem.get_frame m1 b = Some fr -> Mem.get_frame m2 b = Some fr.
 
 Lemma extends_refl : forall {T S} (m : memory T S), extends m m.
 Proof. unfold extends. auto. Qed.
 
 Lemma extends_trans : forall {T S} (m1 m2 m3 : memory T S), extends m1 m2 -> extends m2 m3 -> extends m1 m3.
 Proof. unfold extends. auto. Qed.
+
+Lemma extends_load {T S} (m1 m2 : memory T S) b off a :
+  forall (EXT : extends m1 m2)
+         (DEF : load b off m1 = Some a),
+    load b off m2 = Some a.
+Proof.
+  intros.
+  unfold load in *.
+  destruct (Mem.get_frame m1 b) as [fr|] eqn:FRAME; inv DEF.
+  erewrite EXT; eauto.
+Qed.
 
 Section Injections.
 
