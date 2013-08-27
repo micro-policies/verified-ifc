@@ -48,6 +48,8 @@ Lemma valid_update_match_tags :
     valid_update m2 m2' ->
     match_tags t1 t2 m2'.
 Proof. eapply labToZ_cache; eauto. Qed.
+Hint Resolve valid_update_match_tags.
+Hint Resolve labToZ_cache.
 
 Notation meminj := (meminj unit privilege).
 Notation Meminj := (Meminj T Z unit privilege match_tags).
@@ -157,15 +159,14 @@ Proof.
     eapply alloc_get_frame_old; eauto. }
   inv H; constructor.
   - inv ATOMS. constructor; eauto.
-    + inv VALS; constructor; trivial.
-      rewrite update_meminj_neq; eauto.
-      eapply mi_valid in BLOCK; eauto.
-      destruct BLOCK as [? [? [? [? ?]]]].
-      unfold c_alloc, alloc in ALLOC2.
-      destruct (zreplicate size a2); inv ALLOC2.
-      eapply Mem.alloc_get_fresh in H3; eauto.
-      congruence.
-    + eapply valid_update_match_tags; eauto.
+    inv VALS; constructor; trivial.
+    rewrite update_meminj_neq; eauto.
+    eapply mi_valid in BLOCK; eauto.
+    destruct BLOCK as [? [? [? [? ?]]]].
+    unfold c_alloc, alloc in ALLOC2.
+    destruct (zreplicate size a2); inv ALLOC2.
+    eapply Mem.alloc_get_fresh in H3; eauto.
+    congruence.
   - eapply labToZ_cache; eauto.
 Qed.
 
@@ -565,7 +566,7 @@ Ltac analyze_cache_hit :=
       unfold labsToZs, nth_labToZ; simpl; eauto;
       let rpcl := fresh "rpcl'" in
       let rl := fresh "rl'" in
-      intros [rl [rpcl [? [? ?]]]]; subst
+      intros [rpcl [rl [? [? ?]]]]; subst
     | |- _ => fail 1 "Failed in case" opcode
   end.
 
@@ -673,6 +674,49 @@ Proof.
 Qed.
 Hint Resolve store_user_valid_update.
 
+
+Lemma alloc_user_valid_update :
+  forall size a m b m'
+         (DEF : mem_def_on_cache cblock m)
+         (ALLOC : c_alloc User size a m = Some (b, m')),
+    valid_update m m'.
+Proof.
+  intros.
+  constructor; eauto.
+  intros b' fr KERNEL NEQ FRAME.
+  unfold c_alloc, alloc in ALLOC.
+  destruct (zreplicate size a) as [fr'|]; inv ALLOC.
+  rewrite <- FRAME.
+  eapply alloc_get_frame_neq; eauto.
+  cut (Mem.stamp b = User); try congruence.
+  eapply Mem.alloc_stamp; eauto.
+Qed.
+Hint Resolve alloc_user_valid_update.
+
+Lemma match_atoms_valid_update :
+  forall mi a1 a2 m2 m2'
+         (VALID : valid_update m2 m2')
+         (ATOMS : match_atoms mi a1 a2 m2),
+    match_atoms mi a1 a2 m2'.
+Proof. intros. inv ATOMS. eauto. Qed.
+Hint Resolve match_atoms_valid_update : valid_update.
+
+Lemma match_stk_elmt_valid_update :
+  forall mi se1 se2 m2 m2'
+         (VALID : valid_update m2 m2')
+         (STKELMTS : match_stk_elmt mi se1 se2 m2),
+    match_stk_elmt mi se1 se2 m2'.
+Proof. intros. inv STKELMTS; eauto with valid_update. Qed.
+Hint Resolve match_stk_elmt_valid_update : valid_update.
+
+Lemma match_stacks_valid_update :
+  forall mi stk1 stk2 m2 m2'
+         (VALID : valid_update m2 m2')
+         (STKS : match_stacks mi stk1 stk2 m2),
+    match_stacks mi stk1 stk2 m2'.
+Proof. intros. induction STKS; eauto with valid_update. Qed.
+Hint Resolve match_stacks_valid_update : valid_update.
+
 (** Cache hit case *)
 
 Lemma cache_hit_simulation :
@@ -686,7 +730,6 @@ Lemma cache_hit_simulation :
 Proof.
   intros.
   inv Hmatch.
-  (*destruct apc as [apc apcl].*)
   inv Hstep; simpl in *; try congruence;
 
   match_inv;
@@ -694,6 +737,25 @@ Proof.
   on_case ltac:(instr OpAdd)
           "Couldn't analyze Add"
           ltac:(complete_exploit add_defined);
+
+  on_case ltac:(instr OpSub)
+          "Couldn't analyze Add"
+          ltac:(complete_exploit (sub_defined unit privilege));
+
+  on_case ltac:(instr OpAlloc)
+          "Couldn't analyze Alloc"
+          ltac:(idtac;
+                match goal with
+                  | ALLOC : c_alloc _ _ _ ?m2 = Some (_, ?m2'),
+                    CACHE : cache_up2date _ |- _ =>
+                    exploit (meminj_alloc T Z unit privilege _ _ valid_update_match_tags);
+                    eauto; try solve [constructor; eauto];
+                    intros [? [? [? ?]]];
+                    exploit userinj_alloc; eauto; intro;
+                    exploit alloc_match_stacks; eauto; intro;
+                    generalize (cache_up2date_alloc _ _ _ ALLOC CACHE); intro;
+                    assert (valid_update m2 m2') by eauto
+                end);
 
   on_case ltac:(first [instr OpLoad | instr OpStore])
           "Couldn't analyze Load or Store"
@@ -709,16 +771,24 @@ Proof.
           "Couldn't construct memory update"
           ltac:(exploit (meminj_store T Z unit privilege _ _ valid_update_match_tags);
                 eauto; try solve [constructor; eauto];
-                intros [? [? ?]]);
+                intros [? [? ?]];
+                match goal with
+                  | MUPDT : store _ _ _ ?m2 = Some ?m2',
+                    STAMP : Mem.stamp _ = User,
+                    CREAD : cache_hit_read_mem _ _ _ _ |- _ =>
+                    generalize (@store_cache_up2date _ _ _ _ _ MUPDT STAMP CACHE); intro;
+                    assert (valid_update m2 m2') by eauto
+                end);
 
   on_case ltac:(instr OpCall)
           "Couldn't exploit Call case"
           ltac:(idtac;
                 match goal with
-                  | MATCH : Forall2 (match_stk_elmt ?tmuc) ?aargs ?cargs,
+                  | MATCH : Forall2 (fun _ _ => match_stk_elmt ?mi _ _ ?mem) ?aargs ?cargs,
                     ARGS : forall se, In se ?cargs -> _ |- _ =>
-                    generalize (@match_stacks_data aargs cargs tmuc MATCH ARGS); intro
+                    generalize (@match_stacks_all_data mi aargs cargs mem MATCH ARGS); intro
                 end);
+
 
   (* For the BranchNZ case *)
   on_case ltac:(instr OpBranchNZ)
@@ -735,72 +805,7 @@ Proof.
   solve [
       eexists; eexists; split; try split;
       try (econstructor (solve [compute; eauto]));
-      repeat (constructor; eauto); simpl; f_equal; intuition (auto 7)
-    ].
-
-Qed.
-
-Lemma cache_hit_simulation :
-  forall s1 s2 a2 s2'
-         (Hmatch : match_states s1 s2)
-         (Hs2' : priv s2' = false)
-         (Hstep : cstep cblock s2 a2 s2'),
-    exists a1 s1', step_rules fetch_rule_g s1 a1 s1' /\
-                   match_actions a1 a2 /\
-                   match_states s1' s2'.
-Proof.
-  intros.
-  inv Hmatch.
-  unfold match_actions.
-  inv Hstep; simpl in *; try congruence;
-
-  match_inv;
-
-  try match goal with
-        | H : _ = Some Alloc,
-          ALLOC : c_alloc _ _ _ _ = _,
-          CACHE : cache_up2date _ |- _ =>
-          exploit (meminj_alloc T Z unit privilege); eauto; try solve [constructor; eauto];
-          intros [? [? [? ?]]];
-          exploit userinj_alloc; eauto; intro;
-          exploit alloc_match_stacks; eauto; intro;
-          generalize (cache_up2date_alloc _ _ _ ALLOC CACHE); intro
-      end;
-  try_exploit add_defined;
-  try_exploit (sub_defined unit privilege);
-
-  try_exploit meminj_load; match_inv;
-
-  (* For the Ret cases *)
-  try_exploit match_stacks_pop_to_return;
-
-  analyze_cache_hit;
-
-  try match goal with
-        | H : store _ _ _ _ = _ |- _ =>
-          exploit (meminj_store T Z unit privilege); eauto; try solve [repeat econstructor; eauto];
-          intros [? [? ?]]
-      end;
-  try match goal with
-        | MUPDT : store _ _ _ _ = Some _,
-          STAMP : Mem.stamp _ = User,
-          CREAD : cache_hit_read_mem _ _ _ _ |- _ =>
-          generalize (@store_cache_up2date _ _ _ _ _ MUPDT STAMP CACHE); intro
-      end;
-
-  (* For the BranchNZ case *)
-  try match goal with
-        | |- context[if (?z =? 0)%Z then _ else _ ] =>
-          let H := fresh "H" in
-          assert (H := Z.eqb_spec z 0);
-          destruct (z =? 0)%Z;
-          inv H
-      end;
-
-  solve [
-      eexists; eexists; split; try split;
-      try (econstructor (solve [compute; eauto]));
-      repeat (econstructor; eauto); simpl; f_equal; intuition
+      repeat (econstructor; eauto); simpl; f_equal; intuition (eauto 7 with valid_update)
     ].
 
 Qed.
