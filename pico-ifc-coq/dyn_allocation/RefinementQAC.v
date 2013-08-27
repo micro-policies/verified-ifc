@@ -117,12 +117,10 @@ Inductive cache_up2date mem : Prop :=
                         labsToZs vls mem tags ->
                         labToZ pcl pct mem ->
                         cache_hit_mem cblock mem (opCodeToZ opcode) tags pct ->
-                        match apply_rule (fetch_rule_g opcode) pcl vls with
-                          | Some (rpcl,rl) => exists rpct rt,
-                                              labToZ rpcl rpct mem /\ labToZ rl rt mem /\
-                                              cache_hit_read_mem cblock mem rt rpct
-                          | None => False
-                        end),
+                        exists rpcl rpct rl rt,
+                          apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl) /\
+                          labToZ rpcl rpct mem /\ labToZ rl rt mem /\
+                          cache_hit_read_mem cblock mem rt rpct),
       cache_up2date mem.
 
 Inductive match_states : @qa_state T -> CS -> Prop :=
@@ -492,9 +490,8 @@ Proof.
   intros.
   destruct UP2DATE.
   eapply UP2DATE in HIT; eauto.
-  destruct (apply_rule (fetch_rule_g opcode) pcl vls) as [[rpcl rl]|]; try solve [intuition].
-  destruct HIT as (rpct & rt & H1 & H2 & H3).
-  repeat eexists; eauto.
+  destruct HIT as (rpcl & rpct & rl & rt & H1 & H2 & H3 & H4).
+  eexists rpcl, rpct, rl, rt. eauto.
 Qed.
 
 Lemma analyze_cache_hit :
@@ -641,7 +638,6 @@ Hint Resolve match_vals_eq.
 Ltac focus_on t :=
   first [t | admit].
 
-(* Maybe mem_def_on_cache should be defined in terms of cache_hit_mem? *)
 Lemma cache_hit_mem_mem_def_on_cache :
   forall m o ts pct
          (HIT : cache_hit_mem cblock m o ts pct),
@@ -650,14 +646,21 @@ Proof.
   intros.
   unfold cache_hit_mem in HIT.
   destruct (Mem.get_frame m cblock) as [cache|] eqn:FRAME; intuition.
-  destruct HIT;
-  repeat match goal with
-           | H : tag_in_mem _ _ _ |- _ => inv H
-         end;
-  repeat econstructor; unfold load;
-  rewrite FRAME; eauto.
+  eexists; eauto.
 Qed.
 Hint Resolve cache_hit_mem_mem_def_on_cache.
+
+Lemma cache_hit_read_mem_mem_def_on_cache :
+  forall m rpct rt
+         (HIT : cache_hit_read_mem cblock m rpct rt),
+    mem_def_on_cache cblock m.
+Proof.
+  intros.
+  unfold cache_hit_read_mem in HIT.
+  destruct (Mem.get_frame m cblock) as [cache|] eqn:FRAME; intuition.
+  eexists; eauto.
+Qed.
+Hint Resolve cache_hit_read_mem_mem_def_on_cache.
 
 Lemma store_user_valid_update :
   forall b ofs a m2 m2'
@@ -813,11 +816,9 @@ Qed.
 
 Open Scope Z_scope.
 
-(* AAA: Currently, this theorem is false, because mem_eq_except_cache
-requires that the cache frame be at least seven atoms wide. It should
-be possible to fix it by requiring that the cache frame exists
-instead. This will prevent the cache block from being allocated
-by accident, which is what this assumption should prevent (I think). *)
+(* AAA: Currently, this theorem is false, because there is nothing
+that allows us to infer that a frame exists in memory if upd_frame
+succeeds on that memory. *)
 
 Lemma cupd_mem_eq_except_cache :
   forall m2 cache m2'
@@ -1042,51 +1043,78 @@ Proof.
 Qed.
 Hint Resolve handler_final_mem_meminj.
 
+Lemma handler_final_mem_matches_labToZ_preserved :
+  forall l m m' z rpcl rl zpc zr,
+    handler_final_mem_matches cblock rpcl rl m m' zpc zr ->
+    labToZ l z m ->
+    mem_def_on_cache cblock m ->
+    labToZ l z m'.
+Proof.
+  intros.
+  inv H. intuition.
+  exploit extends_mem_def_on_cache; eauto. intros Hx.
+  unfold update_cache_spec_rvec in H6.
+  eapply labToZ_cache; eauto.
+  destruct H6.
+  constructor; auto.
+  intros b.
+  specialize (H5 b). destruct H5. eauto.
+Qed.
+
+Lemma handler_final_mem_matches_labsToZs_preserved :
+  forall m m' n (vls: Vector.t T n) zz rpcl rl zpc zr,
+    handler_final_mem_matches cblock rpcl rl m m' zpc zr ->
+    labsToZs vls m zz ->
+    mem_def_on_cache cblock m ->
+    labsToZs vls m' zz .
+Proof.
+  intros. destruct zz as [[t1 t2] t3]. inv H0. intuition.
+  simpl. unfold nth_labToZ in *.
+  destruct (le_lt_dec n 0);
+  destruct (le_lt_dec n 1);
+  destruct (le_lt_dec n 2); subst; intuition; eauto using handler_final_mem_matches_labToZ_preserved.
+Qed.
+
 (* This lemma says: if the cache input matches some configuration, and
 the handler runs, yielding a new memory, then that memory's cache also
 matches the same configuration. *)
 
 Lemma update_cache_spec_rvec_cache_hit :
-  forall rpcl rl c m2 c' m2' op tags pc
-         (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2')
-         (CACHE : Mem.get_frame m2 cblock = Some c)
-         (CACHE' : Mem.get_frame m2' cblock = Some c')
-         (HIT : cache_hit c op tags pc),
-    cache_hit c' op tags pc.
+  forall rpcl rl rpct rt m2 m2' op tags pc
+         (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2' rpct rt)
+         (HIT : cache_hit_mem cblock m2 op tags pc),
+    cache_hit_mem cblock m2' op tags pc.
 Proof.
   intros.
+  unfold cache_hit_mem in *.
+  destruct (Mem.get_frame m2 cblock) as [cache|] eqn:CACHE; try solve [inversion HIT].
+  destruct MATCH as (m2'' & EXT & ? & ? & READ & ? & E).
+  apply EXT in CACHE.
+  unfold load, cache_hit_read_mem in *.
+  destruct (Mem.get_frame m2' cblock) as [cache'|] eqn:CACHE'; try solve [inversion READ].
+  destruct READ.
+  rewrite CACHE in E.
   inv HIT;
   repeat match goal with
            | H : tag_in_mem _ _ _ |- _ =>
              inv H
          end.
-  destruct MATCH as [RES UP].
-  unfold cache_hit_read_mem in *.
-  rewrite CACHE' in RES.
-  destruct RES.
-  destruct UP as [HH UP].
-  unfold load in *.
-  rewrite CACHE in UP.
-  rewrite CACHE' in UP.
-  econstructor; eauto; econstructor;
-  try solve [rewrite <- UP; eauto; compute; omega];
-  repeat match goal with
-           | H : tag_in_mem _ _ _ |- _ =>
-             inv H
-         end;
-  eauto.
+  econstructor; econstructor;
+  try solve [rewrite <- E; eauto; compute; congruence]; eauto.
 Qed.
 
 Lemma cache_hit_unique:
-  forall c opcode opcode' labs labs' pcl pcl',
+  forall mem opcode opcode' labs labs' pcl pcl',
     forall
-      (CHIT: cache_hit c opcode labs pcl)
-      (CHIT': cache_hit c opcode' labs' pcl'),
+      (CHIT: cache_hit_mem cblock mem opcode labs pcl)
+      (CHIT': cache_hit_mem cblock mem opcode' labs' pcl'),
       opcode = opcode' /\
       labs = labs' /\
       pcl = pcl'.
 Proof.
   intros.
+  unfold cache_hit_mem in *.
+  destruct (Mem.get_frame mem cblock) as [fr|] eqn:FRAME;
   inv CHIT; inv CHIT'.
   inv OP; inv OP0.
   inv TAG1; inv TAG0.
@@ -1102,34 +1130,33 @@ we start in kernel mode with a cache with those inputs, then the final
 memory has an up-to-date cache w.r.t. those inputs. *)
 
 Lemma handler_final_mem_cache_up2date :
-  forall m2 m2' opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) pcl rpcl rl
-         (HIT : cache_hit_mem cblock m2 (opCodeToZ opcode) (labsToZs vls) (labToZ pcl))
+  forall m2 m2' opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) ts pcl pct
+         rpcl rl zpc zr
+         (Hvls : labsToZs vls m2 ts) (Hpc : labToZ pcl pct m2)
+         (HIT : cache_hit_mem cblock m2 (opCodeToZ opcode) ts pct)
          (OK : apply_rule (projT2 (fetch_rule_impl opcode)) pcl vls = Some (rpcl, rl))
-         (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2'),
+         (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2' zpc zr),
     cache_up2date m2'.
 Proof.
-  unfold cache_hit_mem, cache_hit_read_mem.
   intros.
-  destruct (Mem.get_frame m2 cblock) as [cache|] eqn:CACHE; try solve [intuition].
-  assert (CACHE' : exists cache', Mem.get_frame m2' cblock = Some cache').
-  { unfold handler_final_mem_matches, cache_hit_read_mem in *.
-    destruct (Mem.get_frame m2' cblock); intuition.
-    eauto. }
-  destruct CACHE' as [cache' CACHE'].
-  econstructor; eauto.
-  intros opcode' vls' pcl' HIT'.
-  exploit update_cache_spec_rvec_cache_hit; eauto.
-  intros HIT''.
-  generalize (cache_hit_unique HIT' HIT'').
-  intros [E1 [E2 E3]].
-  apply opCodeToZ_inj in E1. subst.
-  eapply labToZ_inj in E3; eauto. subst.
-  apply labsToZs_inj in E2.
-  + subst.
-    simpl in OK.
-    rewrite OK.
-    destruct MATCH. trivial.
-  + destruct opcode; simpl; omega.
+  constructor.
+  - destruct MATCH as (? & ? & ? & ? & ? & ?); eauto.
+  - intros opcode' vls' tags pcl' pct' Hvls' Hpcl' HIT'.
+    exploit update_cache_spec_rvec_cache_hit; eauto.
+    intros HIT''.
+    generalize (cache_hit_unique _ _ _ _ _ _ _ HIT' HIT'').
+    intros [E1 [E2 E3]].
+    apply opCodeToZ_inj in E1. subst.
+    exploit handler_final_mem_matches_labToZ_preserved; eauto. intro.
+    exploit handler_final_mem_matches_labsToZs_preserved; eauto. intro.
+    assert (pcl' = pcl) by (eapply labToZ_inj; eauto). subst.
+    assert (vls' = vls).
+    { eapply labsToZs_inj; eauto. destruct opcode; simpl; omega. } subst.
+    unfold fetch_rule_impl in OK. simpl in OK. rewrite OK.
+    exists rpcl, zpc, rl, zr.
+    split; eauto.
+    apply cache_hit_mem_mem_def_on_cache in HIT.
+    destruct MATCH; intuition eauto.
 Qed.
 Hint Resolve handler_final_mem_cache_up2date.
 
@@ -1144,26 +1171,29 @@ Proof.
   exploit runsUntilUser_l; eauto.
   intros PRIV.
   exploit configuration_at_miss; eauto.
-  intros [op [vls [DEFMEM EQS]]].
+  intros (op & vls & [[t1 t2] t3] & pct & Hvls & Hpc & MEM & EQS).
   exploit build_cache_cache_hit; eauto. intros HIT.
   inv MATCH.
   exploit build_cache_meminj; eauto. intros MINJ'.
   destruct s22. simpl in EQS.
   intuition.
-  simpl in DEFMEM, MINJ', PRIV.
+  simpl in MEM, MINJ', PRIV.
   subst.
   destruct (apply_rule (projT2 (fetch_rule_impl op)) pcl vls)
     as [[rpcl rl]|] eqn:E.
-  - exploit handler_correct_succeed; eauto.
-    intros H. specialize (H E).
-    destruct H as [m2' [ESCAPE1 MATCH']].
+  - exploit (handler_correct_succeed); eauto.
+    intros H'. specialize (H' _ _ _ _ Hvls Hpc HIT E).
+    destruct H' as (m2' & zr & zrpc & ESCAPE1 & MATCH').
+    erewrite app_nil_r in ESCAPE1.
     exploit rte_success; eauto.
     intros ESCAPE2.
     generalize (runsToEscape_determ ESCAPE1 ESCAPE2).
     intros. subst. eauto.
+    admit.
   - exploit handler_correct_fail; eauto.
-    simpl in *.
-    intros [stk' ESCAPE1].
+    rewrite app_nil_r.
+    intros H. specialize (H t3 pct Hvls Hpc HIT E).
+    destruct H as (st & m2' & ESCAPE1 & EXT).
     inv ESCAPE1.
     + apply runsUntilUser_r in STAR. simpl in STAR. congruence.
     + exfalso.
