@@ -1119,16 +1119,11 @@ Proof.
     - eapply INIT_MEM_def_on_cache; eauto using extension_comp_INIT_MEM.
     - intros b.
       unfold store in *.
-      split.
-      + intros USER.
-        transitivity (Mem.get_frame m' b);
-        eapply get_frame_store_neq; eauto;
-        congruence.
-      + intros fr KERNEL NEQ DEF.
-        rewrite <- DEF.
-        transitivity (Mem.get_frame m' b);
-        eapply get_frame_store_neq; eauto;
-        assumption.
+      intros fr KERNEL NEQ DEF.
+      rewrite <- DEF.
+      transitivity (Mem.get_frame m' b);
+      eapply get_frame_store_neq; eauto;
+      assumption.
   }
   do 2 eexists ; intuition; eauto.
   {  unfold labToZ_rule_res in *.
@@ -1155,15 +1150,21 @@ Proof.
   }
 
   unfold update_cache_spec_rvec. destruct Hup.
-  split; auto.
-  clear - Hm' Hm''.
-  intros addr NEQ1 NEQ2.
-  symmetry.
-  transitivity (load cblock addr m');
-  eapply load_store_old; eauto; congruence.
+  clear - Hm' Hm'' stamp_cblock.
+  split.
+  - split.
+    + intros USER.
+      transitivity (Mem.get_frame m' b);
+      eapply get_frame_store_neq; eauto; congruence.
+    + intros fr _ NEQ DEF.
+      rewrite <- DEF.
+      transitivity (Mem.get_frame m' b);
+      eapply get_frame_store_neq; eauto.
+  - intros addr NEQ1 NEQ2.
+    symmetry.
+    transitivity (load cblock addr m');
+    eapply load_store_old; eauto; congruence.
 Qed.
-
-(* AAA: Stopped transcription here *)
 
 Lemma faultHandler_specEscape_None: forall syscode raddr m0,
                                     forall (INIT_MEM0: INIT_MEM m0),

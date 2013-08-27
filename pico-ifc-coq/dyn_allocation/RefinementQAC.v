@@ -35,7 +35,20 @@ Context {T: Type}
         {CLatt: ConcreteLattice T}
         {WFCLatt: WfConcreteLattice cblock T Latt CLatt}.
 
-Definition match_tags l t := t = labToZ l.
+Definition match_tags l t m := labToZ l t m.
+Hint Unfold match_tags.
+
+Definition valid_update (m2 m2' : CodeTriples.memory) :=
+  mem_eq_except_cache cblock m2 m2'.
+Hint Unfold valid_update.
+
+Lemma valid_update_match_tags :
+  forall t1 t2 m2 m2',
+    match_tags t1 t2 m2 ->
+    valid_update m2 m2' ->
+    match_tags t1 t2 m2'.
+Proof. eapply labToZ_cache; eauto. Qed.
+
 Notation meminj := (meminj unit privilege).
 Notation Meminj := (Meminj T Z unit privilege match_tags).
 Notation match_atoms := (match_atoms T Z unit privilege match_tags).
@@ -59,7 +72,7 @@ Lemma userinj_alloc : forall mi z m1 a1 b1 m1' m2 a2 b2 m2',
                              (UINJ : Userinj mi)
                              (ALLOC1 : qa_alloc z a1 m1 = Some (b1, m1'))
                              (ALLOC2 : c_alloc User z a2 m2 = Some (b2, m2'))
-                             (ATOMS : match_atoms mi a1 a2),
+                             (ATOMS : match_atoms mi a1 a2 m2),
                         Userinj (update_meminj mi b2 b1).
 Proof.
   intros.
@@ -74,15 +87,17 @@ Proof.
     congruence.
 Qed.
 
-Inductive match_stk_elmt (mi : meminj) : StkElmt T unit -> CStkElmt -> Prop :=
-| mse_data : forall a1 a2
-                    (ATOMS : match_atoms mi a1 a2),
-               match_stk_elmt mi (AData a1) (CData a2)
-| mse_ret : forall pcv pcl b, match_stk_elmt mi (ARet (pcv,pcl) b) (CRet (pcv, labToZ pcl) b false).
+Inductive match_stk_elmt (mi : meminj) : StkElmt T unit -> CStkElmt -> CodeTriples.memory-> Prop :=
+| mse_data : forall a1 a2 m2
+                    (ATOMS : match_atoms mi a1 a2 m2),
+               match_stk_elmt mi (AData a1) (CData a2) m2
+| mse_ret : forall pcv pcl pct b m2
+                   (TAG : labToZ pcl pct m2),
+              match_stk_elmt mi (ARet (pcv,pcl) b) (CRet (pcv,pct) b false) m2.
 Hint Constructors match_stk_elmt.
 
-Definition match_stacks (mi : meminj) : list (StkElmt T unit) -> list CStkElmt -> Prop :=
-  Forall2 (match_stk_elmt mi).
+Definition match_stacks (mi : meminj) : list (StkElmt T unit) -> list CStkElmt -> CodeTriples.memory -> Prop :=
+  fun s1 s2 m2 => Forall2 (fun se1 se2 => match_stk_elmt mi se1 se2 m2) s1 s2.
 Hint Unfold match_stacks.
 
 Variable fetch_rule_g :
@@ -92,26 +107,30 @@ Definition fetch_rule_impl : OpCode -> {n : nat & AllowModify n} :=
 
 Definition faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
 
-Inductive cache_up2date m : Prop :=
+Inductive cache_up2date mem : Prop :=
 | cu2d_intro :
-    forall cache
-           (FRAME : Mem.get_frame m cblock = Some cache)
-           (UP2DATE : forall opcode vls pcl,
-                        cache_hit cache (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
+    forall (DEF : exists fr, Mem.get_frame mem cblock = Some fr)
+           (UP2DATE : forall opcode vls tags pcl pct,
+                        labsToZs vls mem tags ->
+                        labToZ pcl pct mem ->
+                        cache_hit_mem cblock mem (opCodeToZ opcode) tags pct ->
                         match apply_rule (fetch_rule_g opcode) pcl vls with
-                          | Some (rpcl,rl) => cache_hit_read_mem cblock m (labToZ rl) (labToZ rpcl)
+                          | Some (rpcl,rl) => exists rpct rt,
+                                              labToZ rpcl rpct mem /\ labToZ rl rt mem /\
+                                              cache_hit_read_mem cblock mem rt rpct
                           | None => False
                         end),
-      cache_up2date m.
+      cache_up2date mem.
 
 Inductive match_states : @qa_state T -> CS -> Prop :=
-| qac_intro : forall mi m1 m2 p stk1 stk2 pcv pcl
+| qac_intro : forall mi m1 m2 p stk1 stk2 pcv pcl pct
                      (MINJ : Meminj m1 m2 mi)
                      (UINJ : Userinj mi)
-                     (STK : match_stacks mi stk1 stk2)
-                     (CACHE : cache_up2date m2),
+                     (STK : match_stacks mi stk1 stk2 m2)
+                     (CACHE : cache_up2date m2)
+                     (PC : labToZ pcl pct m2),
                 match_states (AState m1 p stk1 (pcv,pcl))
-                             (CState m2 faultHandler p stk2 (pcv,labToZ pcl) false).
+                             (CState m2 faultHandler p stk2 (pcv,pct) false).
 Hint Constructors match_states.
 
 Lemma alloc_match_stacks :
@@ -119,33 +138,44 @@ Lemma alloc_match_stacks :
          a1 m1 b1 m1'
          a2 m2 b2 m2'
          mi stk1 stk2
-         (STK : match_stacks mi stk1 stk2)
+         (STK : match_stacks mi stk1 stk2 m2)
          (ALLOC1 : qa_alloc size a1 m1 = Some (b1, m1'))
          (ALLOC2 : c_alloc User size a2 m2 = Some (b2, m2'))
-         (INJ : Meminj m1 m2 mi),
-    match_stacks (update_meminj mi b2 b1) stk1 stk2.
+         (INJ : Meminj m1 m2 mi)
+         (DEF : mem_def_on_cache cblock m2),
+    match_stacks (update_meminj mi b2 b1) stk1 stk2 m2'.
 Proof.
   intros.
   induction STK; constructor; trivial.
+  assert (VALID : valid_update m2 m2').
+  { constructor; eauto.
+    unfold kernel_memory_update.
+    unfold c_alloc, alloc in ALLOC2.
+    destruct (zreplicate size a2) as [fr'|]; try congruence.
+    inv ALLOC2.
+    intros b fr KERNEL NEQ.
+    eapply alloc_get_frame_old; eauto. }
   inv H; constructor.
-  inv ATOMS. constructor; auto.
-  inv VALS; constructor; trivial.
-  rewrite update_meminj_neq; eauto.
-  eapply mi_valid in BLOCK; eauto.
-  destruct BLOCK as [? [? [? [? ?]]]].
-  unfold c_alloc, alloc in ALLOC2.
-  destruct (zreplicate size a2); inv ALLOC2.
-  eapply Mem.alloc_get_fresh in H3; eauto.
-  congruence.
+  - inv ATOMS. constructor; eauto.
+    + inv VALS; constructor; trivial.
+      rewrite update_meminj_neq; eauto.
+      eapply mi_valid in BLOCK; eauto.
+      destruct BLOCK as [? [? [? [? ?]]]].
+      unfold c_alloc, alloc in ALLOC2.
+      destruct (zreplicate size a2); inv ALLOC2.
+      eapply Mem.alloc_get_fresh in H3; eauto.
+      congruence.
+    + eapply valid_update_match_tags; eauto.
+  - eapply labToZ_cache; eauto.
 Qed.
 
 Lemma match_stacks_app :
-  forall mi stk1 args2 stk2'
-         (STKS : match_stacks mi stk1 (args2 ++ stk2')),
+  forall mi stk1 args2 stk2' m2
+         (STKS : match_stacks mi stk1 (args2 ++ stk2') m2),
     exists args1 stk1',
       stk1 = args1 ++ stk1' /\
-      match_stacks mi args1 args2 /\
-      match_stacks mi stk1' stk2'.
+      match_stacks mi args1 args2 m2 /\
+      match_stacks mi stk1' stk2' m2.
 Proof.
   intros.
   gdep stk1.
@@ -160,15 +190,15 @@ Proof.
 Qed.
 
 Lemma match_stacks_length :
-  forall mi stk1 stk2
-         (STKS : match_stacks mi stk1 stk2),
+  forall mi stk1 stk2 m2
+         (STKS : match_stacks mi stk1 stk2 m2),
     length stk1 = length stk2.
 Proof. induction 1; simpl; eauto. Qed.
 Hint Resolve match_stacks_length.
 
 Lemma match_stacks_all_data :
-  forall mi stk1 stk2
-         (STKS : match_stacks mi stk1 stk2)
+  forall mi stk1 stk2 m2
+         (STKS : match_stacks mi stk1 stk2 m2)
          (DATA : forall se2, In se2 stk2 -> exists a2, se2 = CData a2),
     forall se1, In se1 stk1 -> exists a1, se1 = AData a1.
 Proof.
@@ -182,30 +212,30 @@ Qed.
 Hint Resolve match_stacks_all_data.
 
 Lemma match_stacks_app_2 :
-  forall mi stk11 stk12 stk21 stk22
-         (STKS1 : match_stacks mi stk11 stk21)
-         (STKS2 : match_stacks mi stk12 stk22),
-    match_stacks mi (stk11 ++ stk12) (stk21 ++ stk22).
+  forall mi stk11 stk12 stk21 stk22 m2
+         (STKS1 : match_stacks mi stk11 stk21 m2)
+         (STKS2 : match_stacks mi stk12 stk22 m2),
+    match_stacks mi (stk11 ++ stk12) (stk21 ++ stk22) m2.
 Proof. intros. eauto using Forall2_app. Qed.
 Hint Resolve match_stacks_app_2.
 
 Hint Constructors pop_to_return.
 
 Lemma match_stacks_pop_to_return :
-  forall mi stk1 stk2 stk2' pcv cpcl b p
-         (STKS : match_stacks mi stk1 stk2)
+  forall mi stk1 stk2 stk2' m2 pcv cpcl b p
+         (STKS : match_stacks mi stk1 stk2 m2)
          (POP : c_pop_to_return stk2 (CRet (pcv, cpcl) b p :: stk2')),
     exists pcl stk1',
-      cpcl = labToZ pcl /\
+      labToZ pcl cpcl m2 /\
       pop_to_return stk1 (ARet (pcv, pcl) b :: stk1') /\
-      match_stacks mi stk1' stk2'.
+      match_stacks mi stk1' stk2' m2.
 Proof.
   intros.
   gdep stk2.
   induction stk1 as [|se1 stk1 IH]; intros;
   inv POP; inv STKS;
   match goal with
-    | H : match_stk_elmt _ _ _ |- _ =>
+    | H : match_stk_elmt _ _ _ _ |- _ =>
       inv H; eauto
   end.
   exploit IH; eauto.
@@ -214,24 +244,24 @@ Proof.
 Qed.
 
 Lemma match_stacks_index_list :
-  forall mi n s1 s2 x2
+  forall mi n s1 s2 x2 m2
          (IDX : index_list n s2 = Some x2)
-         (STKS : match_stacks mi s1 s2),
+         (STKS : match_stacks mi s1 s2 m2),
     exists x1,
       index_list n s1 = Some x1 /\
-      match_stk_elmt mi x1 x2.
+      match_stk_elmt mi x1 x2 m2.
 Proof.
   induction n as [|n IH]; intros; inv STKS; simpl in *; allinv; eauto.
 Qed.
 
 Lemma match_stacks_update_list :
-  forall mi n se1 s1 se2 s2 s2'
-         (STKS : match_stacks mi s1 s2)
-         (STKELMTS : match_stk_elmt mi se1 se2)
+  forall mi n se1 s1 se2 s2 s2' m2
+         (STKS : match_stacks mi s1 s2 m2)
+         (STKELMTS : match_stk_elmt mi se1 se2 m2)
          (UPD : update_list n se2 s2 = Some s2'),
     exists s1',
       update_list n se1 s1 = Some s1' /\
-      match_stacks mi s1' s2'.
+      match_stacks mi s1' s2' m2.
 Proof.
   intros mi n.
   induction n as [|n IH]; intros; inv STKS; simpl in *; try congruence;
@@ -248,12 +278,12 @@ Proof.
 Qed.
 
 Lemma match_stacks_swap :
-  forall mi n s1 s2 s2'
+  forall mi n s1 s2 s2' m2
          (SWAP : swap n s2 = Some s2')
-         (STKS : match_stacks mi s1 s2),
+         (STKS : match_stacks mi s1 s2 m2),
     exists s1',
       swap n s1 = Some s1' /\
-      match_stacks mi s1' s2'.
+      match_stacks mi s1' s2' m2.
 Proof.
   unfold swap.
   intros.
@@ -266,16 +296,23 @@ Proof.
   eapply match_stacks_update_list; eauto.
 Qed.
 
-Definition pcatom_labToZ (a:PcAtom T) : (PcAtom Z) :=
-  let (v,l) := a in (v,labToZ l).
+Definition pcatom_labToZ (a1:PcAtom T) (a2:PcAtom Z) m2 :=
+  fst a1 = fst a2 /\
+  labToZ (snd a1) (snd a2) m2.
 
-Definition pcatom_ZToLab (a:PcAtom Z) : (PcAtom T) :=
-  let (v,l) := a in (v,ZToLab l).
+Definition pcatom_ZToLab (a:PcAtom Z) m2 : (PcAtom T) :=
+  let (v,l) := a in (v,ZToLab l m2).
 
-Lemma atom_ZToLab_labToZ_id: forall (a:PcAtom T), a = pcatom_ZToLab (pcatom_labToZ a).
+Lemma pcatom_ZToLab_labToZ_id :
+  forall a1 a2 m2,
+    pcatom_labToZ a1 a2 m2 ->
+    pcatom_ZToLab a2 m2 = a1.
 Proof.
-  intros. unfold pcatom_labToZ, pcatom_ZToLab. destruct a. f_equal.
-  eapply ZToLab_labToZ_id; eauto.
+  intros.
+  unfold pcatom_labToZ, pcatom_ZToLab in *.
+  destruct a1, a2. simpl in *.
+  f_equal; intuition; try congruence.
+  eapply labToZ_ZToLab_id; eauto.
 Qed.
 
 Lemma opCodeToZ_inj: forall o1 o2, opCodeToZ o1 = opCodeToZ o2 -> o1 = o2.
@@ -286,87 +323,87 @@ Qed.
 
 Open Scope nat_scope.
 
-Lemma labsToZs_cons_hd: forall n0 a v0 b v3,
-  S n0 <= 3 ->
-  labsToZs (Vector.cons T a n0 v0) = labsToZs (Vector.cons T b n0 v3) ->
+Lemma labsToZs_cons_hd: forall n a v b v' tags m2,
+  S n <= 3 ->
+  labsToZs (Vector.cons T a n v) m2 tags ->
+  labsToZs (Vector.cons T b n v') m2 tags ->
   a = b.
 Proof.
-  intros.  inv H0.
-  unfold nth_labToZ in H2. destruct (le_lt_dec (S n0) 0).  inv l.
-  unfold Vector.nth_order in H2. simpl in H2.
-  apply labToZ_inj with (cblock := cblock) (J := Latt) in H2; auto.
+  intros.
+  unfold labsToZs in *.
+  destruct tags as [[t1 t2] t3].
+  unfold nth_labToZ in *.
+  destruct (le_lt_dec (S n) 0). inv l.
+  intuition.
+  unfold Vector.nth_order in H0, H2.
+  simpl in H0, H2.
+  eapply labToZ_inj with (cblock := cblock) (L := Latt) in H2; eauto.
 Qed.
 
 Lemma nth_labToZ_cons:
-  forall nth n a v,
-    nth_labToZ (Vector.cons T a n v) (S nth) = nth_labToZ v nth.
+  forall nth n a v m ts,
+    nth_labToZ (Vector.cons T a n v) (S nth) m ts ->
+    nth_labToZ v nth m ts.
 Proof.
-  induction n; intros.
-  - unfold nth_labToZ.
+  induction n; simpl; intros.
+  - unfold nth_labToZ in *.
     case_eq (le_lt_dec (S nth) 1); case_eq (le_lt_dec nth 0); intros; auto;
     try (zify ; omega).
-  - unfold nth_labToZ.
-    case_eq (le_lt_dec (S (S n)) (S nth)); case_eq (le_lt_dec (S n) nth); intros; auto;
+  - unfold nth_labToZ in *.
+    destruct (le_lt_dec (S (S n)) (S nth)) eqn:E; case_eq (le_lt_dec (S n) nth); intros; auto;
     try (zify ; omega).
-    unfold Vector.nth_order. simpl. symmetry.
+    unfold Vector.nth_order in *. simpl in H.
     erewrite of_nat_lt_proof_irrel ; eauto.
 Qed.
 
 Lemma labsToZs_cons_tail:
-  forall n0 a v0 b v3,
+  forall n0 a v0 b v3 ts m,
     (n0 <= 2)%nat ->
-    labsToZs (Vector.cons T a n0 v0) = labsToZs (Vector.cons T b n0 v3) ->
-    labsToZs v0 = labsToZs v3.
+    labsToZs (Vector.cons T a n0 v0) m ts ->
+    labsToZs (Vector.cons T b n0 v3) m ts ->
+    exists ts',
+      labsToZs v0 m ts' /\  labsToZs v3 m ts'.
 Proof.
-  intros. inv H0.
-  unfold labsToZs.
-  repeat (rewrite nth_labToZ_cons in H3). inv H3. clear H1.
-  repeat (rewrite nth_labToZ_cons in H4). inv H4. clear H1.
-  replace (nth_labToZ v0 2) with (nth_labToZ v3 2).
-  auto.
+  intros.
+   unfold labsToZs in *.
+  destruct ts as ((z0 & z1) & z2).
+  destruct H0 as (T1 & T2 & T3).
+  destruct H1 as (U1 & U2 & U3).
+  exists (z1,z2,dontCare); repeat split;
+  try (eapply nth_labToZ_cons; eauto; fail).
   unfold nth_labToZ.
-  case_eq (le_lt_dec n0 2); intros; auto.
-  zify ; omega.
+  destruct (le_lt_dec n0 2); auto; zify ; omega.
+  unfold nth_labToZ.
+  destruct (le_lt_dec n0 2); auto; zify ; omega.
 Qed.
 
 Lemma labsToZs_inj: forall n (v1 v2: Vector.t T n), n <= 3 ->
-     labsToZs v1 = labsToZs v2 -> v1 = v2.
+     forall ts m,
+     labsToZs v1 m ts -> labsToZs v2 m ts -> v1 = v2.
 Proof.
   intros n v1 v2.
-  set (P:= fun n (v1 v2: Vector.t T n) => n <= 3 -> labsToZs v1 = labsToZs v2 -> v1 = v2) in *.
-  eapply Vector.rect2 with (P0:= P); eauto.
-  unfold P. auto.
-  intros.
-  unfold P in *. intros.
-  exploit labsToZs_cons_hd; eauto. intros Heq ; inv Heq.
-  eapply labsToZs_cons_tail in H1; eauto.
-  exploit H ; eauto. zify; omega.
-  intros Heq. inv Heq.
-  reflexivity. zify; omega.
+  set (P:= fun n (v1 v2: Vector.t T n) => n <= 3 -> forall ts m,
+                                                 labsToZs v1 m ts -> labsToZs v2 m ts -> v1 = v2) in *.
+  apply Vector.rect2 with (P0:=P); unfold P; eauto.
+  intros n0 v0 v3 H a b H0 ts m H1 H2.
+  assert (a=b) by (eapply labsToZs_cons_hd; eauto).
+  subst.
+  f_equal.
+  elim labsToZs_cons_tail with (2:=H1) (3:=H2).
+  intros ts' (T1 & T2).
+  apply H with ts' m; auto.
+  zify; omega.
+  zify; omega.
 Qed.
 
-Definition abstract_event (ce : CEvent) : Event T :=
-  match ce with
-    | CEInt ca => EInt (pcatom_ZToLab ca)
-  end.
-
-Definition concretize_event (ae : Event T) : CEvent :=
-  match ae with
-    | EInt aa => CEInt (pcatom_labToZ aa)
-  end.
-
-Definition match_events e1 e2 := concretize_event e1 = e2.
+Inductive match_events : Event T -> CEvent -> Prop :=
+  | me_intro : forall e1 e2 m
+                      (ATOMS : pcatom_labToZ e1 e2 m),
+                 match_events (EInt e1) (CEInt e2 m).
 
 Definition match_actions := match_actions tini_quasi_abstract_machine
                                           (concrete_machine cblock faultHandler)
                                           match_events.
-
-Lemma abstract_event_concretize_event :
-  forall ae, abstract_event (concretize_event ae) = ae.
-Proof.
-  intros [[xv xl]]; simpl; auto.
-  erewrite <- ZToLab_labToZ_id; eauto.
-Qed.
 
 Section RefQAC.
 
@@ -380,15 +417,18 @@ Proof.
   destruct (zreplicate size a); try congruence.
   inv ALLOC.
   destruct CACHE.
-  assert (CACHE' : Mem.get_frame m' cblock = Some cache).
-  { erewrite alloc_get_frame_old; eauto. }
   econstructor; eauto.
-  intros.
-  specialize (UP2DATE opcode vls pcl).
-  unfold cache_hit_mem, cache_hit_read_mem in *.
-  rewrite FRAME in *.
-  rewrite CACHE' in *.
-  intuition.
+  - destruct DEF as [fr H].
+    erewrite alloc_get_frame_old; eauto.
+  - (*intros.
+    specialize (UP2DATE opcode vls tags pcl pct).
+    unfold cache_hit_mem, cache_hit_read_mem in *.
+    rewrite FRAME in *.
+    rewrite CACHE' in *.
+    intuition.*)
+
+    (* AAA: Double check, this could be wrong *)
+    admit.
 Qed.
 
 Lemma store_cache_up2date :
@@ -401,22 +441,27 @@ Proof.
   unfold store.
   intros.
   destruct CACHE.
-  cut (Mem.get_frame m' cblock = Some cache).
+  (*cut (Mem.get_frame m' cblock = Some cache).
   { intros H.
     econstructor; eauto.
     unfold cache_hit_read_mem in *.
     rewrite FRAME in *.
     rewrite H in *.
-    intuition. }
-  clear UP2DATE.
+    intuition. }*)
+  (*clear UP2DATE.*)
   destruct (Mem.get_frame m b) as [frame|] eqn:E; try congruence.
   destruct (upd_m off a frame) as [frame'|] eqn:E'; try congruence.
-  erewrite Mem.get_upd_frame; eauto.
-  match goal with
-    | |- context[if ?b then _ else _] =>
-      destruct b as [E'' | E'']; auto
-  end.
-  congruence.
+  constructor.
+  - destruct DEF as [fr H].
+    erewrite get_frame_upd_frame_neq; eauto; try congruence.
+  - (*erewrite Mem.get_upd_frame; eauto.
+     match goal with
+        | |- context[if ?b then _ else _] =>
+           destruct b as [E'' | E'']; auto
+     end.
+     congruence.*)
+    (* AAA: Same here *)
+    admit.
 Qed.
 
 Lemma alloc_stamp :
