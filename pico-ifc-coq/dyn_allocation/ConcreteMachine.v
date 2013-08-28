@@ -387,25 +387,19 @@ Inductive cstep : CS -> CEvent+τ -> CS -> Prop :=
      cstep (CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
            Silent (CState m' fh i ((fh_ret pcv pcl)::(Vint cv,cl):::s) fh_start true).
 
-Definition initial_memory : memory :=
-  (* Once again, it is OK to start with an empty cache. This will
-  cause a miss on the first instruction, and after that the cache will
-  grow to its true size *)
-  Mem.init _ _ Local cblock nil.
-
 Definition concrete_machine (faultHandler: list Instr) : semantics := 
   {| state := CS ;
-    event := CEvent ;
-    step := cstep ;
-    init_data := list Instr * list PcAtom * Z;
-    init_state := fun id => 
-                    let '(p,d,def) := id in
-                    {| mem := initial_memory;
-                       fhdl := faultHandler;
-                       imem := p;
-                       stk := map (fun a:PcAtom => let (pc,l) := a in CData (Vint pc,l)) d;
-                       pc := (0, def);
-                       priv := false |}
+     event := CEvent ;
+     step := cstep ;
+     init_data := list Instr * memory * list PcAtom * Z;
+     init_state := fun id => 
+                     let '(prog,mem,data,def) := id in
+                     {| mem := mem;
+                        fhdl := faultHandler;
+                        imem := prog;
+                        stk := map (fun a:PcAtom => let (pc,l) := a in CData (Vint pc,l)) data;
+                        pc := (0, def);
+                        priv := false |}
   |}.
 
 Lemma priv_no_event_l : forall s e s'

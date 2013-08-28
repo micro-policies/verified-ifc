@@ -1200,19 +1200,25 @@ Proof.
       eapply kernel_run_success_fail_contra; eauto.
 Qed.
 
+Definition ac_match_initial_stack_data stkdata1 stkdata2 mem :=
+  Forall2 (fun a1 a2 => pcatom_labToZ a1 a2 mem) stkdata1 stkdata2.
+
 Inductive ac_match_initial_data :
   abstract_init_data T ->
   init_data (concrete_machine cblock faultHandler) -> Prop :=
-| ac_mid : forall d1 p1 b1,
+| ac_mid : forall prog mem stkdata1 stkdata2 def1 def2
+                  (UP2DATE : cache_up2date mem)
+                  (DATA : ac_match_initial_stack_data stkdata1 stkdata2 mem)
+                  (DEF : labToZ def1 def2 mem),
              ac_match_initial_data
-               (p1, d1, b1)
-               (p1, map pcatom_labToZ d1, labToZ b1).
+               (prog, stkdata1, def1)
+               (prog, mem, stkdata2, def2).
 
 (* Maybe move this later *)
 Definition emptyinj : meminj := fun _ => None.
 Hint Unfold emptyinj.
 
-Lemma emptyinj_meminj : Meminj (Mem.empty _ _) (initial_memory cblock) emptyinj.
+Lemma emptyinj_meminj : forall mem, Meminj (Mem.empty _ _) mem emptyinj.
 Proof.
   unfold emptyinj.
   constructor; simpl; congruence.
@@ -1225,26 +1231,18 @@ Proof.
 Qed.
 Hint Resolve emptyinj_userinj.
 
-Lemma match_init_stacks: forall d1,
- match_stacks emptyinj
-              (map (fun a : PcAtom T => let (i,l) := a in AData (Vint i,l)) d1)
-              (map (fun a : PcAtom Z => let (i,l) := a in CData (Vint i,l)) (map pcatom_labToZ d1)).
+Lemma match_init_stacks:
+  forall stkdata1 stkdata2 mem
+         (STKDATA : ac_match_initial_stack_data stkdata1 stkdata2 mem),
+    match_stacks emptyinj
+                 (map (fun a : PcAtom T => let (i,l) := a in AData (Vint i,l)) stkdata1)
+                 (map (fun a : PcAtom Z => let (i,l) := a in CData (Vint i,l)) stkdata2) mem.
 Proof.
-  induction d1 as [|[xv xl] d1 IH]; intros;
-  repeat (simpl; constructor; auto).
+  induction 1 as [|[xv1 xl1] [xv2 xl2] sd1 sd2 [H1 H2]];
+  intros;
+  repeat (simpl in *; subst; constructor; auto).
 Qed.
 Hint Resolve match_init_stacks.
-
-Lemma initial_memory_up2date :
-  cache_up2date (initial_memory cblock).
-Proof.
-  econstructor; eauto using Mem.get_init_eq.
-  intros opcode vls pcl contra.
-  inv contra.
-  inv OP.
-  inv H.
-Qed.
-Hint Resolve initial_memory_up2date.
 
 Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
@@ -1358,10 +1356,6 @@ Proof.
     inv H.
   - exploit cache_hit_simulation; eauto.
     intros [e1 [s1' [STEP [ME MS]]]].
-    unfold match_events in *. subst.
-    (*assert (exists t', t = filter (@is_event _) t') by
-        (destruct (concretize_event e1); eauto using filter_cons_inv).*)
-    (*inv H2.*)
     exploit IHEXEC; eauto.
     intros [t1 [? [? ?]]].
     exists (op_cons e1 t1). eexists.
