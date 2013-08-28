@@ -113,11 +113,11 @@ Definition faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
 Inductive cache_up2date mem : Prop :=
 | cu2d_intro :
     forall (DEF : mem_def_on_cache cblock mem)
-           (UP2DATE : forall opcode vls tags pcl pct,
-                        labsToZs vls mem tags ->
-                        labToZ pcl pct mem ->
+           (UP2DATE : forall opcode tags pct,
                         cache_hit_mem cblock mem (opCodeToZ opcode) tags pct ->
-                        exists rpcl rpct rl rt,
+                        exists vls pcl rpcl rpct rl rt,
+                          labsToZs vls mem tags /\
+                          labToZ pcl pct mem /\
                           apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl) /\
                           labToZ rpcl rpct mem /\ labToZ rl rt mem /\
                           cache_hit_read_mem cblock mem rt rpct),
@@ -418,7 +418,9 @@ Proof.
   inv ALLOC.
   destruct CACHE.
   econstructor; eauto.
-  - admit.
+  - unfold mem_def_on_cache in *.
+    destruct DEF.
+    erewrite alloc_get_frame_old; eauto.
   - (*intros.
     specialize (UP2DATE opcode vls tags pcl pct).
     unfold cache_hit_mem, cache_hit_read_mem in *.
@@ -490,7 +492,12 @@ Proof.
   intros.
   destruct UP2DATE.
   eapply UP2DATE in HIT; eauto.
-  destruct HIT as (rpcl & rpct & rl & rt & H1 & H2 & H3 & H4).
+  destruct HIT as (vls' & pcl' & rpcl & rpct & rl & rt & H1 & H2 & H3 & H4 & H5 & H6).
+  assert (vls' = vls).
+  { eapply labsToZs_inj; eauto.
+    destruct opcode; simpl; omega. }
+  subst vls'.
+  assert (pcl' = pcl) by (eapply labToZ_inj; eauto). subst pcl'.
   eexists rpcl, rpct, rl, rt. eauto.
 Qed.
 
@@ -1141,7 +1148,7 @@ Proof.
   intros.
   constructor.
   - destruct MATCH as (? & ? & ? & ? & ? & ?); eauto.
-  - intros opcode' vls' tags pcl' pct' Hvls' Hpcl' HIT'.
+  - intros opcode' tags pct' HIT'.
     exploit update_cache_spec_rvec_cache_hit; eauto.
     intros HIT''.
     generalize (cache_hit_unique _ _ _ _ _ _ _ HIT' HIT'').
@@ -1149,11 +1156,8 @@ Proof.
     apply opCodeToZ_inj in E1. subst.
     exploit handler_final_mem_matches_labToZ_preserved; eauto. intro.
     exploit handler_final_mem_matches_labsToZs_preserved; eauto. intro.
-    assert (pcl' = pcl) by (eapply labToZ_inj; eauto). subst.
-    assert (vls' = vls).
-    { eapply labsToZs_inj; eauto. destruct opcode; simpl; omega. } subst.
-    unfold fetch_rule_impl in OK. simpl in OK. rewrite OK.
-    exists rpcl, zpc, rl, zr.
+    unfold fetch_rule_impl in OK. simpl in OK.
+    exists vls, pcl, rpcl, zpc, rl, zr.
     split; eauto.
     apply cache_hit_mem_mem_def_on_cache in HIT.
     destruct MATCH; intuition eauto.
