@@ -407,6 +407,60 @@ Definition match_actions := match_actions tini_quasi_abstract_machine
 
 Section RefQAC.
 
+(* MOVE *)
+Lemma labsToZs_extension_comp :
+  forall m1 m2 n (vls : Vector.t _ n) ts
+         (Hvls : labsToZs vls m1 ts)
+         (EXT : extends m1 m2)
+         (DEF : mem_def_on_cache cblock m1),
+    labsToZs vls m2 ts.
+Proof.
+  unfold labsToZs.
+  intros m1 m2 n vls [[t1 t2] t3].
+  intuition;
+  eapply extension_comp_nth_labToZ; eauto.
+Qed.
+Hint Resolve labsToZs_extension_comp.
+
+Lemma cache_hit_read_mem_extends :
+  forall m m' rpct rt
+         (EXT : extends m m')
+         (HIT : cache_hit_read_mem cblock m rpct rt),
+    cache_hit_read_mem cblock m' rpct rt.
+Proof.
+  intros.
+  unfold cache_hit_read_mem in *.
+  destruct (Mem.get_frame m cblock) as [fr|] eqn:FRAME; try solve [inversion HIT].
+  apply EXT in FRAME.
+  rewrite FRAME.
+  assumption.
+Qed.
+
+Lemma cache_hit_mem_extends_inv :
+  forall m m' op tags pct
+         (DEF : mem_def_on_cache cblock m)
+         (EXT : extends m m')
+         (HIT : cache_hit_mem cblock m' op tags pct),
+    cache_hit_mem cblock m op tags pct.
+Proof.
+  intros.
+  unfold cache_hit_mem in *.
+  destruct DEF as [fr FRAME]. rewrite FRAME.
+  eapply EXT in FRAME.
+  rewrite FRAME in HIT.
+  assumption.
+Qed.
+
+Lemma mem_alloc_extends :
+  forall {T S} (eqS : EqDec S eq) (m m' : memory T S) mode p fr b
+         (ALLOC : Mem.alloc mode m p fr = (b, m')),
+    extends m m'.
+Proof.
+  intros.
+  intros b' fr' DEF.
+  eapply alloc_get_frame_old; eauto.
+Qed.
+
 Lemma cache_up2date_alloc : forall p size m a b m'
                                    (ALLOC : c_alloc p size a m = Some (b, m'))
                                    (CACHE : cache_up2date m),
@@ -421,15 +475,14 @@ Proof.
   - unfold mem_def_on_cache in *.
     destruct DEF.
     erewrite alloc_get_frame_old; eauto.
-  - (*intros.
-    specialize (UP2DATE opcode vls tags pcl pct).
-    unfold cache_hit_mem, cache_hit_read_mem in *.
-    rewrite FRAME in *.
-    rewrite CACHE' in *.
-    intuition.*)
-
-    (* AAA: Double check, this could be wrong *)
-    admit.
+  - intros opcode tags pct HIT'.
+    specialize (UP2DATE opcode tags pct).
+    destruct UP2DATE as (vls & pcl & rpcl & rpct & rl & rt & H1 & H2 & H3 & H4 & H5 & H6);
+      eauto using mem_alloc_extends, cache_hit_mem_extends_inv.
+    exists vls, pcl, rpcl, rpct, rl, rt.
+    assert (EXT : extends m m').
+    { unfold extends. intros. eapply alloc_get_frame_old; eauto. }
+    repeat split; eauto using labToZ_extension_comp, cache_hit_read_mem_extends.
 Qed.
 
 Lemma store_cache_up2date :
@@ -442,26 +495,7 @@ Proof.
   unfold store.
   intros.
   destruct CACHE.
-  (*cut (Mem.get_frame m' cblock = Some cache).
-  { intros H.
-    econstructor; eauto.
-    unfold cache_hit_read_mem in *.
-    rewrite FRAME in *.
-    rewrite H in *.
-    intuition. }*)
-  (*clear UP2DATE.*)
-  destruct (Mem.get_frame m b) as [frame|] eqn:E; try congruence.
-  destruct (upd_m off a frame) as [frame'|] eqn:E'; try congruence.
-  constructor.
-  - admit.
-  - (*erewrite Mem.get_upd_frame; eauto.
-     match goal with
-        | |- context[if ?b then _ else _] =>
-           destruct b as [E'' | E'']; auto
-     end.
-     congruence.*)
-    (* AAA: Same here *)
-    admit.
+  admit.
 Qed.
 
 Lemma alloc_stamp :
