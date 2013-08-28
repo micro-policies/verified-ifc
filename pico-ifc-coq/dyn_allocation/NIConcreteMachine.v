@@ -35,14 +35,16 @@ Context {observer : Type}
 
 Inductive concrete_i_equiv (o : observer) :
   init_data (tini_concrete_machine cblock) -> init_data (tini_concrete_machine cblock) -> Prop :=
-  | ci_equiv : forall p l s1 s2,
-                 low_equiv_list (low_equiv_atom o) s1 s2 ->
-                 concrete_i_equiv o
-                   (p, (map pcatom_labToZ s1), labToZ l)
-                   (p, (map pcatom_labToZ s2), labToZ l).
+  | ci_equiv : forall ai1 ai2 ci1 ci2
+                      (EQ : abstract_i_equiv o ai1 ai2)
+                      (MATCH1 : ac_match_initial_data ai1 ci1)
+                      (MATCH2 : ac_match_initial_data ai2 ci2),
+                 concrete_i_equiv o ci1 ci2.
 
 Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event observer) := {
-  out e := abstract_event e;
+  out e := match e with
+             | CEInt (z, t) m => EInt (z, ZToLab t m)
+           end;
   e_low := fun o e => TINI.e_low o e;
   e_low_dec := fun o e => TINI.e_low_dec o e;
   i_equiv := concrete_i_equiv
@@ -55,9 +57,11 @@ Lemma ac_low_compatible :
        <-> TINI.e_low o (TINI.out e2)).
 Proof.
   simpl.
-  intros o [a1] [a2] H; simpl.
-  inv H.
-  erewrite <- atom_ZToLab_labToZ_id; eauto; reflexivity.
+  intros o [[x xl]] [[x' xt] m] H; simpl.
+  inv H. unfold pcatom_labToZ in ATOMS. simpl in *.
+  destruct ATOMS as [? TAG]. subst x'.
+  assert (ZToLab xt m = xl) by (eapply labToZ_ZToLab_id; eauto).
+  subst. reflexivity.
 Qed.
 
 Lemma concrete_equiv_abstract_equiv :
@@ -68,11 +72,8 @@ Lemma concrete_equiv_abstract_equiv :
       ac_match_initial_data ai1 ci1 /\
       ac_match_initial_data ai2 ci2.
 Proof.
-  intros o [[p1 d1] z1] [[p2 d2] z2] H.
-  inv H.
-  exists (p2,s1,l).
-  exists (p2,s2,l).
-  repeat split; simpl; eauto.
+  intros o ci1 ci2 EQ.
+  inv EQ. eauto.
 Qed.
 
 Lemma ac_match_events_equiv :
@@ -83,11 +84,20 @@ Lemma ac_match_events_equiv :
     @TINI.a_equiv (tini_concrete_machine cblock) _ _ o (E e21) (E e22).
 Proof.
   simpl.
+  intros o [[x1 xl1]] [[x2 xl2]] [[x1' xt1] m1] [[x2' xt2] m2].
   intros.
   inv EQ; inv MATCH1; inv MATCH2;
-  simpl in *; subst;
-  constructor (solve [simpl in *; auto;
-                          try rewrite (abstract_event_concretize_event (cblock := cblock)); eauto]).
+  unfold pcatom_labToZ in *; simpl in *;
+  try match goal with
+        | H : EInt _ = EInt _ |- _ => inv H
+      end;
+  intuition; repeat subst;
+  constructor (solve [simpl in *; eauto;
+                      repeat match goal with
+                               | H : labToZ _ _ _ |- _ =>
+                                 eapply labToZ_ZToLab_id in H; eauto; rewrite H
+                             end;
+                      eauto]).
 Qed.
 
 Lemma ac_tini_preservation_premises :

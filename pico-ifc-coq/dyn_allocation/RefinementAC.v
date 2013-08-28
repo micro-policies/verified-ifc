@@ -51,7 +51,7 @@ Program Definition abstract_concrete_ref :
   @ref_composition _ _ _
                    abstract_quasi_abstract_ref
                    (quasi_abstract_concrete_ref stamp_cblock fetch_rule)
-                   (@ac_match_initial_data _ _ _ fetch_rule)
+                   (@ac_match_initial_data _ _ _ _ fetch_rule)
                    match_events
                    _ _.
 
