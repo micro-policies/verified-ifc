@@ -150,7 +150,7 @@ Proof.
   induction STK; constructor; trivial.
   assert (VALID : valid_update m2 m2').
   { constructor; eauto.
-    unfold kernel_memory_update.
+    unfold kernel_memory_extension.
     unfold c_alloc, alloc in ALLOC2.
     destruct (zreplicate size a2) as [fr'|]; try congruence.
     inv ALLOC2.
@@ -1142,7 +1142,7 @@ Proof.
   destruct H6.
   constructor; auto.
   intros b.
-  specialize (H5 b). destruct H5. eauto.
+  destruct H5. eauto.
 Qed.
 
 Lemma handler_final_mem_matches_labsToZs_preserved :

@@ -62,17 +62,10 @@ Proof.
   econstructor; apply EXT; eauto.
 Qed.
 
-Definition kernel_memory_update (m m' : memory) : Prop :=
-  forall b fr,
-    Mem.stamp b = Kernel ->
-    b <> cblock ->
-    Mem.get_frame m b = Some fr ->
-    Mem.get_frame m' b = Some fr.
-
 Inductive mem_eq_except_cache (m m' : memory) : Prop :=
 | meec_intro :
     mem_def_on_cache m ->
-    kernel_memory_update m m' ->
+    kernel_memory_extension cblock m m' ->
     mem_eq_except_cache m m'.
 
 Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T) :=
