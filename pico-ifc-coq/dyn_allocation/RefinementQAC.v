@@ -1110,22 +1110,30 @@ Lemma handler_final_mem_meminj :
   forall mi m1 m2 m2' rpcl rpct rl rt
          (MINJ : Meminj m1 m2 mi)
          (UINJ : Userinj mi)
+         (DEF : mem_def_on_cache cblock m2)
          (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2' rpct rt),
     Meminj m1 m2' mi.
 Proof.
   intros.
   destruct MATCH as (m_ext & EXT & PC & RES & HIT & UP).
+  destruct UP as [UP CACHE].
   eapply meminj_same_frames; eauto.
-  - destruct UP as [UP CACHE].
-    split.
-    + (* Really boring. Roughly, since the cache outputs are defined, the whole cache should be.
-         Would be easier if we just cared about the cache frame instead of each entry *)
-      admit.
-    + intros b fr KERNEL NEQ DEF.
-      admit.
-  - admit.
+  - split; eauto.
+    intros b fr KERNEL NEQ FRAME.
+    apply EXT in FRAME.
+    destruct UP as [_ UP].
+    eapply UP; eauto.
+  - intros.
+    destruct UP as [USER KERNEL].
+    exploit mi_valid; eauto.
+    intros (f1 & f2 & FRAME1 & FRAME2 & MATCH).
+    transitivity (Mem.get_frame m_ext b2).
+    + rewrite FRAME2. symmetry. eauto.
+    + symmetry. eapply USER.
+      destruct (Mem.stamp b2) eqn:STAMP; trivial.
+      exploit ui_no_kernel; eauto.
+      congruence.
 Qed.
-Hint Resolve handler_final_mem_meminj.
 
 Lemma handler_final_mem_matches_labToZ_preserved :
   forall l m m' z rpcl rl zpc zr,
@@ -1270,7 +1278,28 @@ Proof.
     intros ESCAPE2.
     generalize (runsToEscape_determ ESCAPE1 ESCAPE2).
     intros. subst. eauto.
-    admit.
+    econstructor; eauto.
+    + eapply handler_final_mem_meminj; eauto.
+    + cut (valid_update m2 m2'); eauto using match_stacks_valid_update.
+      constructor; eauto.
+      * admit.
+      * intros b fr KERNEL NEQ FRAME.
+        assert (FRAME' : Mem.get_frame mem b = Some fr).
+        { unfold cupd in MEM.
+          rewrite <- FRAME.
+          eapply get_frame_upd_frame_neq; eauto. }
+        destruct MATCH' as (mem' & EXT & ? & ? & ? & [? EQ] & ?).
+        apply EQ; eauto.
+    + assert (labToZ pcl pct0 mem); eauto.
+      destruct MATCH' as (mem' & EXT & ? & ? & ? & [_ EQ] & ?).
+      assert (mem_def_on_cache cblock mem).
+      { unfold cupd in MEM.
+        unfold mem_def_on_cache.
+        erewrite get_frame_upd_frame_eq; eauto. }
+      assert (mem_def_on_cache cblock mem') by (eauto using extends_mem_def_on_cache).
+      assert (labToZ pcl pct0 mem') by (eauto using labToZ_extension_comp).
+      eapply labToZ_cache; eauto.
+      constructor; eauto.
   - exploit handler_correct_fail; eauto.
     rewrite app_nil_r.
     intros H. specialize (H t3 pct Hvls Hpc HIT E).
