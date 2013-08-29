@@ -422,6 +422,24 @@ Proof.
 Qed.
 Hint Resolve labsToZs_extension_comp.
 
+Lemma labsToZs_cache :
+  forall m1 m2 n (vls : Vector.t _ n) ts
+         (Hvls : labsToZs vls m1 ts)
+         (EQ : mem_eq_except_cache cblock m1 m2),
+  labsToZs vls m2 ts.
+Proof.
+  unfold labsToZs, nth_labToZ.
+  intros.
+  destruct ts as [[t1 t2] t3].
+  intuition;
+  repeat match goal with
+           | H : context[le_lt_dec n ?m] |- context[le_lt_dec n ?m] =>
+             destruct (le_lt_dec n m); trivial
+         end;
+  eauto using labToZ_cache.
+Qed.
+Hint Resolve labsToZs_cache.
+
 Lemma cache_hit_read_mem_extends :
   forall m m' rpct rt
          (EXT : extends m m')
@@ -492,10 +510,35 @@ Lemma store_cache_up2date :
          (CACHE : cache_up2date m),
     cache_up2date m'.
 Proof.
-  unfold store.
   intros.
   destruct CACHE.
-  admit.
+  constructor.
+  - unfold store in STORE.
+    destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try solve [inversion STORE].
+    destruct (upd_m off a fr) as [fr'|] eqn:FRAME'; try solve [inversion STORE].
+    unfold mem_def_on_cache in *. destruct DEF as [fr'' DEF].
+    erewrite get_frame_upd_frame_neq; eauto. congruence.
+  - intros opcode tags pct HIT'.
+    assert (HIT : cache_hit_mem cblock m (opCodeToZ opcode) tags pct).
+    { unfold cache_hit_mem in *.
+      destruct (Mem.get_frame m' cblock) as [cache|] eqn:CACHE'; try solve [inversion HIT'].
+      erewrite get_frame_store_neq in CACHE'; eauto; try congruence.
+      rewrite CACHE'.
+      assumption. }
+    assert (EQ : mem_eq_except_cache cblock m m').
+    { constructor; trivial.
+      intros b' fr' KERNEL NEQ FRAME.
+      erewrite get_frame_store_neq; eauto.
+      congruence. }
+    specialize (UP2DATE _ _ _ HIT).
+    destruct UP2DATE as (vls & pcl & rpcl & rpct & rl & rt & ? & ? & ? & ? & ? & READ').
+    repeat eexists; eauto.
+    clear - STORE READ' stamp_cblock STAMP.
+    unfold cache_hit_read_mem in *.
+    destruct (Mem.get_frame m cblock) as [cache|] eqn:CACHE; try solve [inversion READ'].
+    erewrite <- get_frame_store_neq in CACHE; eauto; try congruence.
+    rewrite CACHE.
+    assumption.
 Qed.
 
 Lemma alloc_stamp :
