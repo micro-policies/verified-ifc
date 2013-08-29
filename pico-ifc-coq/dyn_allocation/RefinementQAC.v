@@ -719,9 +719,6 @@ Proof.
 Qed.
 Hint Resolve match_vals_eq.
 
-Ltac focus_on t :=
-  first [t | admit].
-
 Lemma cache_hit_mem_mem_def_on_cache :
   forall m o ts pct
          (HIT : cache_hit_mem cblock m o ts pct),
@@ -900,16 +897,20 @@ Qed.
 
 Open Scope Z_scope.
 
-(* AAA: Currently, this theorem is false, because there is nothing
-that allows us to infer that a frame exists in memory if upd_frame
-succeeds on that memory. *)
-
 Lemma cupd_mem_eq_except_cache :
   forall m2 cache m2'
          (UPD : cupd cblock m2 cache = Some m2'),
     mem_eq_except_cache cblock m2 m2'.
 Proof.
-Admitted.
+  unfold cupd.
+  intros.
+  constructor.
+  - unfold mem_def_on_cache.
+    eapply Mem.upd_frame_defined; eauto.
+  - intros b' fr KERNEL NEQ EQ.
+    rewrite <- EQ.
+    eapply get_frame_upd_frame_neq; eauto.
+Qed.
 Hint Resolve cupd_mem_eq_except_cache.
 
 Lemma configuration_at_miss :
@@ -1282,7 +1283,8 @@ Proof.
     + eapply handler_final_mem_meminj; eauto.
     + cut (valid_update m2 m2'); eauto using match_stacks_valid_update.
       constructor; eauto.
-      * admit.
+      * unfold mem_def_on_cache, cupd in *.
+        eapply Mem.upd_frame_defined; eauto.
       * intros b fr KERNEL NEQ FRAME.
         assert (FRAME' : Mem.get_frame mem b = Some fr).
         { unfold cupd in MEM.

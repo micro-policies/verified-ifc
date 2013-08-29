@@ -72,6 +72,9 @@ Module Type MEM.
     upd_frame m b fr = Some m' ->
     forall b', 
       get_frame m' b' = if b == b' then Some fr else get_frame m b'.
+  Parameter upd_frame_defined : forall A S (EqS:EqDec S eq) (m m':t A S) (b:block S) fr,
+    upd_frame m b fr = Some m' ->
+    exists fr', get_frame m b = Some fr'.
 
   Parameter empty : forall A S, t A S.
   Parameter get_empty : forall A S (b:block S), get_frame (empty A S) b = None.
@@ -265,6 +268,21 @@ Module Mem: MEM.
     unfold upd_frame; intros.
     destruct (upd_frame_rich m b fr); try congruence.
     destruct s; inv H; intuition.    
+  Qed.
+
+  Lemma upd_frame_defined : forall A S (EqS:EqDec S eq) (m m':t A S) (b:block S) fr,
+    upd_frame m b fr = Some m' ->
+    exists fr', get_frame m b = Some fr'.
+  Proof.
+    unfold upd_frame, upd_frame_rich, get_frame.
+    intros until 0.
+    generalize (@eq_refl (option (list A)) (@content A S m b)).
+    generalize (upd_frame_rich_obligation_2 A S EqS m b fr).
+    simpl.
+    generalize (upd_frame_rich_obligation_1 A S EqS m b fr).
+    simpl.
+    intros.
+    destruct (m b); eauto; congruence.
   Qed.
 
   Opaque Z.add.
