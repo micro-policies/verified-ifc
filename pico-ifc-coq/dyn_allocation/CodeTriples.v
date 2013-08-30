@@ -28,7 +28,7 @@ Notation cstep := (cstep cblock).
 Notation runsToEscape := (runsToEscape cblock).
 
 Definition imemory : Type := list Instr.
-Definition memory : Type := memory Z privilege.
+Definition memory : Type := memory (val privilege) privilege.
 Definition stack : Type := list CStkElmt.
 Definition code := list Instr.
 Definition state := CS.

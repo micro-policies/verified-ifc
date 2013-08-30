@@ -43,7 +43,7 @@ Inductive concrete_i_equiv (o : observer) :
 
 Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event observer) := {
   out e := match e with
-             | CEInt (z, t) m => EInt (z, ZToLab t m)
+             | CEInt (z, t) m => EInt (z, valToLab t m)
            end;
   e_low := fun o e => TINI.e_low o e;
   e_low_dec := fun o e => TINI.e_low_dec o e;
@@ -58,9 +58,9 @@ Lemma ac_low_compatible :
 Proof.
   simpl.
   intros o [[x xl]] [[x' xt] m] H; simpl.
-  inv H. unfold pcatom_labToZ in ATOMS. simpl in *.
+  inv H. unfold pcatom_labToVal in ATOMS. simpl in *.
   destruct ATOMS as [? TAG]. subst x'.
-  assert (ZToLab xt m = xl) by (eapply labToZ_ZToLab_id; eauto).
+  assert (valToLab xt m = xl) by (eapply labToVal_valToLab_id; eauto).
   subst. reflexivity.
 Qed.
 
@@ -87,15 +87,15 @@ Proof.
   intros o [[x1 xl1]] [[x2 xl2]] [[x1' xt1] m1] [[x2' xt2] m2].
   intros.
   inv EQ; inv MATCH1; inv MATCH2;
-  unfold pcatom_labToZ in *; simpl in *;
+  unfold pcatom_labToVal in *; simpl in *;
   try match goal with
         | H : EInt _ = EInt _ |- _ => inv H
       end;
   intuition; repeat subst;
   constructor (solve [simpl in *; eauto;
                       repeat match goal with
-                               | H : labToZ _ _ _ |- _ =>
-                                 eapply labToZ_ZToLab_id in H; eauto; rewrite H
+                               | H : labToVal _ _ _ |- _ =>
+                                 eapply labToVal_valToLab_id in H; eauto; rewrite H
                              end;
                       eauto]).
 Qed.

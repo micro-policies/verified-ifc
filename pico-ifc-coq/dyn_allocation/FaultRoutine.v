@@ -17,9 +17,9 @@ Require Import CodeGen.
 Require Import CLattices.
 Require Import ConcreteExecutions.
 
-Notation Atom := (Atom Z privilege).
+Notation Atom := (Atom (val privilege) privilege).
 Notation memory := (Mem.t Atom privilege).
-Notation PcAtom := (PcAtom Z).
+Notation PcAtom := (PcAtom (val privilege)).
 Notation block := (block privilege).
 
 Section TMU.
@@ -159,11 +159,11 @@ Import Vector.VectorNotations.
 Local Open Scope nat_scope.
 
 
-Definition nth_labToZ {n:nat} (vls: Vector.t T n) (s:nat) : Z -> memory -> Prop :=
+Definition nth_labToVal {n:nat} (vls: Vector.t T n) (s:nat) : val privilege -> memory -> Prop :=
   fun z m =>
     match le_lt_dec n s with
       | left _ => z = dontCare
-      | right p => labToZ (Vector.nth_order vls p) z m
+      | right p => labToVal (Vector.nth_order vls p) z m
   end.
 
 Lemma of_nat_lt_proof_irrel:
@@ -191,10 +191,10 @@ Qed.
 
 Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m,
   forall (lt: m < n),
-  nth_labToZ vls m = labToZ (Vector.nth_order vls lt).
+  nth_labToVal vls m = labToVal (Vector.nth_order vls lt).
 Proof.
   intros.
-  unfold nth_labToZ.
+  unfold nth_labToVal.
   destruct (le_lt_dec n m).
   false; omega.
   (* NC: Interesting: here we have two different proofs [m < n0] being
@@ -204,12 +204,13 @@ Proof.
   erewrite nth_order_proof_irrel; eauto.
 Qed.
 
-Definition labsToZs {n:nat} (vls :Vector.t T n) (m: memory) : (Z * Z * Z) -> Prop :=
+Definition labsToVals {n:nat} (vls :Vector.t T n) (m: memory) :
+  (val privilege * val privilege * val privilege) -> Prop :=
 fun z0z1z2 =>
   let '(z0,z1,z2) := z0z1z2 in
-  nth_labToZ vls 0 z0 m /\
-  nth_labToZ vls 1 z1 m /\
-  nth_labToZ vls 2 z2 m.
+  nth_labToVal vls 0 z0 m /\
+  nth_labToVal vls 1 z1 m /\
+  nth_labToVal vls 2 z2 m.
 
 End Glue.
 
@@ -217,21 +218,21 @@ Section TMUSpecs.
 
 Inductive handler_initial_mem_matches
             (opcode: Z)
-            (tag1: Z) (tag2: Z) (tag3: Z) (pctag: Z)
+            (tag1 tag2 tag3 pctag : val privilege)
             (m: memory) : Prop :=
 | hiim_intro : forall
                  (HOPCODE : value_on_cache cblock m addrOpLabel (Vint opcode))
-                 (HTAG1 : value_on_cache cblock m addrTag1 (Vint tag1))
-                 (HTAG2 : value_on_cache cblock m addrTag2 (Vint tag2))
-                 (HTAG3 : value_on_cache cblock m addrTag3 (Vint tag3))
-                 (HPC : value_on_cache cblock m addrTagPC (Vint pctag)),
+                 (HTAG1 : value_on_cache cblock m addrTag1 tag1)
+                 (HTAG2 : value_on_cache cblock m addrTag2 tag2)
+                 (HTAG3 : value_on_cache cblock m addrTag3 tag3)
+                 (HPC : value_on_cache cblock m addrTagPC pctag),
                  handler_initial_mem_matches opcode tag1 tag2 tag3 pctag m.
 Hint Constructors handler_initial_mem_matches.
 
 (* Connecting to the definition used in ConcreteMachine.v *)
 Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl z0 z1 z2 zpc,
-                   forall (Hvls: labsToZs vls m (z0,z1,z2))
-                          (Hpcl: labToZ pcl zpc m),
+                   forall (Hvls: labsToVals vls m (z0,z1,z2))
+                          (Hpcl: labToVal pcl zpc m),
     cache_hit_mem m (opCodeToZ opcode) (z0,z1,z2) zpc ->
     handler_initial_mem_matches (opCodeToZ opcode) z0 z1 z2 zpc m.
 Proof.
@@ -254,10 +255,10 @@ Let eval_var := mk_eval_var vls pcl.
 Inductive INIT_MEM (m0 : memory) : Prop :=
 | IM_intro :
     forall z0 z1 z2 zpc zr zrpc
-           (Hz0 : nth_labToZ vls 0 z0 m0)
-           (Hz1 : nth_labToZ vls 1 z1 m0)
-           (Hz2 : nth_labToZ vls 2 z2 m0)
-           (Hpc : labToZ pcl zpc m0)
+           (Hz0 : nth_labToVal vls 0 z0 m0)
+           (Hz1 : nth_labToVal vls 1 z1 m0)
+           (Hz2 : nth_labToVal vls 2 z2 m0)
+           (Hpc : labToVal pcl zpc m0)
            (Hhandler : handler_initial_mem_matches (opCodeToZ opcode)
                                                    z0 z1 z2 zpc
                                                    m0),
@@ -269,15 +270,15 @@ Hint Constructors INIT_MEM.
 Variable (m0: memory).
 Hypothesis initial_m0 : INIT_MEM m0.
 
-Lemma extension_comp_nth_labToZ : forall m1 m2 (n m:nat) (vls: Vector.t T n) z,
-    nth_labToZ vls m z m1 ->
+Lemma extension_comp_nth_labToVal : forall m1 m2 (n m:nat) (vls: Vector.t T n) z,
+    nth_labToVal vls m z m1 ->
     extends m1 m2 ->
     mem_def_on_cache cblock m1 ->
-    nth_labToZ vls m z m2.
+    nth_labToVal vls m z m2.
 Proof.
-  unfold nth_labToZ; intros.
+  unfold nth_labToVal; intros.
   destruct (le_lt_dec n0 m); eauto.
-  eapply labToZ_extension_comp; eauto.
+  eapply labToVal_extension_comp; eauto.
 Qed.
 
 Lemma extension_comp_value_on_cache :
@@ -308,7 +309,7 @@ Proof.
   intros.
   destruct H.
   inv Hhandler.
-  econstructor; eauto 7 using extension_comp_nth_labToZ, labToZ_extension_comp, INIT_MEM_def_on_cache.
+  econstructor; eauto 7 using extension_comp_nth_labToVal, labToVal_extension_comp, INIT_MEM_def_on_cache.
 Qed.
 
 (* genVar is only loading things on the stack, so no need
@@ -321,8 +322,8 @@ Lemma genVar_spec:
          (fun m s => extends m0 m /\ I m s)
          (fun m s =>
             match s with
-              | (Vint z,t) ::: tl => extends m0 m /\
-                                labToZ l z m /\
+              | (z,t) ::: tl => extends m0 m /\
+                                labToVal l z m /\
                                 I m tl
               | _ => False
             end).
@@ -346,13 +347,13 @@ Proof.
   destruct s; intuition;
   (destruct c; intuition);
   (destruct a; intuition);
-  subst; intuition eauto using labToZ_extension_comp;
-  unfold nth_labToZ in *;
+  subst; intuition eauto using labToVal_extension_comp;
+  unfold nth_labToVal in *;
   repeat match goal with
            | H : context [le_lt_dec ?n ?m] |- _ =>
              destruct (le_lt_dec n m); try omega
          end;
-  erewrite nth_order_proof_irrel; eauto using labToZ_extension_comp.
+  erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
 Qed.
 
 Hint Resolve  extension_comp_INIT_MEM INIT_MEM_def_on_cache.
@@ -365,7 +366,7 @@ Lemma genExpr_spec: forall (e: rule_expr n),
       HT   (genExpr e)
            (fun m s => extends m0 m /\ I m s)
            (fun m s => match s with
-                         | (Vint z, t) ::: tl => I m tl /\ labToZ l z m  /\
+                         | (z, t) ::: tl => I m tl /\ labToVal l z m  /\
                                                  extends m0 m /\ INIT_MEM m
                          | _ => False
                        end).
@@ -390,8 +391,8 @@ Proof.
       eapply (IHe1 (eval_expr eval_var e1) (eq_refl _)
                    (fun m s =>
                       match s with
-                        | (Vint z,t):::tl => I m tl
-                                             /\ labToZ (eval_expr eval_var e2) z m
+                        | (z,t):::tl => I m tl
+                                             /\ labToVal (eval_expr eval_var e2) z m
                                              /\ extends m0 m /\ INIT_MEM m
                         | _ => False
                       end)); eauto.
@@ -399,7 +400,7 @@ Proof.
       destruct s; intuition.
       destruct c; intuition.
       destruct a.
-      destruct v; intuition eauto using labToZ_extension_comp.
+      destruct v; intuition eauto using labToVal_extension_comp.
       go_match.
     + eapply HT_strengthen_premise.
       eapply HT_weaken_conclusion.
@@ -441,7 +442,7 @@ Proof.
   with
   (I:= fun m s =>
          match s with
-           | (Vint z, t) ::: tl => I m tl /\ labToZ (eval_expr eval_var r0) z m /\
+           | (z, t) ::: tl => I m tl /\ labToVal (eval_expr eval_var r0) z m /\
                                    extends m0 m
            | _ => False
      end).
@@ -450,7 +451,7 @@ Proof.
     destruct s; intuition.
     destruct c; intuition.
     destruct a.
-    destruct v; intuition eauto using labToZ_extension_comp.
+    destruct v; intuition eauto using labToVal_extension_comp.
     go_match.
   eapply HT_consequence.
   eapply (genFlows_spec' cblock (eval_expr eval_var r) (eval_expr eval_var r0)
@@ -536,9 +537,9 @@ Lemma genApplyRule_spec_Some:
       HT   (genApplyRule am)
            (fun m s => extends m0 m /\ I m s)
            (fun m s => match s with
-                           | (Vint some1, t1) ::: (Vint zr, t3) ::: (Vint zrpc, t4) ::: tl =>
+                           | (Vint some1, t1) ::: (zr, t3) ::: (zrpc, t4) ::: tl =>
                              1 = some1 (* [Some (...)] *)
-                             /\ labToZ l1 zrpc m /\ labToZ l2 zr m
+                             /\ labToVal l1 zrpc m /\ labToVal l2 zr m
                              /\ extends m0 m /\ I m tl
                            | _ => False
                        end).
@@ -565,14 +566,14 @@ Proof.
       eapply HT_strengthen_premise.
       eapply genExpr_spec with
       (I:= fun m s => match s with
-                        | (Vint z, t) ::: tl0 =>
+                        | (z, t) ::: tl0 =>
                           I m tl0
-                          /\ labToZ (eval_expr eval_var (labResPC am)) z m
+                          /\ labToVal (eval_expr eval_var (labResPC am)) z m
                           /\ extends m0 m
                         | _ => False
                       end); eauto.
       unfold extension_comp, extends in *.
-      simpl. intuition. go_match. eauto using labToZ_extension_comp.
+      simpl. intuition. go_match. eauto using labToVal_extension_comp.
       go_match.
       go_match.
     + intros; false; omega.
@@ -608,18 +609,18 @@ Proof.
 Qed.
 
 Definition listify_apply_rule (ar: option (T * T))
-                              (s0: stack) (zr zpc: Z) : stack -> Prop :=
+                              (s0: stack) (zr zpc: val privilege) : stack -> Prop :=
   match ar with
   | None           => fun s => exists t, s = CData (Vint 0, t) :: s0
   | Some (lpc, lr) => fun s => exists t1 t2 t3, s = CData (Vint 1, t1)   ::
-                                                    CData (Vint zr, t2)  ::
-                                                    CData (Vint zpc, t3) :: s0
+                                                    CData (zr, t2)  ::
+                                                    CData (zpc, t3) :: s0
   end.
 
-Definition labToZ_rule_res (ar: option (T * T)) (zr zpc: Z) m : Prop :=
+Definition labToVal_rule_res (ar: option (T * T)) (zr zpc: val privilege) m : Prop :=
   match ar with
   | None           => True
-  | Some (lpc, lr) => labToZ lr zr m /\ labToZ lpc zpc m
+  | Some (lpc, lr) => labToVal lr zr m /\ labToVal lpc zpc m
   end.
 
 Lemma genApplyRule_spec:
@@ -630,12 +631,12 @@ Lemma genApplyRule_spec:
            (fun m s => extends m0 m /\ I m s)
            (fun m s => extends m0 m /\
                        exists s0 zr zrpc,
-                       labToZ_rule_res ar zr zrpc m /\
+                       labToVal_rule_res ar zr zrpc m /\
                        listify_apply_rule ar s0 zr zrpc s /\
                        I m s0).
 Proof.
   intros.
-  unfold listify_apply_rule, labToZ_rule_res.
+  unfold listify_apply_rule, labToVal_rule_res.
   case_eq ar ; [intros [r rpc] | intros rpc] ; intros ; subst.
   - eapply HT_weaken_conclusion.
     eapply (genApplyRule_spec_Some r rpc H0 I); eauto.
@@ -643,7 +644,7 @@ Proof.
     do 5 eexists; eauto.
   - eapply HT_weaken_conclusion.
     eapply genApplyRule_spec_None; eauto.
-    go_match. eexists. eexists 0. eexists 0.
+    go_match. eexists. eexists (Vint 0). eexists (Vint 0).
     eauto.
 Qed.
 
@@ -655,7 +656,7 @@ Lemma genApplyRule_spec_GT_ext:
          (fun m s => extends m0 m /\ I m s)
          (fun m0' s0 m s => extends m0 m0' /\ extends m0' m /\
                             exists zr zrpc,
-                              labToZ_rule_res ar zr zrpc m /\
+                              labToVal_rule_res ar zr zrpc m /\
                               listify_apply_rule ar s0 zr zrpc s /\
                               I m s0).
 Proof.
@@ -752,7 +753,7 @@ Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl.
 Definition genQ: HProp -> OpCode -> GProp :=
          (fun I i m0' s0 m s => extends m0' m /\
                                 exists zr zrpc,
-                                  labToZ_rule_res ar zr zrpc m /\
+                                  labToVal_rule_res ar zr zrpc m /\
                                   listify_apply_rule ar s0 zr zrpc s /\ I m s0).
 
 Let INIT_MEM := INIT_MEM fetch_rule_impl opcode vls pcl.
@@ -846,7 +847,7 @@ Lemma genComputeResults_spec_GT_ext: forall I (Hext: extension_comp I)
        (fun m s => extends m0 m /\ I m s)
        (fun m0' s0 m s => extends m0 m0' /\ extends m0' m /\
                           exists zr zpc,
-                            labToZ_rule_res ar zr zpc m /\
+                            labToVal_rule_res ar zr zpc m /\
                             listify_apply_rule ar s0 zr zpc s /\ I m s0).
 Proof.
   intros.
@@ -885,7 +886,7 @@ Lemma genComputeResults_spec: forall I s0 m0 (INIT_MEM0: INIT_MEM m0),
            (fun m s => extends m0 m /\ s = s0 /\ I m0 s /\ I m s)
            (fun m s => extends m0 m /\
                        exists zr zpc,
-                         labToZ_rule_res ar zr zpc m /\
+                         labToVal_rule_res ar zr zpc m /\
                          listify_apply_rule ar s0 zr zpc s /\ I m s0).
 Proof.
   intros.
@@ -923,15 +924,15 @@ Lemma genStoreResults_spec_Some: forall Q,
     ar = Some (lpc,lr) ->
       HT genStoreResults
          (fun m s => exists s0 zr zpc,
-            labToZ_rule_res ar zr zpc m /\
+            labToVal_rule_res ar zr zpc m /\
             listify_apply_rule ar s0 zr zpc s /\
             valid_address cblock addrTagRes m /\
             valid_address cblock addrTagResPC m /\
             forall t1 t2,
             exists m' m'',
-              (store cblock addrTagRes (Vint zr,t1) m = Some m')
-               /\ store cblock addrTagResPC (Vint zpc,t2) m' = Some m''
-               /\ labToZ_rule_res ar zr zpc m''
+              (store cblock addrTagRes (zr,t1) m = Some m')
+               /\ store cblock addrTagResPC (zpc,t2) m' = Some m''
+               /\ labToVal_rule_res ar zr zpc m''
                /\ Q m'' ((Vint 1,handlerTag):::s0))
          Q
 .
@@ -962,7 +963,7 @@ Lemma genStoreResults_spec_None: forall Q: memory -> stack -> Prop,
   ar = None ->
     HT genStoreResults
        (fun m s => exists s0 zr zpc,
-                     labToZ_rule_res ar zr zpc m /\
+                     labToVal_rule_res ar zr zpc m /\
                      listify_apply_rule ar s0 zr zpc s /\
                      (forall m0,
                        extends m m0 -> Q m0 ((Vint 0,handlerTag) ::: s0)))
@@ -989,12 +990,13 @@ Proof.
   eauto using extends_refl.
 Qed.
 
-Definition handler_final_mem_matches (lrpc lr: T) (m m': memory): Z -> Z -> Prop :=
+Definition handler_final_mem_matches (lrpc lr: T) (m m': memory):
+  val privilege -> val privilege -> Prop :=
   fun zpc zr =>
     exists m_ext,
       extends m m_ext /\
-      labToZ lrpc zpc m' /\
-      labToZ lr zr m' /\
+      labToVal lrpc zpc m' /\
+      labToVal lr zr m' /\
       cache_hit_read_mem cblock m' zr zpc /\
       update_cache_spec_rvec cblock m_ext m'. (* Nothing else changed since the extension *)
 
@@ -1104,12 +1106,12 @@ Proof.
 
   assert (Hm'm'':
             exists m' m'',
-              store cblock addrTagRes (Vint zr, t1) m = Some m' /\
-              store cblock addrTagResPC (Vint zpc, t2) m' = Some m'').
+              store cblock addrTagRes (zr, t1) m = Some m' /\
+              store cblock addrTagResPC (zpc, t2) m' = Some m'').
   {
    exploit (extends_valid_address m0 m addrTagRes); eauto. intros HvalidRes.
    exploit (extends_valid_address m0 m addrTagResPC); eauto. intros HvalidResPC.
-   eapply (valid_store cblock addrTagRes (Vint zr,t1)) in HvalidRes.
+   eapply (valid_store cblock addrTagRes (zr,t1)) in HvalidRes.
    destruct HvalidRes as [m' ?].
    eapply valid_address_upd with (a:= addrTagResPC) in HvalidResPC; eauto.
    eapply valid_store in HvalidResPC.
@@ -1130,19 +1132,19 @@ Proof.
       assumption.
   }
   do 2 eexists ; intuition; eauto.
-  {  unfold labToZ_rule_res in *.
-     rewrite H2 in *. intuition; eapply labToZ_cache; eauto.
+  {  unfold labToVal_rule_res in *.
+     rewrite H2 in *. intuition; eapply labToVal_cache; eauto.
   }
   eexists; intuition; eauto.
   exists zr ; exists zpc ; intuition; eauto.
   exists m. intuition; eauto.
-  {  unfold labToZ_rule_res in *.
-     rewrite H2 in *. intuition; eapply labToZ_cache; eauto.
+  {  unfold labToVal_rule_res in *.
+     rewrite H2 in *. intuition; eapply labToVal_cache; eauto.
   }
-  {  unfold labToZ_rule_res in *.
-     rewrite H2 in *. intuition; eapply labToZ_cache; eauto.
+  {  unfold labToVal_rule_res in *.
+     rewrite H2 in *. intuition; eapply labToVal_cache; eauto.
   }
-  { assert (Hm''' : load cblock addrTagRes m'' = Some (Vint zr, t1)).
+  { assert (Hm''' : load cblock addrTagRes m'' = Some (zr, t1)).
     { eapply load_store_new in Hm'.
       erewrite load_store_old; eauto.
       compute; congruence. }
@@ -1222,8 +1224,8 @@ Require Import ConcreteExecutions.
 Theorem handler_correct_succeed :
   forall syscode opcode vls pcl c raddr s i lr lpc z1 z2 z3 zpc,
   forall
-    (LABS: (labsToZs vls) c (z1, z2, z3))
-    (LABPC: (labToZ pcl) zpc c)
+    (LABS: (labsToVals vls) c (z1, z2, z3))
+    (LABPC: (labToVal pcl) zpc c)
     (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
     (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = Some (lpc,lr)),
     exists c' zr zrpc,
@@ -1263,8 +1265,8 @@ Qed.
 
 Theorem handler_correct_fail :
   forall syscode opcode vls pcl c raddr s i z1 z2 z3 zpc,
-  forall (LABS: (labsToZs vls) c (z1, z2, z3))
-         (LABPC: (labToZ pcl) zpc c)
+  forall (LABS: (labsToVals vls) c (z1, z2, z3))
+         (LABPC: (labToVal pcl) zpc c)
          (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
          (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = None),
     exists st c',

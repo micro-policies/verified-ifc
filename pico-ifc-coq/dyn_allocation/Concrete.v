@@ -21,9 +21,9 @@ Proof.
     right; congruence.
 Qed.
 
-Notation Atom := (Atom Z privilege).
+Notation Atom := (Atom (val privilege) privilege).
 Notation memory := (Mem.t Atom privilege).
-Notation PcAtom := (PcAtom Z).
+Notation PcAtom := (PcAtom (val privilege)).
 Notation block := (block privilege).
 
 Variable cblock : block.
@@ -94,8 +94,8 @@ Definition privInstSize := 1000.
 
 (* APT: It should be possible for this to be a completely arbitrary integers,
 since it will never be inspected. *)
-Definition handlerTag := 42%Z.
-Definition dontCare := (-1)%Z.
+Definition handlerTag : val privilege := Vint 42%Z.
+Definition dontCare : val privilege := Vint (-1)%Z.
 
 (* Build the cache line from mvector parameters.
 NB: Ordering of parameters in memory must match addr* definitions above. *)
@@ -109,15 +109,18 @@ Import ListNotations.
    in the input and output parts of the cache line come first; here,
    they come last.  This would be easy but a bit tedious to fix. *)
 
-Definition build_cache (opcode: Z) (tags: Z * Z * Z) (pctag:Z): list Atom :=
+Definition build_cache
+           (opcode: Z)
+           (tags: val privilege * val privilege * val privilege)
+           (pctag: val privilege): list Atom :=
 let '(tag1,tag2,tag3) := tags in
 [(Vint opcode,handlerTag);
-  (Vint tag1,handlerTag);
-  (Vint tag2,handlerTag);
-  (Vint tag3,handlerTag);
-  (Vint pctag,handlerTag);
-  (Vint dontCare,handlerTag);
-  (Vint dontCare,handlerTag)].
+ (tag1,handlerTag);
+ (tag2,handlerTag);
+ (tag3,handlerTag);
+ (pctag,handlerTag);
+ (dontCare,handlerTag);
+ (dontCare,handlerTag)].
 
 End WithListNotations.
 
@@ -135,12 +138,12 @@ Inductive cache_hit (m: list Atom) opcode tags pctag : Prop :=
 | ch_intro: forall tag1 tag2 tag3 tagr tagrpc
                      (UNPACK : tags = (tag1,tag2,tag3))
                      (OP: tag_in_mem m addrOpLabel (Vint opcode))
-                     (TAG1: tag_in_mem m addrTag1 (Vint tag1))
-                     (TAG2: tag_in_mem m addrTag2 (Vint tag2))
-                     (TAG3: tag_in_mem m addrTag3 (Vint tag3))
-                     (TAGPC: tag_in_mem m addrTagPC (Vint pctag))
-                     (TAGR: tag_in_mem m addrTagRes (Vint tagr))
-                     (TAGRPC: tag_in_mem m addrTagResPC (Vint tagrpc)),
+                     (TAG1: tag_in_mem m addrTag1 tag1)
+                     (TAG2: tag_in_mem m addrTag2 tag2)
+                     (TAG3: tag_in_mem m addrTag3 tag3)
+                     (TAGPC: tag_in_mem m addrTagPC pctag)
+                     (TAGR: tag_in_mem m addrTagRes tagr)
+                     (TAGRPC: tag_in_mem m addrTagResPC tagrpc),
                 cache_hit m opcode tags pctag.
 
 Lemma build_cache_hit: forall opcode tags pctag,
@@ -154,10 +157,9 @@ Proof.
 Qed.
 
 (* Reads the cache line *)
-Inductive cache_hit_read (m: list Atom) : Z -> Z -> Prop :=
-| chr_uppriv: forall tagr tagrpc,
-              forall (TAG_Res: tag_in_mem m addrTagRes (Vint tagr))
-                     (TAG_ResPC: tag_in_mem m addrTagResPC (Vint tagrpc)),
+Inductive cache_hit_read (m: list Atom) tagr tagrpc : Prop :=
+| chr_uppriv: forall (TAG_Res: tag_in_mem m addrTagRes tagr)
+                     (TAG_ResPC: tag_in_mem m addrTagResPC tagrpc),
                 cache_hit_read m tagr tagrpc.
 
 Definition user_memory_doesnt_change (m m' : memory) :=
@@ -194,13 +196,14 @@ Definition update_cache_spec_rvec (m m': memory) :=
                 addr <> addrTagResPC ->
                 load cblock addr m = load cblock addr m').
 
-Definition cache_hit_mem (m:memory) (opcode:Z) (tags: Z * Z * Z) (pctags:Z) : Prop :=
+Definition cache_hit_mem (m:memory) (opcode:Z)
+           (tags: val privilege * val privilege * val privilege) (pctags:val privilege) : Prop :=
   match Mem.get_frame m cblock with
     | None => False
     | Some c => cache_hit c opcode tags pctags
   end.
 
-Definition cache_hit_read_mem (m:memory) (tagr:Z) (tagrpc:Z) : Prop :=
+Definition cache_hit_read_mem (m:memory) (tagr:val privilege) (tagrpc:val privilege) : Prop :=
   match Mem.get_frame m cblock with
     | None => False
     | Some c => cache_hit_read c tagr tagrpc

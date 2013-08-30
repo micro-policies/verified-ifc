@@ -19,8 +19,8 @@ Variable stamp_cblock : Mem.stamp cblock = Kernel.
 
 (* Lattice-dependent parameters *)
 Class ConcreteLattice (T: Type) :=
-{ labToZ :  T -> Z -> memory -> Prop
-; ZToLab :  Z -> memory -> T
+{ labToVal :  T -> val privilege -> memory -> Prop
+; valToLab :  val privilege -> memory -> T
 ; genBot : list Instr
 ; genJoin : list Instr
 ; genFlows : list Instr
@@ -30,15 +30,15 @@ Local Open Scope Z_scope.
 
 Instance TMUHL : ConcreteLattice Lab :=
 {
-  labToZ l z m :=
+  labToVal l z m :=
     match l with
-      | L => boolToZ false = z
-      | H => boolToZ true = z
+      | L => Vint (boolToZ false) = z
+      | H => Vint (boolToZ true) = z
     end
 
-  ;ZToLab z m :=
+  ;valToLab z m :=
     match z with
-      | 0 => L
+      | Vint 0 => L
       | _ => H
     end
 
@@ -69,27 +69,27 @@ Inductive mem_eq_except_cache (m m' : memory) : Prop :=
     mem_eq_except_cache m m'.
 
 Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T) :=
-{ labToZ_cache : forall l z m m', labToZ l z m -> mem_eq_except_cache m m' -> labToZ l z m'
-; labToZ_inj : forall l1 l2 z m, labToZ l1 z m -> labToZ l2 z m -> l1 = l2
-; labToZ_ZToLab_id : forall l z m, labToZ l z m -> ZToLab z m = l
-; labToZ_extension_comp : forall m1 m2 l z,  labToZ l z m1 -> extends m1 m2 ->
+{ labToVal_cache : forall l z m m', labToVal l z m -> mem_eq_except_cache m m' -> labToVal l z m'
+; labToVal_inj : forall l1 l2 z m, labToVal l1 z m -> labToVal l2 z m -> l1 = l2
+; labToVal_valToLab_id : forall l z m, labToVal l z m -> valToLab z m = l
+; labToVal_extension_comp : forall m1 m2 l z,  labToVal l z m1 -> extends m1 m2 ->
                                              mem_def_on_cache m1 ->
-                                             labToZ l z m2
+                                             labToVal l z m2
 ; genBot_spec: forall m0 (Hm0: mem_def_on_cache m0) (Q:memory->stack->Prop),
    HT cblock genBot
       (fun m s => extends m0 m /\
-                  (forall m1 z, extends m m1 -> labToZ bot z m1 -> Q m1 ((Vint z,handlerTag):::s)))
+                  (forall m1 z, extends m m1 -> labToVal bot z m1 -> Q m1 ((z,handlerTag):::s)))
       Q
 ; genJoin_spec:
     forall m0 (Hm0: mem_def_on_cache m0) (Q: memory-> stack->Prop),
        HT cblock genJoin
          (fun m s =>
           exists s0 l z t l' z' t',
-             s = (Vint z, t) ::: (Vint z', t') ::: s0 /\
+             s = (z, t) ::: (z', t') ::: s0 /\
              extends m0 m /\
-             labToZ l z m /\ labToZ l' z' m /\
-             (forall m1 zz', extends m m1 -> labToZ (l \_/ l') zz' m1 ->
-                         Q m1 ((Vint zz', handlerTag) ::: s0)))
+             labToVal l z m /\ labToVal l' z' m /\
+             (forall m1 zz', extends m m1 -> labToVal (l \_/ l') zz' m1 ->
+                         Q m1 ((zz', handlerTag) ::: s0)))
          Q
 
   (* NC: we could discharge this by implementing [genFlows] in terms of
@@ -99,8 +99,8 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
                        (fun m s =>
                           exists l l' z z' t t' s0,
                             extends m0 m /\
-                            labToZ l z m /\ labToZ l' z' m /\
-                            s = (Vint z,t):::(Vint z',t'):::s0 /\
+                            labToVal l z m /\ labToVal l' z' m /\
+                            s = (z,t):::(z',t'):::s0 /\
                             Q m ((Vint (boolToZ(flows l l')),handlerTag):::s0))
                        Q
 }.
@@ -118,8 +118,8 @@ Lemma genBot_spec': forall I m0 (Hm0: mem_def_on_cache m0)
                     (fun m s => extends m0 m /\ I m s)
                     (fun m s =>
                        match s with
-                           | CData (Vint z,t)::tl => extends m0 m /\
-                             I m tl /\ labToZ bot z m /\ t = handlerTag
+                           | CData (z,t)::tl => extends m0 m /\
+                             I m tl /\ labToVal bot z m /\ t = handlerTag
                            | _ => False
                        end).
 Proof.
@@ -137,15 +137,15 @@ Lemma genJoin_spec': forall l l' I m0 (Hmem0: mem_def_on_cache m0)
                   HT  cblock genJoin
                       (fun m s =>
                          match s with
-                             | CData (Vint z,t)::CData (Vint z',t')::tl =>
-                               labToZ l z m /\ labToZ l' z' m /\
+                             | CData (z,t)::CData (z',t')::tl =>
+                               labToVal l z m /\ labToVal l' z' m /\
                                extends m0 m /\ I m tl
                              | _ => False
                          end)
                       (fun m s =>
                          match s with
-                             | CData (Vint zz', t) :: tl =>
-                               labToZ (join l l') zz' m /\
+                             | CData (zz', t) :: tl =>
+                               labToVal (join l l') zz' m /\
                                extends m0 m /\ I m tl
                              | _ => False
                          end).
@@ -162,8 +162,8 @@ Lemma genFlows_spec' : forall l l' I m0 (Hmem0: mem_def_on_cache m0)
                    HT  cblock genFlows
                        (fun m s =>
                           match s with
-                            | CData (Vint z,t)::CData (Vint z',t')::tl =>
-                              labToZ l z m /\ labToZ l' z' m /\
+                            | CData (z,t)::CData (z',t')::tl =>
+                              labToVal l z m /\ labToVal l' z' m /\
                               extends m0 m /\ I m tl
                             | _ => False
                           end)

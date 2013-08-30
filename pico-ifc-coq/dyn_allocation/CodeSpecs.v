@@ -18,9 +18,9 @@ Require Import EquivDec.
 Require Import CodeTriples.
 
 Local Notation val := (val privilege).
-Local Notation Atom := (Atom Z privilege).
+Local Notation Atom := (Atom val privilege).
 Local Notation memory := (Mem.t Atom privilege).
-Local Notation PcAtom := (PcAtom Z).
+Local Notation PcAtom := (PcAtom val).
 Local Notation block := (block privilege).
 Definition HProp := memory -> stack -> Prop.
 
@@ -75,7 +75,7 @@ Ltac nil_help :=   replace (@nil CEvent) with (op_cons Silent (@nil CEvent)) by 
 
 (* Simplest example: the specification of a single instruction run in
 privileged mode *)
-Lemma add_spec: forall (z1 z2 z: val) (l1 l2: Z) (m: memory) (s: stack),
+Lemma add_spec: forall (z1 z2 z: val) (l1 l2: val) (m: memory) (s: stack),
   add z1 z2 = Some z ->
   HT  [Add]
       (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)

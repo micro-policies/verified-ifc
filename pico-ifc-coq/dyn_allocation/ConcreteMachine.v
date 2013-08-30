@@ -18,9 +18,9 @@ Notation "'__'" := dontCare.
 Notation fh_start := (0,handlerTag).
 Notation fh_ret := (fun pc pcl => (CRet (pc,pcl) false false)).
 
-Notation Atom := (Atom Z privilege).
+Notation Atom := (Atom (val privilege) privilege).
 Notation memory := (Mem.t Atom privilege).
-Notation PcAtom := (PcAtom Z).
+Notation PcAtom := (PcAtom (val privilege)).
 Notation block := (block privilege).
 
 Variable cblock : block.
@@ -387,12 +387,12 @@ Inductive cstep : CS -> CEvent+τ -> CS -> Prop :=
      cstep (CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
            Silent (CState m' fh i ((fh_ret pcv pcl)::(Vint cv,cl):::s) fh_start true).
 
-Definition concrete_machine (faultHandler: list Instr) : semantics := 
+Definition concrete_machine (faultHandler: list Instr) : semantics :=
   {| state := CS ;
      event := CEvent ;
      step := cstep ;
-     init_data := list Instr * memory * list PcAtom * Z;
-     init_state := fun id => 
+     init_data := list Instr * memory * list PcAtom * val privilege;
+     init_state := fun id =>
                      let '(prog,mem,data,def) := id in
                      {| mem := mem;
                         fhdl := faultHandler;
@@ -421,4 +421,3 @@ Proof.
 Qed.
 
 End CMach.
-
