@@ -222,12 +222,12 @@ Inductive cstep : CS -> CEvent+τ -> CS -> Prop :=
      cstep (CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl)   false)
            Silent (CState m' fh i ((fh_ret pcv pcl)::(Vptr b ofs,addrl):::s) fh_start true)
 
-| cstep_load_p: forall m fh i s pcv pcl b ofs addrl xv xl,
+| cstep_load_p: forall m fh i s pcv pcl b ofs addrl x,
    forall (INST: fh @ pcv # Load)
-          (READ: load b ofs m = Some (xv,xl))
+          (READ: load b ofs m = Some x)
           (PRIV: Mem.stamp b = Kernel),
     cstep (CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl) true) 
-          Silent (CState m fh i ((xv,handlerTag):::s) (pcv+1,handlerTag) true)
+          Silent (CState m fh i (x:::s) (pcv+1,handlerTag) true)
 
 | cstep_store: forall fh m m' i s rpcl pcv pcl rl b ofs addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)

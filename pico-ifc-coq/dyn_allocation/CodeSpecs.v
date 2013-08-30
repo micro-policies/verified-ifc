@@ -411,14 +411,14 @@ Proof.
   assumption.
 Qed.
 
-Lemma load_spec: forall b ofs al v vl, forall m0 s0,
-  load b ofs m0 = Some (v,vl) ->
+Lemma load_spec: forall b ofs al x, forall m0 s0,
+  load b ofs m0 = Some x ->
   Mem.stamp b = Kernel ->
   HT [Load]
      (fun m s => m = m0 /\ s = CData (Vptr b ofs,al) :: s0)
-     (fun m s => m = m0 /\ s = CData (v,handlerTag) :: s0).
+     (fun m s => m = m0 /\ s = CData x :: s0).
 Proof.
-  intros b ofs al v vl m0 s0  Hmem.
+  intros b ofs al x m0 s0  Hmem.
   intros imem stk0 c0 fh0 n n' Hcode HP' Hn'.
   eexists.
   eexists.
@@ -525,11 +525,11 @@ Proof.
   constructor; auto.
 Qed.
 
-Lemma loadFromCache_spec: forall ofs v vl, forall m0 s0,
-  load cblock ofs m0 = Some (v,vl) ->
+Lemma loadFromCache_spec: forall ofs x, forall m0 s0,
+  load cblock ofs m0 = Some x ->
   HT (loadFromCache ofs)
      (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData (v,handlerTag) :: s0).
+     (fun m s => m = m0 /\ s = CData x :: s0).
 Proof.
   intros.
   eapply HT_compose.
