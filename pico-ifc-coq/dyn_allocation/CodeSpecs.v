@@ -154,8 +154,8 @@ Lemma add_spec_wp' : forall Q,
   HT [Add]
      (fun m0 s0 =>
         exists v1 v2 vr s,
-          add v1 v2 = Some vr /\
           s0 = (v1,handlerTag) ::: (v2,handlerTag) ::: s /\
+          add v1 v2 = Some vr /\
           Q m0 ((vr,handlerTag) ::: s))
      Q.
 Proof.
@@ -164,6 +164,10 @@ Proof.
   eapply HT_forall_exists. intros v2.
   eapply HT_forall_exists. intros vr.
   eapply HT_forall_exists. intros s.
+  apply HT_strengthen_premise with (fun m0 s0 =>
+                                      add v1 v2 = Some vr /\
+                                      s0 = (v1, handlerTag) ::: (v2, handlerTag) ::: s /\
+                                      Q m0 ((vr, handlerTag) ::: s)); try solve [split_vc].
   eapply HT_fold_constant_premise. intros H.
 
   unfold CodeTriples.HT.
@@ -2287,8 +2291,8 @@ Proof.
   simpl. intros m s [R1 [s' [R2 R3]]].
   eexists (Vint (-1)). eexists (Vint i0). eexists (Vint (i0 - 1)). eexists.
   repeat split.
-  - replace (i0 - 1) with ((-1) + i0) by omega. reflexivity.
   - destruct s. inv R1. inv R1. simpl in R2. subst s. split; eauto.
+  - replace (i0 - 1) with ((-1) + i0) by omega. reflexivity.
   - eexists. eexists. split. eauto.
     split; auto; omega.
   - eapply HT_strengthen_premise.
