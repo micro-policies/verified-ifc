@@ -1028,3 +1028,53 @@ Proof.
   - exploit update_list_In; eauto.
     intros [? | ?]; subst; eauto.
 Qed.
+
+Fixpoint drop {X:Type} (n:nat) (xs:list X) : list X :=
+match n with
+| O => xs
+| S n' => match xs with
+          | nil => nil     
+          | (x::xs') => drop n' xs'
+          end
+end.
+
+Definition dropZ {X:Type} (z:Z) (xs:list X) : list X :=
+  if (z <? 0)%Z then
+    xs
+  else drop (Z.to_nat z) xs.
+
+
+Lemma length_drop : forall {X:Type} n (xs:list X), 
+           length (drop n xs) = ((length xs) -  n)%nat.
+Proof.  
+  intros X n. induction n; intros xs.
+    simpl. omega. 
+    destruct xs. simpl. 
+       auto.
+       simpl. auto.
+Qed.
+
+Lemma drop_cons : forall {X:Type} p (l : list X),
+    (p < length l)%nat ->
+    exists x,
+      drop p l = x :: drop (S p) l.
+Proof.
+  induction p; intros [|x l] H; simpl in *; try omega; eauto.
+  apply IHp.
+  omega.
+Qed.
+
+Import ListNotations.
+
+Lemma dropZ_all: forall {X:Type} (xs:list X),
+  (dropZ (Z.of_nat (length xs)) xs = []).
+Proof.
+  intros.
+  destruct (dropZ (Z.of_nat (length xs)) xs) eqn:E. auto.
+  exfalso.
+  unfold dropZ in E.  destruct (Z.of_nat (length xs) <? 0)%Z eqn:M.
+    apply Z.ltb_lt in M.  omega. 
+    rewrite Nat2Z.id in E. 
+    assert (length (drop (length xs) xs) = length (x::l)). rewrite E; auto.
+    rewrite length_drop in H. simpl in H. replace (length xs - length xs)%nat with O in H by omega. inv H.
+Qed.
