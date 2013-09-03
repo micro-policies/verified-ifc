@@ -1653,6 +1653,8 @@ Definition none_spec     := push_spec''.
 Definition genTrue_spec  := push_spec''.
 Definition genFalse_spec := push_spec''.
 
+Definition ZtoBool (z:Z) :=  negb (z =? 0).
+
 Lemma genAnd_spec: forall b1 b2, forall m0 s0,
   HT genAnd
      (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
@@ -1718,6 +1720,55 @@ Proof.
      split ; eauto. simpl. intuition eauto.
 Qed.
 
+Definition andz (z1 z2 : Z) : Z :=
+  if ZtoBool z1 then z2 else 0.
+
+Lemma genAnd_spec_general : forall v1 v2, forall m0 s0,
+  HT genAnd
+     (fun m s => m = m0 /\ s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0)
+     (fun m s => m = m0 /\ s = (Vint (andz v1 v2),handlerTag):::s0).
+Proof.
+  intros.
+  unfold genAnd, andz.
+  destruct (ZtoBool v1) eqn:E; eapply HT_strengthen_premise.
+  - assert (v1 <> 0). { intro. subst. unfold ZtoBool in E. simpl in E. congruence. }
+    eapply ifNZ_spec_NZ with (v:=v1); eauto.
+    apply nop_spec.
+  - jauto.
+  - unfold ZtoBool in E. apply Bool.negb_false_iff in E.
+    apply Z.eqb_eq in E.
+    subst.
+    eapply ifNZ_spec_Z with (v:=0); auto.
+    eapply HT_compose.
+    eapply pop_spec.
+    eapply HT_weaken_conclusion.
+    eapply push_spec_I.
+    go_match.
+  - jauto.
+Qed.
+
+
+Lemma genAnd_spec_general_wp : forall (Q:memory -> stack -> Prop),
+  HT genAnd
+     (fun m s => exists v1 v2 s0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\
+                                  Q m ((Vint (andz v1 v2),handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  eapply HT_strengthen_premise with
+     (fun m s => exists v1 v2 s0 m0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\ m = m0 /\
+                                     Q m0 ((Vint (andz v1 v2),handlerTag):::s0)).
+  eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro s0.
+  eapply HT_forall_exists.  intro m1.
+  eapply HT_consequence'.
+  eapply genAnd_spec_general.
+  split_vc.
+  split_vc. subst. eauto.
+  split_vc.
+Qed.
+
 Lemma genOr_spec: forall b1 b2, forall m0 s0,
   HT genOr
      (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
@@ -1778,6 +1829,54 @@ Proof.
     simpl; jauto.
     go_match. substs.
     eexists. eexists. split ; eauto. simpl. split; eauto.
+Qed.
+
+Definition orz (z1 z2 : Z) : Z :=
+  if ZtoBool z1 then 1 else z2.
+
+Lemma genOr_spec_general : forall v1 v2, forall m0 s0,
+  HT genOr
+     (fun m s => m = m0 /\ s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0)
+     (fun m s => m = m0 /\ s = (Vint (orz v1 v2),handlerTag):::s0).
+Proof.
+  intros.
+  unfold genOr, orz.
+  destruct (ZtoBool v1) eqn:E; eapply HT_strengthen_premise.
+  - assert (v1 <> 0). { intro. subst. unfold ZtoBool in E. simpl in E. congruence. }
+    eapply ifNZ_spec_NZ with (v:=v1); eauto.
+    eapply HT_compose.
+    eapply pop_spec.
+    eapply HT_weaken_conclusion.
+    eapply push_spec_I.
+    go_match.
+  - jauto.
+  - unfold ZtoBool in E. apply Bool.negb_false_iff in E.
+    apply Z.eqb_eq in E.
+    subst.
+    eapply ifNZ_spec_Z with (v:=0); auto.
+    apply nop_spec.
+  - jauto.
+Qed.
+
+Lemma genOr_spec_general_wp : forall (Q:memory -> stack -> Prop),
+  HT genOr
+     (fun m s => exists v1 v2 s0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\
+                                  Q m ((Vint (orz v1 v2),handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  eapply HT_strengthen_premise with
+     (fun m s => exists v1 v2 s0 m0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\ m = m0 /\
+                                     Q m0 ((Vint (orz v1 v2),handlerTag):::s0)).
+  eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro s0.
+  eapply HT_forall_exists.  intro m1.
+  eapply HT_consequence'.
+  eapply genOr_spec_general.
+  split_vc.
+  split_vc. subst. eauto.
+  split_vc.
 Qed.
 
 Lemma genNot_spec_general: forall v, forall m0 s0,
