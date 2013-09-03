@@ -32,10 +32,10 @@ Local Notation PcAtom := (PcAtom val).
 Local Notation block := (block privilege).
 
 (* MOVE *)
-Lemma extends_valid_address: forall m m' off
-                                    (VALID : valid_address cblock off m)
+Lemma extends_valid_address: forall b m m' off
+                                    (VALID : valid_address b off m)
                                     (EXT : extends m m'),
-                               valid_address cblock off m'.
+                               valid_address b off m'.
 Proof.
   intros.
   unfold valid_address in *.
@@ -169,13 +169,13 @@ Definition copy :=
 (* The loop invariant for copy. *)
 Definition Icopy (sz:Z) bdst odst bsrc osrc m0 s0 :=
   fun m s =>
-    (Mem.stamp bdst = Kernel) /\
-    (Mem.stamp bsrc = Kernel) /\
     exists cnt, s = (Vint cnt,handlerTag):::(Vptr bdst odst,handlerTag):::(Vptr bsrc osrc,handlerTag):::s0 /\
     (cnt <= sz) /\
     (forall z, osrc < z <= osrc+cnt -> valid_address bsrc z m) /\
     (forall z, odst < z <= odst+cnt -> valid_address bdst z m) /\
     (bdst <> bsrc) /\
+    (Mem.stamp bdst = Kernel) /\
+    (Mem.stamp bsrc = Kernel) /\
     (forall z, cnt < z <= sz -> load bsrc (osrc+z) m = load bdst (odst+z) m) /\
     (forall z, ~ (odst+cnt < z <= odst+sz) -> load bdst z m = load bdst z m0) /\
     (forall b, b <> bdst -> Mem.get_frame m b = Mem.get_frame m0 b).
@@ -188,13 +188,13 @@ Lemma copy_spec_wp : forall (Q : memory -> stack -> Prop),
                 (forall z, osrc < z <= osrc+sz -> valid_address bsrc z m) /\
                 (forall z, odst < z <= odst+sz -> valid_address bdst z m) /\
                 (bdst <> bsrc) /\
+                Mem.stamp bdst = Kernel /\
+                Mem.stamp bsrc = Kernel /\
                 (forall m1,
                    (forall z, 0 < z <= sz -> load bsrc (osrc+z) m1 = load bdst (odst+z) m1) /\
                    (forall z, ~ (odst < z <= odst+sz) -> load bdst z m1 = load bdst z m) /\
                    (forall b, b <> bdst -> Mem.get_frame m1 b = Mem.get_frame m b) ->
-                   Q m1 ((Vint 0,handlerTag):::(Vptr bdst odst,handlerTag):::(Vptr bsrc osrc,handlerTag):::s0)) /\
-                Mem.stamp bdst = Kernel /\
-                Mem.stamp bsrc = Kernel)
+                   Q m1 ((Vint 0,handlerTag):::(Vptr bdst odst,handlerTag):::(Vptr bsrc osrc,handlerTag):::s0)))
   Q.
 Proof.
   intros. unfold copy.
@@ -206,13 +206,14 @@ Proof.
                 (forall z, osrc < z <= osrc+sz -> valid_address bsrc z m) /\
                 (forall z, odst < z <= odst+sz -> valid_address bdst z m) /\
                 (bdst <> bsrc) /\
+                Mem.stamp bdst = Kernel /\
+                Mem.stamp bsrc = Kernel /\
                 (forall m1,
                    (forall z, 0 < z <= sz -> load bsrc (osrc+z) m1 = load bdst (odst+z) m1) /\
                    (forall z, ~ (odst < z <= odst+sz) -> load bdst z m1 = load bdst z m) /\
                    (forall b, b <> bdst -> Mem.get_frame m1 b = Mem.get_frame m b) ->
-                   Q m1 ((Vint 0,handlerTag):::(Vptr bdst odst,handlerTag):::(Vptr bsrc osrc,handlerTag):::s0)) /\
-                Mem.stamp bdst = Kernel /\
-                Mem.stamp bsrc = Kernel); [|solve [split_vc]].
+                   Q m1 ((Vint 0,handlerTag):::(Vptr bdst odst,handlerTag):::(Vptr bsrc osrc,handlerTag):::s0)));
+    [|solve [split_vc]].
   eapply HT_forall_exists. intro sz.
   eapply HT_forall_exists. intro bdst.
   eapply HT_forall_exists. intro odst.
@@ -229,19 +230,15 @@ Proof.
     intros.
     unfold Icopy.
     build_vc ltac:idtac; try solve [split_vc].
-    intros m s (s' & Hs' & ? & ? & i' & ? & ? & VALIDSRC & VALIDDST & ? & COPY & REST & ?).
+    intros m s (s' & Hs' & i' & ? & ? & VALIDSRC & VALIDDST & ? & ? & ? & COPY & REST & ?).
     assert (i' = i) by congruence. subst i'. clear s' Hs'.
     subst.
     simpl.
     repeat (eexists; split; eauto).
-    eexists (Vint i). eexists (Vptr bsrc osrc). eexists (Vptr bsrc (osrc+i)).
-    eexists.
-    split. { replace (osrc + i) with (i + osrc) by omega. reflexivity. }
-    split; eauto.
-    exploit (VALIDSRC (osrc + i)); try omega. intros [val Hval].
+    exploit (VALIDSRC (i + osrc)); try omega. intros [val Hval].
     exploit (VALIDDST (i + odst)); try omega. intros [val' Hval'].
     eapply load_some_store_some in Hval'. destruct Hval' as [m' Hm'].
-    do 33 (try eexists); simpl; eauto; try omega. (* Can break if given bigger number *)
+    do 37 (try eexists); simpl; eauto; try omega. (* Can break if given bigger number *)
     repeat split; eauto.
     + intros.
       eapply valid_address_upd; eauto.
@@ -255,6 +252,7 @@ Proof.
         replace (odst + z) with (z + odst) by omega.
         erewrite (load_store_new Hm').
         rewrite <- Hval.
+        replace (osrc + z) with (z + osrc) by ring.
         eapply load_store_old; eauto.
         congruence.
       * do 2 (erewrite (load_store_old Hm'); eauto; try congruence).
@@ -294,87 +292,91 @@ a ----> |    n    |
 *)
 
 
-Inductive memseq (m:memory) : Z -> list Z -> Prop :=
-| memseq_nil : forall z, memseq m z nil
-| memseq_cons : forall z v vs, read_m z m = Some(v,handlerTag) -> memseq m (z+1) vs -> memseq m z (v::vs)
+Inductive memseq (m:memory) b : Z -> list Z -> Prop :=
+| memseq_nil : forall z, memseq m b z nil
+| memseq_cons : forall z v t vs, load b z m = Some (Vint v, t) -> memseq m b (z+1) vs -> memseq m b z (v::vs)
 .
 
-Lemma memseq_valid : forall m a vs,
-  memseq m a vs ->
-  forall z, a <= z < a + Z.of_nat(length vs) -> valid_address z m.
+Lemma memseq_valid : forall m b a vs,
+  memseq m b a vs ->
+  forall z, a <= z < a + Z.of_nat(length vs) -> valid_address b z m.
 Proof.
   induction 1; intros.
   simpl in H. exfalso; omega.
   simpl in H1.
   destruct (Z.eq_dec z z0).
-    subst. eapply index_list_Z_valid; eauto.
+  { subst. econstructor. eauto. }
   eapply IHmemseq. zify; omega.
 Qed.
 
 Hint Resolve memseq_valid.
 
-Lemma memseq_read : forall m a vs,
-  memseq m a vs ->
-  forall z, a <= z < a + Z.of_nat(length vs) -> exists v, read_m z m = Some(v,handlerTag).
+Lemma memseq_read : forall m b a vs,
+  memseq m b a vs ->
+  forall z, a <= z < a + Z.of_nat(length vs) -> exists v t, load b z m = Some(v,t).
 Proof.
   induction 1; intros.
   simpl in H. exfalso; omega.
   simpl in H1.
   destruct (Z.eq_dec z z0).
-    subst. eexists; eauto.
+  { subst. eexists; eauto. }
   eapply IHmemseq. zify; omega.
 Qed.
 
-Lemma memseq_app: forall m a vs1 vs2,
-  memseq m a (vs1 ++ vs2) <-> (memseq m a vs1 /\ memseq m (a + Z.of_nat(length vs1)) vs2).
+Lemma memseq_app: forall m b a vs1 vs2,
+  memseq m b a (vs1 ++ vs2) <-> (memseq m b a vs1 /\ memseq m b (a + Z.of_nat(length vs1)) vs2).
 Proof.
   intros. split.
-  generalize dependent a.
-  induction vs1; intros.
-    simpl in *.
-    split. constructor.
-    replace (a+0) with a by ring. auto.
-    simpl in H.
-    inv H.
-    destruct (IHvs1 (a0+1) H4).
-    split.
-    econstructor; eauto.
-    simpl (length (a::vs1)). replace (a0 + Z.of_nat (S (length vs1))) with (a0 + 1 + Z.of_nat(length vs1)) by (zify;omega). auto.
-  generalize dependent a.
-  induction vs1; intros.
-    simpl in *. inv H. replace (a+0) with a in H1 by ring. auto.
-    inv H. simpl. inv H0. econstructor; eauto.
-    eapply IHvs1. split. auto. simpl (length (a::vs1)) in H1.
-    replace (a0 + 1 + Z.of_nat (length vs1)) with (a0 + Z.of_nat(S(length vs1))) by (zify;omega).  auto.
+  - generalize dependent a.
+    induction vs1; intros.
+    + simpl in *.
+      split. constructor.
+      replace (a+0) with a by ring. auto.
+    + simpl in H.
+      inv H.
+      destruct (IHvs1 (a0+1) H4).
+      split.
+      econstructor; eauto.
+      simpl (length (a::vs1)).
+      replace (a0 + Z.of_nat (S (length vs1))) with (a0 + 1 + Z.of_nat(length vs1)) by (zify;omega).
+      assumption.
+  - generalize dependent a.
+    induction vs1; intros.
+    + simpl in *. inv H. replace (a+0) with a in H1 by ring. auto.
+    + inv H. simpl. inv H0. econstructor; eauto.
+      eapply IHvs1. split. auto. simpl (length (a::vs1)) in H1.
+      replace (a0 + 1 + Z.of_nat (length vs1)) with (a0 + Z.of_nat(S(length vs1))) by (zify;omega).
+      assumption.
 Qed.
 
-Lemma memseq_eq : forall m1 m2 a1 a2 vs,
-   (forall z,  0 <= z < Z.of_nat (length vs) -> read_m (a1+z) m1 = read_m (a2+z) m2) ->
-   memseq m1 a1 vs -> memseq m2 a2 vs.
+Lemma memseq_eq :
+  forall m1 m2 b1 b2 a1 a2 vs
+         (LOAD : forall z, 0 <= z < Z.of_nat (length vs) ->
+                           load b1 (a1+z) m1 = load b2 (a2+z) m2)
+         (SEQ : memseq m1 b1 a1 vs),
+    memseq m2 b2 a2 vs.
 Proof.
-intros.
-generalize dependent a2.
-induction H0.
- intros. constructor.
- intros.
- assert (read_m z m1 = read_m a2 m2).
-   replace z with (z+0) by ring. replace a2 with (a2+0) by ring.
-   eapply H1. simpl.  zify; omega.
- destruct (read_m a2 m2) eqn:E. destruct a as (v0,l0).
-   rewrite H in H2.  simpl in H2.  inv H2.
- econstructor. eauto.
- eapply IHmemseq. intros.
- replace (z+1 + z0) with (z+(1+z0)) by omega.
- replace (a2+1 + z0) with (a2+ (1+z0)) by omega.
- eapply H1. simpl (length (v0::vs)). zify; omega.
- rewrite H in H2.
- inv H2.
+  intros.
+  generalize dependent a2.
+  induction SEQ.
+  - intros. constructor.
+  - intros.
+    assert (Hz : load b1 z m1 = load b2 a2 m2).
+    { replace z with (z+0) by ring. replace a2 with (a2+0) by ring.
+      eapply LOAD. simpl. zify; omega. }
+    destruct (load b2 a2 m2) as [[v0 l0]|] eqn:E; try congruence.
+    rewrite Hz in H. inv H.
+    econstructor; eauto.
+    eapply IHSEQ. intros.
+    replace (z+1 + z0) with (z+(1+z0)) by omega.
+    replace (a2+1 + z0) with (a2+ (1+z0)) by omega.
+    eapply LOAD. simpl (length (v::vs)). zify; omega.
 Qed.
 
 Lemma memseq_drop :
-  forall ms z p vs
-         (MEM : memseq ms z vs),
-    memseq ms (z + Z.of_nat p) (drop p vs).
+  forall ms b z p vs
+         (MEM : memseq ms b z vs),
+    memseq ms b (z + Z.of_nat p) (drop p vs).
 Proof.
   intros.
   gdep z. gdep p.
@@ -389,12 +391,12 @@ Proof.
       apply IH. auto.
 Qed.
 
-Inductive memarr (m:memory) (a:Z) (vs:list Z) : Prop :=
-| memarr_i : forall c,
-    read_m a m = Some(Z_of_nat c,handlerTag) ->
-    memseq m (a+1) vs ->
-    c = length vs ->
-    memarr m a vs.
+Inductive memarr (m:memory) b (vs:list Z) : Prop :=
+| memarr_i : forall c
+                    (LOAD : load b 0 m = Some (Vint (Z_of_nat c), handlerTag))
+                    (SEQ : memseq m b 1 vs)
+                    (LEN : c = length vs),
+               memarr m b vs.
 
 (* Array allocation.  *)
 
@@ -402,32 +404,72 @@ Inductive memarr (m:memory) (a:Z) (vs:list Z) : Prop :=
    Final stack:  ptr-to-array :: _
    Side effects: allocates fresh array of size count *)
 
-Definition alloc_array:= dup ++ push 1 ++ [Add] ++ alloc ++ dup ++ [Swap 2] ++ [Swap 1] ++ [Store].
+Definition alloc_array:= push 0 ++ [Dup 1] ++ push 1 ++ [Add] ++ [Alloc] ++ dup ++ [Swap 2] ++ [Swap 1] ++ [Store].
 
 (* a direct proof in wp form this time, just for variety. *)
 Lemma alloc_array_spec_wp: forall (Q : memory -> stack -> Prop),
-  HT alloc_array
-     (fun m s => exists cnt s0, s = (cnt,handlerTag):::s0 /\
-                                cnt >= 0 /\
-                                (forall a m1,
-                                   extends m m1 ->
-                                   (forall p, a <= p <= a+cnt -> ~ valid_address p m) ->
-                                   (forall p, a < p <= a+cnt -> valid_address p m1) ->
-                                   (read_m a m1 = Some(cnt,handlerTag)) ->
-                                   Q m1 ((a,handlerTag):::s0)))
+  HT cblock alloc_array
+     (fun m s => exists cnt s0,
+                   s = (Vint cnt,handlerTag):::s0 /\
+                   cnt >= 0 /\
+                   (forall b m1,
+                      extends m m1 ->
+                      (forall p, 0 < p <= cnt -> valid_address b p m1) ->
+                      load b 0 m1 = Some (Vint cnt, handlerTag) ->
+                      Mem.get_frame m b = None ->
+                      Mem.stamp b = Kernel ->
+                      Q m1 ((Vptr b 0,handlerTag):::s0)))
      Q.
 Proof.
   intros.
+  unfold alloc_array.
   Opaque Z.add. (* not sure why this is necessary this time *)
   unfold alloc_array.
-  build_vc ltac: (try apply alloc_spec_wp).
-  split_vc'; intros.
-  split_vc'; intros.
-  edestruct (valid_store a (x,handlerTag) m0) as [m1 U]. intuition.
-  split_vc.
-  eapply H0; eauto using valid_address_upd, update_list_Z_spec with zarith.
+  build_vc ltac: (try apply alloc_spec_wp; eauto).
+  intros m s (cnt & s0 & ? & ? & H).
+  subst. simpl.
+  clear stamp_cblock.
+  do 31 (try eexists; simpl; eauto); try omega.
+  assert (VALID : valid_address b 0 m0).
+  { eexists (Vint 0, handlerTag).
+    erewrite load_alloc; eauto.
+    simpl.
+    destruct (EquivDec.equiv_dec b b); try congruence.
+    destruct (Z_lt_dec 0 (1 + cnt)); try omega.
+    reflexivity. }
+  eapply valid_store in VALID. destruct VALID.
+  assert (ALLOC' := H0).
+  unfold c_alloc, alloc in H0.
+  match goal with
+    | H : match ?B with _ => _ end = Some _ |- _ =>
+      destruct B; inv H
+  end.
+  repeat eexists; simpl; eauto.
+  - eapply Mem.alloc_stamp; eauto.
+  - assert (FRESH : Mem.get_frame m b = None).
+    { eapply Mem.alloc_get_fresh; eauto. }
+    apply H; eauto.
+    + intros b' fr' FRAME'.
+      assert (b <> b') by congruence.
+      eapply get_frame_store_neq in H2; eauto.
+      eapply alloc_get_frame_old in H4; eauto.
+      congruence.
+    + intros.
+      unfold c_alloc in ALLOC'.
+      eexists (Vint 0, handlerTag).
+      erewrite load_store_old; eauto.
+      * erewrite (load_alloc (b := b)); eauto.
+        destruct (EquivDec.equiv_dec b b); try congruence.
+        destruct (Z_le_dec 0 p); try omega.
+        destruct (Z_lt_dec p (1 + cnt)); try omega.
+        reflexivity.
+      * intros contra.
+        inv contra.
+        omega.
+    + eapply load_store_new; eauto.
+    + eapply Mem.alloc_stamp; eauto.
 Qed.
-
+Transparent Z.add.
 
 (* Sum array lengths *)
 
@@ -440,12 +482,14 @@ Qed.
 Definition sum_array_lengths := [Dup 1] ++ [Load] ++ [Dup 1] ++ [Load] ++ [Add].
 
 Lemma sum_array_lengths_spec_wp : forall Q,
-  HT sum_array_lengths
+  HT cblock sum_array_lengths
      (fun m s => exists a1 a2 s0 l1 l2,
-                 s = (a2,handlerTag):::(a1,handlerTag):::s0 /\
-                 read_m a2 m = Some(l2,handlerTag) /\
-                 read_m a1 m = Some(l1,handlerTag) /\
-                 Q m ((l2+l1,handlerTag):::(a2,handlerTag):::(a1,handlerTag):::s0))
+                 s = (Vptr a2 0,handlerTag):::(Vptr a1 0,handlerTag):::s0 /\
+                 load a2 0 m = Some (Vint l2, handlerTag) /\
+                 load a1 0 m = Some (Vint l1, handlerTag) /\
+                 Mem.stamp a1 = Kernel /\
+                 Mem.stamp a2 = Kernel /\
+                 Q m ((Vint (l2+l1),handlerTag):::(Vptr a2 0,handlerTag):::(Vptr a1 0,handlerTag):::s0))
       Q.
 Proof.
   intros. unfold sum_array_lengths.
@@ -490,91 +534,127 @@ Definition concat_arrays :=      (* a2 a1 *)
 
 
 Lemma concat_arrays_spec_wp : forall (Q :memory -> stack -> Prop),
-  HT
+  HT cblock
    concat_arrays
    (fun m s => exists a2 a1 vs1 vs2 s0,
-                   s = (a2,handlerTag):::(a1,handlerTag):::s0 /\
-                   memarr m a1 vs1 /\ memarr m a2 vs2 /\
-                   (forall r m1,
-                      extends m m1 ->
-                      (* This is a bit silly. If we want the minimum condition that will
-                              make subsequent proofs go through, [~valid_address r m] will do.
-                              If we want a more "natural" condition, then should use
-                              [forall p, r <= p <= r+(length (vs1++vs2)) -> ~valid_address p m] *)
-                      (exists cnt,
-                         cnt >= 0 /\
-                         (forall p, r <= p <= r+cnt -> ~ valid_address p m)) ->
-                      memarr m1 r (vs1++vs2) ->
-                      Q m1 ((r,handlerTag):::s0)))
+                 s = (Vptr a2 0,handlerTag):::(Vptr a1 0,handlerTag):::s0 /\
+                 memarr m a1 vs1 /\ memarr m a2 vs2 /\
+                 Mem.stamp a1 = Kernel /\ Mem.stamp a2 = Kernel /\
+                 (forall r m1,
+                    extends m m1 ->
+                    memarr m1 r (vs1 ++ vs2) ->
+                    Mem.get_frame m r = None ->
+                    Mem.stamp r = Kernel ->
+                    Q m1 ((Vptr r 0,handlerTag):::s0)))
    Q.
 Proof.
   intros. unfold concat_arrays.
 
   build_vc ltac:(try apply copy_spec_wp; try apply alloc_array_spec_wp; try apply sum_array_lengths_spec_wp).
 
-  split_vc.
-  inv H; split_vc.
-  inv H0; split_vc.
-  split.  instantiate (1:= Z.of_nat (length x1)); omega.
-  split_vc.
-  split. intros. eapply extends_valid_address; eauto with zarith.
-  split. intros. eauto with zarith.
-  split. intros. intro; subst.  pose proof (memseq_valid _ _ _ H3). eapply H5. instantiate (1:= z2). omega.
-    eapply H10. omega.
-  split_vc.
-  split. erewrite H9. eapply H0. eauto. intro. eapply H5. instantiate (1:= x0). omega.
-    eapply index_list_Z_valid; eauto.
-  split_vc.
-  split. erewrite H9. eapply H0. eauto. intro. eapply H5.  instantiate (1:=x).  omega.
-    eapply index_list_Z_valid; eauto.
-  split_vc.
-  split.  instantiate (1:= Z.of_nat (length x2)). omega.
-  split_vc.
-  split. intros. assert (valid_address z m). apply (memseq_valid _ _ _ H4).  omega.
-    destruct (valid_read _ _ H11) as [v ?]. apply H0 in H12. erewrite <- H9 in H12. eapply index_list_Z_valid; eauto.
-    intro.  eapply (H5 z). omega. auto.
-  split. intros. assert (valid_address z m1). eapply H6. omega.
-    destruct (valid_read _ _ H11) as [v ?]. erewrite <- H9 in H12. eapply index_list_Z_valid; eauto. omega.
-  split. intros. intro; subst. eapply H5.  instantiate (1:= z2).  omega. apply (memseq_valid _ _ _ H4); eauto. omega.
-  split_vc.
-  eapply H1.
-  unfold extends. intros.
-  assert (valid_address p m).  eapply index_list_Z_valid; eauto.
-  apply H0 in H12.  erewrite <- H9 in H12. erewrite <- H11 in H12. auto.
-   intro. eapply H5; eauto; omega.
-   intro. eapply H5; eauto; omega.
-   { eexists; split; eauto.
-     omega. }
-  econstructor.
-  replace (Z.of_nat (length x2) + Z.of_nat (length x1)) with (Z.of_nat (length x2 + length x1)) in H7 by (zify;omega).
-  erewrite H11. rewrite H9.  eapply H7.  omega.  omega.
-  2: rewrite app_length; omega.
-  assert (forall z: Z, 0 < z <= (Z.of_nat(length x1)) -> read_m (a+z) m2 = read_m (x0+z) m).
-    intros. destruct (read_m (x0+z) m) eqn:E.
-    destruct a0 as (v0,l0).  rewrite H11. rewrite <- H8. rewrite H9. apply H0 in E. auto.
-    intro. eapply H5.  instantiate (1:= x0+z).  omega. eapply index_list_Z_valid; eauto.
-    auto.
-    intro. omega.
-    destruct (memseq_read _ _ _ H3 (x0+z)) as [v ?].  omega.
-    rewrite H13 in E; inv E.
-  assert (forall z:Z, 0 < z <= Z.of_nat(length x2) ->
-                      read_m (a + Z.of_nat(length x1) + z) m2 = read_m (x + z) m).
-    intros. destruct (read_m (x+z) m) eqn: E.
-    destruct a0 as (v0,l0).  replace (a + Z.of_nat (length x1) + z) with (Z.of_nat (length x1) + a + z) by omega.
-      rewrite <- H10. rewrite H11. rewrite H9. apply H0 in E. auto.
-    intro. eapply H5. instantiate (1:=x+z).  omega. eapply index_list_Z_valid; eauto.
-    intro. eapply H5. instantiate (1:=x+z).  omega.  eapply index_list_Z_valid; eauto.
-    auto.
-    destruct (memseq_read _ _ _ H4 (x+z)) as [v ?]. omega.
-    rewrite H14 in E; inv E.
-  apply memseq_app. split.
-  eapply memseq_eq. 2: eauto. intros. replace (a+1+z) with (a+(1+z)) by omega.
-    replace (x0+1+z) with (x0+(1+z)) by omega. rewrite H12. auto. omega.
-  eapply memseq_eq. 2: eauto. intros.
-    replace (a + 1 + Z.of_nat (length x1) + z) with (a+ Z.of_nat (length x1) + (1+z)) by omega.
-    replace (x+1+z) with (x+(1+z)) by omega. rewrite H13. auto. omega.
-Qed.
+  intros m s (a2 & a1 & vs1 & vs2 & s0 & ? & ARR1 & ARR2 & K1 & K2 & POST).
+  destruct ARR1. destruct ARR2.
+  split_vc'.
+  intros b m1 EXT VALID LOADSUM FRESH KERNEL.
+  assert (a1 <> b).
+  { intros contra. subst. unfold load in *.
+    rewrite FRESH in LOAD.
+    congruence. }
+  assert (a2 <> b).
+  { intros contra. subst. unfold load in *.
+    rewrite FRESH in LOAD0.
+    congruence. }
 
+  do 8 (try eexists); eauto.
+  eexists (Vint (Z.of_nat (length vs1)), handlerTag).
+  split_vc.
+  split; eauto using extends_load.
+  split_vc.
+  split; split_vc; try omega.
+  split.
+  { intros.
+    eapply extends_valid_address; eauto.
+    eapply memseq_valid; eauto.
+    omega. }
+  split.
+  { intros. apply VALID. omega. }
+  split; try congruence.
+  split; auto.
+  split_vc.
+  assert (LOADm0m1 : forall b' off,
+                       b' <> b ->
+                       load b' off m0 = load b' off m1).
+  { unfold load.
+    intros.
+    rewrite H3; trivial. }
+  split.
+  { assert (LOAD'' := LOAD).
+    eapply extends_load with (m3 := m1) in LOAD''; eauto.
+    cut (load a1 0 m0 = load a1 0 m1).
+    { intros E. rewrite E. eassumption. }
+    unfold load.
+    rewrite H3; trivial. }
+  split_vc.
+  split.
+  { assert (LOAD'' := LOAD0).
+    eapply extends_load with (m3 := m1) in LOAD''; eauto.
+    cut (load a2 0 m0 = load a2 0 m1).
+    { intros E. rewrite E. eassumption. }
+    unfold load.
+    rewrite H3; trivial. }
+  split_vc.
+  split; try (split; try solve [eauto]); try omega.
+  split.
+  { simpl. intros.
+    eapply memseq_valid with (z := z) in SEQ0; try omega.
+    exploit extends_valid_address; eauto.
+    unfold valid_address in *.
+    rewrite LOADm0m1; eauto. }
+  split.
+  { intros.
+    unfold valid_address in *.
+    rewrite H2; try omega.
+    apply VALID. omega. }
+  split_vc.
+  apply POST; trivial.
+  - intros b' fr' FRAME'.
+    rewrite H6; try congruence.
+    rewrite H3; try congruence.
+    eauto.
+  - econstructor; eauto.
+    + rewrite H5; try omega.
+      rewrite H2; try omega.
+      rewrite LOADSUM.
+      repeat f_equal.
+      rewrite app_length. zify. omega.
+    + rewrite memseq_app.
+      split.
+      * apply memseq_eq with (m1 := m) (b1 := a1) (a1 := 1); eauto.
+        intros.
+        rewrite H5; try omega.
+        rewrite <- H1; try omega.
+        rewrite LOADm0m1; try congruence.
+        assert (VALID' : valid_address a1 (1 + z) m).
+        { eapply memseq_valid; eauto. omega. }
+        destruct VALID' as [a VALID'].
+        rewrite VALID'.
+        symmetry.
+        eapply extends_load; eauto.
+      * apply memseq_eq with (m1 := m) (b1 := a2) (a1 := 1); eauto.
+        intros.
+        replace (1 + Z.of_nat (length vs1) + z) with (Z.of_nat (length vs1) + 0 + (1 + z)) by ring.
+        rewrite <- H4; try omega.
+        assert (LOADm2m0 : load a2 (1 + z) m2 = load a2 (1 + z) m0).
+        { unfold load. rewrite H6; trivial. }
+        rewrite LOADm2m0.
+        rewrite LOADm0m1; try congruence.
+        assert (VALID' : valid_address a2 (1 + z) m).
+        { eapply memseq_valid; eauto. omega. }
+        destruct VALID' as [a VALID'].
+        rewrite VALID'.
+        symmetry.
+        eapply extends_load with (m3 := m); eauto.
+Qed.
 
 (* Foldr over an array. *)
 

@@ -981,6 +981,42 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma alloc_spec_wp : forall Q : memory -> stack -> Prop,  (* the annotation on Q is crucial *)
+  HT [Alloc]
+     (fun m0 s0 => exists s t xv xl cnt,
+                     s0 = (Vint cnt,t) ::: (xv, xl) ::: s /\
+                     cnt >= 0 /\
+                     (forall b m,
+                        c_alloc Kernel cnt (xv,xl) m0 = Some (b, m) ->
+                        Q m ((Vptr b 0,handlerTag):::s)))
+     Q.
+Proof.
+  intros.
+  unfold CodeTriples.HT. intros.
+  destruct H0 as (s & t & xv & xl & cnt & ? & ? & ?).
+  subst.
+
+  assert (ALLOC : exists b m',
+                    c_alloc Kernel cnt (xv,xl) mem0 = Some (b, m')).
+  { unfold c_alloc, alloc, zreplicate.
+    destruct (Z_lt_dec cnt 0); try omega.
+    match goal with
+      | |- context [Some ?p = Some _] => destruct p
+    end.
+    eauto. }
+
+  destruct ALLOC as (b & m' & ALLOC).
+
+  repeat eexists; eauto.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_alloc_p; eauto.
+Qed.
+
 Lemma skipNZ_continuation_spec_NZ: forall c P v,
   v <> 0 ->
   HT   (skipNZ (length c) ++ c)
