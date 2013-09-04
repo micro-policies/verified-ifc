@@ -1179,46 +1179,96 @@ Proof.
 
   build_vc ltac:(try apply copy_spec_wp; try apply alloc_array_spec_wp). auto.
 
-  split_vc.
-  inv H.
-  Opaque Z.add. (* not sure why this is necessary this time *)
-  split_vc.
-  split.  instantiate (1:= Z.of_nat (length x0)); omega.
-  split_vc.
-  split. intros. eapply extends_valid_address; eauto. eapply memseq_valid; eauto. omega.
-  split. intros. eapply H4. omega.
-  split. intros.  intro. subst. eapply H3. instantiate (1:= z2).  omega.  eauto with zarith.
-  split_vc.
-  (* rather luckily, we stop here, which is the earliest point where we can assert the following *)
-  destruct (valid_store (1+Z.of_nat (length x0) + a) (x1,handlerTag) m0) as [m' W].
-    edestruct (valid_read (1+ Z.of_nat (length x0) + a)).  eapply H4.  omega.
-    eapply index_list_Z_valid; eauto.  rewrite H7; try omega.  eauto.
-  split. rewrite H7.  erewrite <- H. eauto. eauto.  intro.  eapply H3. instantiate (1:= x).  omega.
-     eapply index_list_Z_valid; eauto.
-  split_vc.
-  eapply H0.
-  unfold extends. intros.
-  erewrite <- update_list_Z_spec2.  2: eauto. erewrite H7. eapply H. eauto.
-    intro. eapply H3.  instantiate (1:= p). omega.  eapply index_list_Z_valid; eauto.
-    intro. subst. eapply H3. instantiate (1:= (1 + Z.of_nat (length x0) + a)). omega. eapply index_list_Z_valid; eauto.
-  eapply H3; omega.
-  econstructor.
-    3: rewrite app_length; simpl; eauto.
-    replace (Z.of_nat (S(length x0+0))) with (1 +Z.of_nat(length x0)) by (zify;omega).
-    erewrite <- update_list_Z_spec2. 2:eauto. rewrite H7. eauto.
-    intro. omega.
-    intro. omega.
-  assert (forall z, 0 < z <= (Z.of_nat(length x0)) -> read_m (a+z) m' = read_m (x+z) m).
-    intros.  erewrite <- update_list_Z_spec2. 2:eauto.
-        rewrite <- H6.  rewrite H7.
-        destruct (memseq_read _ _ _ H2 (x+z)).  omega. pose proof (H _ _ H9). rewrite H9. auto.
-        intro. eapply H3. instantiate (1:= x+z).  omega.  eapply memseq_valid. eauto. omega. omega.
-        intro. omega.
-  apply memseq_app; split.
-  eapply memseq_eq; intros. 2:eauto. replace (x+1+z) with (x+(1+z)) by omega.
-     replace (a+1+z) with (a+(1+z)) by omega. erewrite <- H8.  eauto. omega.
-  econstructor. 2: constructor.
-     apply update_list_Z_spec in W. unfold Atom in W. (* argh *) rewrite <- W.  f_equal. omega.
+  intros m ? (a & vs & x & s & ? & ARR & STAMPa & POST). subst.
+  destruct ARR. subst.
+  simpl.
+  eexists. split; eauto.
+  do 4 eexists.
+  do 3 (split; eauto).
+  do 4 eexists.
+  do 2 (split; try reflexivity).
+  do 2 eexists.
+  do 2 (split; try reflexivity; try omega).
+  intros b m' EXT VALID LOAD' FRESH STAMPb.
+  assert (NEQab : a <> b).
+  { intros contra. subst. unfold load in LOAD.
+    destruct (Mem.get_frame m b); congruence. }
+  eexists. split; try reflexivity.
+  assert (LOAD'' := extends_load _ _ _ _ _ EXT LOAD).
+  do 4 eexists.
+  do 3 (split; eauto).
+  do 6 eexists.
+  split.
+  2: split; eauto. omega.
+  split.
+  { intros.
+    eapply extends_valid_address; eauto.
+    eapply memseq_valid; eauto. omega. }
+  split.
+  { intros. apply VALID. omega. }
+  split; try congruence.
+  do 2 (split; auto).
+  intros m'' (COPY & EQLOAD & EQFRAME).
+  simpl in COPY.
+  assert (EQFRAME' : forall b' off, b' <> b -> load b' off m'' = load b' off m').
+  { unfold load.
+    intros.
+    rewrite EQFRAME; eauto. }
+  do 3 eexists.
+  split; eauto.
+  simpl.
+  eexists. split; eauto.
+  do 4 eexists. do 3 (split; eauto).
+  do 4 eexists.
+  do 3 (split; eauto).
+  { rewrite EQFRAME'; eauto. }
+  do 4 eexists. do 2 (split; try reflexivity).
+  do 4 eexists. do 2 (split; try reflexivity).
+  do 4 eexists. do 3 (split; eauto).
+  do 4 eexists. do 3 (split; eauto).
+  do 4 eexists. do 3 (split; eauto).
+  assert (STORE : valid_address b (1 + Z.of_nat (length vs) + 0) m'').
+  { unfold valid_address.
+    rewrite EQLOAD; try omega.
+    apply VALID. omega. }
+  eapply valid_store in STORE. destruct STORE as [m''' STORE].
+  do 6 eexists. split; [|split; eauto]; eauto.
+  split; eauto.
+  apply POST; eauto.
+  - intros b' fr' FRAME.
+    assert (b' <> b) by congruence.
+    erewrite (get_frame_store_neq _ _ _ _ _ _ _ _ STORE); eauto.
+    rewrite EQFRAME; eauto.
+  - econstructor; eauto.
+    + erewrite load_store_old; eauto.
+      * rewrite EQLOAD; try omega.
+        rewrite LOAD'.
+        repeat f_equal.
+        rewrite app_length.
+        simpl (length [x]).
+        zify. ring.
+      * intros contra.
+        assert (0 = 1 + Z.of_nat (length vs) + 0) by congruence.
+        omega.
+    + apply memseq_app with (vs1 := vs) (vs2 := [x]).
+      split.
+      * eapply memseq_eq with (m1 := m); eauto.
+        intros z RANGE.
+        { rewrite (load_store_old STORE); eauto.
+          - rewrite <- COPY; try omega.
+            rewrite EQFRAME'; try congruence.
+            unfold load in LOAD.
+            unfold load.
+            destruct (Mem.get_frame m a) as [fr|] eqn:FRAME; try congruence.
+            apply EXT in FRAME.
+            rewrite FRAME.
+            reflexivity.
+          - intros contra.
+            assert (1 + z = 1 + Z.of_nat (length vs) + 0) by congruence.
+            omega. }
+      * constructor; try solve [constructor].
+        replace (1 + Z.of_nat (length vs) + 0) with (1 + Z.of_nat (length vs)) in STORE by ring.
+        erewrite load_store_new; eauto.
 Qed.
 
 End with_hints.
