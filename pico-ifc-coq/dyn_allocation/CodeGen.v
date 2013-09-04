@@ -109,7 +109,7 @@ Definition none:   code := push 0.
 
 Definition sub: code := [Sub].
 
-Definition genEq := [Sub] ++ genNot.
+Definition genEq := [Eq].
 
 Definition genTestEqual (c1 c2: code): code :=
   c1 ++

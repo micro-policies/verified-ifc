@@ -1960,53 +1960,74 @@ Proof.
   simpl. cases b1; cases b2; iauto.
 Qed.
 
+Lemma genEq_spec: forall v1 t1 v2 t2 m0 s0,
+  HT genEq
+     (fun m s => m = m0 /\ s = (v1,t1):::(v2,t2):::s0)
+     (fun m s => m = m0 /\ s = (val_eq v1 v2,handlerTag):::s0).
+Proof.
+  intros. unfold genEq.
+  intros imem stk0 mem0 fh n n' CODE [? ?] Hn'. subst.
+  simpl in CODE. destruct CODE as [CODE _].
+
+  repeat eexists.
+
+  eapply rte_step; eauto.
+
+  eapply cstep_eq_p; eauto.
+Qed.
+
+Lemma genEq_spec_wp : forall Q : memory -> stack -> Prop,
+  HT genEq
+     (fun m s => exists v1 t1 v2 t2 m0 s0 ,
+                   m = m0 /\ (* tedious trick again *)
+                   s = (v1,t1):::(v2,t2):::s0 /\
+                   Q m0 ((val_eq v1 v2,handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  eapply HT_forall_exists. intro v1.
+  eapply HT_forall_exists. intro t1.
+  eapply HT_forall_exists. intro v2.
+  eapply HT_forall_exists. intro t2.
+  eapply HT_forall_exists. intro m0.
+  eapply HT_forall_exists. intro s0.
+  eapply HT_consequence'.
+  eapply genEq_spec; eauto.
+  intros. simpl. jauto.
+  intros. destruct H as [m' [s' [? [? ?]]]]. simpl in H0. destruct H0. subst.  auto.
+Qed.
+
 (* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
    to propositional equality. *)
 Lemma genTestEqual_spec: forall c1 c2, forall v1 v2, forall m0,
   (forall s0,
      HT c1
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (Vint v1,handlerTag) ::: s0)) ->
+        (fun m s => m = m0 /\ s = (v1,handlerTag) ::: s0)) ->
   (forall s0,
      HT c2
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (Vint v2,handlerTag) ::: s0)) ->
+        (fun m s => m = m0 /\ s = (v2,handlerTag) ::: s0)) ->
   (forall s0,
      HT (genTestEqual c1 c2)
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (Vint (boolToZ (v1 =? v2)),handlerTag) ::: s0)).
+        (fun m s => m = m0 /\ s = (val_eq v2 v1,handlerTag) ::: s0)).
 Proof.
   intros.
   unfold genTestEqual.
   eapply HT_compose; eauto.
   eapply HT_compose; eauto.
-  eapply HT_compose.
-  eapply sub_spec.
-  simpl; eauto.
-  eapply HT_weaken_conclusion.
-  eapply genNot_spec_general.
-
-  (*
-  Z.eqb_eq: forall n m : Z, (n =? m) = true <-> n = m
-  Z.eqb_neq: forall x y : Z, (x =? y) = false <-> x <> y
-  *)
-  Lemma basic_arithmetic:
-    forall v1 v2, (v2 - v1 =? 0) = (v1 =? v2).
-  Proof.
-    intuition; cases (v1 =? v2);
-    try (rewrite Z.eqb_eq in *); try (rewrite Z.eqb_neq in *); omega.
-  Qed.
-
-  rewrite basic_arithmetic in *; intuition.
+  eapply HT_strengthen_premise.
+  { eapply genEq_spec_wp. }
+  split_vc.
 Qed.
-
 
 Lemma genTestEqual_spec_I: forall c1 c2, forall v1 v2, forall m0,
   (forall I (Hext: extension_comp I),
      HT c1
         (fun m s => extends m0 m /\ I m s)
         (fun m s => match s with
-                        | (Vint z1,t):::tl =>
+                        | (z1,t):::tl =>
                           v1 = z1 /\ extends m0 m /\ I m tl
                         | _ => False
                     end)) ->
@@ -2014,7 +2035,7 @@ Lemma genTestEqual_spec_I: forall c1 c2, forall v1 v2, forall m0,
      HT c2
         (fun m s => extends m0 m /\ I m s)
         (fun m s => match s with
-                      | (Vint z2,t)::: tl =>
+                      | (z2,t)::: tl =>
                         extends m0 m /\ v2 = z2 /\ I m tl
                       | _ => False
                     end)) ->
@@ -2022,8 +2043,8 @@ Lemma genTestEqual_spec_I: forall c1 c2, forall v1 v2, forall m0,
      HT (genTestEqual c1 c2)
         (fun m s => extends m0 m /\ I m s)
         (fun m s => match s with
-                      | (Vint z,t)::: tl =>
-                        extends m0 m /\ boolToZ (v1 =? v2) = z /\
+                      | (z,t)::: tl =>
+                        extends m0 m /\ val_eq v2 v1 = z /\
                         I m tl
                       | _ => False
                     end)).
@@ -2036,25 +2057,19 @@ Proof.
   eapply HT_strengthen_premise.
   eapply H0 with
   (I:= fun m s =>  match s with
-                     | (Vint z1,t1):::tl =>
-                       z1 = v1 /\ I m tl /\ extends m0 m
+                     | (z1,t1):::tl =>
+                       z1 = v1 /\
+                       I m tl /\ extends m0 m
                      | _ => False
                    end).
   unfold extension_comp, extends.
   intros; intuition. go_match.
   go_match.
-  eapply HT_compose.
   eapply HT_strengthen_premise.
-  eapply sub_spec_I with (I:= fun m s => extends m0 m /\ I m s).
-  go_match. eexists (Vint (n - v1)). intuition eauto. reflexivity.
-  eapply HT_weaken_conclusion.
-  eapply HT_strengthen_premise.
-  eapply (genNot_spec_general_I (v2-v1)) with (I:= fun m s => extends m0 m /\ I m s).
+  { eapply genEq_spec_wp. }
+  intros.
   go_match.
-  go_match.
-  inv H2. eauto.
-  rewrite basic_arithmetic in *; intuition.
-  go_match.
+  split_vc.
 Qed.
 
 Lemma HT_compose_bwd:

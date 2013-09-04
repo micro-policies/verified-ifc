@@ -688,19 +688,26 @@ Proof.
   destruct initial_m0.
   inv Hhandler. intuition.
   unfold genCheckOp.
+  eapply HT_weaken_conclusion.
   eapply genTestEqual_spec_I; try assumption. intros I' HextI'.
-  eapply HT_strengthen_premise.
   eapply HT_weaken_conclusion.
   eapply (push_spec_I) with (I:= fun m s => extends m0 m /\ I' m s).
   go_match.
-  go_match. intuition.
   intros I' HextI'.
-  eapply HT_strengthen_premise.
-  eapply HT_weaken_conclusion.
+  eapply HT_consequence.
   eapply loadFromCache_spec_I with (v := Vint (opCodeToZ opcode)) (I:= fun m s => extends m0 m /\ I' m s); eauto.
-  eauto.
+  go_match. intuition eauto using extension_comp_value_on_cache.
+  go_match. intuition.
   go_match.
-  go_match; intuition eauto using extension_comp_value_on_cache.
+  simpl.
+  intuition.
+  destruct (EquivDec.equiv_dec (Vint (opCodeToZ opcode))
+                               (Vint (opCodeToZ opcode'))) as [E|E]; simpl in E.
+  - inv E.
+    rewrite Z.eqb_refl. reflexivity.
+  - assert (NEQ : opCodeToZ opcode' <> opCodeToZ opcode) by congruence.
+    rewrite <- Z.eqb_neq in NEQ.
+    rewrite NEQ. reflexivity.
 Qed.
 
 Lemma genCheckOp_spec_GT_ext:
