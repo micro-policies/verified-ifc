@@ -1654,311 +1654,11 @@ Definition genTrue_spec  := push_spec''.
 Definition genFalse_spec := push_spec''.
 
 Definition ZtoBool (z:Z) :=  negb (z =? 0).
-
-Lemma genAnd_spec: forall b1 b2, forall m0 s0,
-  HT genAnd
-     (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
-        [b1] is [true]. *)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
-                               CData (Vint (boolToZ b2),handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (andb b1 b2)),handlerTag) :: s0).
-Proof.
-  intros.
-  unfold genAnd.
-  destruct b1; eapply HT_strengthen_premise.
-    eapply ifNZ_spec_NZ with (v:=1).
-    apply nop_spec.
-    omega.
-    simpl; jauto.
-
-    eapply ifNZ_spec_Z with (v:=0).
-    eapply HT_compose.
-    eapply pop_spec.
-    eapply genFalse_spec.
-    reflexivity.
-    simpl; jauto.
-Qed.
-
-Lemma genAnd_spec_I: forall b1 b2, forall I,
-  HT genAnd
-     (fun m s =>
-        match s with
-          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
-            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
-            I m tl
-          | _ => False
-        end)
-     (fun m s =>
-        match s with
-          | CData (Vint z,t) :: tl =>
-            z = boolToZ (andb b1 b2) /\
-            I m tl
-          | _ => False
-        end).
-Proof.
-  intros.
-  unfold genAnd.
-  destruct b1; eapply HT_strengthen_premise.
-    eapply ifNZ_spec_NZ with (v:=1).
-    apply nop_spec_I.
-    omega.
-    simpl; jauto.
-    go_match.
-    eexists. eexists. split ; eauto. eauto. simpl. split; eauto.
-
-    eapply ifNZ_spec_Z with (v:=0).
-    eapply HT_compose.
-    eapply pop_spec_I.
-    unfold genFalse.
-    eapply HT_weaken_conclusion.
-    eapply push_spec_I with (I:= I). go_match.
-    reflexivity.
-    simpl; jauto.
-    go_match. substs.
-    subst.
-    eexists. eexists.
-     split ; eauto. simpl. intuition eauto.
-Qed.
-
-Definition andz (z1 z2 : Z) : Z :=
-  if ZtoBool z1 then z2 else 0.
-
-Lemma genAnd_spec_general : forall v1 v2, forall m0 s0,
-  HT genAnd
-     (fun m s => m = m0 /\ s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0)
-     (fun m s => m = m0 /\ s = (Vint (andz v1 v2),handlerTag):::s0).
-Proof.
-  intros.
-  unfold genAnd, andz.
-  destruct (ZtoBool v1) eqn:E; eapply HT_strengthen_premise.
-  - assert (v1 <> 0). { intro. subst. unfold ZtoBool in E. simpl in E. congruence. }
-    eapply ifNZ_spec_NZ with (v:=v1); eauto.
-    apply nop_spec.
-  - jauto.
-  - unfold ZtoBool in E. apply Bool.negb_false_iff in E.
-    apply Z.eqb_eq in E.
-    subst.
-    eapply ifNZ_spec_Z with (v:=0); auto.
-    eapply HT_compose.
-    eapply pop_spec.
-    eapply HT_weaken_conclusion.
-    eapply push_spec_I.
-    go_match.
-  - jauto.
-Qed.
-
-
-Lemma genAnd_spec_general_wp : forall (Q:memory -> stack -> Prop),
-  HT genAnd
-     (fun m s => exists v1 v2 s0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\
-                                  Q m ((Vint (andz v1 v2),handlerTag):::s0))
-     Q.
-Proof.
-  intros.
-  eapply HT_strengthen_premise with
-     (fun m s => exists v1 v2 s0 m0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\ m = m0 /\
-                                     Q m0 ((Vint (andz v1 v2),handlerTag):::s0)).
-  eapply HT_forall_exists.  intro v1.
-  eapply HT_forall_exists.  intro v2.
-  eapply HT_forall_exists.  intro s0.
-  eapply HT_forall_exists.  intro m1.
-  eapply HT_consequence'.
-  eapply genAnd_spec_general.
-  split_vc.
-  split_vc. subst. eauto.
-  split_vc.
-Qed.
-
-Lemma genOr_spec: forall b1 b2, forall m0 s0,
-  HT genOr
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
-                               CData (Vint (boolToZ b2),handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (orb b1 b2)),handlerTag) :: s0).
-Proof.
-  intros.
-  unfold genOr.
-  destruct b1; eapply HT_strengthen_premise.
-
-    eapply ifNZ_spec_NZ with (v:=1).
-    eapply HT_compose.
-    eapply pop_spec.
-    eapply genTrue_spec.
-    omega.
-    simpl; jauto.
-
-    eapply ifNZ_spec_Z with (v:=0).
-    apply nop_spec.
-    reflexivity.
-    simpl; jauto.
-Qed.
-
-Lemma genOr_spec_I: forall b1 b2, forall I,
-  HT genOr
-     (fun m s =>
-        match s with
-          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
-            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
-            I m tl
-          | _ => False
-        end)
-     (fun m s =>
-        match s with
-          | CData (Vint z,t) :: tl =>
-            z = boolToZ (orb b1 b2) /\
-            I m tl
-          | _ => False
-        end).
-Proof.
-  intros.
-  unfold genOr.
-  destruct b1; eapply HT_strengthen_premise.
-  eapply ifNZ_spec_NZ with (v:=1).
-  eapply HT_compose.
-  eapply pop_spec_I.
-  eapply HT_weaken_conclusion.
-  eapply push_spec_I with (I:= I). go_match.
-    omega.
-    simpl; jauto.
-    go_match. substs.
-    eexists. eexists.
-    split ; eauto. simpl. split; eauto.
-
-    eapply ifNZ_spec_Z with (v:=0).
-    apply nop_spec_I.
-    reflexivity.
-    simpl; jauto.
-    go_match. substs.
-    eexists. eexists. split ; eauto. simpl. split; eauto.
-Qed.
-
-Definition orz (z1 z2 : Z) : Z :=
-  if ZtoBool z1 then 1 else z2.
-
-Lemma genOr_spec_general : forall v1 v2, forall m0 s0,
-  HT genOr
-     (fun m s => m = m0 /\ s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0)
-     (fun m s => m = m0 /\ s = (Vint (orz v1 v2),handlerTag):::s0).
-Proof.
-  intros.
-  unfold genOr, orz.
-  destruct (ZtoBool v1) eqn:E; eapply HT_strengthen_premise.
-  - assert (v1 <> 0). { intro. subst. unfold ZtoBool in E. simpl in E. congruence. }
-    eapply ifNZ_spec_NZ with (v:=v1); eauto.
-    eapply HT_compose.
-    eapply pop_spec.
-    eapply HT_weaken_conclusion.
-    eapply push_spec_I.
-    go_match.
-  - jauto.
-  - unfold ZtoBool in E. apply Bool.negb_false_iff in E.
-    apply Z.eqb_eq in E.
-    subst.
-    eapply ifNZ_spec_Z with (v:=0); auto.
-    apply nop_spec.
-  - jauto.
-Qed.
-
-Lemma genOr_spec_general_wp : forall (Q:memory -> stack -> Prop),
-  HT genOr
-     (fun m s => exists v1 v2 s0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\
-                                  Q m ((Vint (orz v1 v2),handlerTag):::s0))
-     Q.
-Proof.
-  intros.
-  eapply HT_strengthen_premise with
-     (fun m s => exists v1 v2 s0 m0, s = (Vint v1,handlerTag):::(Vint v2,handlerTag):::s0 /\ m = m0 /\
-                                     Q m0 ((Vint (orz v1 v2),handlerTag):::s0)).
-  eapply HT_forall_exists.  intro v1.
-  eapply HT_forall_exists.  intro v2.
-  eapply HT_forall_exists.  intro s0.
-  eapply HT_forall_exists.  intro m1.
-  eapply HT_consequence'.
-  eapply genOr_spec_general.
-  split_vc.
-  split_vc. subst. eauto.
-  split_vc.
-Qed.
-
-Lemma genNot_spec_general: forall v, forall m0 s0,
-  HT genNot
-     (fun m s => m = m0 /\ s = CData (Vint v, handlerTag) :: s0)
-     (fun m s => m = m0 /\
-                 s = CData (Vint (boolToZ (v =? 0)),handlerTag) :: s0).
-Proof.
-  intros.
-  unfold genNot.
-  cases (v =? 0) as Heq.
-  - apply Z.eqb_eq in Heq.
-    eapply HT_strengthen_premise.
-    + eapply ifNZ_spec_Z.
-      * eapply genTrue_spec.
-      * eauto.
-    + jauto.
-  - apply Z.eqb_neq in Heq.
-    eapply HT_strengthen_premise.
-    + eapply ifNZ_spec_NZ.
-      * eapply genFalse_spec.
-      * eauto.
-    + jauto.
-Qed.
-
-Lemma genNot_spec_general_I: forall v, forall I,
-  HT genNot
-     (fun m s => match s with
-                   | (Vint z, t) ::: tl =>
-                     v = z /\ I m tl
-                   | _ => False
-                 end)
-     (fun m s => match s with
-                   | (Vint z,t) ::: tl =>
-                     boolToZ (v =? 0) = z /\ I m tl
-                   | _ => False
-                 end).
-Proof.
-  intros.
-  unfold genNot.
-  cases (v =? 0) as Heq.
-  - apply Z.eqb_eq in Heq.
-    eapply HT_strengthen_premise.
-    + eapply ifNZ_spec_Z.
-      * eapply HT_weaken_conclusion. eapply push_spec_I with (I:= I).
-        go_match.
-      * eauto.
-    + go_match.
-  - apply Z.eqb_neq in Heq.
-    eapply HT_strengthen_premise.
-    + eapply ifNZ_spec_NZ.
-      * eapply HT_weaken_conclusion. eapply push_spec_I with (I:= I).
-        go_match.
-      * eauto.
-    + go_match.
-Qed.
-
-Lemma genNot_spec: forall b, forall m0 s0,
-  HT genNot
-     (fun m s => m = m0 /\ s = (Vint (boolToZ b), handlerTag) ::: s0)
-     (fun m s => m = m0 /\ s = (Vint (boolToZ (negb b)), handlerTag) ::: s0).
-Proof.
-  intros.
-  eapply HT_weaken_conclusion.
-  - eapply genNot_spec_general.
-  - cases b; auto.
-Qed.
-
-Lemma genImpl_spec: forall b1 b2, forall m0 s0,
-  HT genImpl
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
-                               CData (Vint (boolToZ b2),handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (implb b1 b2)),handlerTag) :: s0).
-Proof.
-  intros.
-  eapply HT_weaken_conclusion.
-  unfold genImpl.
-  eapply HT_compose.
-  eapply genNot_spec.
-  eapply genOr_spec.
-  simpl. cases b1; cases b2; iauto.
-Qed.
+Definition valToBool (v : val) :=
+  match v with
+    | Vint 0 => false
+    | _ => true
+  end.
 
 Lemma genEq_spec: forall v1 t1 v2 t2 m0 s0,
   HT genEq
@@ -1995,6 +1695,377 @@ Proof.
   eapply genEq_spec; eauto.
   intros. simpl. jauto.
   intros. destruct H as [m' [s' [? [? ?]]]]. simpl in H0. destruct H0. subst.  auto.
+Qed.
+
+Lemma val_eq_int :
+  forall z1 z2,
+    val_eq (Vint z1) (Vint z2) = Vint (boolToZ (z1 =? z2)).
+Proof.
+  unfold val_eq.
+  intros.
+  destruct (equiv_dec (Vint z1) (Vint z2)) as [E | E].
+  - inv E. rewrite Z.eqb_refl. reflexivity.
+  - assert (E' : z1 <> z2) by congruence.
+    rewrite <- Z.eqb_neq in E'.
+    rewrite E'. reflexivity.
+Qed.
+
+(* Follow from a more general [push'_spec_wp]. *)
+Lemma genTrue_spec_wp: forall Q,
+  HT genTrue
+     (fun m s => Q m ((Vint 1,handlerTag):::s))
+     Q.
+Proof.
+  eapply push_spec.
+Qed.
+
+Lemma genFalse_spec_wp: forall Q,
+  HT genFalse
+     (fun m s => Q m ((Vint 0,handlerTag):::s))
+     Q.
+Proof.
+  eapply push_spec.
+Qed.
+
+Lemma nop_spec_wp: forall Q,
+  HT [Noop] Q Q.
+Proof.
+  unfold CodeTriples.HT; simpl; intros.
+  eexists; eexists; intuition eauto. subst.
+
+  (* Run an instruction *)
+  eapply rte_step; eauto.
+  eapply cstep_nop_p ; eauto.
+Qed.
+
+Lemma genAnd_spec: forall b1 b2, forall m0 s0,
+  HT genAnd
+     (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
+        [b1] is [true]. *)
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
+                               CData (Vint (boolToZ b2),handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (andb b1 b2)),handlerTag) :: s0).
+Proof.
+  intros.
+  unfold genAnd.
+  destruct b1; eapply HT_strengthen_premise.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_Z with (v:=0); eauto.
+    apply nop_spec.
+  - intros m s [H1 H2]. subst.
+    repeat (eexists; try split; eauto).
+    rewrite val_eq_int. reflexivity.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_NZ with (v:=1); try congruence.
+    eapply HT_compose; [eapply pop_spec_wp|].
+    eapply genFalse_spec.
+  - intros m s [H1 H2]. subst.
+    repeat (eexists; try split; eauto).
+    rewrite val_eq_int. reflexivity.
+Qed.
+
+Lemma genAnd_spec_I: forall b1 b2, forall I,
+  HT genAnd
+     (fun m s =>
+        match s with
+          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
+            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
+            I m tl
+          | _ => False
+        end)
+     (fun m s =>
+        match s with
+          | CData (Vint z,t) :: tl =>
+            z = boolToZ (andb b1 b2) /\
+            I m tl
+          | _ => False
+        end).
+Proof.
+  intros.
+  unfold genAnd.
+  destruct b1; eapply HT_strengthen_premise.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_Z with (v:=0); eauto.
+    apply nop_spec_wp.
+  - go_match.
+    repeat (eexists; try split; eauto).
+    + rewrite val_eq_int. reflexivity.
+    + simpl. eauto.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_NZ with (v:=1); try congruence.
+    eapply HT_compose; [eapply pop_spec_wp|].
+    eapply genFalse_spec_wp.
+  - go_match.
+    repeat (eexists; try split; eauto).
+    rewrite val_eq_int. reflexivity.
+Qed.
+
+Definition andv (v1 v2 : val) : val :=
+  if valToBool v1 then v2 else Vint 0.
+
+Lemma genAnd_spec_general : forall v1 v2, forall m0 s0,
+  HT genAnd
+     (fun m s => m = m0 /\ s = (v1,handlerTag):::(v2,handlerTag):::s0)
+     (fun m s => m = m0 /\ s = (andv v1 v2,handlerTag):::s0).
+Proof.
+  intros.
+  unfold genAnd, andv.
+  destruct (valToBool v1) eqn:E.
+  - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
+    eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply ifNZ_spec_Z with (v:=0); eauto.
+      apply nop_spec.
+    + intros m s [H1 H2]. subst.
+      do 6 eexists. do 2 (split; eauto).
+      do 2 eexists. split; repeat f_equal; eauto.
+      unfold val_eq.
+      destruct (equiv_dec (Vint 0) v1); congruence.
+  - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
+    eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply ifNZ_spec_NZ with (v:=1); try omega.
+      eapply HT_compose; try eapply pop_spec_wp.
+      eapply genFalse_spec_wp.
+    + intros m s [H1 H2]. subst.
+      do 6 eexists. do 2 (split; eauto).
+      do 2 eexists. rewrite val_eq_int. split; eauto.
+      do 3 eexists. repeat (split; eauto).
+Qed.
+
+Lemma genAnd_spec_general_wp : forall (Q:memory -> stack -> Prop),
+  HT genAnd
+     (fun m s => exists v1 v2 s0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\
+                                  Q m ((andv v1 v2,handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  eapply HT_strengthen_premise with
+     (fun m s => exists v1 v2 s0 m0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\ m = m0 /\
+                                     Q m0 ((andv v1 v2,handlerTag):::s0)).
+  eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro s0.
+  eapply HT_forall_exists.  intro m1.
+  eapply HT_consequence'.
+  eapply genAnd_spec_general.
+  split_vc.
+  split_vc. subst. eauto.
+  split_vc.
+Qed.
+
+Lemma genOr_spec: forall b1 b2, forall m0 s0,
+  HT genOr
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
+                               CData (Vint (boolToZ b2),handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (orb b1 b2)),handlerTag) :: s0).
+Proof.
+  intros.
+  unfold genOr.
+  destruct b1; eapply HT_strengthen_premise.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_Z with (v:=0); try omega.
+    eapply HT_compose; try eapply pop_spec_wp.
+    eapply genTrue_spec_wp.
+  - intros m s [H1 H2]. subst.
+    do 6 eexists. do 2 (split; eauto).
+    rewrite val_eq_int. simpl.
+    repeat (eexists; try split; eauto).
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_NZ with (v:=1); try congruence.
+    eapply nop_spec_wp.
+  - intros m s [H1 H2]. subst.
+    repeat (eexists; try split; eauto).
+    rewrite val_eq_int. reflexivity.
+Qed.
+
+Lemma genOr_spec_I: forall b1 b2, forall I,
+  HT genOr
+     (fun m s =>
+        match s with
+          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
+            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
+            I m tl
+          | _ => False
+        end)
+     (fun m s =>
+        match s with
+          | CData (Vint z,t) :: tl =>
+            z = boolToZ (orb b1 b2) /\
+            I m tl
+          | _ => False
+        end).
+Proof.
+  intros.
+  unfold genAnd.
+  destruct b1; eapply HT_strengthen_premise.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_Z with (v:=0); eauto.
+    eapply HT_compose; [eapply pop_spec_wp|].
+    eapply genTrue_spec_wp.
+  - go_match.
+    repeat (eexists; try split; eauto).
+    + rewrite val_eq_int. reflexivity.
+  - eapply HT_compose; [eapply push_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply ifNZ_spec_NZ with (v:=1); try congruence.
+    eapply nop_spec_wp.
+  - go_match.
+    repeat (eexists; try split; eauto).
+    + rewrite val_eq_int. reflexivity.
+    + simpl. eauto.
+Qed.
+
+Definition orv (v1 v2 : val) : val :=
+  if valToBool v1 then Vint 1 else v2.
+
+Lemma genOr_spec_general : forall v1 v2, forall m0 s0,
+  HT genOr
+     (fun m s => m = m0 /\ s = (v1,handlerTag):::(v2,handlerTag):::s0)
+     (fun m s => m = m0 /\ s = (orv v1 v2,handlerTag):::s0).
+Proof.
+  intros.
+  unfold genOr, orv.
+  destruct (valToBool v1) eqn:E.
+  - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
+    eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply ifNZ_spec_Z with (v:=0); eauto.
+      eapply HT_compose; try eapply pop_spec_wp.
+      eapply genTrue_spec_wp.
+    + intros m s [H1 H2]. subst.
+      do 6 eexists. do 2 (split; eauto).
+      do 2 eexists. split; repeat f_equal; eauto.
+      * unfold val_eq.
+        destruct (equiv_dec (Vint 0) v1); congruence.
+      * repeat (eexists; try split; eauto).
+  - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
+    eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply ifNZ_spec_NZ with (v:=1); try omega.
+      eapply nop_spec_wp.
+    + intros m s [H1 H2]. subst.
+      do 6 eexists. do 2 (split; eauto).
+      do 2 eexists. rewrite val_eq_int. split; eauto.
+Qed.
+
+Lemma genOr_spec_general_wp : forall (Q:memory -> stack -> Prop),
+  HT genOr
+     (fun m s => exists v1 v2 s0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\
+                                  Q m ((orv v1 v2,handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  eapply HT_strengthen_premise with
+     (fun m s => exists v1 v2 s0 m0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\ m = m0 /\
+                                     Q m0 ((orv v1 v2,handlerTag):::s0)).
+  eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro s0.
+  eapply HT_forall_exists.  intro m1.
+  eapply HT_consequence'.
+  eapply genOr_spec_general.
+  split_vc.
+  split_vc. subst. eauto.
+  split_vc.
+Qed.
+
+Lemma genNot_spec_general: forall v, forall m0 s0,
+  HT genNot
+     (fun m s => m = m0 /\ s = CData (Vint v, handlerTag) :: s0)
+     (fun m s => m = m0 /\
+                 s = CData (Vint (boolToZ (v =? 0)),handlerTag) :: s0).
+Proof.
+  intros.
+  unfold genNot.
+  cases (0 =? v) as Heq.
+  - apply Z.eqb_eq in Heq. subst.
+    eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply genEq_spec_wp.
+    + intros m s [H1 H2]. subst.
+      do 6 eexists.
+      repeat (split; eauto).
+      rewrite val_eq_int. reflexivity.
+  - eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply genEq_spec_wp.
+    + intros m s [H1 H2]. subst.
+      do 6 eexists.
+      repeat (split; eauto).
+      rewrite val_eq_int. rewrite Z.eqb_sym. reflexivity.
+Qed.
+
+Lemma genNot_spec_general_I: forall v, forall I,
+  HT genNot
+     (fun m s => match s with
+                   | (Vint z, t) ::: tl =>
+                     v = z /\ I m tl
+                   | _ => False
+                 end)
+     (fun m s => match s with
+                   | (Vint z,t) ::: tl =>
+                     boolToZ (v =? 0) = z /\ I m tl
+                   | _ => False
+                 end).
+Proof.
+  intros.
+  unfold genNot.
+  cases (0 =? v) as Heq.
+  - apply Z.eqb_eq in Heq. subst.
+    eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply genEq_spec_wp.
+    + go_match.
+      do 6 eexists.
+      repeat (split; eauto).
+      destruct (equiv_dec (Vint 0) (Vint 0)); congruence.
+  - eapply HT_strengthen_premise.
+    + eapply HT_compose; try eapply push_spec_wp.
+      eapply genEq_spec_wp.
+    + go_match.
+      do 6 eexists.
+      repeat (split; eauto).
+      destruct (equiv_dec (Vint 0) (Vint n)).
+      * assert (0 = n) by congruence. subst. simpl in *. congruence.
+      * rewrite Z.eqb_sym. rewrite Heq. reflexivity.
+Qed.
+
+Lemma genNot_spec: forall b, forall m0 s0,
+  HT genNot
+     (fun m s => m = m0 /\ s = (Vint (boolToZ b), handlerTag) ::: s0)
+     (fun m s => m = m0 /\ s = (Vint (boolToZ (negb b)), handlerTag) ::: s0).
+Proof.
+  intros.
+  eapply HT_weaken_conclusion.
+  - eapply genNot_spec_general.
+  - cases b; auto.
+Qed.
+
+Lemma genImpl_spec: forall b1 b2, forall m0 s0,
+  HT genImpl
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
+                               CData (Vint (boolToZ b2),handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (implb b1 b2)),handlerTag) :: s0).
+Proof.
+  intros.
+  eapply HT_weaken_conclusion.
+  unfold genImpl.
+  eapply HT_compose.
+  eapply genNot_spec.
+  eapply genOr_spec.
+  simpl. cases b1; cases b2; iauto.
 Qed.
 
 (* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
@@ -2140,34 +2211,6 @@ Proof.
   eauto.
 Qed.
 *)
-
-(* Follow from a more general [push'_spec_wp]. *)
-Lemma genTrue_spec_wp: forall Q,
-  HT genTrue
-     (fun m s => Q m ((Vint 1,handlerTag):::s))
-     Q.
-Proof.
-  eapply push_spec.
-Qed.
-
-Lemma genFalse_spec_wp: forall Q,
-  HT genFalse
-     (fun m s => Q m ((Vint 0,handlerTag):::s))
-     Q.
-Proof.
-  eapply push_spec.
-Qed.
-
-Lemma nop_spec_wp: forall Q,
-  HT [Noop] Q Q.
-Proof.
-  unfold CodeTriples.HT; simpl; intros.
-  eexists; eexists; intuition eauto. subst.
-
-  (* Run an instruction *)
-  eapply rte_step; eauto.
-  eapply cstep_nop_p ; eauto.
-Qed.
 
 
 (* ********* Specifications for loops **************** *)

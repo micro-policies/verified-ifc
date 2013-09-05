@@ -7,8 +7,8 @@ Import ListNotations.
 
 Require Import Instr.
 
-Local Open Scope Z_scope. 
-Set Implicit Arguments. 
+Local Open Scope Z_scope.
+Set Implicit Arguments.
 
 Section CodeGeneration.
 
@@ -35,8 +35,7 @@ Definition loadFromCache loc: code :=
 (* Skip the next [n] instructions conditionally *)
 Definition skipNZ (n : nat) : code :=
   (* Add 1 because [BranchNZ] counts from the *current* pc *)
-  (* Notation for lists and monads is conflicting ... *)
-  BranchNZ (Z_of_nat (S n)) :: nil.
+  [BranchNZ (Z_of_nat (S n))].
 
 (* Skip the next [n] instructions unconditionally *)
 Definition skip (n : nat) : code :=
@@ -80,8 +79,10 @@ Fixpoint cases (cbs : list (code * code)) (default: code) : code :=
 Definition indexed_cases {I} (cnil: code) (genC genB: I -> code) (indices: list I): code :=
   cases (map (fun i => (genC i, genB i)) indices) cnil.
 
+Definition genEq := [Eq].
+
 (* Operations on booleans.  Not all of these are currently used. *)
-(* Encoding of booleans: 0 = False, <> 0 = True *)
+(* Encoding of booleans: Vint 0 = False, <> Vint 0 = True *)
 
 Definition boolToZ (b: bool): Z  := if b then 1 else 0.
 
@@ -92,13 +93,13 @@ Definition genTrue :=
   push (boolToZ true).
 
 Definition genAnd :=
-  ifNZ nop (pop ++ genFalse).
+  push 0 ++ genEq ++ ifNZ (pop ++ genFalse) nop.
 
 Definition genOr :=
-  ifNZ (pop ++ genTrue) nop.
+  push 0 ++ genEq ++ ifNZ nop (pop ++ genTrue).
 
 Definition genNot :=
-  ifNZ genFalse genTrue.
+  push 0 ++ genEq.
 
 Definition genImpl :=
   (* [a -> b \equiv ~a \/ b] *)
@@ -109,8 +110,6 @@ Definition none:   code := push 0.
 
 Definition sub: code := [Sub].
 
-Definition genEq := [Eq].
-
 Definition genTestEqual (c1 c2: code): code :=
   c1 ++
   c2 ++
@@ -118,7 +117,7 @@ Definition genTestEqual (c1 c2: code): code :=
 
 Definition dup := [Dup 0].
 
-Definition swap := [Swap 1]. 
+Definition swap := [Swap 1].
 
 (* do c as along as top of stack is non-zero *)
 Definition loopNZ (c : code) : code :=
@@ -129,4 +128,4 @@ Definition genRepeat (c:code) :=
  dup ++ ifNZ (loopNZ (c ++ push (-1) ++ [Add])) nop.
 
 
-End CodeGeneration. 
+End CodeGeneration.
