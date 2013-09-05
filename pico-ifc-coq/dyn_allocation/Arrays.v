@@ -879,10 +879,14 @@ Definition exists_array gen_f :=  (* a S *)
                  )                (* v' _ _ _ S *)
 .
 
-Lemma boolToZ_existsb : forall f xs , boolToZ (existsb f xs) = fold_right (fun x v : Z => orz (boolToZ (f x)) v) 0 xs.
+Definition boolToVal (b : bool) : val := Vint (boolToZ b).
+
+Lemma boolToVal_existsb : forall f xs,
+                          boolToVal (existsb f xs) =
+                          fold_right (fun x v : val => orv (boolToVal (f x)) v) (Vint 0) xs.
 Proof.
   induction xs;  simpl; auto.
-  destruct (f a); unfold orz in *; simpl; auto.
+  destruct (f a); unfold orv in *; simpl; auto.
 Qed.
 
 Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
@@ -892,7 +896,7 @@ Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0
                    s = (x,handlerTag):::
                        (ign0,handlerTag):::(ign1,handlerTag):::(ign2,handlerTag):::(ign3,handlerTag):::s0 /\
                    m = m0 /\
-                   Q m ((Vint (boolToZ((f m0 s0) x)),handlerTag):::
+                   Q m ((boolToVal(f m0 s0 x),handlerTag):::
                         (ign0,handlerTag):::(ign1,handlerTag):::(ign2,handlerTag):::(ign3,handlerTag):::s0))
      Q) ->
   forall (Q: memory -> stack -> Prop),
@@ -902,32 +906,25 @@ Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0
                       Mem.stamp a = Kernel /\
                       s = (Vptr a 0,handlerTag):::s0 /\
                       m = m0 /\
-                      Q m ((Vint (boolToZ (existsb (f m s0) vs)),handlerTag):::s0))
+                      Q m ((boolToVal (existsb (f m s0) vs),handlerTag):::s0))
      Q.
 Proof.
-Admitted.
-(*
   intros.
   unfold exists_array.
   eapply HT_strengthen_premise.
   eapply fold_array_spec_wp with
-           (n:= fun _ _ => Vint (boolToZ false))
-           (f:= fun m0 s0 x v =>
-                  Vint match v with
-                         | Vint v => orz (boolToZ (f m0 s0 x)) v
-                         | _ => 0
-                       end); eauto.
-  intro. eapply HT_strengthen_premise. eapply genFalse_spec_wp.
-  split_vc.
-  intro.
-  eapply HT_compose_flip.
-  eapply genOr_spec_general_wp. eauto.
-  eapply HT_strengthen_premise.
-  eapply H.
-  split_vc. split; eauto.
-  split_vc. admit. rewrite boolToZ_existsb in H3.  auto.
+           (n:= fun _ _ => boolToVal false)
+           (f:= fun m0 s0 x v => orv (boolToVal (f m0 s0 x)) v); eauto.
+  - intro. eapply HT_strengthen_premise. eapply genFalse_spec_wp.
+    split_vc.
+  - intro.
+    eapply HT_compose_flip.
+    eapply genOr_spec_general_wp; eauto.
+    eapply HT_strengthen_premise.
+    eapply H.
+    split_vc.
+  - split_vc. rewrite boolToVal_existsb in H3.  auto.
 Qed.
-*)
 
 (* Forallb. *)
 
@@ -947,10 +944,11 @@ Definition forall_array gen_f :=  (* a S *)
                  )                (* v' _ _ _ S *)
 .
 
-Lemma boolToZ_forallb : forall f xs , boolToZ (forallb f xs) = fold_right (fun x v : Z => andz (boolToZ (f x)) v) 1 xs.
+Lemma boolToVal_forallb : forall f xs, boolToVal (forallb f xs) =
+                                       fold_right (fun x v : val => andv (boolToVal (f x)) v) (Vint 1) xs.
 Proof.
   induction xs;  simpl; auto.
-  destruct (f a); unfold andz in *; simpl; auto.
+  destruct (f a); unfold andv in *; simpl; auto.
 Qed.
 
 Lemma forall_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
@@ -960,7 +958,7 @@ Lemma forall_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0
                    s = (x,handlerTag):::
                        (ign0,handlerTag):::(ign1,handlerTag):::(ign2,handlerTag):::(ign3,handlerTag):::s0 /\
                    m = m0 /\
-                   Q m ((Vint (boolToZ((f m0 s0) x)),handlerTag):::
+                   Q m ((boolToVal(f m0 s0 x),handlerTag):::
                        (ign0,handlerTag):::(ign1,handlerTag):::(ign2,handlerTag):::(ign3,handlerTag):::s0))
      Q) ->
   forall (Q: memory -> stack -> Prop),
@@ -970,28 +968,23 @@ Lemma forall_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0
                       Mem.stamp a = Kernel /\
                       s = (Vptr a 0,handlerTag):::s0 /\
                       m = m0 /\
-                      Q m ((Vint (boolToZ (forallb (f m s0) vs)),handlerTag):::s0))
+                      Q m ((boolToVal (forallb (f m s0) vs),handlerTag):::s0))
      Q.
 Proof.
-Admitted.
-(*
   intros.
   unfold forall_array.
   eapply HT_strengthen_premise.
   eapply fold_array_spec_wp with
-           (n:= fun _ _ => boolToZ true)
-           (f:= fun m0 s0 x v => andz (boolToZ (f m0 s0 x)) v); eauto.
-  intro. eapply HT_strengthen_premise. eapply genTrue_spec_wp.
-  split_vc.
-  intro.
-  eapply HT_compose_flip.
-  eapply genAnd_spec_general_wp. eauto.
-  eapply HT_strengthen_premise.
-  eapply H.
-  split_vc.
-  split_vc. rewrite boolToZ_forallb in H3.  auto.
+           (n:= fun _ _ => boolToVal true)
+           (f:= fun m0 s0 x v => andv (boolToVal (f m0 s0 x)) v); eauto.
+  - intro. eapply HT_strengthen_premise; try eapply genTrue_spec_wp.
+    split_vc.
+  - intro.
+    eapply HT_compose_flip.
+    eapply genAnd_spec_general_wp; eauto.
+    eapply HT_strengthen_premise; solve [split_vc].
+  - split_vc. rewrite boolToVal_forallb in H3. auto.
 Qed.
-*)
 
 (* In_array *)
 
@@ -1016,23 +1009,21 @@ Lemma in_array_spec: forall a vs x s0 m0,
   HT cblock
     in_array
     (fun m s => s = (Vptr a 0,handlerTag):::(x,handlerTag):::s0 /\ Mem.stamp a = Kernel /\ m = m0)
-    (fun m s => s = (Vint (boolToZ(val_list_in_b x vs)),handlerTag):::s0 /\ m = m0)
+    (fun m s => s = (boolToVal(val_list_in_b x vs),handlerTag):::s0 /\ m = m0)
 .
 Proof.
   intros. unfold in_array.
   eapply HT_strengthen_premise.
-  eapply HT_compose_flip.
-  build_vc idtac.
-  eapply exists_array_spec_wp with (f := fun _ _ y => if EquivDec.equiv_dec x y then true else false)
-                                   (s0 := (x,handlerTag):::s0).
-  intros.
-  eapply HT_compose_flip.
-  eapply genEq_spec_wp. eauto.
-  eapply HT_strengthen_premise.
-  eapply dup_spec_wp.
-  split_vc.
-  - unfold val_eq.
-    destruct (EquivDec.equiv_dec x x0); eauto.
+  - eapply HT_compose_flip.
+    + build_vc idtac.
+    + eapply exists_array_spec_wp with (f := fun _ _ y => if EquivDec.equiv_dec x y then true else false)
+                                       (s0 := (x,handlerTag):::s0).
+      intros.
+      eapply HT_compose_flip; try eauto using genEq_spec_wp.
+      eapply HT_strengthen_premise; try eapply dup_spec_wp.
+      split_vc.
+      unfold val_eq.
+      destruct (EquivDec.equiv_dec x x0); assumption.
   - split_vc.
 Qed.
 
@@ -1044,7 +1035,7 @@ Lemma in_array_spec_wp : forall (Q: memory -> stack -> Prop),
                   s = (Vptr a 0,handlerTag):::(x,handlerTag):::s0 /\
                   Mem.stamp a = Kernel /\
                   m = m0 /\
-                  Q m0 ((Vint (boolToZ(val_list_in_b x vs)),handlerTag):::s0))
+                  Q m0 ((boolToVal(val_list_in_b x vs),handlerTag):::s0))
     Q.
 Proof.
   intros.
@@ -1082,27 +1073,23 @@ Definition val_list_subset_b (xs1 xs2:list val) : bool :=
 Lemma subset_arrays_spec : forall a1 a2 vs1 vs2 s0 m0,
   memarr m0 a1 vs1 ->
   memarr m0 a2 vs2 ->
+  Mem.stamp a1 = Kernel ->
+  Mem.stamp a2 = Kernel ->
   HT cblock subset_arrays
      (fun m s => s = (Vptr a1 0,handlerTag):::(Vptr a2 0,handlerTag):::s0 /\
-                 Mem.stamp a1 = Kernel /\ Mem.stamp a2 = Kernel /\ m = m0)
-     (fun m s => s = ((Vint (boolToZ (val_list_subset_b vs1 vs2)),handlerTag):::s0) /\ m = m0).
+                 m = m0)
+     (fun m s => s = ((boolToVal (val_list_subset_b vs1 vs2),handlerTag):::s0) /\ m = m0).
 Proof.
-Admitted.
-(*
   intros. unfold subset_arrays.
-  eapply HT_compose_flip.
-  build_vc idtac.
+  eapply HT_compose_flip; try solve [build_vc idtac].
   eapply HT_strengthen_premise.
-  eapply forall_array_spec_wp with (f := fun _ s0 y => val_list_in_b y vs2) (s0 := (Vptr a2 0,handlerTag):::s0).
-  intros.
-  eapply HT_compose_flip.
-  eapply in_array_spec_wp.
-  eapply HT_strengthen_premise.
-  eapply dup_spec_wp.
-  split_vc. clear H0.
-  split_vc.
+  - eapply forall_array_spec_wp with (f := fun _ s0 y => val_list_in_b y vs2) (s0 := (Vptr a2 0,handlerTag):::s0).
+    intros.
+    eapply HT_compose_flip; try eapply in_array_spec_wp.
+    eapply HT_strengthen_premise; try eapply dup_spec_wp.
+    split_vc.
+  - clear H0. split_vc.
 Qed.
-*)
 
 Lemma subset_arrays_spec_wp : forall (Q: memory -> stack -> Prop),
   HT cblock
@@ -1110,8 +1097,8 @@ Lemma subset_arrays_spec_wp : forall (Q: memory -> stack -> Prop),
     (fun m s => exists a1 a2 vs1 vs2 s0 m0,
                   memarr m0 a1 vs1 /\
                   memarr m0 a2 vs2 /\
-                  s = (Vptr a1 0,handlerTag):::(Vptr a2 0,handlerTag):::s0 /\
                   Mem.stamp a1 = Kernel /\ Mem.stamp a2 = Kernel /\
+                  s = (Vptr a1 0,handlerTag):::(Vptr a2 0,handlerTag):::s0 /\
                   m = m0 /\
                   Q m0 ((Vint (boolToZ(val_list_subset_b vs1 vs2)),handlerTag):::s0))
     Q.
@@ -1125,9 +1112,11 @@ Proof.
   eapply HT_forall_exists. intro m0.
   eapply HT_fold_constant_premise. intro.
   eapply HT_fold_constant_premise. intro.
+  eapply HT_fold_constant_premise. intro.
+  eapply HT_fold_constant_premise. intro.
   eapply HT_consequence'. eapply subset_arrays_spec with (a1:=a1) (a2:=a2); eauto.
   simpl. intros. intuition jauto.
-  simpl. intros. destruct H1 as [m' [s' [? [? ?]]]]. intuition. subst. auto.
+  simpl. intros. destruct H3 as [m' [s' [? [? ?]]]]. intuition. subst. auto.
 Qed.
 
 (* Extend array *)
