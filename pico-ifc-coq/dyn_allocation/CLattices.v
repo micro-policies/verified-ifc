@@ -78,7 +78,7 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
 ; genBot_spec: forall m0 (Hm0: mem_def_on_cache m0) (Q:memory->stack->Prop),
    HT cblock genBot
       (fun m s => extends m0 m /\
-                  (forall m1 z, extends m m1 -> labToVal bot z m1 -> Q m1 ((z,handlerTag):::s)))
+                  (forall m1 z t, extends m m1 -> labToVal bot z m1 -> Q m1 ((z,t):::s)))
       Q
 ; genJoin_spec:
     forall m0 (Hm0: mem_def_on_cache m0) (Q: memory-> stack->Prop),
@@ -88,8 +88,8 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
              s = (z, t) ::: (z', t') ::: s0 /\
              extends m0 m /\
              labToVal l z m /\ labToVal l' z' m /\
-             (forall m1 zz', extends m m1 -> labToVal (l \_/ l') zz' m1 ->
-                         Q m1 ((zz', handlerTag) ::: s0)))
+             (forall m1 zz' t, extends m m1 -> labToVal (l \_/ l') zz' m1 ->
+                         Q m1 ((zz', t) ::: s0)))
          Q
 
   (* NC: we could discharge this by implementing [genFlows] in terms of
@@ -101,7 +101,8 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
                             extends m0 m /\
                             labToVal l z m /\ labToVal l' z' m /\
                             s = (z,t):::(z',t'):::s0 /\
-                            Q m ((Vint (boolToZ(flows l l')),handlerTag):::s0))
+                            forall t'',
+                              Q m ((Vint (boolToZ(flows l l')),t''):::s0))
                        Q
 }.
 
@@ -119,7 +120,7 @@ Lemma genBot_spec': forall I m0 (Hm0: mem_def_on_cache m0)
                     (fun m s =>
                        match s with
                            | CData (z,t)::tl => extends m0 m /\
-                             I m tl /\ labToVal bot z m /\ t = handlerTag
+                             I m tl /\ labToVal bot z m
                            | _ => False
                        end).
 Proof.

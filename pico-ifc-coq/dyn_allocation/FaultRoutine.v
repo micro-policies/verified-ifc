@@ -367,7 +367,7 @@ Lemma genExpr_spec: forall (e: rule_expr n),
            (fun m s => extends m0 m /\ I m s)
            (fun m s => match s with
                          | (z, t) ::: tl => I m tl /\ labToVal l z m  /\
-                                                 extends m0 m /\ INIT_MEM m
+                                            extends m0 m /\ INIT_MEM m
                          | _ => False
                        end).
 Proof.

@@ -153,20 +153,22 @@ Qed.
 Lemma add_spec_wp' : forall Q,
   HT [Add]
      (fun m0 s0 =>
-        exists v1 v2 vr s,
-          s0 = (v1,handlerTag) ::: (v2,handlerTag) ::: s /\
+        exists v1 t1 v2 t2 vr s,
+          s0 = (v1,t1) ::: (v2,t2) ::: s /\
           add v1 v2 = Some vr /\
           Q m0 ((vr,handlerTag) ::: s))
      Q.
 Proof.
   intros.
   eapply HT_forall_exists. intros v1.
+  eapply HT_forall_exists. intros t1.
   eapply HT_forall_exists. intros v2.
+  eapply HT_forall_exists. intros t2.
   eapply HT_forall_exists. intros vr.
   eapply HT_forall_exists. intros s.
   apply HT_strengthen_premise with (fun m0 s0 =>
                                       add v1 v2 = Some vr /\
-                                      s0 = (v1, handlerTag) ::: (v2, handlerTag) ::: s /\
+                                      s0 = (v1, t1) ::: (v2, t2) ::: s /\
                                       Q m0 ((vr, handlerTag) ::: s)); try solve [split_vc].
   eapply HT_fold_constant_premise. intros H.
 
@@ -557,16 +559,16 @@ Proof.
   simpl. auto.
 Qed.
 
-Lemma load_spec_wp: forall b off x Q,
+Lemma load_spec_wp: forall b off t x Q,
   forall s,
   HT [Load]
-     (fun m s0 => s0 = (Vptr b off,handlerTag) ::: s /\
+     (fun m s0 => s0 = (Vptr b off,t) ::: s /\
                   Mem.stamp b = Kernel /\
                   load b off m = Some x /\
                   Q m (x ::: s))
      Q.
 Proof.
-  intros b off x Q s.
+  intros b off t x Q s.
   intros imem mem0 stk0 fh0 n n' Hcode HP' Hn'.
   eexists.
   eexists.
@@ -583,13 +585,14 @@ Qed.
 
 Lemma load_spec_wp': forall Q,
   HT [Load]
-     (fun m s0 => exists b off x s,
-                    s0 = (Vptr b off,handlerTag) ::: s /\
+     (fun m s0 => exists b off t x s,
+                    s0 = (Vptr b off,t) ::: s /\
                     Mem.stamp b = Kernel /\
                     load b off m = Some x /\
                     Q m (x ::: s))
      Q.
 Proof.
+  intros. eapply HT_forall_exists.
   intros. eapply HT_forall_exists.
   intros. eapply HT_forall_exists.
   intros. eapply HT_forall_exists.
@@ -1418,7 +1421,7 @@ Qed.
 Definition GT_push_v (c: code) (P: HProp) (v: HFun): Prop :=
   GT c P (fun m0 s0 m s => P m0 s0 /\
                            m = m0 /\
-                           s = CData (Vint (v m0 s0), handlerTag) :: s0).
+                           exists t, s = CData (Vint (v m0 s0), t) :: s0).
 Definition GT_guard_v (b: code) (P: HProp) (v: HFun) (Q: GProp): Prop :=
   GT b (fun m s => P m s /\ v m s <> 0) Q.
 
@@ -1439,9 +1442,9 @@ Proof.
   eapply HT_weaken_conclusion.
   exact Hcm0s0.
 
-  intuition.
+  intros m s (POST & ? & t & ?). subst.
   exists (vc m0 s0).
-  exists handlerTag.
+  exists t.
   exists s0.
   intuition; subst; auto.
 
@@ -1738,13 +1741,13 @@ Proof.
   eapply cstep_nop_p ; eauto.
 Qed.
 
-Lemma genAnd_spec: forall b1 b2, forall m0 s0,
+Lemma genAnd_spec: forall b1 t1 b2 t2, forall m0 s0,
   HT genAnd
      (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
         [b1] is [true]. *)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
-                               CData (Vint (boolToZ b2),handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (andb b1 b2)),handlerTag) :: s0).
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),t1) ::
+                               CData (Vint (boolToZ b2),t2) :: s0)
+     (fun m s => m = m0 /\ exists t, s = CData (Vint (boolToZ (andb b1 b2)),t) :: s0).
 Proof.
   intros.
   unfold genAnd.
@@ -1752,7 +1755,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec_wp|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
-    apply nop_spec.
+    apply nop_spec_wp.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
     rewrite val_eq_int. reflexivity.
@@ -1760,7 +1763,7 @@ Proof.
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply HT_compose; [eapply pop_spec_wp|].
-    eapply genFalse_spec.
+    eapply genFalse_spec_wp.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
     rewrite val_eq_int. reflexivity.
@@ -1807,10 +1810,10 @@ Qed.
 Definition andv (v1 v2 : val) : val :=
   if valToBool v1 then v2 else Vint 0.
 
-Lemma genAnd_spec_general : forall v1 v2, forall m0 s0,
+Lemma genAnd_spec_general : forall v1 t1 v2 t2, forall m0 s0,
   HT genAnd
-     (fun m s => m = m0 /\ s = (v1,handlerTag):::(v2,handlerTag):::s0)
-     (fun m s => m = m0 /\ s = (andv v1 v2,handlerTag):::s0).
+     (fun m s => m = m0 /\ s = (v1,t1):::(v2,t2):::s0)
+     (fun m s => m = m0 /\ exists t, s = (andv v1 v2,t):::s0).
 Proof.
   intros.
   unfold genAnd, andv.
@@ -1820,7 +1823,7 @@ Proof.
     + eapply HT_compose; try eapply push_spec_wp.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_Z with (v:=0); eauto.
-      apply nop_spec.
+      apply nop_spec_wp.
     + intros m s [H1 H2]. subst.
       do 6 eexists. do 2 (split; eauto).
       do 2 eexists. split; repeat f_equal; eauto.
@@ -1841,16 +1844,20 @@ Qed.
 
 Lemma genAnd_spec_general_wp : forall (Q:memory -> stack -> Prop),
   HT genAnd
-     (fun m s => exists v1 v2 s0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\
-                                  Q m ((andv v1 v2,handlerTag):::s0))
+     (fun m s => exists v1 t1 v2 t2 s0,
+                   s = (v1,t1):::(v2,t2):::s0 /\
+                   forall t, Q m ((andv v1 v2,t):::s0))
      Q.
 Proof.
   intros.
   eapply HT_strengthen_premise with
-     (fun m s => exists v1 v2 s0 m0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\ m = m0 /\
-                                     Q m0 ((andv v1 v2,handlerTag):::s0)).
+     (fun m s => exists v1 t1 v2 t2 s0 m0,
+                   s = (v1,t1):::(v2,t2):::s0 /\ m = m0 /\
+                   forall t, Q m0 ((andv v1 v2,t):::s0)).
   eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro t1.
   eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro t2.
   eapply HT_forall_exists.  intro s0.
   eapply HT_forall_exists.  intro m1.
   eapply HT_consequence'.
@@ -1860,11 +1867,11 @@ Proof.
   split_vc.
 Qed.
 
-Lemma genOr_spec: forall b1 b2, forall m0 s0,
+Lemma genOr_spec: forall b1 t1 b2 t2, forall m0 s0,
   HT genOr
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
-                               CData (Vint (boolToZ b2),handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (orb b1 b2)),handlerTag) :: s0).
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),t1) ::
+                               CData (Vint (boolToZ b2),t2) :: s0)
+     (fun m s => m = m0 /\ exists t, s = CData (Vint (boolToZ (orb b1 b2)),t) :: s0).
 Proof.
   intros.
   unfold genOr.
@@ -1928,10 +1935,10 @@ Qed.
 Definition orv (v1 v2 : val) : val :=
   if valToBool v1 then Vint 1 else v2.
 
-Lemma genOr_spec_general : forall v1 v2, forall m0 s0,
+Lemma genOr_spec_general : forall v1 t1 v2 t2, forall m0 s0,
   HT genOr
-     (fun m s => m = m0 /\ s = (v1,handlerTag):::(v2,handlerTag):::s0)
-     (fun m s => m = m0 /\ s = (orv v1 v2,handlerTag):::s0).
+     (fun m s => m = m0 /\ s = (v1,t1):::(v2,t2):::s0)
+     (fun m s => m = m0 /\ exists t, s = (orv v1 v2,t):::s0).
 Proof.
   intros.
   unfold genOr, orv.
@@ -1962,16 +1969,20 @@ Qed.
 
 Lemma genOr_spec_general_wp : forall (Q:memory -> stack -> Prop),
   HT genOr
-     (fun m s => exists v1 v2 s0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\
-                                  Q m ((orv v1 v2,handlerTag):::s0))
+     (fun m s => exists v1 t1 v2 t2 s0,
+                   s = (v1,t1):::(v2,t2):::s0 /\
+                   forall t, Q m ((orv v1 v2,t):::s0))
      Q.
 Proof.
   intros.
   eapply HT_strengthen_premise with
-     (fun m s => exists v1 v2 s0 m0, s = (v1,handlerTag):::(v2,handlerTag):::s0 /\ m = m0 /\
-                                     Q m0 ((orv v1 v2,handlerTag):::s0)).
+     (fun m s => exists v1 t1 v2 t2 s0 m0,
+                   s = (v1,t1):::(v2,t2):::s0 /\ m = m0 /\
+                   forall t, Q m0 ((orv v1 v2,t):::s0)).
   eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro t1.
   eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro t2.
   eapply HT_forall_exists.  intro s0.
   eapply HT_forall_exists.  intro m1.
   eapply HT_consequence'.
@@ -1981,9 +1992,9 @@ Proof.
   split_vc.
 Qed.
 
-Lemma genNot_spec_general: forall v, forall m0 s0,
+Lemma genNot_spec_general: forall v t, forall m0 s0,
   HT genNot
-     (fun m s => m = m0 /\ s = CData (Vint v, handlerTag) :: s0)
+     (fun m s => m = m0 /\ s = CData (Vint v, t) :: s0)
      (fun m s => m = m0 /\
                  s = CData (Vint (boolToZ (v =? 0)),handlerTag) :: s0).
 Proof.
@@ -2042,9 +2053,9 @@ Proof.
       * rewrite Z.eqb_sym. rewrite Heq. reflexivity.
 Qed.
 
-Lemma genNot_spec: forall b, forall m0 s0,
+Lemma genNot_spec: forall b t, forall m0 s0,
   HT genNot
-     (fun m s => m = m0 /\ s = (Vint (boolToZ b), handlerTag) ::: s0)
+     (fun m s => m = m0 /\ s = (Vint (boolToZ b), t) ::: s0)
      (fun m s => m = m0 /\ s = (Vint (boolToZ (negb b)), handlerTag) ::: s0).
 Proof.
   intros.
@@ -2053,11 +2064,11 @@ Proof.
   - cases b; auto.
 Qed.
 
-Lemma genImpl_spec: forall b1 b2, forall m0 s0,
+Lemma genImpl_spec: forall b1 t1 b2 t2, forall m0 s0,
   HT genImpl
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),handlerTag) ::
-                               CData (Vint (boolToZ b2),handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ (implb b1 b2)),handlerTag) :: s0).
+     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),t1) ::
+                               CData (Vint (boolToZ b2),t2) :: s0)
+     (fun m s => m = m0 /\ exists t, s = CData (Vint (boolToZ (implb b1 b2)),t) :: s0).
 Proof.
   intros.
   eapply HT_weaken_conclusion.
@@ -2068,17 +2079,18 @@ Proof.
   simpl. cases b1; cases b2; iauto.
 Qed.
 
+(*
 (* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
    to propositional equality. *)
 Lemma genTestEqual_spec: forall c1 c2, forall v1 v2, forall m0,
   (forall s0,
      HT c1
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (v1,handlerTag) ::: s0)) ->
+        (fun m s => m = m0 /\ exists t, s = (v1,t) ::: s0)) ->
   (forall s0,
      HT c2
         (fun m s => m = m0 /\ s = s0)
-        (fun m s => m = m0 /\ s = (v2,handlerTag) ::: s0)) ->
+        (fun m s => m = m0 /\ exists t, s = (v2,t) ::: s0)) ->
   (forall s0,
      HT (genTestEqual c1 c2)
         (fun m s => m = m0 /\ s = s0)
@@ -2087,11 +2099,14 @@ Proof.
   intros.
   unfold genTestEqual.
   eapply HT_compose; eauto.
-  eapply HT_compose; eauto.
+  eapply HT_compose.
+  { eapply HT_strengthen_premise.
+    2: intros m s [? [t ?]]. subst.
   eapply HT_strengthen_premise.
   { eapply genEq_spec_wp. }
   split_vc.
 Qed.
+*)
 
 Lemma genTestEqual_spec_I: forall c1 c2, forall v1 v2, forall m0,
   (forall I (Hext: extension_comp I),
@@ -2219,12 +2234,13 @@ Qed.
 Lemma loopNZ_spec'': forall c I,
 (forall n, (0 < n)%nat ->
   HT c
-     (fun m s => exists i s', s = CData (Vint i,handlerTag) :: s' /\ I m s /\ i = Z_of_nat n)
-     (fun m s => exists i' s', s = CData (Vint i',handlerTag) :: s' /\ I m (CData (Vint i',handlerTag) :: s') /\ i' = Z_of_nat (pred n))) ->
+     (fun m s => exists i t s', s = CData (Vint i,t) :: s' /\ I m s /\ i = Z_of_nat n)
+     (fun m s => exists i' t' s', s = CData (Vint i',t') :: s' /\ I m (CData (Vint i',t') :: s')
+                                  /\ i' = Z_of_nat (pred n))) ->
 (forall n, (0 < n)%nat ->
   HT (loopNZ c)
-     (fun m s => exists i s', s = CData (Vint i,handlerTag) :: s' /\ I m s /\ i = Z_of_nat n)
-     (fun m s => exists s', s = CData (Vint 0,handlerTag) :: s' /\ I m s)).
+     (fun m s => exists i t s', s = CData (Vint i,t) :: s' /\ I m s /\ i = Z_of_nat n)
+     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
 Proof.
   intros c I P.
   unfold loopNZ, dup.
@@ -2232,11 +2248,11 @@ Proof.
   induction n.
   intros.  inversion H.
   unfold CodeTriples.HT in *. intros.
-  destruct H1 as [i [s' [P1 [P2 P3]]]].
+  destruct H1 as [i [t [s' [P1 [P2 P3]]]]].
 
-  edestruct P as [stk1 [cache1 [[i' [s'' [Q1 [Q2 Q3]]]] Q4]]].
+  edestruct P as [stk1 [cache1 [[i' [t' [s'' [Q1 [Q2 Q3]]]]] Q4]]].
   eapply H. eapply code_at_compose_1; eauto.
-  eexists. eexists. split. eauto. eauto. eauto.
+  eexists. eexists. eexists. split. eauto. eauto. eauto.
   simpl in Q3. subst stk1.
   pose proof (code_at_compose_2 _ _ _ _ H0).
   pose proof (code_at_compose_1 _ _ _ _ H1).
@@ -2248,7 +2264,7 @@ Proof.
   destruct (i' =? 0) eqn:EQ.
   - (* no loop *)
     apply Z.eqb_eq in EQ. rewrite EQ in Q3. simpl in Q3. subst i'.
-    eexists. eexists. split. eexists. split. eauto. eauto.
+    eexists. eexists. split. eexists. eexists. split. eauto. eauto.
     eapply runsToEnd_trans.
     eapply Q4. clear Q4.
     eapply runsToEnd_trans.
@@ -2264,15 +2280,15 @@ Proof.
 
   - (* loop *)
   assert (i' <> 0) by (eapply Z.eqb_neq;  eauto). subst.
-  edestruct IHn as [stk3 [cache3 [[s''' [R1 R2]] R3]]].
+  edestruct IHn as [stk3 [cache3 [[s''' [R1 [R2 R3]]] R4]]].
   zify; omega.
   eauto.
-  eexists (Z_of_nat n).  eexists s''.  eauto. eauto.
-  eexists.  eexists. split. eexists. split. eauto. eauto.
+  eexists (Z_of_nat n).  eexists t'. eexists s''.  eauto. eauto.
+  eexists.  eexists. split. eexists. eexists. split. eauto. eauto.
   subst.
   eapply runsToEnd_trans.
   eapply Q4.  clear Q4.
-  repeat rewrite app_length in *. simpl in R3.
+  repeat rewrite app_length in *. simpl in R4.
   eapply runsToEnd_trans.
   eapply rte_step. eauto.
   eapply cstep_dup_p.  eauto. simpl. eauto.
@@ -2285,12 +2301,13 @@ Qed.
 Lemma loopNZ_spec': forall c I,
 (forall i, 0 < i ->
   HT c
-     (fun m s => exists s', s = CData (Vint i,handlerTag) :: s' /\ I m s)
-     (fun m s => exists i' s', s = CData (Vint i',handlerTag) :: s' /\ I m (CData (Vint i',handlerTag) :: s') /\ i' = Z.pred i)) ->
+     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
+     (fun m s => exists i' s' t', s = CData (Vint i',t') :: s' /\ I m (CData (Vint i',t') :: s') /\
+                                  i' = Z.pred i)) ->
 (forall i, 0 < i ->
   HT (loopNZ c)
-     (fun m s => exists s', s = CData (Vint i,handlerTag) :: s' /\ I m s)
-     (fun m s => exists s', s = CData (Vint 0,handlerTag) :: s' /\ I m s)).
+     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
+     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
 Proof.
   intros c I P.
   unfold loopNZ, dup.
@@ -2298,19 +2315,19 @@ Proof.
 
   set (Q := fun i => 0 < i ->
    HT (c ++ [Dup 0] ++ [BranchNZ (- Z.of_nat (length (c ++ [Dup 0])))])
-     (fun (m : memory) (s : stack) => exists s', s = (Vint i, handlerTag) ::: s' /\ I m s)
-     (fun (m : memory) (s : stack) => exists s', s = (Vint 0, handlerTag) ::: s' /\ I m s)).
+     (fun (m : memory) (s : stack) => exists s' t, s = (Vint i, t) ::: s' /\ I m s)
+     (fun (m : memory) (s : stack) => exists s' t, s = (Vint 0, t) ::: s' /\ I m s)).
   generalize dependent i.
   eapply (natlike_ind Q); unfold Q; clear Q.
   intros.  inversion H.
   unfold CodeTriples.HT in *. intros i E1 IH E2.
   intros.
-  destruct H0 as [s' [P1 P2]].
+  destruct H0 as [s' [t [P1 P2]]].
 
-  edestruct P as [stk1 [cache1 [[i' [s'' [Q1 [Q2 Q3]]]] Q4]]].
+  edestruct P as [stk1 [cache1 [[i' [s'' [t' [Q1 [Q2 Q3]]]]] Q4]]].
   eauto.
   eapply code_at_compose_1; eauto.
-  eexists. split. eauto. subst stk0.  eauto. eauto.
+  eexists. eexists. split. eauto. subst stk0.  eauto. eauto.
   assert (i' = i). zify; omega. rewrite H0 in Q3. try rewrite <- Q3 in *. subst i'. clear Q3.
   subst stk1.
   pose proof (code_at_compose_2 _ _ _ _ H).
@@ -2324,7 +2341,7 @@ Proof.
 
   - (* no loop *)
   apply Z.eqb_eq in EQ. (* rewrite EQ in Q3. simpl in Q3. *) subst i.
-  eexists. eexists. split. eexists. split. eauto. eauto.
+  eexists. eexists. split. eexists. eexists. split. eauto. eauto.
   eapply runsToEnd_trans.
   eapply Q4. clear Q4.
   eapply runsToEnd_trans.
@@ -2339,11 +2356,11 @@ Proof.
 
   - (* loop *)
   assert (i <> 0).  eapply Z.eqb_neq;  eauto.
-  edestruct IH as [stk3 [cache3 [[s''' [R1 R2]] R3]]].
+  edestruct IH as [stk3 [cache3 [[s''' [t'' [R1 R2]]] R3]]].
   zify; omega.
   eauto.
-  exists s''.  eauto. eauto.
-  eexists.  eexists. split. eexists. split. eauto. eauto.
+  exists s''.  eexists. eauto. eauto.
+  eexists.  eexists. split. eexists. eexists. split. eauto. eauto.
   eapply runsToEnd_trans.
   eapply Q4.  clear Q4.
   repeat rewrite app_length in *. simpl in R3.
@@ -2362,30 +2379,30 @@ Qed.
 Lemma loopNZ_spec: forall c I,
 (forall i, 0 < i ->
   HT c
-     (fun m s => exists s', s = CData (Vint i,handlerTag) :: s' /\ I m s)
-     (fun m s => exists i' s', s = CData (Vint i',handlerTag) :: s' /\ I m (CData (Vint i',handlerTag) :: s') /\ 0 <= i' < i)) ->
+     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
+     (fun m s => exists i' s' t, s = CData (Vint i',t) :: s' /\ I m (CData (Vint i',t) :: s') /\ 0 <= i' < i)) ->
 (forall i, 0 < i ->
   HT (loopNZ c)
-     (fun m s => exists s', s = CData (Vint i,handlerTag) :: s' /\ I m s)
-     (fun m s => exists s', s = CData (Vint 0,handlerTag) :: s' /\ I m s)).
+     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
+     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
 Proof.
   intros c I P.
   unfold loopNZ, dup.
   intros i H.  assert (0 <= i) by omega. generalize dependent H.
   set (Q := fun i => 0 < i ->
    HT (c ++ [Dup 0] ++ [BranchNZ (- Z.of_nat (length (c ++ [Dup 0])))])
-     (fun (m : memory) (s : stack) => exists s', s = (Vint i, handlerTag) ::: s' /\ I m s)
-     (fun (m : memory) (s : stack) => exists s', s = (Vint 0, handlerTag) ::: s' /\ I m s)).
+     (fun (m : memory) (s : stack) => exists s' t, s = (Vint i, t) ::: s' /\ I m s)
+     (fun (m : memory) (s : stack) => exists s' t, s = (Vint 0, t) ::: s' /\ I m s)).
   generalize dependent i.
   eapply (Zlt_0_ind Q); unfold Q; clear Q.
   intros i.
   unfold CodeTriples.HT in *. intros.
-  destruct H3 as [s' [P1 P2]].
+  destruct H3 as [s' [t' [P1 P2]]].
 
-  edestruct P as [stk1 [cache1 [[i' [s'' [Q1 [Q2 Q3]]]] Q4]]].
+  edestruct P as [stk1 [cache1 [[i' [s'' [t'' [Q1 [Q2 Q3]]]]] Q4]]].
   eauto.
   eapply code_at_compose_1; eauto.
-  eexists. split. eauto. subst stk0.  eauto. eauto.
+  eexists. eexists. split. eauto. subst stk0.  eauto. eauto.
   subst stk1.
   replace (@nil CEvent) with (@nil CEvent ++ @nil CEvent) by auto.
   pose proof (code_at_compose_2 _ _ _ _ H2).
@@ -2404,7 +2421,7 @@ Proof.
 
   - (* no loop *)
   apply Z.eqb_eq in EQ. subst i'.
-  eexists. eexists. split. eexists. split. eauto. eauto.
+  eexists. eexists. split. eexists. eexists. split. eauto. eauto.
   eapply runsToEnd_trans.
   eapply Q4. clear Q4.
 
@@ -2421,12 +2438,12 @@ Proof.
 
   - (* loop *)
   assert (i' <> 0).  eapply Z.eqb_neq;  eauto.
-  edestruct H as [stk3 [cache3 [[s''' [R1 R2]] R3]]].
+  edestruct H as [stk3 [cache3 [[s''' [t''' [R1 R2]]] R3]]].
   instantiate (1:= i').  omega.
   zify; omega.
   eauto.
   exists s''.  eauto. eauto.
-  eexists.  eexists. split. eexists. split. eauto. eauto.
+  eexists.  eexists. split. eexists. eexists. split. eauto. eauto.
   eapply runsToEnd_trans.
   eapply Q4.  clear Q4.
   repeat rewrite app_length in *. simpl in R3.
@@ -2445,33 +2462,33 @@ Qed.
 Lemma genRepeat_spec: forall c I,
   (forall i, 0 < i ->
   HT c
-     (fun m s => exists s', s = CData(Vint i,handlerTag)::s' /\ I m s)
-     (fun m s => exists s', s = CData(Vint i,handlerTag)::s' /\ I m (CData(Vint (Z.pred i),handlerTag)::s'))) ->
+     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
+     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ forall t', I m (CData(Vint (Z.pred i),t')::s'))) ->
   (forall i, 0 <= i ->
   HT (genRepeat c)
-     (fun m s => exists s', s = CData(Vint i,handlerTag)::s' /\ I m s)
-     (fun m s => exists s', s = CData(Vint 0,handlerTag)::s' /\ I m s)).
+     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
+     (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ I m s)).
 Proof.
   intros c I P.
   unfold genRepeat.
   intros i H.
-  eapply HT_compose with (Q:= (fun m s => exists s', s = (Vint i,handlerTag) ::: (Vint i,handlerTag) ::: s' /\ I m ((Vint i,handlerTag):::s'))).
+  eapply HT_compose with (Q:= (fun m s => exists s' t, s = (Vint i,t) ::: (Vint i,t) ::: s' /\ I m ((Vint i,t):::s'))).
   eapply HT_strengthen_premise.
   eapply dup_spec_wp.
-  intros m s [s' [H1 H2]].
+  intros m s [s' [t' [H1 H2]]].
   eexists. split.  simpl. rewrite H1; auto.
   subst s. eexists. intuition eauto.
   (* oh gee whiz. this is unbelievably painful. *)
-  set (Q := fun i m s' => exists s'', s' = (Vint i,handlerTag):::s'' /\ I m s' /\ i > 0).
-  set (Q0 := fun m s' => exists s'', s' = (Vint 0,handlerTag):::s'' /\ I m s').
-  eapply HT_strengthen_premise with (fun m s => exists s', s = (Vint i,handlerTag)::: s' /\
-                                           (i <> 0 -> Q i m s') /\
-                                           (i = 0 -> Q0 m s')).
-  eapply ifNZ_spec.
-  destruct (Z.eq_dec i 0). unfold CodeTriples.HT. intros. destruct H1 as [s'' [_ [_ CONTRA]]].  exfalso; omega.
+  set (Q := fun i m s' => exists i' t s'', s' = (Vint i,t):::s'' /\ I m s' /\ i > 0 /\ i' = i).
+  set (Q0 := fun m s' => exists s'' t, s' = (Vint 0,t):::s'' /\ I m s').
+  eapply HT_strengthen_premise with (fun m s => exists i' t s', s = (Vint i',t)::: s' /\
+                                           (i' <> 0 -> Q i m s') /\
+                                           (i' = 0 -> Q0 m s')).
+  eapply ifNZ_spec_existential with (Pt := Q i) (Pf := Q0).
+  destruct (Z.eq_dec i 0). unfold CodeTriples.HT. intros. destruct H1 as [i' [t [s'' [_ [_ [CONTRA _]]]]]].  exfalso; omega.
   eapply HT_strengthen_premise.
   eapply loopNZ_spec.
-  3: intros m s [s'' [P1 [P2 P3]]]; eexists; intuition eauto.
+  3: intros m s [i' [t [s'' [P1 [P2 P3]]]]]; eexists; intuition eauto.
   2: omega.
   intros.
   eapply HT_compose.
@@ -2481,44 +2498,43 @@ Proof.
 
   eapply HT_strengthen_premise.
   eapply add_spec_wp'.
-  simpl. intros m s [R1 [s' [R2 R3]]].
-  eexists (Vint (-1)). eexists (Vint i0). eexists (Vint (i0 - 1)). eexists.
+  simpl. intros m s [R1 [s' [t [R2 R3]]]].
+  eexists (Vint (-1)). eexists handlerTag. eexists (Vint i0). eexists t. eexists (Vint (i0 - 1)). eexists.
   repeat split.
   - destruct s. inv R1. inv R1. simpl in R2. subst s. split; eauto.
   - replace (i0 - 1) with ((-1) + i0) by omega. reflexivity.
-  - eexists. eexists. split. eauto.
+  - eexists. eexists. eexists. split. eauto.
     split; auto; omega.
   - eapply HT_strengthen_premise.
     + eapply nop_spec_wp.
-    + intros. destruct H0 as [s'' [P1 P2]]. eexists.  intuition eauto.
+    + intros. destruct H0 as [s'' [t [P1 P2]]]. eexists.  intuition eauto.
 
-  - intros m s [s' [P1 P2]]. eexists.
+  - intros m s [s' [t [P1 P2]]]. eexists. eexists. eexists.
     split; eauto.
     split.
-    + intros. unfold Q. eexists. split. eauto. split. eauto.  omega.
-    + intros. unfold Q0. eexists. split. eauto. subst i. eauto. eauto.
+    + intros. unfold Q. eexists. eexists. eexists. split. eauto. repeat split; eauto.  omega.
+    + intros. unfold Q0. eexists. eexists. split. eauto. subst i. eauto. eauto.
 Qed.
-
 
 Lemma genRepeat_spec': forall c I,
   (forall i, 0 < i ->
   HT c
-     (fun m s => exists s', s = CData(Vint i,handlerTag)::s' /\ I m s)
-     (fun m s => exists s', s = CData(Vint i,handlerTag)::s' /\ I m (CData(Vint (Z.pred i),handlerTag)::s'))) ->
+     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
+     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ forall t', I m (CData(Vint (Z.pred i),t')::s'))) ->
   HT (genRepeat c)
-     (fun m s => exists i s', 0 <= i /\ s = CData(Vint i,handlerTag)::s' /\ I m s)
-     (fun m s => exists s', s = CData(Vint 0,handlerTag)::s' /\ I m s).
+     (fun m s => exists i s' t, 0 <= i /\ s = CData(Vint i,t)::s' /\ I m s)
+     (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ I m s).
 Proof.
   intros c I P.
 
   eapply HT_forall_exists. intro i.
   eapply HT_forall_exists. intro s'.
+  eapply HT_forall_exists. intro t.
   eapply HT_fold_constant_premise. intro.
-  generalize s'.
-  eapply HT_exists_forall.
+  generalize t. eapply HT_exists_forall.
+  generalize s'. eapply HT_exists_forall.
   eapply genRepeat_spec; eauto.
 Qed.
-
 
 Lemma ret_specEscape: forall raddr (P: HProp),
   HTEscape raddr [Ret]
@@ -2589,9 +2605,9 @@ Lemma ifNZ_specEscape: forall r t f v Pt Pf Q,
   (v <> 0 -> HTEscape r t Pt Q) ->
   (v =  0 -> HTEscape r f Pf Q) ->
   HTEscape r (ifNZ t f)
-           (fun m s => exists s0, s = (Vint v, handlerTag) ::: s0 /\
-                                  (v <> 0 -> Pt m s0) /\
-                                  (v =  0 -> Pf m s0))
+           (fun m s => exists s0 t, s = (Vint v, t) ::: s0 /\
+                                    (v <> 0 -> Pt m s0) /\
+                                    (v =  0 -> Pf m s0))
            Q.
 Proof.
   intros.
