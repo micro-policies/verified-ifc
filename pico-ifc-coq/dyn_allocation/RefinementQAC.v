@@ -824,7 +824,7 @@ Proof.
           ltac:(complete_exploit add_defined);
 
   on_case ltac:(instr OpSub)
-          "Couldn't analyze Add"
+          "Couldn't analyze Sub"
           ltac:(complete_exploit (sub_defined unit privilege));
 
   on_case ltac:(instr OpAlloc)
