@@ -2064,6 +2064,29 @@ Proof.
   - cases b; auto.
 Qed.
 
+Lemma genNot_spec_wp : forall Q : HProp,
+  HT genNot
+     (fun m s => exists b t s0,
+                   s = (Vint (boolToZ b), t) ::: s0 /\
+                   forall t', Q m ((Vint (boolToZ (negb b)),t') ::: s0))
+     Q.
+Proof.
+  intros.
+  eapply HT_forall_exists. intros b.
+  eapply HT_forall_exists. intros t.
+  eapply HT_forall_exists. intros s0.
+  eapply HT_strengthen_premise with
+    (P := fun m s => exists m0, Q m0 ((Vint (boolToZ (negb b)),handlerTag) ::: s0) /\
+                                m = m0 /\
+                                s = (Vint (boolToZ b), t) ::: s0).
+  { eapply HT_forall_exists. intros m0.
+    eapply HT_fold_constant_premise. intros H.
+    eapply HT_weaken_conclusion; try eapply genNot_spec.
+    simpl. intros m s [H1 H2]. subst. assumption. }
+  intros m s [H1 H2]. subst.
+  repeat eexists; eauto.
+Qed.
+
 Lemma genImpl_spec: forall b1 t1 b2 t2, forall m0 s0,
   HT genImpl
      (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),t1) ::
