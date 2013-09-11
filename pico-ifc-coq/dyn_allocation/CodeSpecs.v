@@ -2627,8 +2627,35 @@ Definition extract_offset_body : code :=
   push 1 ++ (* 1 :: n :: (b,n) :: (b,off) :: s *)
   [Add]  ++ (* n+1 :: (b,n) :: (b,off) :: s *)
   swap   ++ (* (b,n) :: n+1 :: (b,off) :: s *)
-  push 1 ++ (* (b,n+1) :: n+1 :: (b,off) :: s *)
+  push 1 ++ (* 1 :: (b,n) :: n+1 :: (b,off) :: s *)
+  [Add]  ++ (* (b,n+1) :: n+1 :: (b,off) :: s *)
   swap.     (* n+1 :: (b,n+1) :: (b,off) :: s *)
+
+Lemma extract_offset_body_spec : forall Q : HProp,
+  HT extract_offset_body
+     (fun m s => exists n b off s0 t1 t2 t3,
+                   s = (Vint n,t1) ::: (Vptr b n,t2) ::: (Vptr b off,t3) ::: s0 /\
+                   forall t1' t2' t3',
+                     Q m ((Vint (n+1),t1') ::: (Vptr b (n+1),t2') ::: (Vptr b off,t3') ::: s0))
+     Q.
+Proof.
+  intros.
+  unfold extract_offset_body.
+  eapply HT_strengthen_premise.
+  eapply HT_compose; try apply push_spec_wp.
+  eapply HT_compose; try apply add_spec_wp'.
+  eapply HT_compose; try apply swap_spec_wp.
+  eapply HT_compose; try apply push_spec_wp.
+  eapply HT_compose; try apply add_spec_wp'.
+  apply swap_spec_wp.
+  intros m s (n & b & off & s0 & t1 & t2 & t3 & ? & POST).
+  subst.
+  Opaque Z.add.
+  repeat (eexists; simpl; eauto).
+  replace (1 + n) with (n + 1) by ring.
+  eapply POST.
+  Transparent Z.add.
+Qed.
 
 Definition extract_offset_loop : code :=
              (* n :: (b,n) :: (b,off) :: s *)
