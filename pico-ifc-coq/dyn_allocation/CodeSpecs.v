@@ -2622,4 +2622,33 @@ Proof.
   - jauto.
 Qed.
 
+Definition extract_offset_body : code :=
+            (* n :: (b,n) :: (b,off) :: s *)
+  push 1 ++ (* 1 :: n :: (b,n) :: (b,off) :: s *)
+  [Add]  ++ (* n+1 :: (b,n) :: (b,off) :: s *)
+  swap   ++ (* (b,n) :: n+1 :: (b,off) :: s *)
+  push 1 ++ (* (b,n+1) :: n+1 :: (b,off) :: s *)
+  swap.     (* n+1 :: (b,n+1) :: (b,off) :: s *)
+
+Definition extract_offset_loop : code :=
+             (* n :: (b,n) :: (b,off) :: s *)
+  [Dup 1] ++ (* (b,n) :: n :: (b,n) :: (b,off) :: s *)
+  [Dup 3] ++ (* (b,off) :: (b,n) :: n :: (b,n) :: (b,off) :: s *)
+  [Eq]    ++ (* n == off :: n :: (b,n) :: (b,off) :: s *)
+  [BranchNZ (Z.of_nat (length extract_offset_body + 2))] ++
+  extract_offset_body ++
+  push 1 ++
+  [BranchNZ (- Z.of_nat (4 + length extract_offset_body))] ++
+
+  (* off :: (b, off) :: (b, off) :: s *)
+  [Swap 2] ++ pop ++ pop.
+
+Definition extract_offset : code :=
+             (* (b,off) :: s *)
+  dup    ++  (* (b,off) :: (b,off) :: s *)
+  dup    ++  (* (b,off) :: (b,off) :: (b,off) :: s *)
+  sub    ++  (* (b,0) :: (b,off) :: s *)
+  push 0 ++  (* 0 :: (b,0) :: (b,off) :: s *)
+  extract_offset_loop.
+
 End CodeSpecs.
