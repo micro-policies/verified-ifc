@@ -2854,17 +2854,12 @@ Proof.
 Qed.
 
 Definition extract_offset_loop : code :=
-             (* n :: (b,n) :: (b,off) :: s *)
-  [Dup 1] ++ (* (b,n) :: n :: (b,n) :: (b,off) :: s *)
-  [Dup 3] ++ (* (b,off) :: (b,n) :: n :: (b,n) :: (b,off) :: s *)
-  [Eq]    ++ (* n == off :: n :: (b,n) :: (b,off) :: s *)
-  [BranchNZ (Z.of_nat (length extract_offset_body + 2))] ++
-  extract_offset_body ++
-  push 1 ++
-  [BranchNZ (- Z.of_nat (4 + length extract_offset_body))] ++
-
-  (* off :: (b, off) :: (b, off) :: s *)
-  [Swap 2] ++ pop ++ pop.
+  while (           (* n :: (b,n) :: (b,off) :: s *)
+         [Dup 2] ++ (* (b,off) :: n :: (b,n) :: (b,off) :: s *)
+         [Dup 2] ++ (* (b,n) :: (b,off) :: n :: (b,n) :: (b,off) :: s *)
+         [Eq]    ++ (* n == off :: n :: (b,n) :: (b,off) :: s *)
+         genNot     (* n != off :: n :: (b,n) :: (b,off) :: s *))
+        extract_offset_body   (* off :: (b, off) :: (b, off) :: s *).
 
 Definition extract_offset : code :=
              (* (b,off) :: s *)
@@ -2872,6 +2867,94 @@ Definition extract_offset : code :=
   dup    ++  (* (b,off) :: (b,off) :: (b,off) :: s *)
   sub    ++  (* (b,0) :: (b,off) :: s *)
   push 0 ++  (* 0 :: (b,0) :: (b,off) :: s *)
-  extract_offset_loop.
+  extract_offset_loop ++ (* off :: (b,off) :: (b,off) :: s *)
+  [Swap 2] ++ pop ++ pop.
+
+Lemma extract_offset_spec :
+  forall Q : HProp,
+    HT extract_offset
+       (fun m s =>
+          exists b off t s0,
+            off >= 0 /\
+            s = (Vptr b off, t) ::: s0 /\
+            forall t',
+              Q m ((Vint off, t') ::: s0))
+       Q.
+Proof.
+  unfold extract_offset.
+  intros.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply dup_spec_wp.
+    eapply HT_compose; try eapply dup_spec_wp.
+    eapply HT_compose; try eapply sub_spec_wp.
+    eapply HT_compose; try eapply push_spec_wp.
+    eapply HT_compose.
+    { unfold extract_offset_loop.
+      eapply while_spec with
+        (I := fun m s n =>
+                exists z b off s0 t1 t2 t3,
+                  z = off - Z.of_nat n /\
+                  s = (Vint z, t1) ::: (Vptr b z, t2) ::: (Vptr b off, t3) ::: s0 /\
+                  forall t', Q m ((Vint off, t') ::: s0))
+        (cond := fun m s =>
+                   match s with
+                     | _ ::: (v1, _) ::: (v2, _) ::: _ => if v1 == v2 then false else true
+                     | _ => false
+                   end).
+      - simpl.
+        intros m s (z & b & off & s0 & t1 & t2 & t3 & ? & ? & POST). subst.
+        replace (off - 0) with off by omega.
+        destruct (equiv_dec (Vptr b off) (Vptr b off)); congruence.
+      - clear.
+        intros Q'.
+        eapply HT_strengthen_premise.
+        { eapply HT_compose; try apply dup_spec_wp.
+          eapply HT_compose; try apply dup_spec_wp.
+          eapply HT_compose; try apply genEq_spec_wp.
+          eapply genNot_spec_wp. }
+        simpl.
+        intros m s (n & (z & b & off & s0 & t1 & t2 & t3 & H1 & H2 & H3) & POST). subst.
+        unfold val_eq.
+        eexists. split; eauto.
+        eexists. split; eauto.
+        do 6 eexists. repeat (split; eauto).
+        eexists (if equiv_dec (Vptr b (off - Z.of_nat n)) (Vptr b off) then true else false).
+        do 2 eexists.
+        match goal with
+          | |- context [equiv_dec ?v1 ?v2] =>
+            destruct (equiv_dec v1 v2)
+        end; eauto.
+      - intros n.
+        eapply HT_strengthen_premise.
+        { eapply extract_offset_body_spec. }
+        intros m s ((z & b & off & s0 & t1 & t2 & t3 & ? & ? & POST) & H). subst.
+        do 7 eexists. split; eauto.
+        intros.
+        do 7 eexists. split; eauto.
+        split; eauto.
+        replace (off - Z.of_nat (S n) + 1) with (off - Z.of_nat n); eauto.
+        zify. omega. }
+    eapply HT_strengthen_premise.
+    { eapply HT_compose; try eapply swap_spec_wp.
+      eapply HT_compose; eapply pop_spec_wp. }
+    intros m s (n & (z & b & off & s0 & t1 & t2 & t3 & ? & ? & POST) & COND). subst.
+    simpl.
+    do 4 eexists. repeat (split; eauto).
+    do 3 eexists. split; eauto.
+    do 3 eexists. split; eauto.
+    destruct (equiv_dec (Vptr b (off - Z.of_nat n)) (Vptr b off)) as [E | E]; try congruence.
+    assert (OFF : off - Z.of_nat n = off) by congruence. rewrite OFF. eauto. }
+  intros m s (b & off & t & s0 & POS & ? & POST). subst. simpl.
+  eexists. split; eauto.
+  eexists. split; eauto.
+  do 6 eexists. repeat (split; eauto).
+  { simpl.
+    destruct (equiv_dec b b); try congruence.
+    eauto. }
+  eexists (Z.to_nat off). do 7 eexists. split; eauto.
+  rewrite Z2Nat.id; try omega.
+  split; eauto.
+  replace (off - off) with 0 by ring. eauto.
+Qed.
 
 End CodeSpecs.
