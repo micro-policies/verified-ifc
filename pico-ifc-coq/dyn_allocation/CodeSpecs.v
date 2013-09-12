@@ -2680,6 +2680,144 @@ Proof.
   - jauto.
 Qed.
 
+Definition jump_back (c : code) :=
+  c ++ push 1 ++ [BranchNZ (- Z.of_nat (length c + 1))].
+
+Lemma jump_back_spec_wp :
+  forall (P Q R : HProp) (c : code)
+         (HTc : HT c P Q)
+         (HTj : HT (jump_back c) Q R),
+    HT (jump_back c) P R.
+Proof.
+  unfold jump_back.
+  intros.
+  unfold CodeTriples.HT.
+  intros imem s m fh n n' CODE PRE ?. subst.
+  assert (CODE1 : code_at n fh c) by eauto using code_at_compose_1.
+  assert (CODE2 : code_at (n + Z.of_nat (length c)) fh
+                          (push 1 ++ [BranchNZ (- Z.of_nat (length c + 1))]))
+    by eauto using code_at_compose_2.
+  specialize (HTc imem s m fh n _ CODE1 PRE eq_refl).
+  destruct HTc as (s' & m' & MID & RUN).
+  specialize (HTj imem s' m' fh _ _ CODE MID eq_refl).
+  destruct HTj as (s'' & m'' & POST & RUN').
+  eexists s'', m''. split; eauto.
+  eapply runsToEnd_trans; try apply RUN.
+  eapply runsToEnd_trans; try apply RUN'.
+  simpl in CODE2. destruct CODE2 as (H1 & H2 & _).
+  eapply rte_step; try reflexivity.
+  { eapply cstep_push_p. eassumption. }
+  eapply rte_step; try reflexivity.
+  { eapply cstep_branchnz_p'; eauto. }
+  simpl.
+  zify.
+  replace (n + Z.of_nat (length c) + 1 + - (Z.of_nat (length c) + 1)) with n by omega.
+  apply rte_refl.
+  reflexivity.
+Qed.
+
+Definition while_body (c b : code) :=
+  c ++ genNot ++ skipNZ (length b + 2) ++ b.
+
+Definition while (c b : code) : code :=
+  jump_back (while_body c b).
+
+Lemma while_spec_end :
+  forall (I : memory -> stack -> nat -> Prop)
+         (cond : memory -> stack -> bool)
+         (c b : code)
+         (HTc : forall Q : HProp,
+                  HT c
+                     (fun m s =>
+                        exists n,
+                          I m s n /\
+                          forall t, Q m ((Vint (boolToZ (cond m s)), t) ::: s))
+                     Q),
+    HT (while c b)
+       (fun m s => exists n, I m s n /\ cond m s = false)
+       (fun m s => exists n, I m s n /\ cond m s = false).
+Proof.
+  intros.
+  unfold while, jump_back, while_body.
+  repeat rewrite <- app_assoc.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply HTc.
+    eapply HT_compose; try eapply genNot_spec_wp.
+    match goal with
+      | |- context[BranchNZ ?z] =>
+        remember z
+    end.
+    match goal with
+      | |- context [skipNZ ?n ++ ?l] =>
+        replace n with (length l) by (repeat rewrite app_length; reflexivity)
+    end.
+    eapply skipNZ_continuation_spec_NZ.
+    instantiate (1 := 1). omega. }
+  simpl. intros m s (n & PRE & COND). rewrite COND.
+  repeat (eexists; eauto).
+Qed.
+
+Lemma while_body_spec_cont :
+  forall (I : memory -> stack -> nat -> Prop)
+         (cond : memory -> stack -> bool)
+         (c b : code) (n : nat)
+         (HTc : forall Q : HProp,
+                  HT c
+                     (fun m s =>
+                        exists n,
+                          I m s n /\
+                          forall t, Q m ((Vint (boolToZ (cond m s)), t) ::: s))
+                     Q)
+         (HTb : HT b
+                   (fun m s => I m s (S n) /\ cond m s = true)
+                   (fun m s => I m s n)),
+    HT (while_body c b)
+       (fun m s => I m s (S n) /\ cond m s = true)
+       (fun m s => I m s n).
+Proof.
+  intros.
+  unfold while_body.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply HTc.
+    eapply HT_compose; try eapply genNot_spec_wp.
+    eapply HT_compose; try eapply skipNZ_spec_Z; eauto. }
+  intros m s [INV TRUE]. rewrite TRUE.
+  repeat (eexists; eauto).
+Qed.
+
+Lemma while_spec :
+  forall (I : memory -> stack -> nat -> Prop)
+         (cond : memory -> stack -> bool)
+         (c b : code)
+         (END : forall m s, I m s 0%nat -> cond m s = false)
+         (HTc : forall Q : HProp,
+                  HT c
+                     (fun m s =>
+                        exists n,
+                          I m s n /\
+                          forall t, Q m ((Vint (boolToZ (cond m s)), t) ::: s))
+                     Q)
+         (HTb : forall n,
+                  HT b
+                     (fun m s => I m s (S n) /\ cond m s = true)
+                     (fun m s => I m s n)),
+    HT (while c b)
+       (fun m s => exists n, I m s n)
+       (fun m s => exists n, I m s n /\ cond m s = false).
+Proof.
+  intros.
+  eapply HT_forall_exists. intros n.
+  induction n as [|n IH].
+  - eapply HT_strengthen_premise; try eapply while_spec_end; eauto.
+    simpl. intuition eauto.
+  - apply HT_strengthen_premise with (P := fun m s => exists B, I m s (S n) /\ cond m s = B); eauto.
+    apply HT_forall_exists. intros [].
+    + eapply jump_back_spec_wp; eauto using while_body_spec_cont.
+    + eapply HT_strengthen_premise.
+      * eapply while_spec_end; eauto.
+      * simpl. eauto.
+Qed.
+
 Definition extract_offset_body : code :=
             (* n :: (b,n) :: (b,off) :: s *)
   push 1 ++ (* 1 :: n :: (b,n) :: (b,off) :: s *)
