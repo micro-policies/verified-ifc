@@ -247,6 +247,41 @@ Proof.
   simpl. auto.
 Qed.
 
+Lemma sub_spec_wp : forall Q,
+  HT [Sub]
+     (fun m0 s0 =>
+        exists v1 t1 v2 t2 vr s,
+          s0 = (v1,t1) ::: (v2,t2) ::: s /\
+          Memory.sub v1 v2 = Some vr /\
+          Q m0 ((vr,handlerTag) ::: s))
+     Q.
+Proof.
+  intros.
+  eapply HT_forall_exists. intros v1.
+  eapply HT_forall_exists. intros t1.
+  eapply HT_forall_exists. intros v2.
+  eapply HT_forall_exists. intros t2.
+  eapply HT_forall_exists. intros vr.
+  eapply HT_forall_exists. intros s.
+  apply HT_strengthen_premise with (fun m0 s0 =>
+                                      Memory.sub v1 v2 = Some vr /\
+                                      s0 = (v1, t1) ::: (v2, t2) ::: s /\
+                                      Q m0 ((vr, handlerTag) ::: s)); try solve [split_vc].
+  eapply HT_fold_constant_premise. intros H.
+
+  unfold CodeTriples.HT.
+  intros imem stk0 mem0 fh n n' Hcode (Hstk & H') Hn'.
+  subst.
+  eexists. eexists. split. eauto.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  eapply cstep_sub_p; eauto.
+Qed.
+
 Lemma dup_spec_wp: forall P n,
   HT   (Dup n :: nil)
        (fun m s => exists x, index_list n s = Some x /\ P m (x :: s))
