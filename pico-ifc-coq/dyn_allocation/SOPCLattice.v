@@ -26,8 +26,8 @@ Definition labToVal (l: Zset.t) (t: val privilege) (m: memory (val privilege) pr
     b <> cblock /\
     Mem.stamp b = Kernel /\
     t = Vptr b 0 /\
-    memarr m b c /\
-    (forall a, In (Vint a) c <-> Zset.In a l).
+    memarr m b (map Vint c) /\
+    (forall a, In a c <-> Zset.In a l).
 
 Lemma mem_eq_except_cache_memseq :
   forall m m' b z vs
@@ -150,7 +150,6 @@ Proof.
     inv H1; eauto.
 Qed.
 
-(* Check if this is needed *)
 Lemma memseq_get_frame :
   forall m b off vs fr
          (POS : off >= 0)
@@ -186,12 +185,14 @@ Qed.
 Lemma labToVal_inj_SOP : forall l1 l2 t m, labToVal l1 t m -> labToVal l2 t m -> l1 = l2.
 Proof.
   unfold labToVal.
-  intros l1 l2 t m (c1 & b & NEQ1 & KERNEL1 & E1 & ARR1 & H1)
-         (c2 & b' & _ & _ & E2 & ARR2 & H2).
+  intros l1 l2 t m
+         (c1 & b & NEQ1 & KERNEL1 & E1 & ARR1 & EQ1)
+         (c2 & b' & _ & _ & E2 & ARR2 & EQ2).
   assert (b' = b) by congruence. subst. clear E2.
   destruct ARR1 as [? t1 LOAD1 SEQ1 ?].
   destruct ARR2 as [? t2 LOAD2 SEQ2 ?]. subst.
-  assert (LENGTHS : Z.of_nat (length c1) = Z.of_nat (length c2)) by congruence.
+  assert (LENGTHS : Z.of_nat (length (map Vint c1 : list (val privilege))) =
+                    Z.of_nat (length (map Vint c2 : list (val privilege)))) by congruence.
   clear LOAD1 LOAD2.
   rewrite Nat2Z.inj_iff in LENGTHS.
 
@@ -200,12 +201,16 @@ Proof.
   - assert (INCL := memseq_incl _ _ _ _ _ SEQ1 LENGTHS SEQ2).
     unfold incl. intros.
     unfold Zset.In in *.
-    rewrite <- H2. rewrite <- H1 in H. eauto.
+    rewrite <- EQ2. rewrite <- EQ1 in H.
+    eapply in_map in H. apply INCL in H.
+    rewrite in_map_iff in H. destruct H as (? & ? & ?). congruence.
 
   - assert (INCL := memseq_incl _ _ _ _ _ SEQ2 (eq_sym LENGTHS) SEQ1).
     unfold incl. intros.
     unfold Zset.In in *.
-    rewrite <- H1. rewrite <- H2 in H. eauto.
+    rewrite <- EQ1. rewrite <- EQ2 in H.
+    eapply in_map in H. apply INCL in H.
+    rewrite in_map_iff in H. destruct H as (? & ? & ?). congruence.
 Qed.
 
 Lemma Zset_union_empty : forall S, Zset.union S Zset.empty = S.
@@ -286,14 +291,15 @@ Proof.
   destruct fr as [|len fr]; try solve [inv LOAD].
   unfold read_m in LOAD. simpl in LOAD. inv LOAD.
   rewrite Nat2Z.id.
-  change (take (length vs) fr)
-    with (take (length vs) (dropZ 1 ((Vint (Z.of_nat (length vs)), t) :: fr))).
+  change (take (length (map Vint vs : list (val privilege))) fr)
+    with (take (length (map Vint vs : list (val privilege)))
+               (dropZ 1 ((Vint (Z.of_nat (length (map Vint vs : list (val privilege)))), t) :: fr))).
   exploit memseq_get_frame; eauto; try omega.
   intros H.
   unfold Atom in H. (* Invisible, grr... *)
   rewrite <- H.
   clear - IN.
-  assert (IN' : forall a, (In (Vint a) vs \/ Zset.In a Zset.empty) <-> Zset.In a l).
+  assert (IN' : forall a, (In a vs \/ Zset.In a Zset.empty) <-> Zset.In a l).
   { intuition.
     - rewrite <- IN. eauto.
     - unfold Zset.In in *.
@@ -302,39 +308,14 @@ Proof.
     - left. rewrite IN. eauto. }
   clear IN. rename IN' into IN.
   gdep Zset.empty. gdep l.
-  induction vs as [|[p|b off] vs IH]; simpl; eauto.
+  induction vs as [|p vs IH]; simpl; eauto.
   - intros.
     apply Zset.antisym; rewrite Zset_incl_spec; intros p H; firstorder.
   - intros.
     apply IH. intros a.
     rewrite <- IN.
-    intuition; rewrite Zset.In_add in *; eauto.
-    + destruct H0; eauto. subst. eauto.
-    + right. left. congruence.
-  - intros.
-    apply IH.
-    intros a.
-    rewrite <- IN.
-    intuition.
-    congruence.
+    intuition; rewrite Zset.In_add in *; eauto; intuition.
 Qed.
-
-(*
-Lemma mem_def_on_cache_valid_address : forall m a,
-                                         mem_def_on_cache m ->
-                                         0 <= a <= 6 ->
-                                         valid_address a m.
-Proof.
-  intros.
-  intros. destruct H as [op [pctag [tag1 [tag2 [tag3 [tagr [tagrpc Hint]]]]]]].
-  intuition.
-  econstructor; eauto.
-  inv H8. unfold addrTagResPC in *.
-  eapply index_list_Z_valid in H7; eauto.
-  intuition.
-emseq; eauto.
-Qed.
-*)
 
 Lemma genBot_spec_SOP : forall m0 (Hm0: mem_def_on_cache cblock m0) (Q:HProp),
    HT cblock genBot
@@ -391,6 +372,7 @@ Proof.
   apply POST; eauto.
   eexists (c' ++ c), r.
   eapply extends_mem_def_on_cache in Hm0; eauto. destruct Hm0.
+  rewrite map_app.
   repeat (split; [solve [eauto | congruence]|]).
   intros a.
   rewrite in_app_iff, Zset.In_union, IN, IN'. intuition.
@@ -415,43 +397,34 @@ Proof.
     destruct (EquivDec.equiv_dec a x) in H2; try congruence.
 Qed.
 
-(*
-Lemma Zsetincl_val_list_subset : forall l l' x x' b,
-                                 forall (Hxl : forall a, In (a x <-> Zset.In a l)
+Lemma Zsetincl_val_list_subset : forall l l' x x',
+                                 forall (Hxl : forall a, In a x <-> Zset.In a l)
                                         (Hx'l' : forall a, In a x' <-> Zset.In a l'),
-                                   Zset.incl l l' = b <->
-                                   Z_list_subset_b x x' = b.
+                                   Zset.incl l l' =
+                                   val_list_subset_b (map Vint x) (map Vint x').
 Proof.
-  intros. split; intros.
-  - destruct b.
-    apply Zset.incl_spec in H.
-    eapply incl_Z_list_subset_b; eauto.
-    unfold incl, Zset.In in *. intros; eauto.
-    apply Hx'l'. apply H. apply Hxl. auto.
+  intros.
+  rewrite Bool.eq_iff_eq_true.
+  split; intros.
+  - apply Zset.incl_spec in H.
+    eapply incl_val_list_subset_b; eauto.
+    unfold incl, Zset.In in *.
+    intros a IN.
+    rewrite in_map_iff in *.
+    destruct IN as (i & ? & IN). subst.
+    eexists. split; eauto.
+    rewrite Hxl in IN.
+    rewrite Hx'l'. eauto.
 
-    cases (Z_list_subset_b x x'); auto.
-    eapply incl_Z_list_subset_b in Eq; eauto.
-    assert (Zset.incl l l' = true).
-    apply Zset.incl_spec.
-    unfold incl, Zset.In in *. intros; eauto.
-    apply Hx'l'. apply Eq. apply Hxl. auto.
-    congruence.
-
-  - destruct b.
-    apply Zset.incl_spec.
-    eapply incl_Z_list_subset_b in H; eauto.
-    unfold incl; intros.  eapply Hx'l'. eapply H. eapply Hxl; auto.
-
-    cases (Zset.incl l l'); auto.
-    eapply Zset.incl_spec in Eq.
-    unfold incl in Eq.
-    assert (Z_list_subset_b x x' = true).
-    eapply incl_Z_list_subset_b.
-    unfold incl, Zset.In in *. intros.
-    apply Hx'l'. apply Eq. apply Hxl. auto.
-    congruence.
+  - apply Zset.incl_spec.
+    intros a IN.
+    unfold Zset.In in *.
+    eapply Hx'l'.
+    rewrite <- Hxl in IN.
+    apply incl_val_list_subset_b in H.
+    eapply in_map in IN. apply H in IN.
+    rewrite in_map_iff in IN. destruct IN. intuition congruence.
 Qed.
-*)
 
 Lemma genFlows_spec_SOP: forall m0 (Hm0: mem_def_on_cache cblock m0) (Q: HProp),
                    HT cblock genFlows
@@ -471,135 +444,10 @@ Proof.
   intros m s (l & l' & z & z' & t & t' & s0 & EXT & Hl & Hl' & ? & POST). subst.
   destruct Hl as (c & b & Nb & Kb & ? & ARR & IN).
   destruct Hl' as (c' & b' & Nb' & Kb' & ? & ARR' & IN'). subst.
-  eexists b, b', c, c'. do 4 eexists; repeat split; eauto.
-  (* One invariant is missing: that the array contains only integers *)
-  admit.
+  eexists b, b', (map Vint c), (map Vint c'). do 4 eexists; repeat split; eauto.
+  intros t''.
+  erewrite <- Zsetincl_val_list_subset; eauto.
 Qed.
-
-(*
-Definition joinPbody :=      (* a p *)
-     [Unpack]                (* at ax p *)
-  ++ [Swap 2]                (* p ax at *)
-  ++ [Unpack]                (* pt px ax at *)
-  ++ [Swap 1]                (* px pt ax at *)
-  ++ [Swap 3]                (* at pt ax px *)
-  ++ concat_arrays           (* apt ax px *)
-  ++ [Swap 1]                (* ax apt px *)
-  ++ [Swap 2]                (* px apt ax *)
-  ++ [Swap 1]                (* apt px ax *)
-  ++ extend_array            (* at' ax *)
-  ++ [Pack]                  (* a' *)
-.
-
-Section with_hints.
-
-
-Hint Resolve extends_refl.
-Hint Resolve extends_trans.
-Hint Resolve extends_valid_address.
-
-Ltac build_vc wptac :=
-  let awp := (try apply_wp; try wptac) in
-  try (eapply HT_compose_flip; [(build_vc wptac; awp)| (awp; eapply HT_strengthen_premise; awp)]).
-
-Lemma joinPbody_spec_wp : forall (Q : memory -> stack -> Prop),
-  HT SysTable
-   joinPbody
-   (fun m s => exists b t vs x xt vs' s0,
-                 s = (b,t):::(x,xt):::s0 /\
-                 memarr m t vs /\
-                 memarr m xt vs' /\
-                 (forall r m1,
-                    extends m m1 ->
-                    ~ valid_address r m ->
-                    memarr m1 r ((vs'++vs)++[x]) ->
-                    Q m1 ((b,r):::s0)))
-   Q.
-Proof.
-  intros. unfold joinPbody.
-
-  build_vc ltac:(try apply concat_arrays_spec_wp; try apply extend_array_spec_wp;
-                 try apply unpack_spec_wp; try apply pack_spec_wp).
-  split_vc.
-  eapply H2; eauto.
-Qed.
-
-End with_hints.
-
-Definition joinPcode :=
-     joinPbody ++ [VRet]
-.
-
-Lemma joinPcode_spec : forall raddr b t vs x xt vs' s0 m0,
-  memarr m0 t vs ->
-  memarr m0 xt vs' ->
-  HTEscape SysTable raddr
-    joinPcode
-    (fun m s => s = (b,t):::(x,xt)::: CRet raddr true false :: s0 /\ m = m0)
-    (fun m s => (exists t', s = (b,t'):::s0 /\ memarr m t' ((vs'++vs)++[x]) /\ ~ valid_address t' m0 /\ extends m0 m,
-                 Success)).
-Proof.
-  intros.
-  eapply HTEscape_compose_flip.
-  eapply vret_specEscape.
-  eapply HT_strengthen_premise.
-  eapply joinPbody_spec_wp.
-  split_vc. subst.
-  split.  eauto.
-  split_vc.
-  split. econstructor.
-  split. eauto.
-  split_vc.
-Qed.
-
-Lemma joinPcode_spec' : forall raddr b t l x xt l' s0 m0
-  (Hm0: mem_def_on_cache m0),
-  labToZ l t m0 ->
-  labToZ l' xt m0 ->
-  HTEscape SysTable raddr
-    joinPcode
-    (fun m s => s = (b,t):::(x,xt)::: CRet raddr true false :: s0 /\ m = m0)
-    (fun m s => (exists t', s = (b,t'):::s0 /\ labToZ (Zset.add x (Zset.union l l')) t' m /\ extends m0 m,
-                 Success)).
-Proof.
-  intros.
-  unfold labToZ in H, H0.
-  destruct H as [c1 [P1 [P2 P3]]].
-  destruct H0 as [c2 [Q1 [Q2 Q3]]].
-  eapply HTEscape_strengthen_premise.
-  eapply HTEscape_weaken_conclusion.
-  eapply joinPcode_spec.
-  eapply P1.
-  eapply Q1.
-  simpl.  instantiate (1:= x). intros. destruct H as [t' [? [? ?]]]. eexists; intuition eauto.
-  unfold labToZ. eexists. split; eauto. split; eauto. intros.
-  rewrite Zset.In_add. rewrite Zset.In_union.
-  rewrite in_app_iff. rewrite in_app_iff. rewrite P2. rewrite Q2.
-  intuition. inv H6. intuition. inv H5. subst. right. intuition.
-  intro. destruct (Z_gt_dec t' 6). auto. exfalso. apply H2.
-  eapply mem_def_on_cache_valid_address; eauto. inv H0. apply index_list_Z_valid in H6. omega.
-  eauto.
-  eauto.
-Qed.
-
-End syscall.
-
-Definition SOPSysTable (fh: list Instr) (id:ident) : option syscall_info :=
-  match id with
-    | 0%nat => Some (Build_syscall_info _
-                       2%nat
-                       (fun s:list (@Atom Zset.t) =>
-                          match s with
-                            | (v,l2) :: (i,l1) :: nil =>
-                              Some (v,Zset.add i (Zset.union l1 l2))
-                            | _ => None
-                          end)
-                       (Z.of_nat (length fh))
-                       joinPcode
-                    )
-    | _ => None
-  end.
-*)
 
 Global Instance SOPwf (fh: list Instr) : WfConcreteLattice cblock Zset.t ZsetLat SOPClatt :=
 { labToVal_cache := labToVal_cache_SOP

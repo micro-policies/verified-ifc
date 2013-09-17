@@ -14,7 +14,7 @@ TMU_ANI := TINI Refinement
 
 TEMP := CLattices Concrete ConcreteMachine CodeGen \
         Determinism ConcreteExecutions CodeSpecs \
-	FaultRoutine NIConcreteMachine Arrays
+	FaultRoutine NIConcreteMachine Arrays SOPCLattice
 
 ARR := CodeTriples
 
