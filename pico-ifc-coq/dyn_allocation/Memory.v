@@ -393,6 +393,8 @@ Definition sub {S} {EqS:EqDec S eq} (v1 v2:val S) : option (val S) :=
     | Vint i1, Vint i2 => Some (Vint (i1-i2))
     | Vptr b i1, Vint i2 => Some (Vptr b (i1-i2))
     | Vptr b1 i1, Vptr b2 i2 =>
+      (* CH: returning the offset difference as an integer would be much
+             more natural and useful than returning another pointer *)
       if b1 == b2 then Some (Vptr b1 (i1-i2)) else None
     | _, _ => None 
   end.
