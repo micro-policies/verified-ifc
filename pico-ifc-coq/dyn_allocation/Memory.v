@@ -4,13 +4,6 @@ Require Import ZArith.
 Require Import List.
 Require Import EquivDec.
 
-(* DP: Maybe it is alredy defined somewhere else *)
-Definition lift {A B} (f:A->B) (x:option A) : option B :=
-  match x with
-    | None => None
-    | Some a => Some (f a)
-  end.
-
 Fixpoint replicate {A:Type} (n:nat) (a:A) : list A :=
   match n with
     | O => nil
@@ -126,7 +119,7 @@ Module Type MEM.
 
   Parameter map : forall {A B S}, (list A-> list B) -> t A S -> t B S.
   Parameter map_spec : forall A B S (f:list A-> list B) (m:t A S),
-    forall b, get_frame (map f m) b = lift f (get_frame m b).
+    forall b, get_frame (map f m) b = option_map f (get_frame m b).
 
 End MEM.
 
@@ -158,7 +151,7 @@ Module Mem: MEM.
 
   Program Definition map {A B S} (f:list A-> list B) (m:t A S) : t B S := 
     MEM 
-      (fun b => lift f (get_frame m b))
+      (fun b => option_map f (get_frame m b))
       (next m)
       _.
   Next Obligation.
@@ -166,7 +159,7 @@ Module Mem: MEM.
   Qed.
 
   Lemma map_spec : forall A B S (f:list A-> list B) (m:t A S),
-    forall b, get_frame (map f m) b = lift f (get_frame m b).
+    forall b, get_frame (map f m) b = option_map f (get_frame m b).
   Proof.
     auto.
   Qed.
