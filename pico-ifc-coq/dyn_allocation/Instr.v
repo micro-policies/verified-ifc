@@ -1,6 +1,8 @@
 Require Import Datatypes.
 Require Import ZArith.
 
+Definition ident := nat.
+
 Inductive Instr :=
   | Noop : Instr 
   | Add : Instr 
@@ -23,6 +25,7 @@ Inductive Instr :=
        when returning from two high calling context.  *) 
   | Ret: Instr 
   | VRet : Instr 
+  | SysCall (id:ident) : Instr
   | Halt : Instr
   | Output : Instr.
 
@@ -30,7 +33,9 @@ Inductive Instr :=
 (* Convenience datatype for packaging the operation-specific label parameters
 to TMU rules.  (If we ever move to having operation groups, we should expect
 one constructor per group.)
-There is no oplabel for Halt, as there is no rule for Halt. *)
+There is no opcode for Halt, as there is no rule for Halt.
+
+There isn't one for SysCall because the code doens't use the cache. *)
 
 Inductive OpCode : Type :=
 | OpNoop 
@@ -70,6 +75,7 @@ Definition opcode_of_instr (i : Instr) : option OpCode :=
     | Ret => Some OpRet
     | VRet => Some OpVRet
     | PushCachePtr => None (* this instruction is only used in kernel mode *)
+    | SysCall _ => None
     | Halt => None
     | Output => Some OpOutput
   end.
