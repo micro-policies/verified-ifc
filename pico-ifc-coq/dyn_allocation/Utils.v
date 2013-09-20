@@ -1078,3 +1078,7 @@ Proof.
     assert (length (drop (length xs) xs) = length (x::l)). rewrite E; auto.
     rewrite length_drop in H. simpl in H. replace (length xs - length xs)%nat with O in H by omega. inv H.
 Qed.
+
+Inductive match_options {A B} (R : A -> B -> Prop) : option A -> option B -> Prop :=
+| mo_none : match_options R None None
+| mo_some : forall a b, R a b -> match_options R (Some a) (Some b).

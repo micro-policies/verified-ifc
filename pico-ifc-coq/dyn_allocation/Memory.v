@@ -812,20 +812,15 @@ Proof.
 
 Qed.
 
-Inductive match_oframes mi : option (list (Atom T1 S1)) ->
-                             option (list (Atom T2 S2)) ->
-                             memory T2 S2 ->
-                             Prop :=
-| mof_none : forall m2, match_oframes mi None None m2
-| mof_some : forall f1 f2 m2
-                    (FRAMES : match_frames mi f1 f2 m2),
-               match_oframes mi (Some f1) (Some f2) m2.
+Definition match_oframes mi of1 of2 m2 :=
+  match_options (fun f1 f2 => match_frames mi f1 f2 m2) of1 of2.
 
 Lemma zreplicate_match_oframes :
   forall z mi a1 a2 m2,
     match_atoms mi a1 a2 m2 ->
     match_oframes mi (zreplicate z a1) (zreplicate z a2) m2.
 Proof.
+  unfold match_oframes.
   intros.
   unfold zreplicate.
   destruct (ZArith_dec.Z_lt_dec z 0); constructor.
@@ -1070,8 +1065,8 @@ Proof.
   unfold alloc.
   intros.
   eapply zreplicate_match_oframes with (z := size) in ATOMS.
-  inv ATOMS;
-  rewrite <- H in ALLOC;
+  inversion ATOMS as [H1 H2|f1 f2 FRAMES H1 H2];
+  rewrite <- H2 in ALLOC;
   inv ALLOC.
   destruct (Mem.alloc mode1 m1 stamp1 f1) as [b1 m1'] eqn:E.
   exists b1. exists m1'.
