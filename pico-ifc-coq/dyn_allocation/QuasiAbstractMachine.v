@@ -45,6 +45,8 @@ Context {T: Type}
 (** Get the "rule" for a given operation. *)
 Variable fetch_rule : forall opcode : OpCode, AllowModify (labelCount opcode).
 
+Variable table : ASysTable T unit.
+
 Definition qa_state := AS T unit.
 Definition qa_alloc
       (size:Z) (a:Atom T unit) (m:memory T unit): option (block unit * memory T unit) :=
@@ -191,7 +193,15 @@ Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
     index_list_Z pcv i = Some Output ->
     run_tmr OpOutput pcl <|xl|> = Some (rpcl,rl) ->
     step_rules (AState m i (AData (Vint xv,xl)::s) (pcv,pcl))
-               (E (EInt (xv,rl))) (AState m i s (pcv+1,rpcl)).
+               (E (EInt (xv,rl))) (AState m i s (pcv+1,rpcl))
+
+| step_syscall: forall id m i s pcv pcl args res sys_info
+    (INSTR: index_list_Z pcv i = Some (SysCall id))
+    (SYS: table id = Some sys_info)
+    (SYSLENGTH: length args = sys_info.(asi_arity))
+    (SYSSEM: sys_info.(asi_sem) args = Some res), (* this encodes potential IFC check failures *)
+    step_rules (AState m i (map AData args ++ s) (pcv,pcl))
+               Silent (AState m i (AData res :: s) (pcv+1,pcl)).
 
 Definition quasi_abstract_machine :=
   {| state := qa_state ;
@@ -212,6 +222,8 @@ Section IfcQuasiAbstractMachine.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}.
+
+Variable table : ident -> option (ASysCall T unit).
 
 Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
   match opcode with
@@ -236,7 +248,7 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
     | OpOutput => ≪ TRUE, LabPC , JOIN Lab1 LabPC ≫ (* output value *)
     end.
 
-Definition tini_quasi_abstract_machine := quasi_abstract_machine fetch_rule.
+Definition tini_quasi_abstract_machine := quasi_abstract_machine fetch_rule table.
 
 Ltac step_tmr :=
   match goal with

@@ -109,3 +109,9 @@ Qed.
 
 End ARuleMachine.
 
+Record ASysCall T S : Type := {
+  asi_arity : nat;
+  asi_sem : list (Atom T S) -> option (Atom T S)
+}.
+
+Definition ASysTable T S : Type := ident -> option (ASysCall T S).

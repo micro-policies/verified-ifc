@@ -401,7 +401,9 @@ Inductive match_events : Event T -> CEvent -> Prop :=
                       (ATOMS : pcatom_labToVal e1 e2 m),
                  match_events (EInt e1) (CEInt e2 m).
 
-Definition match_actions := match_actions tini_quasi_abstract_machine
+Variable table : ASysTable T unit.
+
+Definition match_actions := match_actions (tini_quasi_abstract_machine table)
                                           (concrete_machine cblock faultHandler)
                                           match_events.
 
@@ -809,7 +811,7 @@ Lemma cache_hit_simulation :
          (Hmatch : match_states s1 s2)
          (Hs2' : priv s2' = false)
          (Hstep : cstep cblock s2 a2 s2'),
-    exists a1 s1', step_rules fetch_rule_g s1 a1 s1' /\
+    exists a1 s1', step_rules fetch_rule_g table s1 a1 s1' /\
                    match_actions a1 a2 /\
                    match_states s1' s2'.
 Proof.
@@ -1359,7 +1361,7 @@ Hint Resolve match_init_stacks.
 Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
     ac_match_initial_data ai ci ->
-    match_states (init_state (quasi_abstract_machine fetch_rule_g) ai)
+    match_states (init_state (quasi_abstract_machine fetch_rule_g table) ai)
                  (init_state (concrete_machine cblock faultHandler) ci).
 Proof.
   intros ai ci H. inv H.
@@ -1447,7 +1449,7 @@ Qed.
 End CExec.
 
 Lemma quasi_abstract_concrete_sref_prop :
-  @state_refinement_statement (quasi_abstract_machine fetch_rule_g)
+  @state_refinement_statement (quasi_abstract_machine fetch_rule_g table)
                               (concrete_machine cblock faultHandler)
                               match_states match_events.
 Proof.
@@ -1483,7 +1485,7 @@ Definition quasi_abstract_concrete_sref :=
   {| sref_prop := quasi_abstract_concrete_sref_prop |}.
 
 Definition quasi_abstract_concrete_ref :
-  refinement (quasi_abstract_machine fetch_rule_g)
+  refinement (quasi_abstract_machine fetch_rule_g table)
              (concrete_machine cblock faultHandler) :=
   @refinement_from_state_refinement _ _
                                     quasi_abstract_concrete_sref

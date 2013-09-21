@@ -441,7 +441,7 @@ Proof.
   constructor ; auto.
 Qed.
 
-
+(* Replace with match_option *)
 Inductive equiv_option {A} (R:relation A) : relation (option A) :=
   | equiv_option_none: equiv_option R None None
   | equiv_option_some: forall a1 a2,
@@ -754,6 +754,8 @@ Section ParamMachine.
 Context {T: Type}.
 Context {Latt: JoinSemiLattice T}.
 
+Variable table : ASysTable T T.
+
 Ltac exploit_low :=
     repeat match goal with 
         | [H: low_equiv_list _ (_::_) (_::_) |- _ ] => inv H
@@ -773,12 +775,12 @@ Ltac spec_pop_return :=
       end
   end.
 
-Inductive abstract_i_equiv (o : T) : relation (init_data abstract_machine) :=
+Inductive abstract_i_equiv (o : T) : relation (abstract_init_data T) :=
   | ai_equiv : forall p d1 d2 b
                       (STK : low_equiv_list (low_equiv_atom o) d1 d2),
                  abstract_i_equiv o (p,d1,b) (p,d2,b).
 
-Global Program Instance AMObservation : TINI.Observation abstract_machine (Event T) := {
+Global Program Instance AMObservation : TINI.Observation (abstract_machine table) (Event T) := {
   out e := e;                                                                                
   e_low := visible_event;
   e_low_dec := visible_event_dec;
@@ -809,6 +811,16 @@ Notation "s1 '~~l' s2" := (low_equiv_list (low_equiv_stkelt o) s1 s2) (at level 
 Notation "a1 '~~a' a2" := (low_equiv_atom o a1 a2) (at level 20).
 
 Arguments low_pc {Label Latt} o s /.
+
+Definition syscall_lowstep (SysTable:ASysTable T T) := forall id sys_info,
+  SysTable id = Some sys_info ->
+  forall args1 args2 res1 res2,
+    map AData args1 ~~l map AData args2 ->
+    asi_sem sys_info args1 = Some res1 ->
+    asi_sem sys_info args2 = Some res2 ->
+    res1 ~~a res2.
+
+Variable hyp_syscall_lowstep : syscall_lowstep table.
 
 Local Ltac go :=
   try congruence;
@@ -975,9 +987,18 @@ Inductive inv_state : @a_state T -> Prop :=
     (ISTACK: forall a, In (AData a) s -> inv_atom a),
     inv_state (AState m i s (pc,lpc)).
 
+Definition systable_inv (table : ASysTable T T) : Prop :=
+  forall id args sc res
+         (SYS : table id = Some sc)
+         (IARGS : forall a, In a args -> inv_atom a)
+         (RES : sc.(asi_sem) args = Some res),
+    inv_atom res.
+
+Hypothesis table_systable_inv : systable_inv table.
+
 Lemma inv_step : forall as1 e as1',
   inv_state as1 ->
-  a_step as1 e as1' ->
+  a_step table as1 e as1' ->
   inv_state as1'.
 Proof.
   intros as1 e as1' Hi Hs.
@@ -1050,6 +1071,15 @@ Proof.
     + spec_pop_return.
       exploit @pop_to_return_spec3; eauto. intros HTEMP. inv HTEMP.
       apply ISTACK; auto with datatypes.
+  - Case "SysCall".
+    intros a [E | E]; eauto using in_or_app.
+    inv E.
+    eapply table_systable_inv; eauto.
+    intros a' IN.
+    apply ISTACK.
+    apply in_or_app.
+    left.
+    apply in_map. assumption.
 Qed.
 
 Lemma index_list_low_equiv_list :
@@ -1093,8 +1123,8 @@ Qed.
 Lemma lowstep : forall as1 e as1' as2 e' as2',
   low_equiv_full_state o as1 as2 ->
   low_pc o as1  ->
-  a_step as1 e as1' ->
-  a_step as2 e' as2' ->
+  a_step table as1 e as1' ->
+  a_step table as2 e' as2' ->
   inv_state as1 ->
   inv_state as2 ->
   low_equiv_full_state o as1' as2'.
@@ -1195,6 +1225,18 @@ Proof.
     exploit low_equiv_step_pop_to_return; eauto; intros HspecRet.
     exploit_low. 
     repeat inv_equiv_atom; go.
+
+  - Case "SysCall".
+    assert (sys_info0 = sys_info) by congruence. subst. clear SYS0.
+    assert (EQ : map AData args ~~l map AData args0 /\ s ~~l s0).
+    { split.
+      - eapply low_equiv_list_app_left; eauto.
+        repeat rewrite map_length. congruence.
+      - eapply low_equiv_list_app_right; eauto.
+        repeat rewrite map_length. congruence. }
+    destruct EQ as [EQ1 EQ2].
+    specialize (hyp_syscall_lowstep SYS args args0 EQ1 SYSSEM SYSSEM0).
+    go.
 Qed.
 
 Lemma all_data_below_lret :
@@ -1214,7 +1256,7 @@ Qed.
 
 Lemma highstep : forall as1 e as1',
   ~low_pc o as1 ->
-  a_step as1 e as1' ->
+  a_step table as1 e as1' ->
   ~low_pc o as1' ->
   low_equiv_full_state o as1 as1'.
 Proof.
@@ -1283,14 +1325,22 @@ Proof.
     rewrite below_lret_adata; eauto.
     simpl. rewrite e.
     auto.
+
+ - Case "SysCall".
+   constructor; try congruence; try reflexivity.
+   simpl.
+   rewrite all_data_below_lret; try reflexivity.
+   intros se IN.
+   rewrite in_map_iff in IN. destruct IN as (a & ? & ?). eauto.
+
 Qed.
 
 Lemma highlowstep : forall as1 e as1' as2 e' as2',
   low_equiv_full_state o as1 as2 ->
   ~low_pc o as1 ->
-  a_step as1 e as1' ->
+  a_step table as1 e as1' ->
   low_pc o as1' ->
-  a_step as2 e' as2' ->
+  a_step table as2 e' as2' ->
   low_pc o as2' ->
   low_equiv_full_state o as1' as2'.
 Proof.
@@ -1376,7 +1426,9 @@ Qed.
 
 End fix_observer.
 
-Program Instance AMUnwindingSemantics :
+Program Instance AMUnwindingSemantics
+  (SL : forall o, syscall_lowstep o table)
+  (SI : systable_inv table) :
   TINI.UnwindingSemantics AMObservation := {
   s_equiv := low_equiv_full_state;
   s_low := low_pc;
@@ -1519,19 +1571,13 @@ Next Obligation.
   eapply highlowstep; eauto.
 Qed.
 
-Theorem abstract_noninterference_short :
+Theorem abstract_noninterference_short
+  (SL : forall o, syscall_lowstep o table)
+  (SI : systable_inv table) :
   TINI.tini AMObservation.
 Proof.
   apply TINI.noninterference.
-  exact AMUnwindingSemantics.
-Qed.
-
-(* DD/AAA : Does writing things this way in the final theorem would make things less ambiguous? *)
-Theorem abstract_noninterference :
-  @TINI.tini abstract_machine (Event T) AMObservation.
-Proof.
-  apply TINI.noninterference.
-  exact AMUnwindingSemantics.
+  apply AMUnwindingSemantics; assumption.
 Qed.
 
 End ParamMachine.

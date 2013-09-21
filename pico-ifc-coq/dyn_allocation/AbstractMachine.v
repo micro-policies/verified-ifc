@@ -20,6 +20,8 @@ Context {T: Type}
         {Latt: JoinSemiLattice T}
         {EqT: EqDec T eq}.
 
+Variable table : ASysTable T T.
+
 Definition a_state := AS T T. (* We stamp block with allocation label *)
 Definition a_alloc 
       (size:Z) (lpc:T) (a:Atom T T) (m:memory T T): option (block T * memory T T) :=
@@ -142,7 +144,16 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
 | step_output: forall m i s pcv pcl xv xl
     (INSTR: index_list_Z pcv i = Some Output),
     a_step (AState m i (AData (Vint xv,xl)::s) (pcv,pcl))
-               (E (EInt (xv,xl \_/ pcl))) (AState m i s (pcv+1,pcl)).
+               (E (EInt (xv,xl \_/ pcl))) (AState m i s (pcv+1,pcl))
+
+
+| step_syscall: forall id m i s pcv pcl args res sys_info
+    (INSTR: index_list_Z pcv i = Some (SysCall id))
+    (SYS: table id = Some sys_info)
+    (SYSLENGTH: length args = sys_info.(asi_arity))
+    (SYSSEM: sys_info.(asi_sem) args = Some res), (* this encodes potential IFC check failures *)
+    a_step (AState m i (map AData args ++ s) (pcv,pcl))
+           Silent (AState m i (AData res :: s) (pcv+1,pcl)).
 
 Lemma a_step_instr : forall m i s pcv pcl s' e,
   a_step (AState m i s (pcv,pcl)) e s' ->

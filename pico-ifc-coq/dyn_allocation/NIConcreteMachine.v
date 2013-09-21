@@ -14,6 +14,7 @@ Require Import ConcreteMachine.
 Require Import ConcreteExecutions.
 Require Import Semantics.
 Require Import Refinement.
+Require Import RefinementAQA.
 Require Import RefinementQAC.
 Require Import RefinementAC.
 Require TINI.
@@ -33,6 +34,11 @@ Context {observer : Type}
         {CLatt: ConcreteLattice observer}
         {WFCLatt: WfConcreteLattice cblock observer Latt CLatt}.
 
+Variable table : forall S, ASysTable observer S.
+Hypothesis table_param : match_asystables (table observer) (table unit).
+Hypothesis table_syscall_lowstep : forall o, syscall_lowstep o (table observer).
+Hypothesis table_systable_inv : systable_inv (table observer).
+
 Inductive concrete_i_equiv (o : observer) :
   init_data (tini_concrete_machine cblock) -> init_data (tini_concrete_machine cblock) -> Prop :=
   | ci_equiv : forall ai1 ai2 ci1 ci2
@@ -45,16 +51,20 @@ Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event 
   out e := match e with
              | CEInt (z, t) m => EInt (z, valToLab t m)
            end;
-  e_low := fun o e => TINI.e_low o e;
+  e_low := fun o e => @TINI.e_low _ _ (AMObservation (table observer)) o e;
   e_low_dec := fun o e => TINI.e_low_dec o e;
   i_equiv := concrete_i_equiv
 }.
 
 Lemma ac_low_compatible :
-  forall o e1 e2,
-    ref_match_events (abstract_concrete_ref stamp_cblock) e1 e2 ->
+  forall (o : observer)
+         (e1 : event (abstract_machine (table observer)))
+         (e2 : event (tini_concrete_machine cblock)),
+    ref_match_events (@abstract_concrete_ref cblock stamp_cblock
+                                             observer Latt CLatt WFCLatt
+                                             (table observer) (table unit) table_param) e1 e2 ->
     (TINI.e_low o (TINI.out e1)
-       <-> TINI.e_low o (TINI.out e2)).
+       <-> TINI.e_low o (@TINI.out _ _ CMObservation e2)).
 Proof.
   simpl.
   intros o [[x xl]] [[x' xt] m] H; simpl.
@@ -78,9 +88,9 @@ Qed.
 
 Lemma ac_match_events_equiv :
   forall o e11 e12 e21 e22
-         (EQ : @TINI.a_equiv abstract_machine _ _ o (E e11) (E e12))
-         (MATCH1 : ref_match_events (abstract_concrete_ref stamp_cblock) e11 e21)
-         (MATCH2 : ref_match_events (abstract_concrete_ref stamp_cblock) e12 e22),
+         (EQ : @TINI.a_equiv (abstract_machine (table observer)) _ _ o (E e11) (E e12))
+         (MATCH1 : ref_match_events (abstract_concrete_ref stamp_cblock table_param) e11 e21)
+         (MATCH2 : ref_match_events (abstract_concrete_ref stamp_cblock table_param) e12 e22),
     @TINI.a_equiv (tini_concrete_machine cblock) _ _ o (E e21) (E e22).
 Proof.
   simpl.
@@ -101,7 +111,7 @@ Proof.
 Qed.
 
 Lemma ac_tini_preservation_premises :
-  tini_preservation_hypothesis (abstract_concrete_ref stamp_cblock).
+  tini_preservation_hypothesis (abstract_concrete_ref stamp_cblock table_param).
 Proof.
   intros o. exists o.
   split. { apply ac_low_compatible. }
@@ -113,10 +123,10 @@ Lemma concrete_noninterference :
   TINI.tini CMObservation.
 Proof.
    exact (@refinement_preserves_noninterference
-          abstract_machine (tini_concrete_machine cblock)
+          (abstract_machine (table observer)) (tini_concrete_machine cblock)
           _ _ _
-          (abstract_concrete_ref stamp_cblock)
-          abstract_noninterference
+          (abstract_concrete_ref stamp_cblock table_param)
+          (abstract_noninterference_short table_syscall_lowstep table_systable_inv)
           ac_tini_preservation_premises).
 Qed.
 

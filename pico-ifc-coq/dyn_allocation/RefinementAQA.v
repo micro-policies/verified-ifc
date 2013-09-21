@@ -4,6 +4,7 @@ Require Import List.
 Require Import Utils.
 Require Import Lattices.
 
+Require Import Instr.
 Require Import AbstractCommon.
 Require Import Memory.
 Require Import AbstractMachine.
@@ -237,8 +238,28 @@ Hint Resolve match_stacks_mem_irrel : mem_irrel.
 Hint Unfold a_alloc.
 Hint Unfold qa_alloc.
 
+Inductive match_asyscalls : ASysCall T T -> ASysCall T unit -> Prop :=
+| masc_intro : forall ar f1 f2
+                      (EXT : forall mi args1 args2 m2,
+                               Forall2 (fun arg1 arg2 => match_atoms mi arg1 arg2 m2)
+                                       args1 args2 ->
+                               match_options (fun a1 a2 => match_atoms mi a1 a2 m2)
+                                             (f1 args1) (f2 args2)),
+                 match_asyscalls {| asi_arity := ar; asi_sem := f1 |}
+                                 {| asi_arity := ar; asi_sem := f2 |}.
+
+Inductive match_asystables : ASysTable T T -> ASysTable T unit -> Prop :=
+| mast_intro : forall t1 t2
+                      (MATCH : forall id, match_options match_asyscalls (t1 id) (t2 id)),
+                 match_asystables t1 t2.
+
+Variable t1 : ASysTable T T.
+Variable t2 : ASysTable T unit.
+Hypothesis Ht1t2 : match_asystables t1 t2.
+
 Ltac inv_match :=
   repeat match goal with
+           | STK : Forall2 _ _ nil |- _ => inv STK
            | STK : Forall2 _ _ (_ :: _) |- _ => inv STK
            | STKELMT : match_stk_elmt _ _ _ _ |- _ => inv STKELMT
            | ATOMS : match_atoms _ _ (_,_) _ |- _ => inv ATOMS
@@ -247,15 +268,41 @@ Ltac inv_match :=
            | TAGS : match_tags _ _ _ |- _ => unfold match_tags in TAGS; subst
          end.
 
+Lemma match_stacks_map_adata :
+  forall mi stk1 args2 m2
+         (MATCH : match_stacks mi stk1 (map AData args2) m2),
+  exists args1,
+    stk1 = map AData args1 /\
+    Forall2 (fun a1 a2 => match_atoms mi a1 a2 m2) args1 args2.
+Proof.
+  unfold match_stacks.
+  intros.
+  gdep stk1.
+  induction args2 as [|a2 args2 IH]; simpl; intros; inv_match.
+  - eexists nil. simpl. intuition.
+  - exploit IH; eauto.
+    intros (args1 & ? & MATCH). subst.
+    eexists (a1 :: args1). eauto.
+Qed.
+
+(* MOVE *)
+Lemma Forall2_length :
+  forall A B (R : A -> B -> Prop) l1 l2,
+    Forall2 R l1 l2 -> length l1 = length l2.
+Proof.
+  induction 1; eauto; simpl; congruence.
+Qed.
+
 Lemma a_qa_simulation :
   forall s1 s2 e s2'
-         (STEP : step_rules fetch_rule s2 e s2')
+         (STEP : step_rules fetch_rule t2 s2 e s2')
          (MATCH : match_states s1 s2),
     exists s1',
-      a_step s1 e s1' /\
+      a_step t1 s1 e s1' /\
       match_states s1' s2'.
 Proof.
   intros.
+  inv Ht1t2.
   inv STEP;
   inv MATCH;
   unfold match_stacks in *;
@@ -264,7 +311,17 @@ Proof.
     | H : run_tmr _ _ _ _ = Some _ |- _ =>
       unfold run_tmr, Rules.apply_rule in H; simpl in H;
       unfold Vector.nth_order in H; simpl in H
+    | INSTR : context[SysCall ?id],
+      MATCH : context[match_asyscalls],
+      TABLE : t2 ?id = Some _ |- _ =>
+      specialize (MATCH id);
+      rewrite TABLE in MATCH;
+      inv MATCH
   end;
+  try match goal with
+        | MATCH : match_asyscalls _ _ |- _ =>
+          inv MATCH
+      end;
   simpl in *; unfold Vector.nth_order; simpl;
   try congruence;
   repeat match goal with
@@ -307,16 +364,26 @@ Proof.
         | H1 : Forall2 _ _ _,
           H2 : index_list _ _ = Some _ |- _ =>
           exploit match_stacks_index_list; eauto; intros [? [? ?]]
+        | H : context[SysCall _],
+          EXT : context[match_options _ _ _] |- _ =>
+          exploit match_stacks_map_adata; eauto; intros (? & ? & ?); subst;
+          exploit EXT; eauto; intros RES;
+          match goal with
+            | RES : match_options _ ?r1 ?r2,
+              EQ : ?r2 = Some _ |- _ =>
+              rewrite EQ in RES; inv RES
+          end
       end;
 
   (* Always using mem_irrel causes spurious existentials to be generated *)
-  try solve [eexists; split; econstructor (simpl; solve [eauto 7 | eauto 7 with mem_irrel])].
+  solve [eexists; split; econstructor (simpl; solve [eauto 7 using Forall2_length
+                                                    |eauto 7 with mem_irrel])].
 
 Qed.
 
 Program Definition abstract_quasi_abstract_sref :=
-  @strong_refinement abstract_machine
-                     tini_quasi_abstract_machine
+  @strong_refinement (abstract_machine t1)
+                     (tini_quasi_abstract_machine t2)
                      eq match_states _.
 Next Obligation.
   exploit a_qa_simulation; eauto.
@@ -348,7 +415,8 @@ Qed.
 Hint Resolve match_init_stacks.
 
 Program Definition abstract_quasi_abstract_ref :=
-  @refinement_from_state_refinement abstract_machine tini_quasi_abstract_machine
+  @refinement_from_state_refinement (abstract_machine t1)
+                                    (tini_quasi_abstract_machine t2)
                                     abstract_quasi_abstract_sref eq
                                     _.
 
