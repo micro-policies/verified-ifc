@@ -368,6 +368,8 @@ Module Mem: MEM.
 
 End Mem.
 
+(* CH: some of the stuff that follows doesn't really belong in this file *)
+
 Inductive val {S} := 
   | Vint (n:Z)
   | Vptr (b:Mem.block S) (n:Z).
