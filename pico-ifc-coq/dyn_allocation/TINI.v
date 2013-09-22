@@ -8,28 +8,24 @@ Set Implicit Arguments.
 
 Section Exec.
 
-Variable S : semantics.
-
-Definition trace := list (event S).
-
-Inductive exec : state S -> trace -> state S -> Prop :=
-| e_refl : forall s, exec s nil s
+Inductive exec {S EV} (step : S -> EV+τ -> S -> Prop) : S -> list EV -> S -> Prop :=
+| e_refl : forall s, exec step s nil s
 | e_event_step : forall s e s' t s'',
-                   step S s (E e) s' ->
-                   exec s' t s'' ->
-                   exec s (e :: t) s''
+                   step s (E e) s' ->
+                   exec step s' t s'' ->
+                   exec step s (e :: t) s''
 | e_silent_step : forall s s' t s'',
-                    step S s Silent s' ->
-                    exec s' t s'' ->
-                    exec s t s''.
+                    step s Silent s' ->
+                    exec step s' t s'' ->
+                    exec step s t s''.
 
 End Exec.
 
 Section OBSERVATION.
 
 Variable S: semantics.
-Let exec := @exec S.
-Let trace := @trace S.
+Let exec := exec (step S).
+Let trace := list (event S).
 
 Class Observation (e_obs: Type) := {
   observer : Type;

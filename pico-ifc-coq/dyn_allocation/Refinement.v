@@ -37,9 +37,9 @@ Definition refinement_statement match_init_data
                                 match_events :=
   forall i1 i2 t2 s2,
     match_init_data i1 i2 ->
-    @TINI.exec S2 (init_state S2 i2) t2 s2 ->
+    TINI.exec (step S2) (init_state S2 i2) t2 s2 ->
     exists t1 s1,
-      @TINI.exec S1 (init_state S1 i1) t1 s1 /\
+      TINI.exec (step S1) (init_state S1 i1) t1 s1 /\
       match_traces match_events t1 t2.
 
 Record refinement := {
@@ -53,11 +53,10 @@ Definition state_refinement_statement match_states
                                       match_events :=
   forall s1 s2 t2 s2',
     match_states s1 s2 ->
-    @TINI.exec S2 s2 t2 s2' ->
+    TINI.exec (step S2) s2 t2 s2' ->
     exists t1 s1',
-      @TINI.exec S1 s1 t1 s1' /\
+      TINI.exec (step S1) s1 t1 s1' /\
       match_traces match_events t1 t2.
-
 
 Record state_refinement := {
   sref_match_states : state S1 -> state S2 -> Prop;
@@ -163,7 +162,7 @@ Proof.
   gdep (TINI.observe O1 o1 t12). gdep (TINI.observe O1 o1 t11).
   clear - H1 H3.
 
-  induction t; destruct t0; intros Hi; intros.
+  induction l; destruct l0; intros Hi; intros.
   + inv Hi; constructor.
   + inv Hi.
   + inv Hmt2; constructor.
@@ -178,9 +177,9 @@ Proof.
       rewrite (H1 e e2); auto.
       inv H; auto.
     assert (T:TINI.ti_trace_indist
-                                 (map (TINI.out (S:=S2)) t3)
-                                 (map (TINI.out (S:=S2)) t4)).
-      eapply IHt; eauto.
+                                 (map (TINI.out (S:=S2)) t0)
+                                 (map (TINI.out (S:=S2)) t2)).
+      eapply IHl; eauto.
       simpl in Hi; inv Hi; auto.
       inv H0; auto.
       inv H; auto.
@@ -228,7 +227,7 @@ Proof.
     inv H1.
     match goal with
       | H1 : step S1 _ (E ?e1) _,
-        H2 : @TINI.exec S1 _ ?t1 ?s12 |- _ =>
+        H2 : TINI.exec (step S1) _ ?t1 ?s12 |- _ =>
         exists (e1 :: t1)
     end.
     eauto.

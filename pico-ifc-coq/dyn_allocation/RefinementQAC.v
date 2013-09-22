@@ -1435,7 +1435,7 @@ Proof.
 Qed.
 
 Lemma exec_cexec : forall s t s',
-                     (@TINI.exec (concrete_machine cblock faultHandler)) s t s' ->
+                     TINI.exec (cstep cblock) s t s' ->
                      cexec s t s'.
 Proof.
   intros s t s' Hexec.
