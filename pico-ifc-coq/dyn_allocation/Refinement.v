@@ -196,10 +196,7 @@ Section Strong.
 Variable match_events : event S1 -> event S2 -> Prop.
 Variable match_states : state S1 -> state S2 -> Prop.
 
-Inductive match_actions : (event S1)+τ -> (event S2)+τ -> Prop :=
-| match_actions_silent : match_actions Silent Silent
-| match_actions_event : forall e1 e2,
-  match_events e1 e2 -> match_actions (E e1) (E e2).
+Let match_actions e1 e2 := match_actions match_events e1 e2.
 
 (* To be used in the abstract <-> quasi-abtract layer *)
 Hypothesis lockstep : forall s11 s21 e2 s22,

@@ -824,6 +824,11 @@ Definition remove_none {T} (l : list (option T)) :=
 Inductive with_silent {T:Type} := | E (e:T) | Silent.
 Notation "T +τ" := (@with_silent T) (at level 1).
 
+Inductive match_actions {T1 T2} (match_events : T1 -> T2 -> Prop) : T1+τ -> T2+τ -> Prop :=
+| match_actions_silent : match_actions match_events Silent Silent
+| match_actions_event : forall e1 e2,
+  match_events e1 e2 -> match_actions match_events (E e1) (E e2).
+
 (** Reflexive transitive closure. *)
 Definition op_cons (E: Type) (oe: E+τ) (l: list E) :=
   match oe with 

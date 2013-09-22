@@ -403,9 +403,7 @@ Inductive match_events : Event T -> CEvent -> Prop :=
 
 Variable table : ASysTable T unit.
 
-Definition match_actions := match_actions (tini_quasi_abstract_machine table)
-                                          (concrete_machine cblock faultHandler)
-                                          match_events.
+Let match_actions e1 e2 := match_actions match_events e1 e2.
 
 Section RefQAC.
 
