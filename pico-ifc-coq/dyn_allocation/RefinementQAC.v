@@ -1447,9 +1447,9 @@ Qed.
 End CExec.
 
 Lemma quasi_abstract_concrete_sref_prop :
-  @state_refinement_statement (quasi_abstract_machine fetch_rule_g table)
-                              (concrete_machine cblock faultHandler)
-                              match_states match_events.
+  state_refinement_statement (step_rules fetch_rule_g table)
+                             (cstep cblock)
+                             match_states match_events.
 Proof.
   intros s1 s2 t2 s2' MATCH EXEC. simpl.
   apply exec_cexec in EXEC.
@@ -1475,7 +1475,6 @@ Proof.
 
     simpl.
     inv ME; simpl; eauto.
-    constructor; auto.
   - exploit cache_miss_simulation; eauto.
 Qed.
 
@@ -1485,10 +1484,11 @@ Definition quasi_abstract_concrete_sref :=
 Definition quasi_abstract_concrete_ref :
   refinement (quasi_abstract_machine fetch_rule_g table)
              (concrete_machine cblock faultHandler) :=
-  @refinement_from_state_refinement _ _
-                                    quasi_abstract_concrete_sref
-                                    ac_match_initial_data
-                                    ac_match_initial_data_match_initial_states.
+  refinement_from_state_refinement (quasi_abstract_machine fetch_rule_g table)
+                                   (concrete_machine cblock faultHandler)
+                                   quasi_abstract_concrete_sref
+                                   ac_match_initial_data
+                                   ac_match_initial_data_match_initial_states.
 
 End RefQAC.
 

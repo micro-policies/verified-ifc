@@ -15,24 +15,6 @@ Let trace1 := list (event S1).
 Variable S2 : semantics.
 Let trace2 := list (event S2).
 
-Inductive match_traces (match_events : event S1 -> event S2 -> Prop)
-  : trace1 -> trace2 -> Prop :=
-| mt_nil : match_traces match_events nil nil
-| mt_cons : forall e1 t1 e2 t2,
-              match_events e1 e2 ->
-              match_traces match_events t1 t2 ->
-              match_traces match_events (e1 :: t1) (e2 :: t2).
-Hint Constructors match_traces.
-
-Lemma match_traces_no_filter:
-  forall (match_events: event S1 -> event S2 -> Prop) tr1 tr2,
-    match_traces match_events tr1 tr2 ->
-      length tr1 = length tr2.
-Proof.
-  intros hme tr1 tr2 hmt.
-  induction hmt; auto. simpl. rewrite IHhmt. auto.
-Qed.
-
 Definition refinement_statement match_init_data
                                 match_events :=
   forall i1 i2 t2 s2,
@@ -40,7 +22,7 @@ Definition refinement_statement match_init_data
     TINI.exec (step S2) (init_state S2 i2) t2 s2 ->
     exists t1 s1,
       TINI.exec (step S1) (init_state S1 i1) t1 s1 /\
-      match_traces match_events t1 t2.
+      Forall2 match_events t1 t2.
 
 Record refinement := {
   ref_match_init_data : init_data S1 -> init_data S2 -> Prop;
@@ -49,25 +31,28 @@ Record refinement := {
                                   ref_match_events
 }.
 
-Definition state_refinement_statement match_states
-                                      match_events :=
+Definition state_refinement_statement {state1 state2 event1 event2}
+                                      step1 step2
+                                      (match_states : state1 -> state2 -> Prop)
+                                      (match_events : event1 -> event2 -> Prop) :=
   forall s1 s2 t2 s2',
     match_states s1 s2 ->
-    TINI.exec (step S2) s2 t2 s2' ->
+    TINI.exec step2 s2 t2 s2' ->
     exists t1 s1',
-      TINI.exec (step S1) s1 t1 s1' /\
-      match_traces match_events t1 t2.
+      TINI.exec step1 s1 t1 s1' /\
+      Forall2 match_events t1 t2.
 
-Record state_refinement := {
-  sref_match_states : state S1 -> state S2 -> Prop;
-  sref_match_events : event S1 -> event S2 -> Prop;
-  sref_prop : state_refinement_statement sref_match_states
-                                         sref_match_events
+Record state_refinement {state1 state2 event1 event2}
+                        step1 step2 := {
+  sref_match_states : state1 -> state2 -> Prop;
+  sref_match_events : event1 -> event2 -> Prop;
+  sref_prop : state_refinement_statement step1 step2
+                                         sref_match_states sref_match_events
 }.
 
 Section RefinementFromStateRefinement.
 
-Variable SR : state_refinement.
+Variable SR : state_refinement (step S1) (step S2).
 
 Variable match_init_data : init_data S1 -> init_data S2 -> Prop.
 
@@ -123,12 +108,12 @@ Let a_equiv1_a_equiv2 o1 o2 :=
 Lemma match_traces_match_observations :
   forall o1 o2 t1 t2
          (COMP : low_compatible o1 o2)
-         (TRACES : match_traces (ref_match_events R) t1 t2),
-    match_traces (ref_match_events R)
-                 (TINI.observe O1 o1 t1) (TINI.observe O2 o2 t2).
+         (TRACES : Forall2 (ref_match_events R) t1 t2),
+    Forall2 (ref_match_events R)
+            (TINI.observe O1 o1 t1) (TINI.observe O2 o2 t2).
 Proof.
   intros.
-  induction TRACES; simpl; auto.
+  induction TRACES as [|e1 e2 t1 t2 MATCH TRACES IH]; simpl; auto.
   exploit COMP; eauto. intros [COMP1 COMP2].
   destruct (TINI.e_low_dec (S:=S1) o1 (TINI.out e1)) as [E1 | E1];
   destruct (TINI.e_low_dec (S:=S2) o2 (TINI.out e2)) as [E2 | E2];
@@ -156,36 +141,38 @@ Proof.
   assert (Hindist := noninterference1 _ _ _ Heq1 Hexec11 Hexec12).
   generalize (match_traces_match_observations H1 Hmt1). clear Hmt1. intros Hmt1.
   generalize (match_traces_match_observations H1 Hmt2). clear Hmt2. intros Hmt2.
-  generalize (TINI.observe_forall _ o2 t22). intros.
-  generalize (TINI.observe_forall _ o2 t21). intros.
+  generalize (TINI.observe_forall _ o2 t22). intros Hlow2.
+  generalize (TINI.observe_forall _ o2 t21). intros Hlow1.
   gdep (TINI.observe O2 o2 t22). gdep (TINI.observe O2 o2 t21).
   gdep (TINI.observe O1 o1 t12). gdep (TINI.observe O1 o1 t11).
   clear - H1 H3.
 
-  induction l; destruct l0; intros Hi; intros.
-  + inv Hi; constructor.
-  + inv Hi.
+  intros t11.
+  induction t11 as [|e11 t11 IH];
+  intros [|e12 t12] Hi t21 ? ? t22 ? ?.
+  + inv Hmt1; inv Hmt2; constructor.
+  + inv Hmt1; inv Hmt2; constructor.
   + inv Hmt2; constructor.
   + inv Hmt2; inv Hmt1.
     simpl.
-    assert (TINI.a_equiv O2 o2 (E e0) (E e2)).
-      eapply H3; eauto.
+    assert (TINI.a_equiv O2 o2 (E y0) (E y)).
+    { eapply H3; eauto.
       constructor 2.
-      inv Hi; auto.
-      rewrite (H1 a e0); auto.
-      inv H0; auto.
-      rewrite (H1 e e2); auto.
-      inv H; auto.
+      - inv Hi; auto.
+      - rewrite (H1 e11 y0); auto.
+        inv Hlow1; auto.
+      - rewrite (H1 e12 y); auto.
+        inv Hlow2; auto. }
     assert (T:TINI.ti_trace_indist
-                                 (map (TINI.out (S:=S2)) t0)
-                                 (map (TINI.out (S:=S2)) t2)).
-      eapply IHl; eauto.
-      simpl in Hi; inv Hi; auto.
-      inv H0; auto.
-      inv H; auto.
-    inv H2.
-    * rewrite H10; constructor; auto.
-    * elim H10; inv H0; auto.
+                                 (map (TINI.out (S:=S2)) l'0)
+                                 (map (TINI.out (S:=S2)) l')).
+    { eapply IH; eauto.
+      - simpl in Hi; inv Hi; auto.
+      - inv Hlow1; auto.
+      - inv Hlow2; auto. }
+    inv H.
+    * rewrite H8; constructor; auto.
+    * elim H8. inv Hlow1. auto.
 Qed.
 
 End NI.
@@ -205,7 +192,8 @@ Hypothesis lockstep : forall s11 s21 e2 s22,
                           step S1 s11 e1 s12 /\ match_actions e1 e2 /\ match_states s12 s22.
 
 Theorem strong_refinement_prop :
-  state_refinement_statement match_states
+  state_refinement_statement (step S1) (step S2)
+                             match_states
                              match_events.
 Proof.
   intros s11 s21 t2 s22 Hmt Hexec2.
@@ -238,7 +226,7 @@ Proof.
      inv T2; eauto.
 Qed.
 
-Definition strong_refinement : state_refinement :=
+Definition strong_refinement : state_refinement (step S1) (step S2) :=
   {| sref_prop := strong_refinement_prop |}.
 
 End Strong.
@@ -268,11 +256,9 @@ Hypothesis me13 : forall e1 e2 e3,
                     match_events e1 e3.
 
 Lemma match_events_composition : forall t1 t2 t3,
-                                   match_traces S1 S2
-                                                (ref_match_events R12) t1 t2 ->
-                                   match_traces S2 S3
-                                                (ref_match_events R23) t2 t3 ->
-                                   match_traces S1 S3 match_events t1 t3.
+                                   Forall2 (ref_match_events R12) t1 t2 ->
+                                   Forall2 (ref_match_events R23) t2 t3 ->
+                                   Forall2 match_events t1 t3.
 Proof.
   intros t1 t2 t3 H12.
   gdep t3.
