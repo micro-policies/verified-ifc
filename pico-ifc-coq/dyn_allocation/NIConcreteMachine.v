@@ -34,10 +34,10 @@ Context {observer : Type}
         {CLatt: ConcreteLattice observer}
         {WFCLatt: WfConcreteLattice cblock observer Latt CLatt}.
 
-Variable table : forall S, ASysTable observer S.
-Hypothesis table_param : match_asystables (table observer) (table unit).
-Hypothesis table_syscall_lowstep : forall o, syscall_lowstep o (table observer).
-Hypothesis table_systable_inv : systable_inv (table observer).
+Variable atable : ASysTable observer.
+Hypothesis Hatable : parametric_asystable atable.
+Hypothesis table_syscall_lowstep : forall o, syscall_lowstep o atable.
+Hypothesis table_systable_inv : systable_inv atable.
 
 Inductive concrete_i_equiv (o : observer) :
   init_data (tini_concrete_machine cblock) -> init_data (tini_concrete_machine cblock) -> Prop :=
@@ -51,18 +51,18 @@ Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event 
   out e := match e with
              | CEInt (z, t) m => EInt (z, valToLab t m)
            end;
-  e_low := fun o e => @TINI.e_low _ _ (AMObservation (table observer)) o e;
+  e_low := fun o e => @TINI.e_low _ _ (AMObservation atable) o e;
   e_low_dec := fun o e => TINI.e_low_dec o e;
   i_equiv := concrete_i_equiv
 }.
 
 Lemma ac_low_compatible :
   forall (o : observer)
-         (e1 : event (abstract_machine (table observer)))
+         (e1 : event (abstract_machine atable))
          (e2 : event (tini_concrete_machine cblock)),
     ref_match_events (@abstract_concrete_ref cblock stamp_cblock
                                              observer Latt CLatt WFCLatt
-                                             (table observer) (table unit) table_param) e1 e2 ->
+                                             atable Hatable) e1 e2 ->
     (TINI.e_low o (TINI.out e1)
        <-> TINI.e_low o (@TINI.out _ _ CMObservation e2)).
 Proof.
@@ -88,9 +88,9 @@ Qed.
 
 Lemma ac_match_events_equiv :
   forall o e11 e12 e21 e22
-         (EQ : @TINI.a_equiv (abstract_machine (table observer)) _ _ o (E e11) (E e12))
-         (MATCH1 : ref_match_events (abstract_concrete_ref stamp_cblock table_param) e11 e21)
-         (MATCH2 : ref_match_events (abstract_concrete_ref stamp_cblock table_param) e12 e22),
+         (EQ : @TINI.a_equiv (abstract_machine atable) _ _ o (E e11) (E e12))
+         (MATCH1 : ref_match_events (abstract_concrete_ref stamp_cblock Hatable) e11 e21)
+         (MATCH2 : ref_match_events (abstract_concrete_ref stamp_cblock Hatable) e12 e22),
     @TINI.a_equiv (tini_concrete_machine cblock) _ _ o (E e21) (E e22).
 Proof.
   simpl.
@@ -111,7 +111,7 @@ Proof.
 Qed.
 
 Lemma ac_tini_preservation_premises :
-  tini_preservation_hypothesis (abstract_concrete_ref stamp_cblock table_param).
+  tini_preservation_hypothesis (abstract_concrete_ref stamp_cblock Hatable).
 Proof.
   intros o. exists o.
   split. { apply ac_low_compatible. }
@@ -123,17 +123,11 @@ Lemma concrete_noninterference :
   TINI.tini CMObservation.
 Proof.
    exact (@refinement_preserves_noninterference
-          (abstract_machine (table observer)) (tini_concrete_machine cblock)
+          (abstract_machine atable) (tini_concrete_machine cblock)
           _ _ _
-          (abstract_concrete_ref stamp_cblock table_param)
+          (abstract_concrete_ref stamp_cblock Hatable)
           (abstract_noninterference_short table_syscall_lowstep table_systable_inv)
           ac_tini_preservation_premises).
 Qed.
 
 End NI.
-
-(* DD: We stick with the "implicit types" formulation of the theorem, but
-       you can print it fully using:
-Set Printing All.
-Check @concrete_noninterference.
-*)

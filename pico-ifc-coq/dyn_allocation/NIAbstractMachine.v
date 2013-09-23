@@ -754,7 +754,7 @@ Section ParamMachine.
 Context {T: Type}.
 Context {Latt: JoinSemiLattice T}.
 
-Variable table : ASysTable T T.
+Variable atable : ASysTable T.
 
 Ltac exploit_low :=
     repeat match goal with 
@@ -780,8 +780,8 @@ Inductive abstract_i_equiv (o : T) : relation (abstract_init_data T) :=
                       (STK : low_equiv_list (low_equiv_atom o) d1 d2),
                  abstract_i_equiv o (p,d1,b) (p,d2,b).
 
-Global Program Instance AMObservation : TINI.Observation (abstract_machine table) (Event T) := {
-  out e := e;                                                                                
+Global Program Instance AMObservation : TINI.Observation (abstract_machine atable) (Event T) := {
+  out e := e;
   e_low := visible_event;
   e_low_dec := visible_event_dec;
   i_equiv := abstract_i_equiv
@@ -812,7 +812,7 @@ Notation "a1 '~~a' a2" := (low_equiv_atom o a1 a2) (at level 20).
 
 Arguments low_pc {Label Latt} o s /.
 
-Definition syscall_lowstep (SysTable:ASysTable T T) := forall id sys_info,
+Definition syscall_lowstep (SysTable:ASysTable T) := forall id sys_info,
   SysTable id = Some sys_info ->
   forall args1 args2 res1 res2,
     map AData args1 ~~l map AData args2 ->
@@ -820,7 +820,7 @@ Definition syscall_lowstep (SysTable:ASysTable T T) := forall id sys_info,
     asi_sem sys_info args2 = Some res2 ->
     res1 ~~a res2.
 
-Variable hyp_syscall_lowstep : syscall_lowstep table.
+Variable hyp_syscall_lowstep : syscall_lowstep atable.
 
 Local Ltac go :=
   try congruence;
@@ -987,18 +987,18 @@ Inductive inv_state : @a_state T -> Prop :=
     (ISTACK: forall a, In (AData a) s -> inv_atom a),
     inv_state (AState m i s (pc,lpc)).
 
-Definition systable_inv (table : ASysTable T T) : Prop :=
+Definition systable_inv (table : ASysTable T) : Prop :=
   forall id args sc res
          (SYS : table id = Some sc)
          (IARGS : forall a, In a args -> inv_atom a)
          (RES : sc.(asi_sem) args = Some res),
     inv_atom res.
 
-Hypothesis table_systable_inv : systable_inv table.
+Hypothesis table_systable_inv : systable_inv atable.
 
 Lemma inv_step : forall as1 e as1',
   inv_state as1 ->
-  a_step table as1 e as1' ->
+  a_step atable as1 e as1' ->
   inv_state as1'.
 Proof.
   intros as1 e as1' Hi Hs.
@@ -1123,8 +1123,8 @@ Qed.
 Lemma lowstep : forall as1 e as1' as2 e' as2',
   low_equiv_full_state o as1 as2 ->
   low_pc o as1  ->
-  a_step table as1 e as1' ->
-  a_step table as2 e' as2' ->
+  a_step atable as1 e as1' ->
+  a_step atable as2 e' as2' ->
   inv_state as1 ->
   inv_state as2 ->
   low_equiv_full_state o as1' as2'.
@@ -1256,7 +1256,7 @@ Qed.
 
 Lemma highstep : forall as1 e as1',
   ~low_pc o as1 ->
-  a_step table as1 e as1' ->
+  a_step atable as1 e as1' ->
   ~low_pc o as1' ->
   low_equiv_full_state o as1 as1'.
 Proof.
@@ -1338,9 +1338,9 @@ Qed.
 Lemma highlowstep : forall as1 e as1' as2 e' as2',
   low_equiv_full_state o as1 as2 ->
   ~low_pc o as1 ->
-  a_step table as1 e as1' ->
+  a_step atable as1 e as1' ->
   low_pc o as1' ->
-  a_step table as2 e' as2' ->
+  a_step atable as2 e' as2' ->
   low_pc o as2' ->
   low_equiv_full_state o as1' as2'.
 Proof.
@@ -1427,8 +1427,8 @@ Qed.
 End fix_observer.
 
 Program Instance AMUnwindingSemantics
-  (SL : forall o, syscall_lowstep o table)
-  (SI : systable_inv table) :
+  (SL : forall o, syscall_lowstep o atable)
+  (SI : systable_inv atable) :
   TINI.UnwindingSemantics AMObservation := {
   s_equiv := low_equiv_full_state;
   s_low := low_pc;
@@ -1572,8 +1572,8 @@ Next Obligation.
 Qed.
 
 Theorem abstract_noninterference_short
-  (SL : forall o, syscall_lowstep o table)
-  (SI : systable_inv table) :
+  (SL : forall o, syscall_lowstep o atable)
+  (SI : systable_inv atable) :
   TINI.tini AMObservation.
 Proof.
   apply TINI.noninterference.

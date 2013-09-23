@@ -20,7 +20,7 @@ Context {T: Type}
         {Latt: JoinSemiLattice T}
         {EqT: EqDec T eq}.
 
-Variable table : ASysTable T T.
+Variable table : ASysTable T.
 
 Definition a_state := AS T T. (* We stamp block with allocation label *)
 Definition a_alloc 

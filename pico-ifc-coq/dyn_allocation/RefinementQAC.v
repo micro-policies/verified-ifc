@@ -401,7 +401,7 @@ Inductive match_events : Event T -> CEvent -> Prop :=
                       (ATOMS : pcatom_labToVal e1 e2 m),
                  match_events (EInt e1) (CEInt e2 m).
 
-Variable table : ASysTable T unit.
+Variable atable : ASysTable T.
 
 Let match_actions e1 e2 := match_actions match_events e1 e2.
 
@@ -809,7 +809,7 @@ Lemma cache_hit_simulation :
          (Hmatch : match_states s1 s2)
          (Hs2' : priv s2' = false)
          (Hstep : cstep cblock s2 a2 s2'),
-    exists a1 s1', step_rules fetch_rule_g table s1 a1 s1' /\
+    exists a1 s1', step_rules fetch_rule_g atable s1 a1 s1' /\
                    match_actions a1 a2 /\
                    match_states s1' s2'.
 Proof.
@@ -1359,7 +1359,7 @@ Hint Resolve match_init_stacks.
 Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
     ac_match_initial_data ai ci ->
-    match_states (init_state (quasi_abstract_machine fetch_rule_g table) ai)
+    match_states (init_state (quasi_abstract_machine fetch_rule_g atable) ai)
                  (init_state (concrete_machine cblock faultHandler) ci).
 Proof.
   intros ai ci H. inv H.
@@ -1447,7 +1447,7 @@ Qed.
 End CExec.
 
 Lemma quasi_abstract_concrete_sref_prop :
-  state_refinement_statement (step_rules fetch_rule_g table)
+  state_refinement_statement (step_rules fetch_rule_g atable)
                              (cstep cblock)
                              match_states match_events.
 Proof.
@@ -1482,9 +1482,9 @@ Definition quasi_abstract_concrete_sref :=
   {| sref_prop := quasi_abstract_concrete_sref_prop |}.
 
 Definition quasi_abstract_concrete_ref :
-  refinement (quasi_abstract_machine fetch_rule_g table)
+  refinement (quasi_abstract_machine fetch_rule_g atable)
              (concrete_machine cblock faultHandler) :=
-  refinement_from_state_refinement (quasi_abstract_machine fetch_rule_g table)
+  refinement_from_state_refinement (quasi_abstract_machine fetch_rule_g atable)
                                    (concrete_machine cblock faultHandler)
                                    quasi_abstract_concrete_sref
                                    ac_match_initial_data

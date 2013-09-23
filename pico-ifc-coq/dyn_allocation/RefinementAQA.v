@@ -238,24 +238,24 @@ Hint Resolve match_stacks_mem_irrel : mem_irrel.
 Hint Unfold a_alloc.
 Hint Unfold qa_alloc.
 
-Inductive match_asyscalls : ASysCall T T -> ASysCall T unit -> Prop :=
-| masc_intro : forall ar f1 f2
+Inductive parametric_asyscall : ASysCall T -> Prop :=
+| masc_intro : forall ar f
                       (EXT : forall mi args1 args2 m2,
                                Forall2 (fun arg1 arg2 => match_atoms mi arg1 arg2 m2)
                                        args1 args2 ->
                                match_options (fun a1 a2 => match_atoms mi a1 a2 m2)
-                                             (f1 args1) (f2 args2)),
-                 match_asyscalls {| asi_arity := ar; asi_sem := f1 |}
-                                 {| asi_arity := ar; asi_sem := f2 |}.
+                                             (f T args1) (f unit args2)),
+                 parametric_asyscall {| asi_arity := ar; asi_sem := f |}.
 
-Inductive match_asystables : ASysTable T T -> ASysTable T unit -> Prop :=
-| mast_intro : forall t1 t2
-                      (MATCH : forall id, match_options match_asyscalls (t1 id) (t2 id)),
-                 match_asystables t1 t2.
+Inductive ForallO {T} (P : T -> Prop) : option T -> Prop :=
+| Forall_None : ForallO P None
+| Forall_Some : forall t, P t -> ForallO P (Some t).
 
-Variable t1 : ASysTable T T.
-Variable t2 : ASysTable T unit.
-Hypothesis Ht1t2 : match_asystables t1 t2.
+Definition parametric_asystable (t : ASysTable T) : Prop :=
+  forall id, ForallO parametric_asyscall (t id).
+
+Variable atable : ASysTable T.
+Hypothesis Hatable : parametric_asystable atable.
 
 Ltac inv_match :=
   repeat match goal with
@@ -295,14 +295,13 @@ Qed.
 
 Lemma a_qa_simulation :
   forall s1 s2 e s2'
-         (STEP : step_rules fetch_rule t2 s2 e s2')
+         (STEP : step_rules fetch_rule atable s2 e s2')
          (MATCH : match_states s1 s2),
     exists s1',
-      a_step t1 s1 e s1' /\
+      a_step atable s1 e s1' /\
       match_states s1' s2'.
 Proof.
   intros.
-  inv Ht1t2.
   inv STEP;
   inv MATCH;
   unfold match_stacks in *;
@@ -312,14 +311,13 @@ Proof.
       unfold run_tmr, Rules.apply_rule in H; simpl in H;
       unfold Vector.nth_order in H; simpl in H
     | INSTR : context[SysCall ?id],
-      MATCH : context[match_asyscalls],
-      TABLE : t2 ?id = Some _ |- _ =>
-      specialize (MATCH id);
-      rewrite TABLE in MATCH;
-      inv MATCH
+      TABLE : atable ?id = Some _ |- _ =>
+      specialize (Hatable id);
+      rewrite TABLE in Hatable;
+      inv Hatable
   end;
   try match goal with
-        | MATCH : match_asyscalls _ _ |- _ =>
+        | MATCH : parametric_asyscall _ |- _ =>
           inv MATCH
       end;
   simpl in *; unfold Vector.nth_order; simpl;
@@ -382,8 +380,8 @@ Proof.
 Qed.
 
 Program Definition abstract_quasi_abstract_sref :=
-  @strong_refinement (abstract_machine t1)
-                     (tini_quasi_abstract_machine t2)
+  @strong_refinement (abstract_machine atable)
+                     (tini_quasi_abstract_machine atable)
                      eq match_states _.
 Next Obligation.
   exploit a_qa_simulation; eauto.
@@ -415,8 +413,8 @@ Qed.
 Hint Resolve match_init_stacks.
 
 Program Definition abstract_quasi_abstract_ref :=
-  @refinement_from_state_refinement (abstract_machine t1)
-                                    (tini_quasi_abstract_machine t2)
+  @refinement_from_state_refinement (abstract_machine atable)
+                                    (tini_quasi_abstract_machine atable)
                                     abstract_quasi_abstract_sref eq
                                     _.
 

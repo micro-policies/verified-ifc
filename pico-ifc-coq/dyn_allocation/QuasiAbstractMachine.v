@@ -45,7 +45,7 @@ Context {T: Type}
 (** Get the "rule" for a given operation. *)
 Variable fetch_rule : forall opcode : OpCode, AllowModify (labelCount opcode).
 
-Variable table : ASysTable T unit.
+Variable table : ASysTable T.
 
 Definition qa_state := AS T unit.
 Definition qa_alloc
@@ -223,7 +223,7 @@ Section IfcQuasiAbstractMachine.
 Context {T: Type}
         {Latt: JoinSemiLattice T}.
 
-Variable table : ident -> option (ASysCall T unit).
+Variable table : ASysTable T.
 
 Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
   match opcode with
