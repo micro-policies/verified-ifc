@@ -8,7 +8,7 @@ Require Import Utils.
 
 Require Import Instr Memory.
 
-Require Import Concrete ConcreteMachine.
+Require Import Concrete ConcreteMachine ConcreteExecutions.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope. 
@@ -81,5 +81,28 @@ Proof.
     split ; reflexivity.
 Qed.
 
+Lemma runsUntilUser_determ :
+  forall cblock s1 s21 s22
+         (RUN1 : runsUntilUser cblock s1 s21)
+         (RUN2 : runsUntilUser cblock s1 s22),
+    s21 = s22.
+Proof.
+  intros.
+  induction RUN1; inv RUN2;
+  try match goal with
+        | [ H1 : cstep _ ?s _ _,
+            H2 : cstep _ ?s _ _
+            |- _ ] =>
+          let H := fresh "H" in
+          generalize (cmach_determ H1 H2);
+          intros [? ?]; subst
+      end; eauto;
+  try match goal with
+        | [ H : runsUntilUser _ _ _ |- _ ] =>
+          generalize (runsUntilUser_l H);
+          intros
+      end;
+  congruence.
+Qed.
 
 End Determinism.

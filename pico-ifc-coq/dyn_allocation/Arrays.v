@@ -16,7 +16,6 @@ Require Import CodeSpecs.
 Require Import Concrete.
 Require Import ConcreteExecutions.
 Require Import ConcreteMachine.
-Require Import Determinism.
 Require Import Coq.Arith.Compare_dec.
 
 (* Everything to do with machine execution and triples has to be parameterized over SysTable. *)
