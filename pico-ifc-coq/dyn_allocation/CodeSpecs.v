@@ -2680,9 +2680,6 @@ Proof.
   - jauto.
 Qed.
 
-Definition jump_back (c : code) :=
-  c ++ push 1 ++ [BranchNZ (- Z.of_nat (length c + 1))].
-
 Lemma jump_back_spec_wp :
   forall (P Q R : HProp) (c : code)
          (HTc : HT c P Q)
@@ -2715,12 +2712,6 @@ Proof.
   apply rte_refl.
   reflexivity.
 Qed.
-
-Definition while_body (c b : code) :=
-  c ++ genNot ++ skipNZ (length b + 2) ++ b.
-
-Definition while (c b : code) : code :=
-  jump_back (while_body c b).
 
 Lemma while_spec_end :
   forall (I : memory -> stack -> nat -> Prop)
@@ -2955,6 +2946,59 @@ Proof.
   rewrite Z2Nat.id; try omega.
   split; eauto.
   replace (off - off) with 0 by ring. eauto.
+Qed.
+
+Lemma genSysRet_specEscape_Some: forall raddr (Q: memory -> stack -> Prop),
+  HTEscape raddr genSysRet
+           (fun m s =>
+              exists s0,
+              s = (Vint 1, handlerTag) ::: CRet raddr false false :: s0 /\
+              Q m s0)
+           (fun m s  => (Q m s, Success)).
+Proof.
+  intros.
+  unfold genSysRet.
+  eapply HTEscape_strengthen_premise.
+  - eapply ifNZ_specEscape with (v:=1) (Pf:=fun m s => True); intros; try assumption.
+    eapply ret_specEscape; try assumption.
+    false.
+  - subst.
+    intuition. split_vc.
+Qed.
+
+Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop),
+  HTEscape raddr genError
+           P
+           (fun m s => (P m s , Failure)).
+Proof.
+  intros.
+  unfold genError.
+  eapply HTEscape_compose.
+  - eapply push_spec'.
+  - eapply HTEscape_strengthen_premise.
+    + eapply jump_specEscape_Failure; auto.
+    + intuition.
+      cases s; subst.
+      * rewrite hd_error_nil in *; false.
+      * rewrite hd_error_cons in *.
+        inversion H0; subst; jauto.
+Qed.
+
+Lemma genSysRet_specEscape_None: forall raddr s0 m0,
+ HTEscape raddr genSysRet
+   (fun m s => (extends m0 m /\ s = (Vint 0, handlerTag) ::: s0))
+   (fun m s => (extends m0 m /\ s = s0, Failure)).
+Proof.
+  intros.
+  unfold genSysRet.
+  eapply HTEscape_strengthen_premise.
+  - eapply ifNZ_specEscape with (v := 0) (Pt := fun m s => True); intros; try assumption.
+    + intuition.
+    + eapply genError_specEscape.
+  - intros.
+    subst.
+    intuition.
+    jauto_set_goal; eauto.
 Qed.
 
 End CodeSpecs.

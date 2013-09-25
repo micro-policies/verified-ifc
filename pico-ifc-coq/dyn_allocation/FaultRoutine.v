@@ -44,9 +44,6 @@ Context {T: Type}
 
 (* Compilation of rules *)
 
-Definition genError :=
-  push (-1) ++ [Jump].
-
 Definition genVar {n:nat} (l:LAB n) :=
   match l with
   (* NC: We assume the operand labels are stored at these memory
@@ -1007,60 +1004,7 @@ Definition handler_final_mem_matches (lrpc lr: T) (m m': memory):
       cache_hit_read_mem cblock m' zr zpc /\
       update_cache_spec_rvec cblock m_ext m'. (* Nothing else changed since the extension *)
 
-Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop),
-  HTEscape cblock raddr genError
-           P
-           (fun m s => (P m s , Failure)).
-Proof.
-  intros.
-  unfold genError.
-  eapply HTEscape_compose.
-  - eapply push_spec'.
-  - eapply HTEscape_strengthen_premise.
-    + eapply jump_specEscape_Failure; auto.
-    + intuition.
-      cases s; subst.
-      * rewrite hd_error_nil in *; false.
-      * rewrite hd_error_cons in *.
-        inversion H0; subst; jauto.
-Qed.
 
-Definition genFaultHandlerReturn: code := ifNZ [Ret] genError.
-
-Lemma genFaultHandlerReturn_specEscape_Some: forall raddr (Q: memory -> stack -> Prop),
-  HTEscape cblock raddr genFaultHandlerReturn
-           (fun m s =>
-              exists s0,
-              s = (Vint 1, handlerTag) ::: CRet raddr false false :: s0 /\
-              Q m s0)
-           (fun m s  => (Q m s, Success)).
-Proof.
-  intros.
-  unfold genFaultHandlerReturn.
-  eapply HTEscape_strengthen_premise.
-  - eapply ifNZ_specEscape with (v:=1) (Pf:=fun m s => True); intros; try assumption.
-    eapply ret_specEscape; try assumption.
-    false.
-  - subst.
-    intuition. split_vc.
-Qed.
-
-Lemma genFaultHandlerReturn_specEscape_None: forall raddr s0 m0,
- HTEscape cblock raddr genFaultHandlerReturn
-   (fun m s => (extends m0 m /\ s = (Vint 0, handlerTag) ::: s0))
-   (fun m s => (extends m0 m /\ s = s0, Failure)).
-Proof.
-  intros.
-  unfold genFaultHandlerReturn.
-  eapply HTEscape_strengthen_premise.
-  - eapply ifNZ_specEscape with (v := 0) (Pt := fun m s => True); intros; try assumption.
-    + intuition.
-    + eapply genError_specEscape.
-  - intros.
-    subst.
-    intuition.
-    jauto_set_goal; eauto.
-Qed.
 
 (* MOVE *)
 Lemma extends_valid_address: forall m m' a,
@@ -1095,7 +1039,7 @@ Proof.
   eapply HTEscape_compose_flip.
   eapply HTEscape_compose_flip.
 
-  eapply genFaultHandlerReturn_specEscape_Some ; eauto.
+  eapply genSysRet_specEscape_Some ; eauto.
   eapply genStoreResults_spec_Some; eauto.
   eapply HT_consequence.
   eapply genComputeResults_spec with
@@ -1193,7 +1137,7 @@ Proof.
   unfold faultHandler.
   eapply HTEscape_compose_flip.
   eapply HTEscape_compose_flip.
-  eapply genFaultHandlerReturn_specEscape_None ; eauto.
+  eapply genSysRet_specEscape_None ; eauto.
   eapply genStoreResults_spec_None; eauto.
   eapply HT_consequence.
   eapply genComputeResults_spec with

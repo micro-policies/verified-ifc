@@ -127,5 +127,22 @@ Definition loopNZ (c : code) : code :=
 Definition genRepeat (c:code) :=
  dup ++ ifNZ (loopNZ (c ++ push (-1) ++ [Add])) nop.
 
+Definition jump_back (c : code) :=
+  c ++ push 1 ++ [BranchNZ (- Z.of_nat (length c + 1))].
+
+Definition while_body (c b : code) :=
+  c ++ genNot ++ skipNZ (length b + 2) ++ b.
+
+Definition while (c b : code) : code :=
+  jump_back (while_body c b).
+
+Definition genError := push (-1) ++ [Jump].
+
+(* Expects an option on the stack, as encoded by the [some] and [none]
+generators. If the element is a [some], returns that
+element. Otherwise, causes an error. *)
+
+Definition genSysRet : code := ifNZ [Ret] genError.
+Definition genSysVRet : code := ifNZ [VRet] genError.
 
 End CodeGeneration.
