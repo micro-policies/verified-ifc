@@ -1018,13 +1018,13 @@ Proof.
   econstructor. eauto.
 Qed.
 
-Lemma faultHandler_specEscape_Some: forall syscode raddr lr lpc m0,
+Lemma faultHandler_specEscape_Some: forall raddr lr lpc m0,
   INIT_MEM m0 ->
   valid_address cblock addrTagRes m0 ->
   valid_address cblock addrTagResPC m0 ->
   ar = Some (lpc, lr) ->
   forall s0,
-    HTEscape cblock raddr ((faultHandler fetch_rule_impl)++syscode)
+    HTEscape cblock raddr (faultHandler fetch_rule_impl)
              (fun m s => m = m0 /\
                          s = (CRet raddr false false::s0))
              (fun m s => ( exists zr zpc,
@@ -1033,7 +1033,6 @@ Lemma faultHandler_specEscape_Some: forall syscode raddr lr lpc m0,
                          , Success )).
 Proof.
   intros.
-  eapply HTEscape_append.
   unfold faultHandler.
 
   eapply HTEscape_compose_flip.
@@ -1123,17 +1122,16 @@ Proof.
     eapply load_store_old; eauto; congruence.
 Qed.
 
-Lemma faultHandler_specEscape_None: forall syscode raddr m0,
+Lemma faultHandler_specEscape_None: forall raddr m0,
                                     forall (INIT_MEM0: INIT_MEM m0),
   ar = None ->
   forall s0,
-    HTEscape cblock raddr ((faultHandler fetch_rule_impl)++syscode)
+    HTEscape cblock raddr (faultHandler fetch_rule_impl)
              (fun m s => m0  = m /\ s = s0)
              (fun m s => ((extends m0 m /\ s = s0)
                          , Failure)).
 Proof.
   intros.
-  eapply HTEscape_append.
   unfold faultHandler.
   eapply HTEscape_compose_flip.
   eapply HTEscape_compose_flip.
@@ -1175,14 +1173,15 @@ Require Import ConcreteExecutions.
 Theorem handler_correct_succeed :
   forall syscode opcode vls pcl c raddr s i lr lpc z1 z2 z3 zpc,
   forall
+    (CODE: code_at 0 syscode handler)
     (LABS: (labsToVals vls) c (z1, z2, z3))
     (LABPC: (labToVal pcl) zpc c)
     (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
     (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = Some (lpc,lr)),
     exists c' zr zrpc,
     runsToEscape cblock
-                 (CState c (handler++syscode) i (CRet raddr false false::s) (0,handlerTag) true)
-                 (CState c' (handler++syscode) i s raddr false) /\
+                 (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
+                 (CState c' syscode i s raddr false) /\
     handler_final_mem_matches cblock lpc lr c c' zrpc zr.
 Proof.
  intros.
@@ -1196,7 +1195,7 @@ Proof.
     inv INPUT. inv TAGRPC. eauto. }
   edestruct (faultHandler_specEscape_Some cblock stamp_cblock
                                           (Some (lpc,lr)) _
-                                          opcode vls pcl RULE syscode raddr lr lpc c)
+                                          opcode vls pcl RULE raddr lr lpc c)
     as [stk1 HH]; eauto.
  - exploit (@init_enough cblock stamp_cblock _ _ _ _ (projT1 (get_rule opcode)) vls); eauto.
    intros Hmem.
@@ -1206,7 +1205,6 @@ Proof.
           end;
    econstructor; simpl in LABS; intuition; eauto;
    econstructor; eauto.
- - apply code_at_id.
  - destruct HH as [cache1 [pc1 [priv1 [[zr [zpc' [P1 P2]]] [P3 P4]]]]].
    subst. inv P3.
    exists cache1;  exists zr; exists zpc'.
@@ -1216,14 +1214,15 @@ Qed.
 
 Theorem handler_correct_fail :
   forall syscode opcode vls pcl c raddr s i z1 z2 z3 zpc,
-  forall (LABS: (labsToVals vls) c (z1, z2, z3))
+  forall (CODE: code_at 0 syscode handler)
+         (LABS: (labsToVals vls) c (z1, z2, z3))
          (LABPC: (labToVal pcl) zpc c)
          (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
          (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = None),
     exists st c',
       runsToEscape cblock
-                   (CState c (handler++syscode) i (CRet raddr false false::s) (0,handlerTag) true)
-                   (CState c' (handler++syscode) i st (-1,handlerTag) true) /\
+                   (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
+                   (CState c' syscode i st (-1,handlerTag) true) /\
     extends c c'.
 Proof.
   intros.
@@ -1235,7 +1234,7 @@ Proof.
   { unfold cache_hit_mem, valid_address, load in *.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGRPC. eauto. }
-  edestruct (faultHandler_specEscape_None cblock stamp_cblock None _ opcode vls pcl RULE syscode raddr c)
+  edestruct (faultHandler_specEscape_None cblock stamp_cblock None _ opcode vls pcl RULE raddr c)
       as [stk1 HH]; eauto.
   - exploit (@init_enough cblock stamp_cblock _ _ _ _ (projT1 (get_rule opcode))); eauto.
     intros Hmem.
@@ -1245,7 +1244,6 @@ Proof.
            end;
     econstructor; simpl in LABS; intuition; eauto;
     econstructor; eauto.
-  - apply code_at_id.
   - destruct HH as [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]].
     substs. inv P3.
     eexists ; eexists; intuition; eauto.

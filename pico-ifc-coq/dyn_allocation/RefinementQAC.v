@@ -124,14 +124,15 @@ Inductive cache_up2date mem : Prop :=
       cache_up2date mem.
 
 Inductive match_states : @qa_state T -> CS -> Prop :=
-| qac_intro : forall mi m1 m2 p stk1 stk2 pcv pcl pct
+| qac_intro : forall kc mi m1 m2 p stk1 stk2 pcv pcl pct
+                     (CODE : CodeTriples.code_at 0 kc faultHandler)
                      (MINJ : Meminj m1 m2 mi)
                      (UINJ : Userinj mi)
                      (STK : match_stacks mi stk1 stk2 m2)
                      (CACHE : cache_up2date m2)
                      (PC : labToVal pcl pct m2),
                 match_states (AState m1 p stk1 (pcv,pcl))
-                             (CState m2 faultHandler p stk2 (pcv,pct) false).
+                             (CState m2 kc p stk2 (pcv,pct) false).
 Hint Constructors match_states.
 
 Lemma alloc_match_stacks :
@@ -802,6 +803,8 @@ Lemma match_stacks_valid_update :
 Proof. intros. induction STKS; eauto with valid_update. Qed.
 Hint Resolve match_stacks_valid_update : valid_update.
 
+Opaque faultHandler. (* Trying to simplify faultHandler brings Coq to a halt *)
+
 (** Cache hit case *)
 
 Lemma cache_hit_simulation :
@@ -815,6 +818,7 @@ Lemma cache_hit_simulation :
 Proof.
   intros.
   inv Hmatch.
+
   inv Hstep; simpl in *; try congruence;
 
   match_inv;
@@ -1272,9 +1276,8 @@ Proof.
   destruct (apply_rule (projT2 (fetch_rule_impl op)) pcl vls)
     as [[rpcl rl]|] eqn:E.
   - exploit (handler_correct_succeed); eauto.
-    intros H'. specialize (H' _ _ _ _ Hvls Hpc HIT E).
+    intros H'. specialize (H' _ _ _ _ CODE Hvls Hpc HIT E).
     destruct H' as (m2' & zr & zrpc & ESCAPE1 & MATCH').
-    erewrite app_nil_r in ESCAPE1.
     exploit rte_success; eauto.
     intros ESCAPE2.
     generalize (runsToEscape_determ ESCAPE1 ESCAPE2).
@@ -1303,8 +1306,7 @@ Proof.
       eapply labToVal_cache; eauto.
       constructor; eauto.
   - exploit handler_correct_fail; eauto.
-    rewrite app_nil_r.
-    intros H. specialize (H t3 pct Hvls Hpc HIT E).
+    intros H. specialize (H t3 pct CODE Hvls Hpc HIT E).
     destruct H as (st & m2' & ESCAPE1 & EXT).
     inv ESCAPE1.
     + apply runsUntilUser_r in STAR. simpl in STAR. congruence.
@@ -1365,6 +1367,7 @@ Proof.
   intros ai ci H. inv H.
   simpl in *.
   econstructor; simpl; eauto.
+  apply CodeTriples.code_at_id.
 Qed.
 
 (** Notions of concrete executions for proving this refinement *)
