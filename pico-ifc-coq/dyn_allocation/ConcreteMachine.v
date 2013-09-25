@@ -366,11 +366,11 @@ Inductive cstep : CS -> CEvent+τ -> CS -> Prop :=
      cstep (CState m fh i ((resv,resl):::s)  (pcv,pcl) false)
            Silent (CState m' fh i ((fh_ret pcv pcl)::(resv,resl):::s) fh_start true)
 
-| cstep_vret_p: forall m fh i s pcv pcl s' pcret pcretl resv resl, 
+| cstep_vret_p: forall m fh i s pcv pcl s' pcret pcretl resv resl pret, 
     forall (INST: fh @ pcv # VRet) (* cannot vreturn to user mode *)
-           (POP: c_pop_to_return s ((CRet (pcret,pcretl) true true)::s')),
+           (POP: c_pop_to_return s ((CRet (pcret,pcretl) true pret)::s')),
     cstep (CState m fh i ((resv,resl):::s) (pcv,pcl) true) 
-          Silent (CState m fh i ((resv,resl):::s') (pcret, pcretl) true)
+          Silent (CState m fh i ((resv,resl):::s') (pcret, pcretl) pret)
 
 | cstep_out: forall fh m i s rpcl pcv pcl rl cv cl,
    forall(INST: i @ pcv # Output)

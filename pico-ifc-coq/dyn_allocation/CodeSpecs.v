@@ -3001,4 +3001,45 @@ Proof.
     jauto_set_goal; eauto.
 Qed.
 
+Lemma genSysVRet_spec :
+  forall raddr s0 m0 res,
+    HTEscape raddr genSysVRet
+             (fun m s => m = m0 /\
+                         match res with
+                           | Some atom =>
+                             exists t,
+                             s = (Vint 1, t) ::: atom ::: CRet raddr true false :: s0
+                           | None => exists t, s = (Vint 0, t) ::: s0
+                         end)
+             (fun m s => match res with
+                           | Some atom => (m = m0 /\ s = atom ::: s0, Success)
+                           | None => (True, Failure)
+                         end).
+Proof.
+  intros.
+  unfold genSysVRet.
+  destruct res as [[resv resl]|], raddr as [pcret pcrett].
+  - intros code stk0 mem0 fh n code_at [? (t & ?)]. subst.
+    simpl in *. destruct code_at as (H1 & H2 & H3 & H4 & H5 & H6 & _).
+    repeat eexists.
+    eapply rte_success.
+    eapply ruu_step; eauto.
+    { eapply cstep_branchnz_p'; eauto. } simpl.
+    replace (n + 5) with (n + 1 + 1 + 1 + 1 + 1) by ring.
+    eapply ruu_end; eauto.
+    eapply cstep_vret_p; eauto.
+    eapply cptr_done.
+  - intros code stk0 mem0 fh n code_at [? (t & ?)]. subst.
+    simpl in *. destruct code_at as (H1 & H2 & H3 & H4 & H5 & H6 & _).
+    repeat eexists.
+    eapply rte_fail; simpl; try omega.
+    eapply rte_step; try reflexivity.
+    { eapply cstep_branchnz_p'; eauto. } simpl.
+    eapply rte_step; try reflexivity.
+    { eapply cstep_push_p; eauto. }
+    eapply rte_step; try reflexivity.
+    { eapply cstep_jump_p; eauto. }
+    eauto.
+Qed.
+
 End CodeSpecs.
