@@ -287,6 +287,13 @@ Qed.
 
 End CMach.
 
+Record CSysCall : Type := {
+  csi_arity : nat;
+  csi_pc : Z
+}.
+
+Definition CSysTable : Type := ident -> option CSysCall.
+
 Notation read_m := index_list_Z.
 Notation upd_m := update_list_Z.
 Notation "a ::: b" := ((CData a) :: b)  (at level 60, right associativity).
