@@ -6,6 +6,7 @@ Require Import Instr.
 Require Import Concrete.
 Require Import Semantics.
 Require Import Memory.
+Require CodeGen.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope.
@@ -17,6 +18,7 @@ Notation "i @ pc # instr" := (index_list_Z pc i = Some instr) (no associativity,
 Notation "'__'" := dontCare.
 Notation fh_start := (0,handlerTag).
 Notation fh_ret := (fun pc pcl => (CRet (pc,pcl) false false)).
+Notation fh_vret := (fun pc pcl => (CRet (pc,pcl) true false)).
 
 Notation Atom := (Atom (val privilege) privilege).
 Notation memory := (Mem.t Atom privilege).
@@ -36,7 +38,7 @@ Definition c_alloc (p:privilege) (size:Z) (a:Atom) (m:memory) :=
 (** Concrete machine transition relation.
     Each instructions has 3 semantic rules: (user mode - succ) (user mode - faulting) (kernel mode) *)
 
-Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
+Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
 | cstep_nop : forall m fh i s pcv pcl rl rpcl,
     forall (INST: i @ pcv # Noop)
            (CHIT: cache_hit_mem m (opCodeToZ OpNoop) (__,__,__) pcl)
@@ -44,7 +46,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i s (pcv,pcl) false)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s (pcv+1,rpcl) false),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_nop_f : forall c' m fh i s pcv pcl m',
    forall (INST: i @ pcv # Noop)
@@ -54,14 +56,14 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
           (CS1: cs1 = CState m fh i s (pcv,pcl) false)
           (CA: ca = Silent)
           (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::s) fh_start true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_nop_p : forall m fh i s pcv pcl,
     forall (INST: fh @ pcv # Noop)
            (CS1: cs1 = CState m fh i s (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_add: forall fh m i s rpcl pcv pcl rl x1v x1l x2v x2l v,
    forall(INST: i @ pcv # Add)
@@ -71,7 +73,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((v,rl):::s) (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_add_f: forall c' fh m i s pcv pcl x1v x1l x2v x2l m',
    forall(INST: i @ pcv # Add)
@@ -81,7 +83,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(x1v,x1l):::(x2v,x2l):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_add_p: forall m fh i s pcv pcl x1v x1l x2v x2l v,
     forall (INST: fh @ pcv # Add)
@@ -89,7 +91,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i ((v,handlerTag):::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_sub: forall fh m i s rpcl pcv  pcl rl x1v x1l x2v x2l v,
    forall(INST: i @ pcv # Sub)
@@ -99,7 +101,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((v,rl):::s) (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_sub_f: forall c' fh m i s pcv pcl x1v x1l x2v x2l m',
    forall(INST: i @ pcv # Sub)
@@ -109,7 +111,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(x1v,x1l):::(x2v,x2l):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_sub_p: forall m fh i s pcv pcl x1v x1l x2v x2l v,
     forall (INST: fh @ pcv # Sub)
@@ -117,7 +119,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i ((v,handlerTag):::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_eq: forall fh m i s rpcl pcv  pcl rl x1v x1l x2v x2l,
    forall(INST: i @ pcv # Eq)
@@ -126,7 +128,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)    false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i          ((val_eq x1v x2v,rl):::s) (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_eq_f: forall c' fh m i s pcv pcl x1v x1l x2v x2l m',
    forall(INST: i @ pcv # Eq)
@@ -136,14 +138,14 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl)    false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(x1v,x1l):::(x2v,x2l):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_eq_p: forall m fh i s pcv pcl x1v x1l x2v x2l,
     forall (INST: fh @ pcv # Eq)
            (CS1: cs1 = CState m fh i ((x1v,x1l):::(x2v,x2l):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i ((val_eq x1v x2v,handlerTag):::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_dup_p: forall m fh i s pcv pcl n x,
     forall (INST: fh @ pcv # Dup n)
@@ -151,7 +153,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i s (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i (x::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_swap_p: forall m fh i y s pcv pcl n x s',
     forall (INST: fh @pcv # Swap n)
@@ -160,7 +162,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i (y::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s' (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_push: forall fh m i s rpcl pcv pcl rl cv,
    forall(INST: i @ pcv # Push cv)
@@ -169,7 +171,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i s (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((Vint cv,rl):::s) (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_push_f: forall c' fh m i s pcv pcl cv m',
    forall(INST : i @ pcv # Push cv)
@@ -179,14 +181,14 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i s (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_push_p: forall m fh i s pcv pcl cv,
     forall (INST: fh @ pcv # Push cv)
            (CS1: cs1 = CState m fh i s (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i ((Vint cv,handlerTag):::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_pop: forall fh m i s rpcl pcv pcl rl xv xl,
    forall(INST: i @ pcv # Pop)
@@ -195,7 +197,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((xv,xl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i (s) (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_pop_f: forall c' fh m i s pcv pcl xv xl m',
    forall(INST : i @ pcv # Pop)
@@ -205,21 +207,21 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((xv,xl):::s) (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(xv,xl):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_pop_p: forall m fh i s pcv pcl xv xl,
     forall (INST: fh @ pcv # Pop)
            (CS1: cs1 = CState m fh i ((xv,xl):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_push_cache_ptr_p: forall m fh i s pcv pcl,
     forall (INST: fh @ pcv # PushCachePtr)
            (CS1: cs1 = CState m fh i s (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i ((Vptr cblock 0,handlerTag):::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_alloc: forall fh m i s pcv pcl b size sizel xv xl m' rpcl rl,
     forall (INST: i @ pcv # Alloc)
@@ -229,7 +231,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i (CData (Vint size, sizel)::CData (xv,xl)::s) (pcv,pcl) false)
            (CA: ca = Silent)
            (CS2: cs2 = CState m' fh i (CData (Vptr b 0,rl)::s) (pcv+1,rpcl) false),
-      cstep cs1 ca cs2
+      cstep table cs1 ca cs2
 
 | cstep_alloc_f: forall c' fh m m' i s pcv pcl size sizel xv xl,
     forall (INST: i @ pcv # Alloc)
@@ -239,7 +241,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i (CData (Vint size, sizel)::CData (xv,xl)::s) (pcv,pcl) false)
            (CA: ca = Silent)
            (CS2: cs2 = CState m' fh i (fh_ret pcv pcl::CData (Vint size, sizel)::CData (xv,xl)::s) fh_start true),
-      cstep cs1 ca cs2
+      cstep table cs1 ca cs2
 
 | cstep_alloc_p: forall fh m m' i s pcv pcl b size sizel xv xl,
     forall (INST: fh @ pcv # Alloc)
@@ -247,7 +249,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i (CData (Vint size, sizel)::CData (xv,xl)::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m' fh i (CData (Vptr b 0,handlerTag)::s) (pcv+1,handlerTag) true),
-      cstep cs1 ca cs2
+      cstep table cs1 ca cs2
 
 | cstep_load: forall fh m i s rpcl pcv pcl rl b ofs addrl xv xl,
    forall(INST: i @ pcv # Load)
@@ -258,7 +260,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((xv,rl):::s) (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_load_f: forall c' fh m i s pcv pcl b ofs addrl xv xl m',
    forall(INST: i @ pcv # Load)
@@ -270,7 +272,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr b ofs,addrl):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_load_p: forall m fh i s pcv pcl b ofs addrl x,
    forall (INST: fh @ pcv # Load)
@@ -279,7 +281,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
           (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl) true)
           (CA: ca = Silent)
           (CS2: cs2 = CState m fh i (x:::s) (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_store: forall fh m m' i s rpcl pcv pcl rl b ofs addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)
@@ -291,7 +293,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::(xv,xl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i s (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_store_f: forall c' fh m i s pcv pcl b ofs addrl xv xl mv ml m',
    forall(INST: i @ pcv # Store)
@@ -303,7 +305,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::(xv,xl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr b ofs,addrl):::(xv,xl):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_store_p: forall m fh i s pcv pcl m' b ofs addrl x,
     forall (INST:fh @ pcv # Store)
@@ -312,7 +314,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl)::: x :::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m' fh i s (pcv+1,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_jump: forall fh m i s rpcl pcv pcl rl cv cl,
    forall(INST: i @ pcv # Jump)
@@ -321,7 +323,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i s (cv,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_jump_f: forall c' fh m i s pcv pcl cv cl m',
    forall(INST: i @ pcv # Jump)
@@ -331,14 +333,14 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((cv,cl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(cv,cl):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_jump_p: forall m fh i s pcv pcl pcj pcjl,
     forall (INST: fh @ pcv # Jump)
            (CS1: cs1 = CState m fh i ((Vint pcj,pcjl):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s (pcj,handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_bnz: forall fh m i s rpcl pcv pcl rl cv cl offv,
    forall(INST: i @ pcv # BranchNZ offv)
@@ -347,7 +349,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i s (if cv =? 0 then pcv+1 else pcv+offv, rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_bnz_f: forall c' fh m m' i s pcv pcl cv cl offv,
    forall(INST: i @ pcv # BranchNZ offv)
@@ -357,14 +359,14 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vint cv,cl):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_branchnz_p: forall m fh i s pcv pcl offv av al,
     forall (INST: fh @ pcv # BranchNZ offv)
            (CS1: cs1 = CState m fh i ((Vint av,al):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s (if av =? 0 then pcv+1 else pcv+offv, handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_call: forall fh m i s rpcl pcv pcl rl pcc pccl a r args,
    forall(INST: i @ pcv # Call a r)
@@ -375,7 +377,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vint pcc,pccl):::args++s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i (args++(((CRet (pcv+1, rl)) r false)::s)) (pcc,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_call_f: forall c' fh m i s pcv pcl pcc pccl a r args m',
    forall(INST: i @ pcv # Call a r)
@@ -387,7 +389,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((pcc,pccl):::args++s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(pcc,pccl):::args++s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_call_p: forall m fh i s pcv pcl a r args pcc pccl,
     forall (INST: fh @ pcv # Call a r)
@@ -396,7 +398,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i ((Vint pcc,pccl):::args++s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i (args++(CRet (pcv+1, pcl) r true)::s) (pcc, handlerTag) true),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_ret: forall fh m i s s' pcv pcl rl rpcl pcret pcretl,
    forall(INST: i @ pcv # Ret)
@@ -407,7 +409,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i s  (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i s' (pcret, rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_ret_f: forall c' fh m i s' s pcv pcl pret pcret pcretl m',
    forall(INST: i @ pcv # Ret)
@@ -420,7 +422,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i s  (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_ret_p: forall m fh i s pcv pcl  pcret pcretl s' pret,
     forall (INST: fh @ pcv # Ret) (* can either return to user/priv mode *)
@@ -428,7 +430,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i s  (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i s' (pcret,pcretl) pret),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_vret: forall fh m i s s' pcv pcl rl rpcl resv resl pcret pcretl,
    forall(INST: i @ pcv # VRet)
@@ -439,7 +441,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((resv,resl):::s)  (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((resv,rl):::s') (pcret,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_vret_f: forall c' fh m i s' s pcv pcl resv resl pcret pcretl m',
    forall(INST: i @ pcv # VRet)
@@ -450,7 +452,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((resv,resl):::s)  (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(resv,resl):::s) fh_start true),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_vret_p: forall m fh i s pcv pcl s' pcret pcretl resv resl pret,
     forall (INST: fh @ pcv # VRet) (* cannot vreturn to user mode *)
@@ -458,7 +460,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
            (CS1: cs1 = CState m fh i ((resv,resl):::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m fh i ((resv,resl):::s') (pcret, pcretl) pret),
-    cstep cs1 ca cs2
+    cstep table cs1 ca cs2
 
 | cstep_out: forall fh m i s rpcl pcv pcl rl cv cl,
    forall(INST: i @ pcv # Output)
@@ -467,7 +469,7 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
          (CA: ca = (E (CEInt (cv,rl) m)))
          (CS2: cs2 = CState m fh i s (pcv+1,rpcl) false),
-     cstep cs1 ca cs2
+     cstep table cs1 ca cs2
 
 | cstep_out_f: forall c' fh m i s pcv pcl cv cl m',
    forall(INST: i @ pcv # Output)
@@ -477,25 +479,58 @@ Inductive cstep (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Prop :=
          (CS1: cs1 = CState m fh i ((Vint cv,cl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vint cv,cl):::s) fh_start true),
-     cstep cs1 ca cs2.
+     cstep table cs1 ca cs2
 
-Definition concrete_machine (faultHandler: list Instr) : semantics :=
+| cstep_syscall: forall id fh m i s pcv pcl sys_info args,
+   forall(INST: i @ pcv # (SysCall id))
+         (SYS: table id = Some sys_info)
+         (SYSLENGTH: length args = sys_info.(csi_arity))
+         (CS1: cs1 = CState m fh i (map CData args ++ s) (pcv,pcl) false)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i (map CData args ++ (fh_vret (pcv+1) pcl) :: s)
+                            (sys_info.(csi_pc),handlerTag) true),
+     cstep table cs1 ca cs2
+.
+
+Import CodeGen.
+
+Definition CSysCallImpl := (nat * list Instr)%type.
+
+Definition build_kernel_code (faultHandler : list Instr)
+                             (syscalls : list CSysCallImpl) : list Instr :=
+  fold_left (fun code syscall => code ++ snd syscall ++ genSysVRet) syscalls faultHandler.
+
+Fixpoint build_syscall_table (start : Z)
+                             (syscalls : list CSysCallImpl)
+                             (n : ident) : option CSysCall :=
+  match n, syscalls with
+    | O, (ar, code) :: rest => Some {| csi_arity := ar; csi_pc := start |}
+    | S n', (_, code) :: rest => build_syscall_table
+                                   (start + Z.of_nat (length (code ++ genSysVRet)))
+                                   rest n'
+    | _, _ => None
+  end.
+
+Definition concrete_init_data : Type :=
+  (list Instr * memory * list PcAtom * val privilege)%type.
+
+Definition concrete_machine (faultHandler: list Instr) (syscalls : list CSysCallImpl) : semantics :=
   {| state := CS ;
      event := CEvent ;
-     step := cstep ;
-     init_data := list Instr * memory * list PcAtom * val privilege;
+     step := cstep (build_syscall_table (Z.of_nat (length faultHandler)) syscalls);
+     init_data := concrete_init_data;
      init_state := fun id =>
                      let '(prog,mem,data,def) := id in
                      {| mem := mem;
-                        fhdl := faultHandler;
+                        fhdl := build_kernel_code faultHandler syscalls;
                         imem := prog;
                         stk := map (fun a:PcAtom => let (pc,l) := a in CData (Vint pc,l)) data;
                         pc := (0, def);
                         priv := false |}
   |}.
 
-Lemma priv_no_event_l : forall s e s'
-                               (STEP : cstep s e s')
+Lemma priv_no_event_l : forall t s e s'
+                               (STEP : cstep t s e s')
                                (PRIV : priv s = true),
                           e = Silent.
 Proof.
@@ -503,8 +538,8 @@ Proof.
   inv STEP; simpl in *; try congruence; auto.
 Qed.
 
-Lemma priv_no_event_r : forall s e s'
-                               (STEP : cstep s e s')
+Lemma priv_no_event_r : forall t s e s'
+                               (STEP : cstep t s e s')
                                (PRIV : priv s' = true),
                           e = Silent.
 Proof.

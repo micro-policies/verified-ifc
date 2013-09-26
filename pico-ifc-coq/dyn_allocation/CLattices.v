@@ -16,6 +16,7 @@ Section fix_cblock.
 
 Variable cblock : block privilege.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
+Variable table : CSysTable.
 
 (* Lattice-dependent parameters *)
 Class ConcreteLattice (T: Type) :=
@@ -76,13 +77,13 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
                                              mem_def_on_cache m1 ->
                                              labToVal l z m2
 ; genBot_spec: forall m0 (Hm0: mem_def_on_cache m0) (Q:memory->stack->Prop),
-   HT cblock genBot
+   HT cblock table genBot
       (fun m s => extends m0 m /\
                   (forall m1 z t, extends m m1 -> labToVal bot z m1 -> Q m1 ((z,t):::s)))
       Q
 ; genJoin_spec:
     forall m0 (Hm0: mem_def_on_cache m0) (Q: memory-> stack->Prop),
-       HT cblock genJoin
+       HT cblock table genJoin
          (fun m s =>
           exists s0 l z t l' z' t',
              s = (z, t) ::: (z', t') ::: s0 /\
@@ -95,7 +96,7 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
   (* NC: we could discharge this by implementing [genFlows] in terms of
    [genJoin], and using the fact that [flows l l' = true <-> join l l' = l']. *)
 ; genFlows_spec: forall m0 (Hm0: mem_def_on_cache m0) (Q: memory -> stack -> Prop),
-                   HT  cblock genFlows
+                   HT  cblock table genFlows
                        (fun m s =>
                           exists l l' z z' t t' s0,
                             extends m0 m /\
@@ -115,7 +116,7 @@ Context {T: Type}
 
 Lemma genBot_spec': forall I m0 (Hm0: mem_def_on_cache m0)
                       (Hext: extension_comp I),
-                 HT cblock genBot
+                 HT cblock table genBot
                     (fun m s => extends m0 m /\ I m s)
                     (fun m s =>
                        match s with
@@ -135,7 +136,7 @@ Qed.
 
 Lemma genJoin_spec': forall l l' I m0 (Hmem0: mem_def_on_cache m0)
                        (Hext: extension_comp I),
-                  HT  cblock genJoin
+                  HT  cblock table genJoin
                       (fun m s =>
                          match s with
                              | CData (z,t)::CData (z',t')::tl =>
@@ -160,7 +161,7 @@ Qed.
 
 Lemma genFlows_spec' : forall l l' I m0 (Hmem0: mem_def_on_cache m0)
                         (Hext: extension_comp I),
-                   HT  cblock genFlows
+                   HT  cblock table genFlows
                        (fun m s =>
                           match s with
                             | CData (z,t)::CData (z',t')::tl =>

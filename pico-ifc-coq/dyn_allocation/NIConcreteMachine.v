@@ -26,28 +26,38 @@ Set Implicit Arguments.
 
 Section NI.
 
+Context {T: Type}
+        {Latt: JoinSemiLattice T}
+        {CLatt: ConcreteLattice T}.
+
 Variable cblock : FaultRoutine.block.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
 
-Context {observer : Type}
-        {Latt: JoinSemiLattice observer}
-        {CLatt: ConcreteLattice observer}
-        {WFCLatt: WfConcreteLattice cblock observer Latt CLatt}.
+Let ctable_impl : list CSysCallImpl := nil.
 
-Variable atable : ASysTable observer.
+Definition tini_fetch_rule_withsig :=
+  (fun opcode => existT _
+                        (QuasiAbstractMachine.labelCount opcode)
+                        (QuasiAbstractMachine.fetch_rule opcode)).
+Let faultHandler := FaultRoutine.faultHandler tini_fetch_rule_withsig.
+Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
+
+Context {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.
+
+Variable atable : ASysTable T.
 Hypothesis Hatable : parametric_asystable atable.
 Hypothesis table_syscall_lowstep : forall o, syscall_lowstep o atable.
 Hypothesis table_systable_inv : systable_inv atable.
 
-Inductive concrete_i_equiv (o : observer) :
+Inductive concrete_i_equiv (o : T) :
   init_data (tini_concrete_machine cblock) -> init_data (tini_concrete_machine cblock) -> Prop :=
   | ci_equiv : forall ai1 ai2 ci1 ci2
                       (EQ : abstract_i_equiv o ai1 ai2)
-                      (MATCH1 : ac_match_initial_data ai1 ci1)
-                      (MATCH2 : ac_match_initial_data ai2 ci2),
+                      (MATCH1 : ac_match_initial_data cblock QuasiAbstractMachine.fetch_rule ai1 ci1)
+                      (MATCH2 : ac_match_initial_data cblock QuasiAbstractMachine.fetch_rule ai2 ci2),
                  concrete_i_equiv o ci1 ci2.
 
-Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event observer) := {
+Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event T) := {
   out e := match e with
              | CEInt (z, t) m => EInt (z, valToLab t m)
            end;
@@ -57,11 +67,11 @@ Instance CMObservation : TINI.Observation (tini_concrete_machine cblock) (Event 
 }.
 
 Lemma ac_low_compatible :
-  forall (o : observer)
+  forall (o : T)
          (e1 : event (abstract_machine atable))
          (e2 : event (tini_concrete_machine cblock)),
-    ref_match_events (@abstract_concrete_ref cblock stamp_cblock
-                                             observer Latt CLatt WFCLatt
+    ref_match_events (@abstract_concrete_ref _ _ _ cblock stamp_cblock
+                                             WFCLatt
                                              atable Hatable) e1 e2 ->
     (TINI.e_low o (TINI.out e1)
        <-> TINI.e_low o (@TINI.out _ _ CMObservation e2)).
@@ -79,8 +89,8 @@ Lemma concrete_equiv_abstract_equiv :
     concrete_i_equiv o ci1 ci2 ->
     exists ai1 ai2,
       abstract_i_equiv o ai1 ai2 /\
-      ac_match_initial_data ai1 ci1 /\
-      ac_match_initial_data ai2 ci2.
+      ac_match_initial_data cblock QuasiAbstractMachine.fetch_rule ai1 ci1 /\
+      ac_match_initial_data cblock QuasiAbstractMachine.fetch_rule ai2 ci2.
 Proof.
   intros o ci1 ci2 EQ.
   inv EQ. eauto.

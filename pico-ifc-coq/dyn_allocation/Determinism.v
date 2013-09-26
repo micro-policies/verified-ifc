@@ -45,9 +45,9 @@ Proof.
 Qed.
 
 Lemma cmach_determ:
-  forall cblock s e s' e' s''
-         (STEP1: cstep cblock s e s')
-         (STEP2: cstep cblock s e' s''),
+  forall cblock t s e s' e' s''
+         (STEP1: cstep cblock t s e s')
+         (STEP2: cstep cblock t s e' s''),
     s' = s'' /\ e = e'.
 Proof.
   intros.
@@ -90,26 +90,38 @@ Proof.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     split ; reflexivity.
+
+  Case "SysCall".
+    assert (sys_info0 = sys_info) by congruence. subst.
+    assert (args0 = args /\ s0 = s1).
+    { assert (LENGTHS : length args0 = length args) by congruence.
+      clear - LENGTHS H5.
+      gdep args0.
+      induction args as [|arg args IH]; intros; destruct args0; simpl in *; inv LENGTHS; auto.
+      inv H5.
+      exploit IH; eauto.
+      intros. intuition. subst. reflexivity. }
+    intuition. subst. reflexivity.
 Qed.
 
 Lemma runsUntilUser_determ :
-  forall cblock s1 s21 s22
-         (RUN1 : runsUntilUser cblock s1 s21)
-         (RUN2 : runsUntilUser cblock s1 s22),
+  forall cblock t s1 s21 s22
+         (RUN1 : runsUntilUser cblock t s1 s21)
+         (RUN2 : runsUntilUser cblock t s1 s22),
     s21 = s22.
 Proof.
   intros.
   induction RUN1; inv RUN2;
   try match goal with
-        | [ H1 : cstep _ ?s _ _,
-            H2 : cstep _ ?s _ _
+        | [ H1 : cstep _ _ ?s _ _,
+            H2 : cstep _ _ ?s _ _
             |- _ ] =>
           let H := fresh "H" in
           generalize (cmach_determ H1 H2);
           intros [? ?]; subst
       end; eauto;
   try match goal with
-        | [ H : runsUntilUser _ _ _ |- _ ] =>
+        | [ H : runsUntilUser _ _ _ _ |- _ ] =>
           generalize (runsUntilUser_l H);
           intros
       end;

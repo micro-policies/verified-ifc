@@ -1,6 +1,5 @@
 (* Definitions and generic properties of Hoare triples for proofs on (privileged) machine code. *)
 
-
 Require Import ZArith.
 Require Import List.
 Require Import Utils.
@@ -23,6 +22,7 @@ Local Open Scope Z_scope.
 
 Variable cblock : block privilege.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
+Variable table : CSysTable.
 
 Notation cstep := (cstep cblock).
 Notation runsToEscape := (runsToEscape cblock).
@@ -102,7 +102,7 @@ Definition HT   (c: code)
   n' = n + Z_of_nat (length c) ->
   exists stk1 mem1,
   Q mem1 stk1 /\
-  runsToEnd cblock
+  runsToEnd cblock table
              (CState mem0 fh imem stk0 (n, handlerTag) true)
              (CState mem1 fh imem stk1 (n', handlerTag) true).
 
@@ -127,7 +127,7 @@ Definition HTEscape raddr
   let (prop, outcome) := Q mem1 stk1 in
   prop /\
   predicted_outcome outcome raddr pc1 priv1 /\
-  runsToEscape
+  runsToEscape table
     (CState mem0 fh imem stk0 (n, handlerTag) true)
     (CState mem1 fh imem stk1 pc1 priv1).
 

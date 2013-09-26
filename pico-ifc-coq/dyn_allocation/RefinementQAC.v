@@ -25,15 +25,17 @@ Open Scope list_scope.
 
 Set Implicit Arguments.
 
-Section Refinement.
+
+Section StateRefinement.
 
 Variable cblock : FaultRoutine.block.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
+Variable ctable : CSysTable.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}
-        {WFCLatt: WfConcreteLattice cblock T Latt CLatt}.
+        {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.
 
 Definition match_tags l t m := labToVal l t m.
 Hint Unfold match_tags.
@@ -105,10 +107,9 @@ Hint Unfold match_stacks.
 
 Variable fetch_rule_g :
   forall opcode : OpCode, AllowModify (labelCount opcode).
-Definition fetch_rule_impl : OpCode -> {n : nat & AllowModify n} :=
+Let fetch_rule_impl : OpCode -> {n : nat & AllowModify n} :=
   fun o => existT _ (labelCount o) (fetch_rule_g o).
-
-Definition faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
+Let faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
 
 Inductive cache_up2date mem : Prop :=
 | cu2d_intro :
@@ -405,8 +406,6 @@ Inductive match_events : Event T -> CEvent -> Prop :=
 Variable atable : ASysTable T.
 
 Let match_actions e1 e2 := match_actions match_events e1 e2.
-
-Section RefQAC.
 
 (* MOVE *)
 Lemma labsToVals_extension_comp :
@@ -811,7 +810,7 @@ Lemma cache_hit_simulation :
   forall s1 s2 a2 s2'
          (Hmatch : match_states s1 s2)
          (Hs2' : priv s2' = false)
-         (Hstep : cstep cblock s2 a2 s2'),
+         (Hstep : cstep cblock ctable s2 a2 s2'),
     exists a1 s1', step_rules fetch_rule_g atable s1 a1 s1' /\
                    match_actions a1 a2 /\
                    match_states s1' s2'.
@@ -920,9 +919,10 @@ Hint Resolve cupd_mem_eq_except_cache.
 Lemma configuration_at_miss :
   forall s1 s21 e2 s22
          (MATCH : match_states s1 s21)
-         (STEP : cstep cblock s21 e2 s22)
+         (STEP : cstep cblock ctable s21 e2 s22)
+         (NOTSYSCALL : forall id, read_m (fst (pc s21)) (imem s21) <> Some (SysCall id))
          (PRIV : priv s22 = true),
-    (exists opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) ts pct,
+    exists opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) ts pct,
       labsToVals vls (mem s22) ts /\
       labToVal (snd (apc s1)) pct (mem s22) /\
       cupd cblock (mem s21)
@@ -930,7 +930,7 @@ Lemma configuration_at_miss :
       fhdl s22 = fhdl s21 /\
       imem s22 = imem s21 /\
       stk s22 = CRet (pc s21) false false :: stk s21 /\
-      pc s22 = (0, handlerTag)).
+      pc s22 = (0, handlerTag).
 Proof.
   intros.
   inv MATCH.
@@ -958,6 +958,33 @@ Proof.
   unfold nth_labToVal, Vector.nth_order; simpl; eauto;
   eapply labToVal_cache; eauto.
 
+Qed.
+
+Lemma configuration_at_syscall :
+  forall s21 e2 s22 id
+         (STEP : cstep cblock ctable s21 e2 s22)
+         (SYSCALL : read_m (fst (pc s21)) (imem s21) = Some (SysCall id))
+         (PRIV : priv s21 = false),
+    exists id entry args s0,
+       read_m (fst (pc s21)) (imem s21) = Some (SysCall id) /\
+       ctable id = Some {| csi_arity := length args;
+                           csi_pc := entry |} /\
+       mem s22 = mem s21 /\
+       fhdl s22 = fhdl s21 /\
+       imem s22 = imem s21 /\
+       stk s22 = map CData args ++ CRet (fst (pc s21) + 1, snd (pc s21)) true false :: s0 /\
+       stk s21 = map CData args ++ s0 /\
+       pc s22 = (entry, handlerTag) /\
+       priv s22 = true.
+Proof.
+  intros.
+  inv STEP; simpl in *; try congruence.
+  match goal with
+    | sys_info : CSysCall |- _ =>
+      destruct sys_info; simpl in *; subst
+  end.
+  repeat eexists; eauto.
+  congruence.
 Qed.
 
 Lemma build_cache_cache_hit :
@@ -1022,7 +1049,7 @@ Qed.
 
 Lemma invalid_pc_no_step :
   forall s1 e s2
-         (STEP : cstep cblock s1 e s2)
+         (STEP : cstep cblock ctable s1 e s2)
          (FAIL : fst (pc s1) < 0),
     False.
 Proof.
@@ -1037,28 +1064,28 @@ Qed.
 
 Lemma kernel_run_success_fail_contra :
   forall s1 s21 s22
-         (RUN1 : runsUntilUser cblock s1 s21)
-         (RUN2 : runsToEnd cblock s1 s22)
+         (RUN1 : runsUntilUser cblock ctable s1 s21)
+         (RUN2 : runsToEnd cblock ctable s1 s22)
          (FAIL : fst (pc s22) < 0),
     False.
 Proof.
   intros.
   induction RUN1; inv RUN2;
   try match goal with
-        | [ H1 : cstep _ ?s _ _,
-            H2 : cstep _ ?s _ _
+        | [ H1 : cstep _ _ ?s _ _,
+            H2 : cstep _ _ ?s _ _
             |- _ ] =>
           let H := fresh "H" in
           generalize (cmach_determ H1 H2);
           intros [? ?]; subst
       end; eauto;
   try match goal with
-        | [ H : runsUntilUser _ _ _ |- _ ] =>
+        | [ H : runsUntilUser _ _ _ _ |- _ ] =>
           generalize (runsUntilUser_l H);
           intros
       end;
   try match goal with
-        | [ H : runsToEnd _ _ _ |- _ ] =>
+        | [ H : runsToEnd _ _ _ _ |- _ ] =>
           generalize (runsToEnd_l H);
           intros
       end;
@@ -1068,9 +1095,9 @@ Qed.
 
 Lemma kernel_fail_determ :
   forall s1 s21 s22
-         (RUN1 : runsToEnd cblock s1 s21)
+         (RUN1 : runsToEnd cblock ctable s1 s21)
          (FAIL1 : fst (pc s21) < 0)
-         (RUN2 : runsToEnd cblock s1 s22)
+         (RUN2 : runsToEnd cblock ctable s1 s22)
          (FAIL2 : fst (pc s22) < 0),
     s21 = s22.
 Proof.
@@ -1078,8 +1105,8 @@ Proof.
   induction RUN1; inv RUN2; trivial;
   try solve [exfalso; eauto using invalid_pc_no_step];
   try match goal with
-        | [ H1 : cstep _ ?s _ _,
-            H2 : cstep _ ?s _ _
+        | [ H1 : cstep _ _ ?s _ _,
+            H2 : cstep _ _ ?s _ _
             |- _ ] =>
           let H := fresh "H" in
           generalize (cmach_determ H1 H2);
@@ -1089,8 +1116,8 @@ Qed.
 
 Lemma runsToEscape_determ :
   forall s1 s21 s22
-         (RUN1 : runsToEscape cblock s1 s21)
-         (RUN2 : runsToEscape cblock s1 s22),
+         (RUN1 : runsToEscape cblock ctable s1 s21)
+         (RUN2 : runsToEscape cblock ctable s1 s22),
     s21 = s22.
 Proof.
   intros.
@@ -1099,12 +1126,12 @@ Proof.
               kernel_fail_determ;
   try solve [exfalso; eauto using kernel_run_success_fail_contra];
   try match goal with
-        | [ H : runsUntilUser _ _ _ |- _ ] =>
+        | [ H : runsUntilUser _ _ _ _ |- _ ] =>
           generalize (runsUntilUser_l H);
           intros
       end;
   try match goal with
-        | [ H : runsToEnd _ _ |- _ ] =>
+        | [ H : runsToEnd _ _ _ |- _ ] =>
           generalize (runsToEnd_l H);
           intros
       end;
@@ -1257,8 +1284,9 @@ Hint Resolve handler_final_mem_cache_up2date.
 Lemma cache_miss_simulation :
   forall s1 s21 e21 s22 s23
          (MATCH : match_states s1 s21)
-         (STEP1 : cstep cblock s21 e21 s22)
-         (RUN : runsUntilUser cblock s22 s23),
+         (NOTSYSCALL : forall id, read_m (fst (pc s21)) (imem s21) <> Some (SysCall id))
+         (STEP1 : cstep cblock ctable s21 e21 s22)
+         (RUN : runsUntilUser cblock ctable s22 s23),
     match_states s1 s23.
 Proof.
   intros.
@@ -1275,8 +1303,8 @@ Proof.
   subst.
   destruct (apply_rule (projT2 (fetch_rule_impl op)) pcl vls)
     as [[rpcl rl]|] eqn:E.
-  - exploit (handler_correct_succeed); eauto.
-    intros H'. specialize (H' _ _ _ _ CODE Hvls Hpc HIT E).
+  - exploit handler_correct_succeed; eauto.
+    intros H'. specialize (H' _ _ _ _ _ CODE Hvls Hpc HIT E).
     destruct H' as (m2' & zr & zrpc & ESCAPE1 & MATCH').
     exploit rte_success; eauto.
     intros ESCAPE2.
@@ -1306,7 +1334,7 @@ Proof.
       eapply labToVal_cache; eauto.
       constructor; eauto.
   - exploit handler_correct_fail; eauto.
-    intros H. specialize (H t3 pct CODE Hvls Hpc HIT E).
+    intros H. specialize (H _ _ _ CODE Hvls Hpc HIT E).
     destruct H as (st & m2' & ESCAPE1 & EXT).
     inv ESCAPE1.
     + apply runsUntilUser_r in STAR. simpl in STAR. congruence.
@@ -1314,14 +1342,188 @@ Proof.
       eapply kernel_run_success_fail_contra; eauto.
 Qed.
 
+
+(** Notions of concrete executions for proving this refinement *)
+Section CExec.
+
+(* congruence fails if this is let-bound *)
+Local Notation ctrace := (list CEvent).
+
+Inductive exec_end : CS -> CS -> Prop :=
+| ee_refl : forall s, exec_end s s
+| ee_kernel_end : forall s s', runsToEnd cblock ctable s s' -> exec_end s s'
+| ee_final_fault : forall s s' s'',
+                     priv s = false ->
+                     cstep cblock ctable s Silent s' ->
+                     runsToEnd cblock ctable s' s'' ->
+                     exec_end s s''.
+Hint Constructors exec_end.
+
+Inductive cexec : CS -> ctrace -> CS -> Prop :=
+| ce_end : forall s s', exec_end s s' -> cexec s nil s'
+| ce_kernel_begin : forall s s' t s'',
+                      runsUntilUser cblock ctable s s' ->
+                      cexec s' t s'' ->
+                      cexec s t s''
+| ce_user_hit : forall s e s' t s'',
+                  priv s = false ->
+                  cstep cblock ctable s e s' ->
+                  priv s' = false ->
+                  cexec s' t s'' ->
+                  cexec s (op_cons e t) s''
+| ce_user_miss : forall s s' s'' t s''',
+                   priv s = false ->
+                   cstep cblock ctable s Silent s' ->
+                   runsUntilUser cblock ctable s' s'' ->
+                   cexec s'' t s''' ->
+                   cexec s t s'''.
+Hint Constructors cexec.
+
+Lemma exec_end_step : forall s e s' s''
+                             (STEP : cstep cblock ctable s e s')
+                             (EXEC : exec_end s' s''),
+                        cexec s (op_cons e nil) s''.
+Proof.
+  intros.
+  destruct (priv s) eqn:PRIV;
+  [exploit priv_no_event_l; eauto; intros ?; subst|];
+  (destruct (priv s') eqn:PRIV';
+  [exploit priv_no_event_r; eauto; intros ?; subst|]);
+  inv EXEC; eauto.
+Qed.
+Hint Resolve exec_end_step.
+
+Lemma cexec_step : forall s e s' t s''
+                          (Hstep : cstep cblock ctable s e s')
+                          (Hexec : cexec s' t s''),
+                          cexec s (op_cons e t) s''.
+Proof.
+  intros.
+  inv Hexec; simpl; eauto;
+  (destruct (priv s) eqn:PRIV;
+   [assert (e = Silent) by (eapply priv_no_event_l; eauto); subst|]);
+  eauto.
+  - exploit priv_no_event_r; eauto.
+    intros ?. subst.
+    eauto.
+  - subst. simpl.
+    eapply ce_kernel_begin; eauto.
+Qed.
+
+Lemma exec_cexec : forall s t s',
+                     TINI.exec (cstep cblock ctable) s t s' ->
+                     cexec s t s'.
+Proof.
+  intros s t s' Hexec.
+  induction Hexec; eauto.
+  - eapply cexec_step with (e := E e); eauto.
+  - eapply cexec_step with (e := Silent); eauto.
+Qed.
+
+End CExec.
+
+Definition match_systables :=
+  forall sa sc ca sc' sc'' id
+         (MATCH : match_states sa sc)
+         (INSTR : read_m (fst (pc sc)) (imem sc) = Some (SysCall id))
+         (STEP : cstep cblock ctable sc ca sc')
+         (RUN : runsUntilUser cblock ctable sc' sc''),
+  exists sa' aa,
+    step_rules fetch_rule_g atable sa aa sa'
+    /\ match_states sa' sc''
+    /\ match_actions aa ca.
+
+Hypothesis Hmatch_systables : match_systables.
+
+Lemma is_syscall_dec :
+  forall s2,
+    (forall id, read_m (fst (pc s2)) (imem s2) <> Some (SysCall id)) \/
+    exists id, read_m (fst (pc s2)) (imem s2) = Some (SysCall id).
+Proof.
+  intros.
+  destruct (read_m (fst (pc s2)) (imem s2)) as [instr|]; try (left; congruence).
+  destruct instr; eauto; try (left; congruence).
+Qed.
+
+Lemma quasi_abstract_concrete_sref_prop :
+  state_refinement_statement (step_rules fetch_rule_g atable)
+                             (cstep cblock ctable)
+                             match_states match_events.
+Proof.
+  intros s1 s2 t2 s2' MATCH EXEC. simpl.
+  apply exec_cexec in EXEC.
+  match type of EXEC with
+    | cexec _ ?T _ =>
+      remember T as t2'
+  end.
+  gdep t2. gdep s1.
+  unfold remove_none.
+  induction EXEC; intros s1 MATCH t2 Ht2; unfold remove_none.
+  - exists nil. exists s1.
+    split. constructor.
+    constructor.
+  - inv MATCH.
+    apply runsUntilUser_l in H.
+    inv H.
+  - exploit cache_hit_simulation; eauto.
+    intros [e1 [s1' [STEP [ME MS]]]].
+    exploit IHEXEC; eauto.
+    intros [t1 [? [? ?]]].
+    exists (op_cons e1 t1). eexists.
+    split. destruct e1; econstructor; eauto.
+
+    simpl.
+    inv ME; simpl; eauto.
+  - destruct (is_syscall_dec s) as [NOTSYSCALL | [id EQ]].
+    + exploit cache_miss_simulation; eauto.
+    + exploit Hmatch_systables; eauto.
+      intros (s1' & ? & STEP & STATES & ACTIONS). inv ACTIONS.
+      exploit IHEXEC; eauto.
+      intros (t1 & s1'' & EXEC' & MATCH'). eauto.
+Qed.
+
+Definition quasi_abstract_concrete_sref :=
+  {| sref_prop := quasi_abstract_concrete_sref_prop |}.
+
+End StateRefinement.
+
+Section Refinement.
+
+Context {T: Type}
+        {Latt: JoinSemiLattice T}
+        {CLatt: ConcreteLattice T}.
+
+Variable cblock : FaultRoutine.block.
+Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
+Variable atable : ASysTable T.
+Let ctable_impl : list CSysCallImpl := nil.
+
+Variable fetch_rule_g :
+  forall opcode : OpCode, AllowModify (labelCount opcode).
+Let fetch_rule_impl : OpCode -> {n : nat & AllowModify n} :=
+  fun o => existT _ (labelCount o) (fetch_rule_g o).
+Let faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
+
+Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
+
+Let match_atoms := match_atoms T (val privilege) unit privilege match_tags.
+
+Context {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.
+
+Notation meminj := (meminj unit privilege).
+Notation Meminj := (Meminj T (val privilege) unit privilege match_tags).
+Notation match_atoms := (match_atoms T (val privilege) unit privilege match_tags).
+Notation match_vals := (match_vals unit privilege).
+Notation update_meminj := (update_meminj unit privilege).
+
 Definition ac_match_initial_stack_data stkdata1 stkdata2 mem :=
   Forall2 (fun a1 a2 => pcatom_labToVal a1 a2 mem) stkdata1 stkdata2.
 
 Inductive ac_match_initial_data :
   abstract_init_data T ->
-  init_data (concrete_machine cblock faultHandler) -> Prop :=
+  concrete_init_data -> Prop :=
 | ac_mid : forall prog mem stkdata1 stkdata2 def1 def2
-                  (UP2DATE : cache_up2date mem)
+                  (UP2DATE : cache_up2date cblock fetch_rule_g mem)
                   (DATA : ac_match_initial_stack_data stkdata1 stkdata2 mem)
                   (DEF : labToVal def1 def2 mem),
              ac_match_initial_data
@@ -1361,138 +1563,35 @@ Hint Resolve match_init_stacks.
 Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
     ac_match_initial_data ai ci ->
-    match_states (init_state (quasi_abstract_machine fetch_rule_g atable) ai)
-                 (init_state (concrete_machine cblock faultHandler) ci).
+    match_states cblock
+                 fetch_rule_g
+                 (init_state (quasi_abstract_machine fetch_rule_g atable) ai)
+                 (init_state (concrete_machine cblock faultHandler ctable_impl) ci).
 Proof.
   intros ai ci H. inv H.
   simpl in *.
-  econstructor; simpl; eauto.
-  apply CodeTriples.code_at_id.
+  econstructor; eauto using CodeTriples.code_at_id.
 Qed.
 
-(** Notions of concrete executions for proving this refinement *)
-Section CExec.
-
-(* congruence fails if this is let-bound *)
-Local Notation ctrace := (list CEvent).
-
-Inductive exec_end : CS -> CS -> Prop :=
-| ee_refl : forall s, exec_end s s
-| ee_kernel_end : forall s s', runsToEnd cblock s s' -> exec_end s s'
-| ee_final_fault : forall s s' s'',
-                     priv s = false ->
-                     cstep cblock s Silent s' ->
-                     runsToEnd cblock s' s'' ->
-                     exec_end s s''.
-Hint Constructors exec_end.
-
-Inductive cexec : CS -> ctrace -> CS -> Prop :=
-| ce_end : forall s s', exec_end s s' -> cexec s nil s'
-| ce_kernel_begin : forall s s' t s'',
-                      runsUntilUser cblock s s' ->
-                      cexec s' t s'' ->
-                      cexec s t s''
-| ce_user_hit : forall s e s' t s'',
-                  priv s = false ->
-                  cstep cblock s e s' ->
-                  priv s' = false ->
-                  cexec s' t s'' ->
-                  cexec s (op_cons e t) s''
-| ce_user_miss : forall s s' s'' t s''',
-                   priv s = false ->
-                   cstep cblock s Silent s' ->
-                   runsUntilUser cblock s' s'' ->
-                   cexec s'' t s''' ->
-                   cexec s t s'''.
-Hint Constructors cexec.
-
-Lemma exec_end_step : forall s e s' s''
-                             (STEP : cstep cblock s e s')
-                             (EXEC : exec_end s' s''),
-                        cexec s (op_cons e nil) s''.
+Lemma match_systables_from_impl : match_systables cblock ctable fetch_rule_g atable.
 Proof.
-  intros.
-  destruct (priv s) eqn:PRIV;
-  [exploit priv_no_event_l; eauto; intros ?; subst|];
-  (destruct (priv s') eqn:PRIV';
-  [exploit priv_no_event_r; eauto; intros ?; subst|]);
-  inv EXEC; eauto.
+  intros sa sc ca sc' sc'' id MATCH INSTR STEP RUN.
+  exploit configuration_at_syscall; eauto.
+  { destruct MATCH. reflexivity. }
+  intros (id' & entry & cargs & sc0 & INSTR' & TABLE &
+          MEM & FHDL & IMEM & STK' & STK & PC & PRIV).
+  assert (id' = id) by congruence. subst id'. clear INSTR'.
+  unfold ctable in *.
+  simpl in TABLE. destruct id; inv TABLE.
 Qed.
-Hint Resolve exec_end_step.
-
-Lemma cexec_step : forall s e s' t s''
-                          (Hstep : cstep cblock s e s')
-                          (Hexec : cexec s' t s''),
-                          cexec s (op_cons e t) s''.
-Proof.
-  intros.
-  inv Hexec; simpl; eauto;
-  (destruct (priv s) eqn:PRIV;
-   [assert (e = Silent) by (eapply priv_no_event_l; eauto); subst|]);
-  eauto.
-  - exploit priv_no_event_r; eauto.
-    intros ?. subst.
-    eauto.
-  - subst. simpl.
-    eapply ce_kernel_begin; eauto.
-Qed.
-
-Lemma exec_cexec : forall s t s',
-                     TINI.exec (cstep cblock) s t s' ->
-                     cexec s t s'.
-Proof.
-  intros s t s' Hexec.
-  induction Hexec; eauto.
-  - eapply cexec_step with (e := E e); eauto.
-  - eapply cexec_step with (e := Silent); eauto.
-Qed.
-
-End CExec.
-
-Lemma quasi_abstract_concrete_sref_prop :
-  state_refinement_statement (step_rules fetch_rule_g atable)
-                             (cstep cblock)
-                             match_states match_events.
-Proof.
-  intros s1 s2 t2 s2' MATCH EXEC. simpl.
-  apply exec_cexec in EXEC.
-  match type of EXEC with
-    | cexec _ ?T _ =>
-      remember T as t2'
-  end.
-  gdep t2. gdep s1.
-  unfold remove_none.
-  induction EXEC; intros s1 MATCH t2 Ht2; unfold remove_none.
-  - exists nil. exists s1.
-    split. constructor.
-    constructor.
-  - inv MATCH.
-    apply runsUntilUser_l in H.
-    inv H.
-  - exploit cache_hit_simulation; eauto.
-    intros [e1 [s1' [STEP [ME MS]]]].
-    exploit IHEXEC; eauto.
-    intros [t1 [? [? ?]]].
-    exists (op_cons e1 t1). eexists.
-    split. destruct e1; econstructor; eauto.
-
-    simpl.
-    inv ME; simpl; eauto.
-  - exploit cache_miss_simulation; eauto.
-Qed.
-
-Definition quasi_abstract_concrete_sref :=
-  {| sref_prop := quasi_abstract_concrete_sref_prop |}.
 
 Definition quasi_abstract_concrete_ref :
   refinement (quasi_abstract_machine fetch_rule_g atable)
-             (concrete_machine cblock faultHandler) :=
+             (concrete_machine cblock faultHandler ctable_impl) :=
   refinement_from_state_refinement (quasi_abstract_machine fetch_rule_g atable)
-                                   (concrete_machine cblock faultHandler)
-                                   quasi_abstract_concrete_sref
+                                   (concrete_machine cblock faultHandler ctable_impl)
+                                   (quasi_abstract_concrete_sref stamp_cblock match_systables_from_impl)
                                    ac_match_initial_data
                                    ac_match_initial_data_match_initial_states.
-
-End RefQAC.
 
 End Refinement.

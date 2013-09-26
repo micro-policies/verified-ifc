@@ -57,11 +57,12 @@ Local Open Scope Z_scope.
 
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
+Variable table : CSysTable.
 
-Notation cstep := (cstep cblock).
-Notation runsToEscape := (runsToEscape cblock).
-Notation HT := (HT cblock).
-Notation HTEscape := (HTEscape cblock).
+Notation cstep := (cstep cblock table).
+Notation runsToEscape := (runsToEscape cblock table).
+Notation HT := (HT cblock table).
+Notation HTEscape := (HTEscape cblock table).
 
 (* To stop struggling with [replace]s *)
 Lemma cstep_branchnz_p' : forall m fh i s pcv pcl offv av al pc',
@@ -1418,10 +1419,10 @@ Proof.
   exists s0.
   intuition; subst; auto.
 
-  apply (HT_consequence' _ _ _ _ _ _ Hb); intuition.
+  apply (HT_consequence' _ _ _ _ _ _ _ Hb); intuition.
   elimtype False; jauto.
 
-  apply (HT_consequence' _ _ _ _ _ _ Hcbs); intuition.
+  apply (HT_consequence' _ _ _ _ _ _ _ Hcbs); intuition.
   elimtype False; jauto.
 Qed.
 
@@ -1483,11 +1484,11 @@ Proof.
   exists s0.
   intuition; subst; auto.
 
-  apply (HT_consequence' _ _ _ _ _ _ (Hb m0 s0)); intuition.
+  apply (HT_consequence' _ _ _ _ _ _ _ (Hb m0 s0)); intuition.
   elimtype False; jauto.
 
   fold cases.
-  apply (HT_consequence' _ _ _ _ _ _ (Hcbs m0 s0)); intuition.
+  apply (HT_consequence' _ _ _ _ _ _ _ (Hcbs m0 s0)); intuition.
   elimtype False; jauto.
 Qed.
 

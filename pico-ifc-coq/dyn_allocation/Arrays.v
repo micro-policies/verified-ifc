@@ -23,6 +23,7 @@ Section with_cblock.
 
 Variable cblock : block privilege.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
+Variable table : CSysTable.
 
 Local Notation val := (val privilege).
 Local Notation Atom := (Atom val privilege).
@@ -45,13 +46,13 @@ Qed.
 Ltac apply_wp :=
   try unfold pop, nop, push, dup, swap;
   match goal with
-  | |- HT _ [Store] _ _ => eapply store_spec_wp'
-  | |- HT _ [Add] _ _  => eapply add_spec_wp'
-  | |- HT _ [Dup ?N] _ _ => eapply dup_spec_wp
-  | |- HT _ [Swap ?N] _ _ => eapply swap_spec_wp
-  | |- HT _ [Load] _ _ => eapply load_spec_wp'
-  | |- HT _ [Push ?N] _ _ => eapply push_spec_wp
-  | |- HT _ [Pop] _ _ => eapply pop_spec_wp
+  | |- HT _ _ [Store] _ _ => eapply store_spec_wp'
+  | |- HT _ _ [Add] _ _  => eapply add_spec_wp'
+  | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec_wp
+  | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec_wp
+  | |- HT _ _ [Load] _ _ => eapply load_spec_wp'
+  | |- HT _ _ [Push ?N] _ _ => eapply push_spec_wp
+  | |- HT _ _ [Pop] _ _ => eapply pop_spec_wp
   end;
   simpl.
 
@@ -181,7 +182,7 @@ Definition Icopy (sz:Z) bdst odst bsrc osrc m0 s0 :=
       (forall b, b <> bdst -> Mem.get_frame m b = Mem.get_frame m0 b).
 
 Lemma copy_spec_wp : forall (Q : memory -> stack -> Prop),
-  HT cblock copy
+  HT cblock table copy
   (fun m s => exists sz bdst odst bsrc osrc s0 t1 t2 t3,
                 0 <= sz /\
                 s = (Vint sz,t1):::(Vptr bdst odst,t2):::(Vptr bsrc osrc,t3):::s0 /\
@@ -413,7 +414,7 @@ Definition alloc_array:= push 0 ++ [Dup 1] ++ push 1 ++ [Add] ++ [Alloc] ++ dup 
 
 (* a direct proof in wp form this time, just for variety. *)
 Lemma alloc_array_spec_wp: forall (Q : memory -> stack -> Prop),
-  HT cblock alloc_array
+  HT cblock table alloc_array
      (fun m s => exists cnt t s0,
                    s = (Vint cnt,t):::s0 /\
                    cnt >= 0 /\
@@ -488,7 +489,7 @@ Transparent Z.add.
 Definition sum_array_lengths := [Dup 1] ++ [Load] ++ [Dup 1] ++ [Load] ++ [Add].
 
 Lemma sum_array_lengths_spec_wp : forall Q : HProp,
-  HT cblock sum_array_lengths
+  HT cblock table sum_array_lengths
      (fun m s => exists a1 a2 s0 l1 l2 t1 t2 t1' t2',
                  s = (Vptr a2 0,t2):::(Vptr a1 0,t1):::s0 /\
                  load a2 0 m = Some (Vint l2, t1') /\
@@ -541,7 +542,7 @@ Definition concat_arrays :=      (* a2 a1 *)
 
 
 Lemma concat_arrays_spec_wp : forall (Q :memory -> stack -> Prop),
-  HT cblock
+  HT cblock table
    concat_arrays
    (fun m s => exists a2 a1 vs1 vs2 s0 t1 t2,
                  s = (Vptr a2 0,t2):::(Vptr a1 0,t1):::s0 /\
@@ -706,7 +707,7 @@ Definition Ifab (f : memory -> stack -> val -> val -> val) (n: memory -> stack -
 
 Lemma fab_spec : forall gen_f f n a vs m0 s0 i,
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_f
+  HT cblock table gen_f
      (fun m s => exists x v ign0 ign1 ign2 t1 t2 t3 t4 t5,
                    s = (x,t1):::(v,t2):::
                        (ign0,t3):::(ign1,t4):::(ign2,t5):::s0 /\
@@ -715,7 +716,7 @@ Lemma fab_spec : forall gen_f f n a vs m0 s0 i,
                      Q m (((f m0 s0) x v,t1'):::
                           (ign0,t2'):::(ign1,t3'):::(ign2,t4'):::s0))
       Q) ->
-  HT cblock (fold_array_body gen_f)
+  HT cblock table (fold_array_body gen_f)
   (fun m s => exists s' t, s = (Vint i,t):::s' /\ i > 0 /\ Ifab f n a vs m0 s0 m s)
   (fun m s => exists s' t, s = (Vint i,t):::s' /\ Ifab f n a vs m0 s0 m ((Vint (Z.pred i),handlerTag):::s')).
 Proof.
@@ -762,14 +763,14 @@ Qed.
 
 Lemma fold_array_spec: forall gen_f gen_n m0 s0 a vs n f,
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_n
+  HT cblock table gen_n
      (fun m s => exists ign0 t,
                    s = (ign0,t):::s0 /\ m = m0 /\
                    forall t1 t2,
                      Q m ((n m0 s0,t1):::(ign0,t2):::s0))
      Q) ->
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_f
+  HT cblock table gen_f
      (fun m s => exists x v ign0 ign1 ign2 t1 t2 t3 t4 t5,
                    s = (x,t1):::(v,t2):::
                              (ign0,t3):::(ign1,t4):::(ign2,t5):::s0 /\
@@ -780,7 +781,7 @@ Lemma fold_array_spec: forall gen_f gen_n m0 s0 a vs n f,
      Q) ->
   memarr m0 a vs ->
   Mem.stamp a = Kernel ->
-  HT cblock
+  HT cblock table
      (fold_array gen_n gen_f)
      (fun m s => exists t, s = (Vptr a 0,t):::s0 /\ m = m0)
      (fun m s => exists t, s = (fold_right (f m0 s0) (n m0 s0) vs,t):::s0 /\ m = m0).
@@ -789,7 +790,7 @@ Proof.
  unfold fold_array.
  build_vc idtac.  (* builds some stupid glue steps *)
  eapply HT_weaken_conclusion.
- eapply (genRepeat_spec' _ (fold_array_body gen_f) (Ifab f n a vs m0 s0)).
+ eapply (genRepeat_spec' _ _ (fold_array_body gen_f) (Ifab f n a vs m0 s0)).
  intros.
  eapply HT_consequence'.
  eapply (fab_spec gen_f f n a vs m0 s0 i H0).
@@ -837,14 +838,14 @@ Qed.
 
 Lemma fold_array_spec_wp: forall gen_f gen_n n f m0 s0 (Q: memory -> stack -> Prop),
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_n
+  HT cblock table gen_n
      (fun m s => exists ign0 t,
                    s = (ign0,t):::s0 /\ m = m0 /\
                    forall t1 t2,
                      Q m ((n m0 s0,t1):::(ign0,t2):::s0))
      Q) ->
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_f
+  HT cblock table gen_f
      (fun m s => exists x v ign0 ign1 ign2 t1 t2 t3 t4 t5,
                    s = (x,t1):::(v,t2):::(ign0,t3):::(ign1,t4):::(ign2,t5):::s0 /\
                    m = m0 /\
@@ -852,7 +853,7 @@ Lemma fold_array_spec_wp: forall gen_f gen_n n f m0 s0 (Q: memory -> stack -> Pr
                      Q m (((f m0 s0) x v,t1):::
                           (ign0,t2):::(ign1,t3):::(ign2,t4):::s0))
      Q) ->
-  HT cblock
+  HT cblock table
      (fold_array gen_n gen_f)
      (fun m s => exists a vs t,
                    memarr m0 a vs /\
@@ -903,7 +904,7 @@ Qed.
 
 Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_f
+  HT cblock table gen_f
      (fun m s => exists x ign0 ign1 ign2 ign3 t1 t2 t3 t4 t5,
                    s = (x,t1):::
                        (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0 /\
@@ -913,7 +914,7 @@ Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0
                           (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0))
      Q) ->
   forall (Q: memory -> stack -> Prop),
-  HT cblock (exists_array gen_f)
+  HT cblock table (exists_array gen_f)
      (fun m s => exists a vs t,
                       memarr m a vs /\
                       Mem.stamp a = Kernel /\
@@ -967,7 +968,7 @@ Qed.
 
 Lemma forall_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
   (forall (Q: memory -> stack -> Prop),
-  HT cblock gen_f
+  HT cblock table gen_f
      (fun m s => exists x ign0 ign1 ign2 ign3 t1 t2 t3 t4 t5,
                    s = (x,t1):::
                        (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0 /\
@@ -977,7 +978,7 @@ Lemma forall_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0
                          (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0))
      Q) ->
   forall (Q: memory -> stack -> Prop),
-  HT cblock (forall_array gen_f)
+  HT cblock table (forall_array gen_f)
      (fun m s => exists a vs t,
                       memarr m a vs /\
                       Mem.stamp a = Kernel /\
@@ -1022,7 +1023,7 @@ Definition val_list_in_b (x: val) (xs:list val) : bool :=
 
 Lemma in_array_spec: forall a vs x t1 t2 s0 m0,
   memarr m0 a vs ->
-  HT cblock
+  HT cblock table
     in_array
     (fun m s => s = (Vptr a 0,t1):::(x,t2):::s0 /\ Mem.stamp a = Kernel /\ m = m0)
     (fun m s => exists t, s = (boolToVal(val_list_in_b x vs),t):::s0 /\ m = m0)
@@ -1044,7 +1045,7 @@ Proof.
 Qed.
 
 Lemma in_array_spec_wp : forall (Q: memory -> stack -> Prop),
-  HT cblock
+  HT cblock table
     in_array
     (fun m s => exists a vs x t1 t2 s0 m0,
                   memarr m0 a vs /\
@@ -1094,7 +1095,7 @@ Lemma subset_arrays_spec : forall a1 a2 vs1 vs2 t1 t2 s0 m0,
   memarr m0 a2 vs2 ->
   Mem.stamp a1 = Kernel ->
   Mem.stamp a2 = Kernel ->
-  HT cblock subset_arrays
+  HT cblock table subset_arrays
      (fun m s => s = (Vptr a1 0,t1):::(Vptr a2 0,t2):::s0 /\
                  m = m0)
      (fun m s => exists t, s = ((boolToVal (val_list_subset_b vs1 vs2),t):::s0) /\ m = m0).
@@ -1111,7 +1112,7 @@ Proof.
 Qed.
 
 Lemma subset_arrays_spec_wp : forall (Q: memory -> stack -> Prop),
-  HT cblock
+  HT cblock table
     subset_arrays
     (fun m s => exists a1 a2 vs1 vs2 t1 t2 s0 m0,
                   memarr m0 a1 vs1 /\
@@ -1172,7 +1173,7 @@ Definition extend_array :=   (* a x *)
 
 
 Lemma extend_array_spec_wp : forall (Q : memory -> stack -> Prop),
-  HT cblock
+  HT cblock table
    extend_array
    (fun m s => exists a vs x s0 t1 t2,
                  s = (Vptr a 0,t1):::(x,t2):::s0 /\

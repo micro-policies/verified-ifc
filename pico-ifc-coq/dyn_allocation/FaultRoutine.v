@@ -28,16 +28,17 @@ Open Local Scope Z_scope.
 
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
+Variable table : CSysTable.
 
 Notation cget := (cget cblock).
 Notation cache_hit_mem := (cache_hit_mem cblock).
-Notation HT := (HT cblock).
-Notation GT := (GT cblock).
+Notation HT := (HT cblock table).
+Notation GT := (GT cblock table).
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}
         {CLatt: ConcreteLattice T}
-        {WFCLatt: WfConcreteLattice cblock T Latt CLatt}.
+        {WFCLatt: WfConcreteLattice cblock table T Latt CLatt}.
 
 
 (* --------------------- TMU Fault Handler code ----------------------------------- *)
@@ -451,7 +452,7 @@ Proof.
     destruct v; intuition eauto using labToVal_extension_comp.
     go_match.
   eapply HT_consequence.
-  eapply (genFlows_spec' cblock (eval_expr eval_var r) (eval_expr eval_var r0)
+  eapply (genFlows_spec' cblock table (eval_expr eval_var r) (eval_expr eval_var r0)
          (fun m s => extends m0 m /\ I m s)) ; eauto.
   unfold extension_comp, extends; simpl. intuition; eauto.
   go_match.
@@ -547,7 +548,7 @@ Proof.
   cases_if in Happly.
   inv  Happly. intros I Hext.
 
-  - eapply (ite_spec_specialized_I' cblock (boolToZ true)); eauto.
+  - eapply (ite_spec_specialized_I' cblock table (boolToZ true)); eauto.
 
     + eapply HT_weaken_conclusion.
       eapply (genScond_spec (allow am) true H I); eauto.
@@ -601,7 +602,7 @@ Proof.
   unfold boolToZ in *; false; try omega.
 
   eapply HT_weaken_conclusion.
-  eapply (push_spec_I cblock 0); eauto.
+  eapply (push_spec_I cblock table 0); eauto.
   go_match.
 Qed.
 
@@ -649,7 +650,7 @@ Lemma genApplyRule_spec_GT_ext:
   forall ar,
     apply_rule am pcl vls = ar ->
     forall (I:HProp) (Hext: extension_comp I),
-      GT_ext cblock (genApplyRule am)
+      GT_ext cblock table (genApplyRule am)
          (fun m s => extends m0 m /\ I m s)
          (fun m0' s0 m s => extends m0 m0' /\ extends m0' m /\
                             exists zr zrpc,
@@ -709,7 +710,7 @@ Qed.
 
 Lemma genCheckOp_spec_GT_ext:
   forall opcode' I (Hext: extension_comp I),
-    GT_ext cblock (genCheckOp opcode')
+    GT_ext cblock table (genCheckOp opcode')
        (fun m s => extends m0 m /\ I m s)
        (fun m0' s0 m s => exists t, extends m0 m0' /\ extends m0' m /\
                           s = (Vint (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode))
@@ -767,7 +768,7 @@ Hypothesis INIT_MEM0: INIT_MEM m0.
 
 Lemma genCheckOp_spec_GT_push_v_ext:
   forall opcode' I (Hext: extension_comp I),
-    GT_push_v_ext cblock (genC opcode')
+    GT_push_v_ext cblock table (genC opcode')
                   (fun m s => extends m0 m /\ I m s)
                   (genV opcode').
 Proof.
@@ -795,7 +796,7 @@ Qed.
 
 Lemma genApplyRule'_spec_GT_guard_v_ext:
   forall opcode' I (Hext: extension_comp I),
-    GT_guard_v_ext cblock (genB opcode')
+    GT_guard_v_ext cblock table (genB opcode')
                (fun m s => extends m0 m /\ I m s)
                (genV opcode')
                (genQ I opcode').
@@ -817,7 +818,7 @@ Proof.
 Qed.
 
 Lemma H_indexed_hyps: forall (I:HProp) (Hext: extension_comp I),
-                        indexed_hyps_ext cblock _ genC genB (genQ I)
+                        indexed_hyps_ext cblock table _ genC genB (genQ I)
                         genV (fun m s => extends m0 m /\ I m s) opcodes.
 Proof.
   unfold indexed_hyps_ext; simpl;
@@ -847,7 +848,7 @@ Let INIT_MEM := INIT_MEM fetch_rule_impl opcode vls pcl.
 
 Lemma genComputeResults_spec_GT_ext: forall I (Hext: extension_comp I)
                                        m0 (INIT_MEM0: INIT_MEM m0),
-    GT_ext cblock (genComputeResults fetch_rule_impl)
+    GT_ext cblock table (genComputeResults fetch_rule_impl)
        (fun m s => extends m0 m /\ I m s)
        (fun m0' s0 m s => extends m0 m0' /\ extends m0' m /\
                           exists zr zpc,
@@ -1024,7 +1025,7 @@ Lemma faultHandler_specEscape_Some: forall raddr lr lpc m0,
   valid_address cblock addrTagResPC m0 ->
   ar = Some (lpc, lr) ->
   forall s0,
-    HTEscape cblock raddr (faultHandler fetch_rule_impl)
+    HTEscape cblock table raddr (faultHandler fetch_rule_impl)
              (fun m s => m = m0 /\
                          s = (CRet raddr false false::s0))
              (fun m s => ( exists zr zpc,
@@ -1126,7 +1127,7 @@ Lemma faultHandler_specEscape_None: forall raddr m0,
                                     forall (INIT_MEM0: INIT_MEM m0),
   ar = None ->
   forall s0,
-    HTEscape cblock raddr (faultHandler fetch_rule_impl)
+    HTEscape cblock table raddr (faultHandler fetch_rule_impl)
              (fun m s => m0  = m /\ s = s0)
              (fun m s => ((extends m0 m /\ s = s0)
                          , Failure)).
@@ -1159,11 +1160,12 @@ Section HandlerCorrect.
 
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
+Variable table : CSysTable.
 
 Context {T : Type}
         {Latt : JoinSemiLattice T}
         {CLatt : ConcreteLattice T}
-        {WFCLatt : WfConcreteLattice cblock T Latt CLatt}.
+        {WFCLatt : WfConcreteLattice cblock table T Latt CLatt}.
 
 Variable get_rule : forall (opcode:OpCode), {n:nat & AllowModify n}.
 Definition handler : list Instr := faultHandler get_rule.
@@ -1179,7 +1181,7 @@ Theorem handler_correct_succeed :
     (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
     (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = Some (lpc,lr)),
     exists c' zr zrpc,
-    runsToEscape cblock
+    runsToEscape cblock table
                  (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
                  (CState c' syscode i s raddr false) /\
     handler_final_mem_matches cblock lpc lr c c' zrpc zr.
@@ -1193,11 +1195,11 @@ Proof.
   { unfold cache_hit_mem, valid_address, load in *.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGRPC. eauto. }
-  edestruct (faultHandler_specEscape_Some cblock stamp_cblock
+  edestruct (faultHandler_specEscape_Some cblock stamp_cblock table
                                           (Some (lpc,lr)) _
                                           opcode vls pcl RULE raddr lr lpc c)
     as [stk1 HH]; eauto.
- - exploit (@init_enough cblock stamp_cblock _ _ _ _ (projT1 (get_rule opcode)) vls); eauto.
+ - exploit (@init_enough cblock stamp_cblock table _ _ _ _ (projT1 (get_rule opcode)) vls); eauto.
    intros Hmem.
    repeat match goal with
             | H : valid_address _ _ _ |- _ =>
@@ -1220,7 +1222,7 @@ Theorem handler_correct_fail :
          (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
          (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = None),
     exists st c',
-      runsToEscape cblock
+      runsToEscape cblock table
                    (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
                    (CState c' syscode i st (-1,handlerTag) true) /\
     extends c c'.
@@ -1234,9 +1236,9 @@ Proof.
   { unfold cache_hit_mem, valid_address, load in *.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGRPC. eauto. }
-  edestruct (faultHandler_specEscape_None cblock stamp_cblock None _ opcode vls pcl RULE raddr c)
+  edestruct (faultHandler_specEscape_None cblock stamp_cblock table None _ opcode vls pcl RULE raddr c)
       as [stk1 HH]; eauto.
-  - exploit (@init_enough cblock stamp_cblock _ _ _ _ (projT1 (get_rule opcode))); eauto.
+  - exploit (@init_enough cblock stamp_cblock table _ _ _ _ (projT1 (get_rule opcode))); eauto.
     intros Hmem.
     repeat match goal with
              | H : valid_address _ _ _ |- _ =>

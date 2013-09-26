@@ -16,16 +16,17 @@ Section CExec.
 
 Notation block := (block privilege).
 Variable cblock : block.
+Variable table : CSysTable.
 
 Inductive runsUntilUser : CS -> CS -> Prop :=
 | ruu_end : forall s s',
               priv s = true ->
               priv s' = false ->
-              cstep cblock s Silent s' ->
+              cstep cblock table s Silent s' ->
               runsUntilUser s s'
 | ruu_step : forall s s' s'',
                priv s = true ->
-               cstep cblock s Silent s' ->
+               cstep cblock table s Silent s' ->
                runsUntilUser s' s'' ->
                runsUntilUser s s''.
 Hint Constructors runsUntilUser.
@@ -48,7 +49,7 @@ Qed.
 Lemma runsUntilUser_star :
   forall cs cs',
     runsUntilUser cs cs' ->
-    star (cstep cblock) cs nil cs'.
+    star (cstep cblock table) cs nil cs'.
 Proof. induction 1; eauto. Qed.
 Hint Resolve runsUntilUser_star.
 
@@ -57,7 +58,7 @@ Inductive runsToEnd : CS -> CS -> Prop :=
 | rte_refl : forall s, priv s = true -> runsToEnd s s
 | rte_step : forall s s' s'',
                priv s = true ->
-               cstep cblock s Silent s' -> (* slippery to put Silent, but justified *)
+               cstep cblock table s Silent s' -> (* slippery to put Silent, but justified *)
                runsToEnd s' s'' ->
                runsToEnd s s''.
 Hint Constructors runsToEnd.
@@ -79,7 +80,7 @@ Qed.
 Lemma runsToEnd_star :
   forall cs cs',
     runsToEnd cs cs' ->
-    star (cstep cblock) cs nil cs'.
+    star (cstep cblock table) cs nil cs'.
 Proof. induction 1; eauto. Qed.
 Hint Resolve runsToEnd_star.
 
@@ -110,14 +111,14 @@ Inductive runsToEscape : CS -> CS -> Prop :=
 Lemma runsToEscape_plus: forall s1 s2,
  runsToEscape s1 s2 ->
  s1 <> s2 ->
- plus (cstep cblock) s1 nil s2.
+ plus (cstep cblock table) s1 nil s2.
 Proof.
   induction 1 ; intros; eauto.
 Qed.
 
 Lemma runsToEscape_star: forall s1 s2,
  runsToEscape s1 s2 ->
- star (cstep cblock) s1 nil s2.
+ star (cstep cblock table) s1 nil s2.
 Proof.
   inversion 1; eauto.
 Qed.

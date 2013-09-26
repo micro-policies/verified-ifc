@@ -29,32 +29,37 @@ Set Implicit Arguments.
 
 Section Refinement.
 
+Context {T: Type}
+        {Latt: JoinSemiLattice T}
+        {CLatt: ConcreteLattice T}.
+
 Variable cblock : FaultRoutine.block.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
 
-Context {T: Type}
-        {Latt: JoinSemiLattice T}
-        {CLatt: ConcreteLattice T}
-        {WFCLatt: WfConcreteLattice cblock T Latt CLatt}.
-
-Variable atable : ASysTable T.
-Hypothesis Hatable : parametric_asystable atable.
+Let ctable_impl : list CSysCallImpl := nil.
 
 Definition tini_fetch_rule_withsig :=
   (fun opcode => existT _
                         (QuasiAbstractMachine.labelCount opcode)
                         (QuasiAbstractMachine.fetch_rule opcode)).
-Definition tini_faultHandler := FaultRoutine.faultHandler tini_fetch_rule_withsig.
+Let faultHandler := FaultRoutine.faultHandler tini_fetch_rule_withsig.
+Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
+
+Context {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.
+
+Variable atable : ASysTable T.
+Hypothesis Hatable : parametric_asystable atable.
+
 Definition tini_match_states := match_states cblock QuasiAbstractMachine.fetch_rule.
 
-Definition tini_concrete_machine := concrete_machine cblock tini_faultHandler.
+Definition tini_concrete_machine := concrete_machine cblock faultHandler ctable_impl.
 
 Program Definition abstract_concrete_ref :
   refinement (abstract_machine atable) tini_concrete_machine :=
   @ref_composition _ _ _
                    (abstract_quasi_abstract_ref Hatable)
-                   (quasi_abstract_concrete_ref stamp_cblock fetch_rule atable)
-                   (@ac_match_initial_data _ _ _ _ fetch_rule)
+                   (quasi_abstract_concrete_ref stamp_cblock atable fetch_rule)
+                   (@ac_match_initial_data _ _ _ cblock fetch_rule)
                    match_events
                    _ _.
 
