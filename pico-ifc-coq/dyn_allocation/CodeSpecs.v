@@ -71,7 +71,7 @@ Lemma cstep_branchnz_p' : forall m fh i s pcv pcl offv av al pc',
              (CState m fh i s (pc',handlerTag) true).
 Proof.
   intros. subst.
-  constructor; auto.
+  econstructor (solve [eauto]).
 Qed.
 
 Definition imemory : Type := list Instr.
@@ -501,7 +501,7 @@ Proof.
   reflexivity.
   simpl.
   replace (fh0 + 3) with (fh0 + 1 + 1 + 1) by omega.
-  eapply cstep_add_p; auto.
+  eapply cstep_add_p; eauto.
   reflexivity.
   simpl. intuition omega.
 Qed.
@@ -527,7 +527,7 @@ Proof.
   reflexivity.
   simpl.
   replace (fh0 + 3) with (fh0 + 1 + 1 + 1) by omega.
-  eapply cstep_add_p; auto.
+  eapply cstep_add_p; eauto.
   reflexivity.
   simpl. replace (v + 0) with v by omega.
   assumption.
@@ -2349,7 +2349,7 @@ Proof.
   repeat rewrite app_length in *. simpl in R4.
   eapply runsToEnd_trans.
   eapply rte_step. eauto.
-  eapply cstep_dup_p.  eauto. simpl. eauto.
+  eapply cstep_dup_p; eauto.  simpl. eauto.
   eapply rte_step; eauto.
   eapply cstep_branchnz_p'; eauto.
   rewrite EQ. zify ; omega.
@@ -2612,7 +2612,7 @@ Proof.
   (* Run an instruction *)
   eapply rte_success; auto.
   eapply ruu_end; simpl; eauto.
-  eapply cstep_ret_p; auto.
+  eapply cstep_ret_p; eauto.
   eapply cptr_done.
 Qed.
 
@@ -2634,7 +2634,7 @@ Proof.
   (* Run an instruction *)
   eapply rte_fail; auto.
   eapply rte_step; eauto.
-  eapply cstep_jump_p; auto.
+  eapply cstep_jump_p; eauto.
   simpl; eauto; omega.
 Qed.
 
@@ -2703,7 +2703,7 @@ Proof.
   eapply runsToEnd_trans; try apply RUN'.
   simpl in CODE2. destruct CODE2 as (H1 & H2 & _).
   eapply rte_step; try reflexivity.
-  { eapply cstep_push_p. eassumption. }
+  { eapply cstep_push_p; eauto. }
   eapply rte_step; try reflexivity.
   { eapply cstep_branchnz_p'; eauto. }
   simpl.
@@ -3036,7 +3036,7 @@ Proof.
     eapply rte_step; try reflexivity.
     { eapply cstep_branchnz_p'; eauto. } simpl.
     eapply rte_step; try reflexivity.
-    { eapply cstep_push_p; eauto. }
+    { clear H4. eapply cstep_push_p; eauto. }
     eapply rte_step; try reflexivity.
     { eapply cstep_jump_p; eauto. }
     eauto.

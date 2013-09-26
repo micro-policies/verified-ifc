@@ -819,7 +819,7 @@ Proof.
   intros.
   inv Hmatch.
 
-  inv Hstep; simpl in *; try congruence;
+  inv Hstep; inv CS1; simpl in *; try congruence;
 
   match_inv;
 
@@ -934,7 +934,7 @@ Lemma configuration_at_miss :
 Proof.
   intros.
   inv MATCH.
-  inv STEP; simpl in *; try congruence;
+  inv STEP; inv CS1; simpl in *; try congruence;
 
   match_inv;
 

@@ -44,18 +44,29 @@ Proof.
   induction 1; intros s2 H2; inv H2; auto; congruence.
 Qed.
 
-Lemma cmach_determ: 
-  forall cblock s e s' e' s'', 
-    cstep cblock s e s' -> 
-    cstep cblock s e' s'' -> 
+Lemma cmach_determ:
+  forall cblock s e s' e' s''
+         (STEP1: cstep cblock s e s')
+         (STEP2: cstep cblock s e' s''),
     s' = s'' /\ e = e'.
 Proof.
-  induction 1; intros;
-  match goal with 
-      | [HH: cstep _ _ _ _ |- _ ] => inv HH; try congruence; auto
+  intros.
+  destruct STEP1;
+  rewrite CS1 in *; rewrite CA in *; rewrite CS2 in *;
+  clear CS1 CA CS2; destruct STEP2; try discriminate;
+  match goal with
+    | H1 : read_m _ _ = Some ?instr1,
+      H2 : read_m _ _ = Some ?instr2 |- _ =>
+      match constr:(instr1, instr2) with
+        | (?instr, ?instr) => idtac
+        | _ =>
+          assert (H : instr1 = instr2) by congruence; try discriminate;
+          inversion H
+      end
   end;
-  try (match goal with 
-    | [H1 : cache_hit_read_mem ?cb ?m ?rl _, 
+  inv CS1;
+  try (match goal with
+    | [H1 : cache_hit_read_mem ?cb ?m ?rl _,
        H2 : cache_hit_read_mem ?cb ?m ?rl0 _ |- _ ] =>
   (exploit (@cache_hit_read_mem_determ cb m rl); eauto; intros [Heq Heq'])
   end);
@@ -64,11 +75,11 @@ Proof.
            H2: c_pop_to_return ?s ?s2 |- _ ] =>
           let EQ := fresh in
           assert (EQ:=@c_pop_to_return_determ _ _ POP _ POP0); inv EQ
-      end;          
+      end;
   try match goal with
         | [H1: ~ ?P, H2: ?P |- _] => elim H1; exact H2
       end;
-  (allinv'; split; try congruence).
+  subst; split; try congruence.
 
   Case "Call user".
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
