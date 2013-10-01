@@ -35,11 +35,7 @@ Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
 
 Let ctable_impl : list CSysCallImpl := nil.
 
-Definition tini_fetch_rule_withsig :=
-  (fun opcode => existT _
-                        (QuasiAbstractMachine.labelCount opcode)
-                        (QuasiAbstractMachine.fetch_rule opcode)).
-Let faultHandler := FaultRoutine.faultHandler tini_fetch_rule_withsig.
+Let faultHandler := FaultRoutine.faultHandler _ QuasiAbstractMachine.fetch_rule.
 Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
 
 Context {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.

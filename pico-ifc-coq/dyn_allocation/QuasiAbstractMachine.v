@@ -34,6 +34,9 @@ match c with
 | OpOutput => 1
 end.
 
+Lemma labelCountBounds : forall opcode, labelCount opcode <= 3.
+Proof. intros. destruct opcode; simpl; omega. Qed.
+
 Local Open Scope Z_scope.
 
 Section ARuleMachine.

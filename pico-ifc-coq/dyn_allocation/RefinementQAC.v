@@ -105,11 +105,9 @@ Definition match_stacks (mi : meminj) : list (StkElmt T unit) -> list CStkElmt -
   fun s1 s2 m2 => Forall2 (fun se1 se2 => match_stk_elmt mi se1 se2 m2) s1 s2.
 Hint Unfold match_stacks.
 
-Variable fetch_rule_g :
+Variable fetch_rule :
   forall opcode : OpCode, AllowModify (labelCount opcode).
-Let fetch_rule_impl : OpCode -> {n : nat & AllowModify n} :=
-  fun o => existT _ (labelCount o) (fetch_rule_g o).
-Let faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
+Let faultHandler := FaultRoutine.faultHandler _ fetch_rule.
 
 Inductive cache_up2date mem : Prop :=
 | cu2d_intro :
@@ -119,7 +117,7 @@ Inductive cache_up2date mem : Prop :=
                         exists vls pcl rpcl rpct rl rt,
                           labsToVals vls mem tags /\
                           labToVal pcl pct mem /\
-                          apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl) /\
+                          apply_rule (fetch_rule opcode) pcl vls = Some (rpcl, rl) /\
                           labToVal rpcl rpct mem /\ labToVal rl rt mem /\
                           cache_hit_read_mem cblock mem rt rpct),
       cache_up2date mem.
@@ -563,7 +561,7 @@ Lemma cache_up2date_res :
     exists rpcl rpct rl rt,
       labToVal rpcl rpct tmuc /\
       labToVal rl rt tmuc /\
-      apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl) /\
+      apply_rule (fetch_rule opcode) pcl vls = Some (rpcl, rl) /\
       cache_hit_read_mem cblock tmuc rt rpct.
 Proof.
   intros.
@@ -572,7 +570,7 @@ Proof.
   destruct HIT as (vls' & pcl' & rpcl & rpct & rl & rt & H1 & H2 & H3 & H4 & H5 & H6).
   assert (vls' = vls).
   { eapply labsToVals_inj; eauto.
-    destruct opcode; simpl; omega. }
+    apply labelCountBounds. }
   subst vls'.
   assert (pcl' = pcl) by (eapply labToVal_inj; eauto). subst pcl'.
   eexists rpcl, rpct, rl, rt. eauto.
@@ -588,7 +586,7 @@ Lemma analyze_cache_hit :
   exists rpcl rl,
     labToVal rl zrl m /\
     labToVal rpcl zrpcl m /\
-    apply_rule (fetch_rule_g opcode) pcl vls = Some (rpcl, rl).
+    apply_rule (fetch_rule opcode) pcl vls = Some (rpcl, rl).
 Proof.
   intros.
   exploit cache_up2date_res; eauto.
@@ -811,7 +809,7 @@ Lemma cache_hit_simulation :
          (Hmatch : match_states s1 s2)
          (Hs2' : priv s2' = false)
          (Hstep : cstep cblock ctable s2 a2 s2'),
-    exists a1 s1', step_rules fetch_rule_g atable s1 a1 s1' /\
+    exists a1 s1', step_rules fetch_rule atable s1 a1 s1' /\
                    match_actions a1 a2 /\
                    match_states s1' s2'.
 Proof.
@@ -922,7 +920,7 @@ Lemma configuration_at_miss :
          (STEP : cstep cblock ctable s21 e2 s22)
          (NOTSYSCALL : forall id, read_m (fst (pc s21)) (imem s21) <> Some (SysCall id))
          (PRIV : priv s22 = true),
-    exists opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) ts pct,
+    exists opcode (vls : Vector.t T (labelCount opcode)) ts pct,
       labsToVals vls (mem s22) ts /\
       labToVal (snd (apc s1)) pct (mem s22) /\
       cupd cblock (mem s21)
@@ -1254,11 +1252,11 @@ we start in kernel mode with a cache with those inputs, then the final
 memory has an up-to-date cache w.r.t. those inputs. *)
 
 Lemma handler_final_mem_cache_up2date :
-  forall m2 m2' opcode (vls : Vector.t T (projT1 (fetch_rule_impl opcode))) ts pcl pct
+  forall m2 m2' opcode (vls : Vector.t T (labelCount opcode)) ts pcl pct
          rpcl rl zpc zr
          (Hvls : labsToVals vls m2 ts) (Hpc : labToVal pcl pct m2)
          (HIT : cache_hit_mem cblock m2 (opCodeToZ opcode) ts pct)
-         (OK : apply_rule (projT2 (fetch_rule_impl opcode)) pcl vls = Some (rpcl, rl))
+         (OK : apply_rule (fetch_rule opcode) pcl vls = Some (rpcl, rl))
          (MATCH : handler_final_mem_matches cblock rpcl rl m2 m2' zpc zr),
     cache_up2date m2'.
 Proof.
@@ -1273,7 +1271,6 @@ Proof.
     apply opCodeToZ_inj in E1. subst.
     exploit handler_final_mem_matches_labToVal_preserved; eauto. intro.
     exploit handler_final_mem_matches_labsToVals_preserved; eauto. intro.
-    unfold fetch_rule_impl in OK. simpl in OK.
     exists vls, pcl, rpcl, zpc, rl, zr.
     split; eauto.
     apply cache_hit_mem_mem_def_on_cache in HIT.
@@ -1301,10 +1298,10 @@ Proof.
   intuition.
   simpl in MEM, MINJ', PRIV.
   subst.
-  destruct (apply_rule (projT2 (fetch_rule_impl op)) pcl vls)
+  destruct (apply_rule (fetch_rule op) pcl vls)
     as [[rpcl rl]|] eqn:E.
   - exploit handler_correct_succeed; eauto.
-    intros H'. specialize (H' _ _ _ _ _ CODE Hvls Hpc HIT E).
+    intros H'. specialize (H' _ _ _ _ _ _ CODE Hvls Hpc HIT E).
     destruct H' as (m2' & zr & zrpc & ESCAPE1 & MATCH').
     exploit rte_success; eauto.
     intros ESCAPE2.
@@ -1334,7 +1331,7 @@ Proof.
       eapply labToVal_cache; eauto.
       constructor; eauto.
   - exploit handler_correct_fail; eauto.
-    intros H. specialize (H _ _ _ CODE Hvls Hpc HIT E).
+    intros H. specialize (H _ _ _ _ CODE Hvls Hpc HIT E).
     destruct H as (st & m2' & ESCAPE1 & EXT).
     inv ESCAPE1.
     + apply runsUntilUser_r in STAR. simpl in STAR. congruence.
@@ -1429,7 +1426,7 @@ Definition match_systables :=
          (STEP : cstep cblock ctable sc ca sc')
          (RUN : runsUntilUser cblock ctable sc' sc''),
   exists sa' aa,
-    step_rules fetch_rule_g atable sa aa sa'
+    step_rules fetch_rule atable sa aa sa'
     /\ match_states sa' sc''
     /\ match_actions aa ca.
 
@@ -1446,7 +1443,7 @@ Proof.
 Qed.
 
 Lemma quasi_abstract_concrete_sref_prop :
-  state_refinement_statement (step_rules fetch_rule_g atable)
+  state_refinement_statement (step_rules fetch_rule atable)
                              (cstep cblock ctable)
                              match_states match_events.
 Proof.
@@ -1498,11 +1495,9 @@ Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
 Variable atable : ASysTable T.
 Let ctable_impl : list CSysCallImpl := nil.
 
-Variable fetch_rule_g :
+Variable fetch_rule :
   forall opcode : OpCode, AllowModify (labelCount opcode).
-Let fetch_rule_impl : OpCode -> {n : nat & AllowModify n} :=
-  fun o => existT _ (labelCount o) (fetch_rule_g o).
-Let faultHandler := FaultRoutine.faultHandler fetch_rule_impl.
+Let faultHandler := FaultRoutine.faultHandler _ fetch_rule.
 
 Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
 
@@ -1523,7 +1518,7 @@ Inductive ac_match_initial_data :
   abstract_init_data T ->
   concrete_init_data -> Prop :=
 | ac_mid : forall prog mem stkdata1 stkdata2 def1 def2
-                  (UP2DATE : cache_up2date cblock fetch_rule_g mem)
+                  (UP2DATE : cache_up2date cblock fetch_rule mem)
                   (DATA : ac_match_initial_stack_data stkdata1 stkdata2 mem)
                   (DEF : labToVal def1 def2 mem),
              ac_match_initial_data
@@ -1564,8 +1559,8 @@ Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
     ac_match_initial_data ai ci ->
     match_states cblock
-                 fetch_rule_g
-                 (init_state (quasi_abstract_machine fetch_rule_g atable) ai)
+                 fetch_rule
+                 (init_state (quasi_abstract_machine fetch_rule atable) ai)
                  (init_state (concrete_machine cblock faultHandler ctable_impl) ci).
 Proof.
   intros ai ci H. inv H.
@@ -1573,7 +1568,7 @@ Proof.
   econstructor; eauto using CodeTriples.code_at_id.
 Qed.
 
-Lemma match_systables_from_impl : match_systables cblock ctable fetch_rule_g atable.
+Lemma match_systables_from_impl : match_systables cblock ctable fetch_rule atable.
 Proof.
   intros sa sc ca sc' sc'' id MATCH INSTR STEP RUN.
   exploit configuration_at_syscall; eauto.
@@ -1586,9 +1581,9 @@ Proof.
 Qed.
 
 Definition quasi_abstract_concrete_ref :
-  refinement (quasi_abstract_machine fetch_rule_g atable)
+  refinement (quasi_abstract_machine fetch_rule atable)
              (concrete_machine cblock faultHandler ctable_impl) :=
-  refinement_from_state_refinement (quasi_abstract_machine fetch_rule_g atable)
+  refinement_from_state_refinement (quasi_abstract_machine fetch_rule atable)
                                    (concrete_machine cblock faultHandler ctable_impl)
                                    (quasi_abstract_concrete_sref stamp_cblock match_systables_from_impl)
                                    ac_match_initial_data
