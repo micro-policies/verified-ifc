@@ -107,7 +107,11 @@ Hint Unfold match_stacks.
 
 Variable fetch_rule :
   forall opcode : OpCode, AllowModify (labelCount opcode).
-Let faultHandler := FaultRoutine.faultHandler _ fetch_rule.
+Variable faultHandler : list Instr.
+Hypothesis handler_correct_succeed :
+  handler_spec_succeed cblock ctable _ fetch_rule faultHandler.
+Hypothesis handler_correct_fail :
+  handler_spec_fail cblock ctable _ fetch_rule faultHandler.
 
 Inductive cache_up2date mem : Prop :=
 | cu2d_intro :
@@ -800,8 +804,6 @@ Lemma match_stacks_valid_update :
 Proof. intros. induction STKS; eauto with valid_update. Qed.
 Hint Resolve match_stacks_valid_update : valid_update.
 
-Opaque faultHandler. (* Trying to simplify faultHandler brings Coq to a halt *)
-
 (** Cache hit case *)
 
 Lemma cache_hit_simulation :
@@ -1301,7 +1303,7 @@ Proof.
   destruct (apply_rule (fetch_rule op) pcl vls)
     as [[rpcl rl]|] eqn:E.
   - exploit handler_correct_succeed; eauto.
-    intros H'. specialize (H' _ _ _ _ _ _ CODE Hvls Hpc HIT E).
+    intros H'. specialize (H' HIT E).
     destruct H' as (m2' & zr & zrpc & ESCAPE1 & MATCH').
     exploit rte_success; eauto.
     intros ESCAPE2.
@@ -1331,7 +1333,7 @@ Proof.
       eapply labToVal_cache; eauto.
       constructor; eauto.
   - exploit handler_correct_fail; eauto.
-    intros H. specialize (H _ _ _ _ CODE Hvls Hpc HIT E).
+    intros H.
     destruct H as (st & m2' & ESCAPE1 & EXT).
     inv ESCAPE1.
     + apply runsUntilUser_r in STAR. simpl in STAR. congruence.
@@ -1497,9 +1499,12 @@ Let ctable_impl : list CSysCallImpl := nil.
 
 Variable fetch_rule :
   forall opcode : OpCode, AllowModify (labelCount opcode).
-Let faultHandler := FaultRoutine.faultHandler _ fetch_rule.
-
+Variable faultHandler : list Instr.
 Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
+Hypothesis handler_correct_succeed :
+  handler_spec_succeed cblock ctable _ fetch_rule faultHandler.
+Hypothesis handler_correct_fail :
+  handler_spec_fail cblock ctable _ fetch_rule faultHandler.
 
 Let match_atoms := match_atoms T (val privilege) unit privilege match_tags.
 
@@ -1559,7 +1564,7 @@ Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
     ac_match_initial_data ai ci ->
     match_states cblock
-                 fetch_rule
+                 fetch_rule faultHandler
                  (init_state (quasi_abstract_machine fetch_rule atable) ai)
                  (init_state (concrete_machine cblock faultHandler ctable_impl) ci).
 Proof.
@@ -1568,7 +1573,7 @@ Proof.
   econstructor; eauto using CodeTriples.code_at_id.
 Qed.
 
-Lemma match_systables_from_impl : match_systables cblock ctable fetch_rule atable.
+Lemma match_systables_from_impl : match_systables cblock ctable fetch_rule faultHandler atable.
 Proof.
   intros sa sc ca sc' sc'' id MATCH INSTR STEP RUN.
   exploit configuration_at_syscall; eauto.
@@ -1585,7 +1590,10 @@ Definition quasi_abstract_concrete_ref :
              (concrete_machine cblock faultHandler ctable_impl) :=
   refinement_from_state_refinement (quasi_abstract_machine fetch_rule atable)
                                    (concrete_machine cblock faultHandler ctable_impl)
-                                   (quasi_abstract_concrete_sref stamp_cblock match_systables_from_impl)
+                                   (quasi_abstract_concrete_sref stamp_cblock
+                                                                 handler_correct_succeed
+                                                                 handler_correct_fail
+                                                                 match_systables_from_impl)
                                    ac_match_initial_data
                                    ac_match_initial_data_match_initial_states.
 

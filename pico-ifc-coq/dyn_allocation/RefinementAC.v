@@ -54,10 +54,18 @@ Program Definition abstract_concrete_ref :
   refinement (abstract_machine atable) tini_concrete_machine :=
   @ref_composition _ _ _
                    (abstract_quasi_abstract_ref Hatable)
-                   (quasi_abstract_concrete_ref stamp_cblock atable (fetch_rule:=fetch_rule))
+                   (quasi_abstract_concrete_ref stamp_cblock atable _ _)
                    (@ac_match_initial_data _ _ _ cblock fetch_rule)
                    match_events
                    _ _.
+
+Next Obligation.
+  eapply handler_correct_succeed; eauto.
+Qed.
+
+Next Obligation.
+  eapply handler_correct_fail; eauto.
+Qed.
 
 Next Obligation.
   eauto.
