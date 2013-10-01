@@ -40,6 +40,42 @@ Context {T: Type}
         {CLatt: ConcreteLattice T}
         {WFCLatt: WfConcreteLattice cblock table T Latt CLatt}.
 
+Definition handler_final_mem_matches (lrpc lr: T) (m m': memory):
+  val privilege -> val privilege -> Prop :=
+  fun zpc zr =>
+    exists m_ext,
+      extends m m_ext /\
+      labToVal lrpc zpc m' /\
+      labToVal lr zr m' /\
+      cache_hit_read_mem cblock m' zr zpc /\
+      update_cache_spec_rvec cblock m_ext m'. (* Nothing else changed since the extension *)
+
+Definition handler_spec_succeed get_rule handler : Prop :=
+  forall syscode opcode vls pcl c raddr s i lr lpc z1 z2 z3 zpc,
+  forall
+    (CODE: code_at 0 syscode handler)
+    (LABS: (labsToVals vls) c (z1, z2, z3))
+    (LABPC: (labToVal pcl) zpc c)
+    (INPUT: cache_hit_mem c (opCodeToZ opcode) (z1,z2,z3) zpc)
+    (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = Some (lpc,lr)),
+    exists c' zr zrpc,
+    runsToEscape cblock table
+                 (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
+                 (CState c' syscode i s raddr false) /\
+    handler_final_mem_matches lpc lr c c' zrpc zr.
+
+Definition handler_spec_fail get_rule handler : Prop :=
+  forall syscode opcode vls pcl c raddr s i z1 z2 z3 zpc,
+  forall (CODE: code_at 0 syscode handler)
+         (LABS: (labsToVals vls) c (z1, z2, z3))
+         (LABPC: (labToVal pcl) zpc c)
+         (INPUT: cache_hit_mem c (opCodeToZ opcode) (z1,z2,z3) zpc)
+         (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = None),
+    exists st c',
+      runsToEscape cblock table
+                   (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
+                   (CState c' syscode i st (-1,handlerTag) true) /\
+    extends c c'.
 
 (* --------------------- TMU Fault Handler code ----------------------------------- *)
 
@@ -150,67 +186,6 @@ End FaultHandler.
 
 (* Connecting vectors of labels to triples of tags. *)
 
-Section Glue.
-
-Import Vector.VectorNotations.
-
-Local Open Scope nat_scope.
-
-
-Definition nth_labToVal {n:nat} (vls: Vector.t T n) (s:nat) : val privilege -> memory -> Prop :=
-  fun z m =>
-    match le_lt_dec n s with
-      | left _ => z = dontCare
-      | right p => labToVal (Vector.nth_order vls p) z m
-  end.
-
-Lemma of_nat_lt_proof_irrel:
-  forall (m n: nat) (p q: m < n),
-    Fin.of_nat_lt p = Fin.of_nat_lt q.
-Proof.
-  induction m; intros.
-    destruct n.
-      false; omega.
-      reflexivity.
-    destruct n.
-      false; omega.
-      simpl; erewrite IHm; eauto.
-Qed.
-
-(* NC: this took a few tries ... *)
-Lemma nth_order_proof_irrel:
-  forall (m n: nat) (v: Vector.t T n) (p q: m < n),
-    Vector.nth_order v p = Vector.nth_order v q.
-Proof.
-  intros.
-  unfold Vector.nth_order.
-  erewrite of_nat_lt_proof_irrel; eauto.
-Qed.
-
-Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m,
-  forall (lt: m < n),
-  nth_labToVal vls m = labToVal (Vector.nth_order vls lt).
-Proof.
-  intros.
-  unfold nth_labToVal.
-  destruct (le_lt_dec n m).
-  false; omega.
-  (* NC: Interesting: here we have two different proofs [m < n0] being
-  used as arguments to [nth_order], and we need to know that the
-  result of [nth_order] is the same in both cases.  I.e., we need
-  proof irrelevance! *)
-  erewrite nth_order_proof_irrel; eauto.
-Qed.
-
-Definition labsToVals {n:nat} (vls :Vector.t T n) (m: memory) :
-  (val privilege * val privilege * val privilege) -> Prop :=
-fun z0z1z2 =>
-  let '(z0,z1,z2) := z0z1z2 in
-  nth_labToVal vls 0 z0 m /\
-  nth_labToVal vls 1 z1 m /\
-  nth_labToVal vls 2 z2 m.
-
-End Glue.
 
 Section TMUSpecs.
 
@@ -995,15 +970,6 @@ Proof.
   eauto using extends_refl.
 Qed.
 
-Definition handler_final_mem_matches (lrpc lr: T) (m m': memory):
-  val privilege -> val privilege -> Prop :=
-  fun zpc zr =>
-    exists m_ext,
-      extends m m_ext /\
-      labToVal lrpc zpc m' /\
-      labToVal lr zr m' /\
-      cache_hit_read_mem cblock m' zr zpc /\
-      update_cache_spec_rvec cblock m_ext m'. (* Nothing else changed since the extension *)
 
 
 
@@ -1172,20 +1138,9 @@ Definition handler : list Instr := faultHandler get_rule.
 
 Require Import ConcreteExecutions.
 
-Theorem handler_correct_succeed :
-  forall syscode opcode vls pcl c raddr s i lr lpc z1 z2 z3 zpc,
-  forall
-    (CODE: code_at 0 syscode handler)
-    (LABS: (labsToVals vls) c (z1, z2, z3))
-    (LABPC: (labToVal pcl) zpc c)
-    (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
-    (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = Some (lpc,lr)),
-    exists c' zr zrpc,
-    runsToEscape cblock table
-                 (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
-                 (CState c' syscode i s raddr false) /\
-    handler_final_mem_matches cblock lpc lr c c' zrpc zr.
+Theorem handler_correct_succeed : handler_spec_succeed cblock table get_rule handler.
 Proof.
+ unfold handler_spec_succeed.
  intros.
   assert (valid_address cblock addrTagRes c).
   { unfold cache_hit_mem, valid_address, load in *.
@@ -1214,19 +1169,9 @@ Proof.
    eapply P4.
 Qed.
 
-Theorem handler_correct_fail :
-  forall syscode opcode vls pcl c raddr s i z1 z2 z3 zpc,
-  forall (CODE: code_at 0 syscode handler)
-         (LABS: (labsToVals vls) c (z1, z2, z3))
-         (LABPC: (labToVal pcl) zpc c)
-         (INPUT: cache_hit_mem cblock c (opCodeToZ opcode) (z1,z2,z3) zpc)
-         (RULE: apply_rule (projT2 (get_rule opcode)) pcl vls = None),
-    exists st c',
-      runsToEscape cblock table
-                   (CState c syscode i (CRet raddr false false::s) (0,handlerTag) true)
-                   (CState c' syscode i st (-1,handlerTag) true) /\
-    extends c c'.
+Theorem handler_correct_fail : handler_spec_fail cblock table get_rule handler.
 Proof.
+  unfold handler_spec_fail.
   intros.
   assert (valid_address cblock addrTagRes c).
   { unfold cache_hit_mem, valid_address, load in *.

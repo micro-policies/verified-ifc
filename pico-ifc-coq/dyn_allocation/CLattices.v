@@ -183,6 +183,68 @@ Proof.
   go_match. do 7 eexists; intuition; eauto.
 Qed.
 
+Section Glue.
+
+Import Vector.VectorNotations.
+
+Local Open Scope nat_scope.
+
+
+Definition nth_labToVal {n:nat} (vls: Vector.t T n) (s:nat) : val privilege -> memory -> Prop :=
+  fun z m =>
+    match le_lt_dec n s with
+      | left _ => z = dontCare
+      | right p => labToVal (Vector.nth_order vls p) z m
+  end.
+
+Lemma of_nat_lt_proof_irrel:
+  forall (m n: nat) (p q: m < n),
+    Fin.of_nat_lt p = Fin.of_nat_lt q.
+Proof.
+  induction m; intros.
+    destruct n.
+      false; omega.
+      reflexivity.
+    destruct n.
+      false; omega.
+      simpl; erewrite IHm; eauto.
+Qed.
+
+(* NC: this took a few tries ... *)
+Lemma nth_order_proof_irrel:
+  forall (m n: nat) (v: Vector.t T n) (p q: m < n),
+    Vector.nth_order v p = Vector.nth_order v q.
+Proof.
+  intros.
+  unfold Vector.nth_order.
+  erewrite of_nat_lt_proof_irrel; eauto.
+Qed.
+
+Lemma nth_order_valid: forall (n:nat) (vls: Vector.t T n) m,
+  forall (lt: m < n),
+  nth_labToVal vls m = labToVal (Vector.nth_order vls lt).
+Proof.
+  intros.
+  unfold nth_labToVal.
+  destruct (le_lt_dec n m).
+  false; omega.
+  (* NC: Interesting: here we have two different proofs [m < n0] being
+  used as arguments to [nth_order], and we need to know that the
+  result of [nth_order] is the same in both cases.  I.e., we need
+  proof irrelevance! *)
+  erewrite nth_order_proof_irrel; eauto.
+Qed.
+
+Definition labsToVals {n:nat} (vls :Vector.t T n) (m: memory) :
+  (val privilege * val privilege * val privilege) -> Prop :=
+fun z0z1z2 =>
+  let '(z0,z1,z2) := z0z1z2 in
+  nth_labToVal vls 0 z0 m /\
+  nth_labToVal vls 1 z1 m /\
+  nth_labToVal vls 2 z2 m.
+
+End Glue.
+
 End Spec_alt.
 
 End fix_cblock.
