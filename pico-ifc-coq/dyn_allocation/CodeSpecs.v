@@ -3003,26 +3003,26 @@ Proof.
 Qed.
 
 Lemma genSysVRet_spec :
-  forall raddr s0 m0 res,
+  forall raddr (Q : memory -> stack -> Prop * Outcome),
     HTEscape raddr genSysVRet
-             (fun m s => m = m0 /\
-                         match res with
-                           | Some atom =>
-                             exists t,
-                             s = (Vint 1, t) ::: atom ::: CRet raddr true false :: s0
-                           | None => exists t, s = (Vint 0, t) ::: s0
-                         end)
-             (fun m s => match res with
-                           | Some atom => (m = m0 /\ s = atom ::: s0, Success)
-                           | None => (True, Failure)
-                         end).
+             (fun m s =>  (exists t atom s0,
+                             s = (Vint 1, t) ::: atom ::: CRet raddr true false :: s0 /\
+                             let (prop, outcome) := Q m (atom ::: s0) in
+                             prop /\ outcome = Success) \/
+                          (exists t s0, s = (Vint 0, t) ::: s0 /\
+                                        let (prop, outcome) := Q m s0 in
+                                        prop /\ outcome = Failure))
+             Q.
 Proof.
   intros.
   unfold genSysVRet.
-  destruct res as [[resv resl]|], raddr as [pcret pcrett].
-  - intros code stk0 mem0 fh n code_at [? (t & ?)]. subst.
+  destruct raddr as [pcret pcrett].
+  intros code stk0 mem0 fh n code_at [H | H].
+  - destruct H as (t & [resv resl] & s0 & STK & POST).
     simpl in *. destruct code_at as (H1 & H2 & H3 & H4 & H5 & H6 & _).
-    repeat eexists.
+    eexists ((resv, resl) ::: s0), mem0. repeat eexists.
+    destruct (Q mem0 ((resv, resl) ::: s0)) as [prop outcome]. destruct POST.
+    simpl in *. subst. simpl. repeat (split; auto).
     eapply rte_success.
     eapply ruu_step; eauto.
     { eapply cstep_branchnz_p'; eauto. } simpl.
@@ -3030,9 +3030,11 @@ Proof.
     eapply ruu_end; eauto.
     eapply cstep_vret_p; eauto.
     eapply cptr_done.
-  - intros code stk0 mem0 fh n code_at [? (t & ?)]. subst.
+  - destruct H as (t & s0 & STK & POST).
     simpl in *. destruct code_at as (H1 & H2 & H3 & H4 & H5 & H6 & _).
-    repeat eexists.
+    eexists s0, mem0. repeat eexists.
+    destruct (Q mem0 s0) as [prop outcome]. destruct POST.
+    simpl in *. subst. simpl. repeat (split; auto).
     eapply rte_fail; simpl; try omega.
     eapply rte_step; try reflexivity.
     { eapply cstep_branchnz_p'; eauto. } simpl.
