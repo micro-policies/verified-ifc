@@ -126,15 +126,16 @@ Inductive cache_up2date mem : Prop :=
                           cache_hit_read_mem cblock mem rt rpct),
       cache_up2date mem.
 
-Inductive match_states : @qa_state T -> CS -> Prop :=
-| qac_intro : forall kc mi m1 m2 p stk1 stk2 pcv pcl pct
+Inductive match_states kc : @qa_state T -> CS -> Prop :=
+| qac_intro : forall mi m1 m2 p stk1 stk2 pcv pcl pct
                      (CODE : CodeTriples.code_at 0 kc faultHandler)
                      (MINJ : Meminj m1 m2 mi)
                      (UINJ : Userinj mi)
                      (STK : match_stacks mi stk1 stk2 m2)
                      (CACHE : cache_up2date m2)
                      (PC : labToVal pcl pct m2),
-                match_states (AState m1 p stk1 (pcv,pcl))
+                match_states kc
+                             (AState m1 p stk1 (pcv,pcl))
                              (CState m2 kc p stk2 (pcv,pct) false).
 Hint Constructors match_states.
 
@@ -807,13 +808,13 @@ Hint Resolve match_stacks_valid_update : valid_update.
 (** Cache hit case *)
 
 Lemma cache_hit_simulation :
-  forall s1 s2 a2 s2'
-         (Hmatch : match_states s1 s2)
+  forall kc s1 s2 a2 s2'
+         (Hmatch : match_states kc s1 s2)
          (Hs2' : priv s2' = false)
          (Hstep : cstep cblock ctable s2 a2 s2'),
     exists a1 s1', step_rules fetch_rule atable s1 a1 s1' /\
                    match_actions a1 a2 /\
-                   match_states s1' s2'.
+                   match_states kc s1' s2'.
 Proof.
   intros.
   inv Hmatch.
@@ -917,8 +918,8 @@ Qed.
 Hint Resolve cupd_mem_eq_except_cache.
 
 Lemma configuration_at_miss :
-  forall s1 s21 e2 s22
-         (MATCH : match_states s1 s21)
+  forall kc s1 s21 e2 s22
+         (MATCH : match_states kc s1 s21)
          (STEP : cstep cblock ctable s21 e2 s22)
          (NOTSYSCALL : forall id, read_m (fst (pc s21)) (imem s21) <> Some (SysCall id))
          (PRIV : priv s22 = true),
@@ -975,7 +976,8 @@ Lemma configuration_at_syscall :
        stk s22 = map CData args ++ CRet (fst (pc s21) + 1, snd (pc s21)) true false :: s0 /\
        stk s21 = map CData args ++ s0 /\
        pc s22 = (entry, handlerTag) /\
-       priv s22 = true.
+       priv s22 = true /\
+       e2 = Silent.
 Proof.
   intros.
   inv STEP; simpl in *; try congruence.
@@ -1281,12 +1283,12 @@ Qed.
 Hint Resolve handler_final_mem_cache_up2date.
 
 Lemma cache_miss_simulation :
-  forall s1 s21 e21 s22 s23
-         (MATCH : match_states s1 s21)
+  forall kc s1 s21 e21 s22 s23
+         (MATCH : match_states kc s1 s21)
          (NOTSYSCALL : forall id, read_m (fst (pc s21)) (imem s21) <> Some (SysCall id))
          (STEP1 : cstep cblock ctable s21 e21 s22)
          (RUN : runsUntilUser cblock ctable s22 s23),
-    match_states s1 s23.
+    match_states kc s1 s23.
 Proof.
   intros.
   exploit runsUntilUser_l; eauto.
@@ -1340,7 +1342,6 @@ Proof.
     + exfalso.
       eapply kernel_run_success_fail_contra; eauto.
 Qed.
-
 
 (** Notions of concrete executions for proving this refinement *)
 Section CExec.
@@ -1421,19 +1422,6 @@ Qed.
 
 End CExec.
 
-Definition match_systables :=
-  forall sa sc ca sc' sc'' id
-         (MATCH : match_states sa sc)
-         (INSTR : read_m (fst (pc sc)) (imem sc) = Some (SysCall id))
-         (STEP : cstep cblock ctable sc ca sc')
-         (RUN : runsUntilUser cblock ctable sc' sc''),
-  exists sa' aa,
-    step_rules fetch_rule atable sa aa sa'
-    /\ match_states sa' sc''
-    /\ match_actions aa ca.
-
-Hypothesis Hmatch_systables : match_systables.
-
 Lemma is_syscall_dec :
   forall s2,
     (forall id, read_m (fst (pc s2)) (imem s2) <> Some (SysCall id)) \/
@@ -1444,10 +1432,25 @@ Proof.
   destruct instr; eauto; try (left; congruence).
 Qed.
 
+Variable kc : list Instr.
+
+Definition match_systables :=
+  forall sa sc ca sc' sc'' id
+         (MATCH : match_states kc sa sc)
+         (INSTR : read_m (fst (pc sc)) (imem sc) = Some (SysCall id))
+         (STEP : cstep cblock ctable sc ca sc')
+         (RUN : runsUntilUser cblock ctable sc' sc''),
+  exists sa' aa,
+    step_rules fetch_rule atable sa aa sa'
+    /\ match_states kc sa' sc''
+    /\ match_actions aa ca.
+
+Hypothesis Hmatch_systables : match_systables.
+
 Lemma quasi_abstract_concrete_sref_prop :
   state_refinement_statement (step_rules fetch_rule atable)
                              (cstep cblock ctable)
-                             match_states match_events.
+                             (match_states kc) match_events.
 Proof.
   intros s1 s2 t2 s2' MATCH EXEC. simpl.
   apply exec_cexec in EXEC.
@@ -1486,6 +1489,94 @@ Definition quasi_abstract_concrete_sref :=
 
 End StateRefinement.
 
+Require Import CodeTriples.
+
+Section CorrectImpl.
+
+Context {T: Type}
+        {Latt: JoinSemiLattice T}
+        {CLatt: ConcreteLattice T}.
+
+Variable cblock : FaultRoutine.block.
+Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
+Variable atable : ASysTable T.
+Variable ctable_impl : list CSysCallImpl.
+
+Variable fetch_rule :
+  forall opcode : OpCode, AllowModify (labelCount opcode).
+Variable faultHandler : list Instr.
+Let ctable := build_syscall_table (Z.of_nat (length faultHandler)) ctable_impl.
+Hypothesis handler_correct_succeed :
+  handler_spec_succeed cblock ctable _ fetch_rule faultHandler.
+Hypothesis handler_correct_fail :
+  handler_spec_fail cblock ctable _ fetch_rule faultHandler.
+
+Let match_atoms S := match_atoms T (val privilege) S privilege match_tags.
+
+Definition csyscall_impl_correct (asc : ASysCall T) csc : Prop :=
+  asi_arity asc = fst csc /\
+  forall S (Q : memory -> stack -> Prop),
+    HT cblock ctable (snd csc)
+       (fun m s =>
+          exists mi aargs cargs s0,
+            s = map CData cargs ++ s0 /\
+            Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
+            (forall m' ares cres tres,
+               user_memory_doesnt_change m m' ->
+               (forall b fr, Mem.stamp b = Kernel ->
+                             Mem.get_frame m b = Some fr ->
+                             Mem.get_frame m' b = Some fr) ->
+               asi_sem asc aargs = Some ares ->
+               @match_atoms S mi ares cres m ->
+               Q m' ((Vint 1, tres) ::: cres ::: s0)) /\
+            (forall m' tres,
+               asi_sem asc aargs = None ->
+               Q m' ((Vint 0, tres) ::: s0)))
+       Q.
+
+Lemma csyscall_impl_correct_ht :
+  forall S asc csc raddr (Q : memory -> stack -> Prop * Outcome),
+    csyscall_impl_correct asc csc ->
+    HTEscape cblock ctable raddr (snd csc ++ CodeGen.genSysVRet)
+             (fun m s =>
+                exists mi aargs cargs s0,
+                  s = map CData cargs ++ CRet raddr true false :: s0 /\
+                  Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
+                  (forall m' ares cres,
+                     user_memory_doesnt_change m m' ->
+                     (forall b fr, Mem.stamp b = Kernel ->
+                                   Mem.get_frame m b = Some fr ->
+                                   Mem.get_frame m' b = Some fr) ->
+                     asi_sem asc aargs = Some ares ->
+                     @match_atoms S mi ares cres m ->
+                     let (prop, outcome) := Q m' (cres ::: s0) in
+                     prop /\ outcome = Success) /\
+                  (forall m',
+                     asi_sem asc aargs = None ->
+                     let (prop, outcome) := Q m' (CRet raddr true false :: s0) in
+                     prop /\ outcome = Failure))
+             Q.
+Proof.
+  intros.
+  eapply HTEscape_compose_flip.
+  { eapply CodeSpecs.genSysVRet_spec. }
+  eapply HT_strengthen_premise.
+  { apply H. }
+  intros m s (mi & aargs & cargs & s0 & ? & ARGS & SUCC & FAIL). subst.
+  repeat eexists; eauto.
+  - intros. exploit SUCC; eauto 7.
+  - intros. exploit FAIL; eauto.
+Qed.
+
+Definition ctable_impl_correct : Prop :=
+  forall id csc
+         (FETCH : index_list id ctable_impl = Some csc),
+  exists asc,
+    atable id = Some asc /\
+    csyscall_impl_correct asc csc.
+
+End CorrectImpl.
+
 Section Refinement.
 
 Context {T: Type}
@@ -1495,7 +1586,7 @@ Context {T: Type}
 Variable cblock : FaultRoutine.block.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
 Variable atable : ASysTable T.
-Let ctable_impl : list CSysCallImpl := nil.
+Variable ctable_impl : list CSysCallImpl.
 
 Variable fetch_rule :
   forall opcode : OpCode, AllowModify (labelCount opcode).
@@ -1509,6 +1600,85 @@ Hypothesis handler_correct_fail :
 Let match_atoms := match_atoms T (val privilege) unit privilege match_tags.
 
 Context {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.
+
+Lemma ctable_fetch_inv_gen :
+  forall id csc
+         (SYSC : ctable id = Some csc),
+  exists cti code cti',
+    ctable_impl = cti ++ (csi_arity csc, code) :: cti' /\
+    length cti = id /\
+    csi_pc csc = Z.of_nat (length (build_kernel_code faultHandler cti)).
+Proof.
+  subst ctable.
+  clear.
+  gdep faultHandler. clear faultHandler.
+  induction ctable_impl as [|[arity code] cti' IH];
+  intros kernel; intros.
+  - destruct id; inversion SYSC.
+  - destruct id; simpl in SYSC.
+    * eexists nil, code, cti'.
+      inv SYSC. eauto.
+    * rewrite <- Nat2Z.inj_add in SYSC.
+      rewrite <- app_length in SYSC.
+      apply IH in SYSC.
+      destruct SYSC as (cti & code' & cti'' & ? & ? & PC). subst.
+      eexists ((arity, code) :: cti).
+      repeat eexists; eauto.
+Qed.
+
+(* MOVE *)
+Lemma index_list_app' X : forall (l1 l2 : list X) (x : X),
+                            index_list (length l1) (l1 ++ x :: l2) = Some x.
+Proof.
+  induction l1 as [|x' l1 IH]; intros; simpl in *; subst; eauto.
+Qed.
+
+Lemma build_kernel_code_app_aux :
+  forall c1 c2 scs,
+    build_kernel_code (c1 ++ c2) scs = c1 ++ build_kernel_code c2 scs.
+Proof.
+  intros. gdep c1. gdep c2.
+  induction scs as [|sc scs IH]; intros; simpl; eauto.
+  rewrite <- IH.
+  rewrite <- app_assoc.
+  reflexivity.
+Qed.
+
+Lemma build_kernel_code_app :
+  forall c scs1 scs2,
+    build_kernel_code c (scs1 ++ scs2) =
+    build_kernel_code c scs1 ++ build_kernel_code nil scs2.
+Proof.
+  intros.
+  rewrite <- build_kernel_code_app_aux.
+  rewrite app_nil_r.
+  unfold build_kernel_code.
+  rewrite fold_left_app.
+  reflexivity.
+Qed.
+
+Lemma ctable_fetch_inv :
+  forall id csc
+         (SYSC : ctable id = Some csc),
+  exists code,
+    index_list id ctable_impl = Some (csi_arity csc, code) /\
+    code_at (csi_pc csc) (build_kernel_code faultHandler ctable_impl) (code ++ CodeGen.genSysVRet).
+Proof.
+  clear.
+  intros.
+  apply ctable_fetch_inv_gen in SYSC.
+  destruct SYSC as (cti & code & cti' & ? & ? & PC). subst.
+  eexists. split; eauto using index_list_app'.
+  rewrite build_kernel_code_app.
+  simpl.
+  eapply code_at_compose_1.
+  erewrite <- (build_kernel_code_app_aux (code ++ CodeGen.genSysVRet) nil).
+  rewrite app_nil_r.
+  eapply code_at_app.
+  assumption.
+Qed.
+
+Hypothesis Hctable_impl_correct : ctable_impl_correct cblock atable ctable_impl faultHandler.
 
 Notation meminj := (meminj unit privilege).
 Notation Meminj := (Meminj T (val privilege) unit privilege match_tags).
@@ -1556,7 +1726,8 @@ Lemma match_init_stacks:
 Proof.
   induction 1 as [|[xv1 xl1] [xv2 xl2] sd1 sd2 [H1 H2]];
   intros;
-  repeat (simpl in *; subst; constructor; auto).
+  repeat (simpl fst in *; subst; constructor; auto).
+  simpl in *. subst. constructor.
 Qed.
 Hint Resolve match_init_stacks.
 
@@ -1565,24 +1736,104 @@ Lemma ac_match_initial_data_match_initial_states :
     ac_match_initial_data ai ci ->
     match_states cblock
                  fetch_rule faultHandler
+                 (build_kernel_code faultHandler ctable_impl)
                  (init_state (quasi_abstract_machine fetch_rule atable) ai)
                  (init_state (concrete_machine cblock faultHandler ctable_impl) ci).
 Proof.
   intros ai ci H. inv H.
   simpl in *.
-  econstructor; eauto using CodeTriples.code_at_id.
+  econstructor; eauto.
+  rewrite <- (app_nil_r faultHandler) at 1.
+  rewrite build_kernel_code_app_aux.
+  eauto using code_at_compose_1, code_at_id.
 Qed.
 
-Lemma match_systables_from_impl : match_systables cblock ctable fetch_rule faultHandler atable.
+Lemma match_stacks_all_data_map :
+  forall mi aargs' cargs m2,
+    match_stacks mi aargs' (map CData cargs) m2 ->
+    exists aargs,
+      aargs' = map AData aargs /\
+      Forall2 (fun aa ca => match_atoms mi aa ca m2) aargs cargs.
+Proof.
+  intros mi aargs' cargs m2 H.
+  gdep aargs'.
+  induction cargs as [|ca cargs IH]; simpl; intros aargs' H.
+  - inv H. exists nil. eauto.
+  - inversion H as [|ase ca' aargs'' cargs' STKELMT STKS]. subst. clear H.
+    inversion STKELMT as [aa ca' m2' ATOMS|]. subst. clear STKELMT.
+    apply IH in STKS. destruct STKS as (aargs & ? & ARGS). subst.
+    eexists. split; eauto. simpl; eauto.
+Qed.
+
+Lemma Forall2_length :
+  forall T S (R : T -> S -> Prop)
+         l1 l2,
+    Forall2 R l1 l2 -> length l1 = length l2.
+Proof. induction 1; simpl; eauto. Qed.
+
+Lemma match_systables_from_impl :
+  match_systables cblock ctable fetch_rule faultHandler atable (build_kernel_code faultHandler ctable_impl).
 Proof.
   intros sa sc ca sc' sc'' id MATCH INSTR STEP RUN.
   exploit configuration_at_syscall; eauto.
   { destruct MATCH. reflexivity. }
   intros (id' & entry & cargs & sc0 & INSTR' & TABLE &
-          MEM & FHDL & IMEM & STK' & STK & PC & PRIV).
+          MEM & FHDL & IMEM & STK' & STK & PC & PRIV & SILENT).
   assert (id' = id) by congruence. subst id'. clear INSTR'.
-  unfold ctable in *.
-  simpl in TABLE. destruct id; inv TABLE.
+  apply ctable_fetch_inv in TABLE. simpl in TABLE.
+  destruct TABLE as (code & FETCH & CODE).
+  apply Hctable_impl_correct in FETCH.
+  destruct FETCH as (asc & FETCH & CORRECT).
+  inv MATCH. simpl in *. subst.
+  exploit match_stacks_app; eauto.
+  intros (aargs' & astk & ? & STKS & REST). subst.
+  apply match_stacks_all_data_map in STKS.
+  destruct STKS as (aargs & ? & ARGS). subst.
+  assert (CORRECT' :=
+            csyscall_impl_correct_ht (S := unit)
+                                     (pcv + 1, pct)
+                                     (fun _ s' => match asi_sem asc aargs with
+                                                    | Some ares =>
+                                                      (exists cres,
+                                                         match_atoms mi ares cres (mem sc') /\
+                                                         s' = cres ::: sc0,
+                                                         Success)
+                                                    | None => (True, Failure)
+                                                  end)
+                                     CORRECT).
+  simpl in CORRECT'.
+  specialize (CORRECT' (imem sc') (stk sc') (mem sc') _ _ CODE).
+  simpl in CORRECT'.
+  exploit CORRECT'.
+  { do 2 eexists. eexists cargs. eexists. split; eauto.
+    split; eauto.
+    split.
+    - intros m' ares cres USER EXT RES MATCH.
+      rewrite RES.
+      eauto.
+    - intros _ RES.
+      rewrite RES.
+      eauto. }
+  intros (stk1 & mem1 & pc1 & priv1 & H).
+  destruct (asi_sem asc aargs) as [ares|] eqn:RES; simpl in *.
+  - destruct H as ((cres & MATCH & ?) & [? ?] & ESCAPE). subst.
+    do 2 eexists.
+    repeat split; eauto.
+    + eapply step_syscall; eauto.
+      destruct CORRECT as [ARITY _].
+      rewrite ARITY. simpl.
+      eauto using Forall2_length.
+    + apply rte_success in RUN.
+      destruct sc'. simpl in *. subst.
+      generalize (runsToEscape_determ RUN ESCAPE). intros. subst.
+      admit.
+    + constructor.
+  - assert (priv sc'' = false) by (eauto using runsUntilUser_l).
+    destruct H as (_ & [? ?] & ESCAPE). subst.
+    apply rte_success in RUN.
+    destruct sc'. simpl in *. subst.
+    generalize (runsToEscape_determ RUN ESCAPE). intros. subst.
+    simpl in *. discriminate.
 Qed.
 
 Definition quasi_abstract_concrete_ref :
