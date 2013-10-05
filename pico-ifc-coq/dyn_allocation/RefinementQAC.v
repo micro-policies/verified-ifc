@@ -1771,15 +1771,141 @@ Lemma Forall2_length :
     Forall2 R l1 l2 -> length l1 = length l2.
 Proof. induction 1; simpl; eauto. Qed.
 
+Lemma HTEscape_elim :
+  forall P raddr c Q s1 s2 n
+         (SPEC : CodeTriples.HTEscape cblock ctable raddr
+                                      c P Q)
+         (PRE : P (mem s1) (stk s1))
+         (CODE : CodeTriples.code_at n (fhdl s1) c)
+         (RUNS : runsToEscape cblock ctable s1 s2)
+         (PC : pc s1 = (n, handlerTag))
+         (PRIV : priv s1 = true),
+    let (prop, outcome) := Q (mem s2) (stk s2) in
+    prop /\
+    CodeTriples.predicted_outcome outcome raddr (pc s2) (priv s2) /\
+    imem s1 = imem s2 /\
+    fhdl s1 = fhdl s2.
+Proof.
+  intros.
+  destruct s1. simpl in *. subst.
+  exploit SPEC; eauto.
+  intros (stk1 & mem1 & pc1 & priv1 & POST).
+  destruct (Q mem1 stk1) as [prop outcome] eqn:HQ.
+  destruct POST as (POST & OUTCOME & RUNS').
+  assert (E := runsToEscape_determ RUNS RUNS'). subst. simpl in *.
+  rewrite HQ. eauto.
+Qed.
+
+Lemma Forall2_weaken :
+  forall T S (R R' : T -> S -> Prop) l1 l2
+         (WEAKER : forall t s, R t s -> R' t s)
+         (FORALL : Forall2 R l1 l2),
+    Forall2 R' l1 l2.
+Proof. intros. induction FORALL; eauto. Qed.
+
+Lemma syscall_extends :
+  forall m2 m2'
+         (USERMEM : user_memory_doesnt_change m2 m2')
+         (KERNELMEM : forall b fr,
+                        Mem.stamp b = Kernel ->
+                        Mem.get_frame m2 b = Some fr ->
+                        Mem.get_frame m2' b = Some fr),
+    extends m2 m2'.
+Proof.
+  intros.
+  intros b2 fr H.
+  destruct (Mem.stamp b2) eqn:STAMP; eauto.
+  rewrite USERMEM; eauto.
+Qed.
+Hint Resolve syscall_extends.
+
+Lemma match_atoms_syscall :
+  forall m1 m2 m2' mi
+         (DEF : mem_def_on_cache cblock m2)
+         (MEMINJ : Meminj m1 m2 mi)
+         (USERMEM : user_memory_doesnt_change m2 m2')
+         (KERNELMEM : forall b fr,
+                        Mem.stamp b = Kernel ->
+                        Mem.get_frame m2 b = Some fr ->
+                        Mem.get_frame m2' b = Some fr),
+    forall aa ca,
+      match_atoms mi aa ca m2 ->
+      match_atoms mi aa ca m2'.
+Proof.
+  intros.
+  inv H.
+  constructor; eauto.
+  eapply labToVal_extension_comp; eauto.
+Qed.
+
+Lemma meminj_syscall :
+  forall m1 m2 m2' mi
+         (DEF : mem_def_on_cache cblock m2)
+         (MEMINJ : Meminj m1 m2 mi)
+         (USERMEM : user_memory_doesnt_change m2 m2')
+         (KERNELMEM : forall b fr,
+                        Mem.stamp b = Kernel ->
+                        Mem.get_frame m2 b = Some fr ->
+                        Mem.get_frame m2' b = Some fr),
+    Meminj m1 m2' mi.
+Proof.
+  intros.
+  constructor.
+  - intros b1 b2 INJ.
+    exploit mi_valid; eauto.
+    intros (f1 & f2 & FRAME1 & FRAME2 & MATCH).
+    eexists f1, f2.
+    split; eauto.
+    split.
+    + eapply syscall_extends; eauto.
+    + eapply Forall2_weaken; eauto.
+      simpl. eapply match_atoms_syscall; eauto.
+  - intros.
+    eapply mi_invalid; eauto.
+    destruct (Mem.stamp b2) eqn:STAMP.
+    + rewrite <- USERMEM; eauto.
+    + destruct (Mem.get_frame m2 b2) as [fr|] eqn:FRAME; trivial.
+      apply KERNELMEM in FRAME; eauto.
+      congruence.
+  - eapply mi_inj; eauto.
+Qed.
+
+Lemma cache_up2date_syscall :
+  forall m2 m2'
+         (CACHE : cache_up2date cblock fetch_rule m2)
+         (USERMEM : user_memory_doesnt_change m2 m2')
+         (KERNELMEM : forall b fr,
+                        Mem.stamp b = Kernel ->
+                        Mem.get_frame m2 b = Some fr ->
+                        Mem.get_frame m2' b = Some fr),
+    cache_up2date cblock fetch_rule m2'.
+Proof.
+  intros.
+  inv CACHE.
+  constructor.
+  - eauto using extends_mem_def_on_cache.
+  - intros.
+    eapply cache_hit_mem_extends_inv in H; eauto.
+    apply UP2DATE in H.
+    destruct H as (vls & pcl & rpcl & rpct & rl & rt & H1 & H2 & H3 & H4 & H5 & H6).
+    eapply cache_hit_read_mem_extends in H6; eauto.
+    repeat eexists; eauto using labToVal_extension_comp, labsToVals_extension_comp.
+Qed.
+
 Lemma match_systables_from_impl :
   match_systables cblock ctable fetch_rule faultHandler atable (build_kernel_code faultHandler ctable_impl).
 Proof.
   intros sa sc ca sc' sc'' id MATCH INSTR STEP RUN.
   exploit configuration_at_syscall; eauto.
   { destruct MATCH. reflexivity. }
+  clear STEP.
   intros (id' & entry & cargs & sc0 & INSTR' & TABLE &
           MEM & FHDL & IMEM & STK' & STK & PC & PRIV & SILENT).
   assert (id' = id) by congruence. subst id'. clear INSTR'.
+  assert (PRIV'' : priv sc'' = false) by (eauto using runsUntilUser_l).
+  destruct sc as [mem fhdl imem stk pc priv].
+  destruct sc' as [mem' fhdl' imem' stk' pc' priv']. simpl in *.
+  subst fhdl' mem' imem' stk' pc' priv' ca.
   apply ctable_fetch_inv in TABLE. simpl in TABLE.
   destruct TABLE as (code & FETCH & CODE).
   apply Hctable_impl_correct in FETCH.
@@ -1792,48 +1918,51 @@ Proof.
   assert (CORRECT' :=
             csyscall_impl_correct_ht (S := unit)
                                      (pcv + 1, pct)
-                                     (fun _ s' => match asi_sem asc aargs with
+                                     (fun m' s' => match asi_sem asc aargs with
                                                     | Some ares =>
                                                       (exists cres,
-                                                         match_atoms mi ares cres (mem sc') /\
-                                                         s' = cres ::: sc0,
+                                                         match_atoms mi ares cres mem /\
+                                                         s' = cres ::: sc0 /\
+                                                         extends mem m' /\
+                                                         cache_up2date cblock fetch_rule m' /\
+                                                         Meminj m1 m' mi /\
+                                                         (forall aa ca,
+                                                            match_atoms mi aa ca mem ->
+                                                            match_atoms mi aa ca m'),
                                                          Success)
                                                     | None => (True, Failure)
                                                   end)
                                      CORRECT).
-  simpl in CORRECT'.
-  specialize (CORRECT' (imem sc') (stk sc') (mem sc') _ _ CODE).
-  simpl in CORRECT'.
-  exploit CORRECT'.
-  { do 2 eexists. eexists cargs. eexists. split; eauto.
-    split; eauto.
-    split.
-    - intros m' ares cres USER EXT RES MATCH.
+  simpl in CORRECT'. apply rte_success in RUN.
+  exploit HTEscape_elim; eauto; simpl; eauto; clear CORRECT' RUN.
+  { simpl.
+    repeat eexists; eauto.
+    - intros m' ares cres USERMEM KMEM RES MATCH.
       rewrite RES.
-      eauto.
-    - intros _ RES.
-      rewrite RES.
-      eauto. }
-  intros (stk1 & mem1 & pc1 & priv1 & H).
-  destruct (asi_sem asc aargs) as [ares|] eqn:RES; simpl in *.
-  - destruct H as ((cres & MATCH & ?) & [? ?] & ESCAPE). subst.
+      split; trivial.
+      eexists. do 2 (split; eauto). inv CACHE.
+      split; eauto.
+      split; eauto using cache_up2date_syscall, cu2d_intro.
+      split; eauto using meminj_syscall, match_atoms_syscall.
+    - intros m' RES. rewrite RES. auto. }
+  destruct (asi_sem asc aargs) as [ares|] eqn:RES. simpl.
+  - intros ((cres & MATCHRES & STK'' & EXT & CACHE' & MINJ'' & MATCHATOMS) & [? ?] & ? & ?).
+    destruct sc'' as [mem'' fhdl'' imem'' stk'' pc'' priv'']. simpl in *.
+    subst priv'' pc'' imem'' fhdl'' stk''.
     do 2 eexists.
-    repeat split; eauto.
-    + eapply step_syscall; eauto.
-      destruct CORRECT as [ARITY _].
+    repeat split; try eapply step_syscall; try constructor; eauto.
+    + destruct CORRECT as [ARITY _].
       rewrite ARITY. simpl.
       eauto using Forall2_length.
-    + apply rte_success in RUN.
-      destruct sc'. simpl in *. subst.
-      generalize (runsToEscape_determ RUN ESCAPE). intros. subst.
-      admit.
-    + constructor.
-  - assert (priv sc'' = false) by (eauto using runsUntilUser_l).
-    destruct H as (_ & [? ?] & ESCAPE). subst.
-    apply rte_success in RUN.
-    destruct sc'. simpl in *. subst.
-    generalize (runsToEscape_determ RUN ESCAPE). intros. subst.
-    simpl in *. discriminate.
+    + unfold match_atoms, match_stacks in *.
+      inv CACHE.
+      econstructor; eauto using labToVal_extension_comp.
+      constructor; try econstructor; eauto.
+      eapply Forall2_weaken; eauto.
+      simpl.
+      intros ase cse STKELMT.
+      inv STKELMT; constructor; eauto using labToVal_extension_comp.
+  - simpl in *. intuition. congruence.
 Qed.
 
 Definition quasi_abstract_concrete_ref :
