@@ -20,6 +20,7 @@ Section SOP.
 
 Variable cblock : block privilege.
 Hypothesis stamp_cblock : Mem.stamp cblock = Kernel.
+Variable ctable : CSysTable.
 
 Definition labToVal (l: Zset.t) (t: val privilege) (m: memory (val privilege) privilege) : Prop :=
   exists c b,
@@ -318,7 +319,7 @@ Proof.
 Qed.
 
 Lemma genBot_spec_SOP : forall m0 (Hm0: mem_def_on_cache cblock m0) (Q:HProp),
-   HT cblock (fun _ => None) genBot
+   HT cblock ctable genBot
       (fun m s => extends m0 m /\
                   (forall m1 z t,
                      extends m m1 -> labToVal bot z m1 -> Q m1 ((z,t):::s)))
@@ -349,7 +350,7 @@ Proof.
 Qed.
 
 Lemma genJoin_spec_SOP: forall m0 (Hm0: mem_def_on_cache cblock m0) (Q: HProp),
-       HT cblock (fun _ => None) genJoin
+       HT cblock ctable genJoin
          (fun m s =>
           exists s0 l z t l' z' t',
              s = (z, t) ::: (z', t') ::: s0 /\
@@ -427,7 +428,7 @@ Proof.
 Qed.
 
 Lemma genFlows_spec_SOP: forall m0 (Hm0: mem_def_on_cache cblock m0) (Q: HProp),
-                   HT cblock (fun _ => None) genFlows
+                   HT cblock ctable genFlows
                        (fun m s =>
                           exists l l' z z' t t' s0,
                             extends m0 m /\
@@ -449,7 +450,7 @@ Proof.
   erewrite <- Zsetincl_val_list_subset; eauto.
 Qed.
 
-Global Instance SOPwf (fh: list Instr) : WfConcreteLattice cblock (fun _ => None) Zset.t ZsetLat SOPClatt :=
+Global Instance SOPwf (fh: list Instr) : WfConcreteLattice cblock ctable Zset.t ZsetLat SOPClatt :=
 { labToVal_cache := labToVal_cache_SOP
 ; labToVal_valToLab_id := labToVal_valToLab_id_SOP
 ; labToVal_inj := labToVal_inj_SOP
