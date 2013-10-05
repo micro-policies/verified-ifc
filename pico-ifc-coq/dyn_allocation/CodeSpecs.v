@@ -689,6 +689,50 @@ Proof.
   constructor; auto.
 Qed.
 
+Lemma unpack_spec_wp : forall Q,
+  HT [Unpack]
+     (fun m s => exists x l s0,
+                 s = (x,l):::s0 /\
+                 Q m ((l,handlerTag):::(x,handlerTag):::s0))
+     Q.
+Proof.
+  intros.
+  unfold CodeTriples.HT. intros. destruct H0 as [x [l [s0 [? ?]]]].
+  eexists.
+  eexists.
+  split.  apply H2.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  simpl in H1.  subst.
+  eapply cstep_unpack_p; eauto.
+Qed.
+
+Lemma pack_spec_wp : forall Q,
+  HT [Pack]
+     (fun m s => exists x t l l0 s0,
+                 s = (l,t):::(x,l0):::s0 /\
+                 Q m ((x,l):::s0))
+     Q.
+Proof.
+  intros.
+  unfold CodeTriples.HT. intros. destruct H0 as [x [t [l [l0 [s0 [? ?]]]]]].
+  eexists.
+  eexists.
+  split.  apply H2.
+
+  (* Load an instruction *)
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  eapply rte_step; auto.
+  simpl in H1.  subst.
+  eapply cstep_pack_p; eauto.
+Qed.
+
 Lemma loadFromCache_spec: forall ofs x, forall m0 s0,
   load cblock ofs m0 = Some x ->
   HT (loadFromCache ofs)
