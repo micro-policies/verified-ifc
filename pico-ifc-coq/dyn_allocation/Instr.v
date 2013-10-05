@@ -27,7 +27,9 @@ Inductive Instr :=
   | VRet : Instr 
   | SysCall (id:ident) : Instr
   | Halt : Instr
-  | Output : Instr.
+  | Output : Instr
+  | Unpack : Instr
+  | Pack : Instr.
 
 
 (* Convenience datatype for packaging the operation-specific label parameters
@@ -78,4 +80,6 @@ Definition opcode_of_instr (i : Instr) : option OpCode :=
     | SysCall _ => None
     | Halt => None
     | Output => Some OpOutput
+    | Unpack => None
+    | Pack => None
   end.

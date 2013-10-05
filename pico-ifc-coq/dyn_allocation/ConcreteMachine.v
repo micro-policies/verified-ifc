@@ -481,6 +481,20 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
          (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vint cv,cl):::s) fh_start true),
      cstep table cs1 ca cs2
 
+| cstep_unpack_p :forall fh m i xv xl s pcv pcl,
+   forall(INST: fh @ pcv # Unpack)
+         (CS1: cs1 = CState m fh i ((xv,xl):::s) (pcv,pcl) true)  (* unpacked payload carries handlerTag *)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i ((xl,handlerTag):::(xv,handlerTag):::s) (pcv+1,handlerTag) true),
+    cstep table cs1 ca cs2
+
+| cstep_pack_p :forall fh m i xv xvl xl xll s pcv pcl,
+   forall(INST: fh @ pcv # Pack)
+         (CS1: cs1 = CState m fh i ((xl,xll):::(xv,xvl):::s) (pcv,pcl) true)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i ((xv,xl):::s) (pcv+1,handlerTag) true),
+    cstep table cs1 ca cs2
+
 | cstep_syscall: forall id fh m i s pcv pcl sys_info args,
    forall(INST: i @ pcv # (SysCall id))
          (SYS: table id = Some sys_info)
