@@ -1520,6 +1520,7 @@ Definition csyscall_impl_correct (asc : ASysCall T) csc : Prop :=
        (fun m s =>
           exists mi aargs cargs s0,
             s = map CData cargs ++ s0 /\
+            length cargs = asi_arity asc /\
             Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
             (forall m' ares cres tres,
                user_memory_doesnt_change m m' ->
@@ -1541,6 +1542,7 @@ Lemma csyscall_impl_correct_ht :
              (fun m s =>
                 exists mi aargs cargs s0,
                   s = map CData cargs ++ CRet raddr true false :: s0 /\
+                  length cargs = asi_arity asc /\
                   Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
                   (forall m' ares cres,
                      user_memory_doesnt_change m m' ->
@@ -1562,7 +1564,7 @@ Proof.
   { eapply CodeSpecs.genSysVRet_spec. }
   eapply HT_strengthen_premise.
   { apply H. }
-  intros m s (mi & aargs & cargs & s0 & ? & ARGS & SUCC & FAIL). subst.
+  intros m s (mi & aargs & cargs & s0 & ? & ARITY & ARGS & SUCC & FAIL). subst.
   repeat eexists; eauto.
   - intros. exploit SUCC; eauto 7.
   - intros. exploit FAIL; eauto.
@@ -1937,6 +1939,7 @@ Proof.
   exploit HTEscape_elim; eauto; simpl; eauto; clear CORRECT' RUN.
   { simpl.
     repeat eexists; eauto.
+    - destruct CORRECT. simpl in *. congruence.
     - intros m' ares cres USERMEM KMEM RES MATCH.
       rewrite RES.
       split; trivial.
