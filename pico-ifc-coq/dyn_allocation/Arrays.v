@@ -412,6 +412,7 @@ Inductive memarr (m:memory) b (vs:list val) : Prop :=
 
 Definition alloc_array:= push 0 ++ [Dup 1] ++ push 1 ++ [Add] ++ [Alloc] ++ dup ++ [Swap 2] ++ [Swap 1] ++ [Store].
 
+
 (* a direct proof in wp form this time, just for variety. *)
 Lemma alloc_array_spec_wp: forall (Q : memory -> stack -> Prop),
   HT cblock table alloc_array
@@ -441,7 +442,12 @@ Proof.
   { eexists (Vint 0, handlerTag).
     erewrite load_alloc; eauto.
     simpl.
-    destruct (EquivDec.equiv_dec b b); try congruence.
+    (* suffices for 8.4pl1: 
+    destruct (EquivDec.equiv_dec b b ). *)
+    (* explicit arguments in following needed for 8.4 *)
+    destruct(  
+       @EquivDec.equiv_dec _ _ 
+         (@eq_equivalence (Memory.block privilege)) _ b b); try congruence. 
     destruct (Z_lt_dec 0 (1 + cnt)); try omega.
     reflexivity. }
   eapply valid_store in VALID. destruct VALID.
@@ -466,7 +472,12 @@ Proof.
       eexists (Vint 0, handlerTag).
       erewrite load_store_old; eauto.
       * erewrite (load_alloc (b := b)); eauto.
-        destruct (EquivDec.equiv_dec b b); try congruence.
+        (* suffices for 8.4pl1:
+        destruct (EquivDec.equiv_dec b b); try congruence. *)
+        (* explicit arguments for 8.4 *)
+        destruct (
+           @EquivDec.equiv_dec _
+              (@eq (Memory.block privilege)) _ _ b); try congruence. 
         destruct (Z_le_dec 0 p); try omega.
         destruct (Z_lt_dec p (1 + cnt)); try omega.
         reflexivity.
