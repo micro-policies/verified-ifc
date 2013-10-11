@@ -1520,6 +1520,7 @@ Definition csyscall_impl_correct (asc : ASysCall T) csc : Prop :=
           exists mi aargs cargs s0,
             s = map CData cargs ++ s0 /\
             length cargs = asi_arity asc /\
+            mem_def_on_cache cblock m /\
             Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
             (forall m' ares cres tres,
                user_memory_extension m m' ->
@@ -1542,6 +1543,7 @@ Lemma csyscall_impl_correct_ht :
                 exists mi aargs cargs s0,
                   s = map CData cargs ++ CRet raddr true false :: s0 /\
                   length cargs = asi_arity asc /\
+                  mem_def_on_cache cblock m /\
                   Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
                   (forall m' ares cres,
                      user_memory_extension m m' ->
@@ -1563,8 +1565,8 @@ Proof.
   { eapply CodeSpecs.genSysVRet_spec. }
   eapply HT_strengthen_premise.
   { apply H. }
-  intros m s (mi & aargs & cargs & s0 & ? & ARITY & ARGS & SUCC & FAIL). subst.
-  repeat eexists; eauto.
+  intros m s (mi & aargs & cargs & s0 & ? & ARITY & MEM & ARGS & SUCC & FAIL). subst.
+  repeat (eexists; eauto).
   - intros. exploit SUCC; eauto 7.
   - intros. exploit FAIL; eauto.
 Qed.
@@ -1938,8 +1940,9 @@ Proof.
   simpl in CORRECT'. apply rte_success in RUN.
   exploit HTEscape_elim; eauto; simpl; eauto; clear CORRECT' RUN.
   { simpl.
-    repeat eexists; eauto.
+    do 4 eexists. repeat (split; eauto).
     - destruct CORRECT. simpl in *. congruence.
+    - inv CACHE. eauto.
     - intros m' ares cres USERMEM KMEM RES MATCH.
       rewrite RES.
       split; trivial.
