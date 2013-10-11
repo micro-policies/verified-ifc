@@ -15,6 +15,7 @@ Require Import Memory.
 Require Import Lattices.
 Require Import RefinementQAC.
 Require Import SOPCLattice.
+Require Import NIAbstractMachine.
 
 Section SOPSysCalls.
 
@@ -227,6 +228,51 @@ Proof.
                | H : _ |- _ => clear H
              end.
       firstorder.
+Qed.
+
+Lemma Zset_add_incl_false :
+  forall p s1 s2,
+    Zset.incl s1 s2 = false ->
+    Zset.incl (Zset.add p s1) s2 = false.
+Proof.
+  intros.
+  destruct (Zset.incl (Zset.add p s1) s2) eqn:E; trivial.
+  rewrite Zset_incl_add in E. intuition. congruence.
+Qed.
+
+Lemma Zset_union_l_incl_false :
+  forall s1 s2 s3,
+    Zset.incl s1 s3 = false ->
+    Zset.incl (Zset.union s1 s2) s3 = false.
+Proof.
+  intros.
+  destruct (Zset.incl (Zset.union s1 s2) s3) eqn:E; trivial.
+  rewrite Zset_incl_union in E. intuition. congruence.
+Qed.
+
+Lemma Zset_union_r_incl_false :
+  forall s1 s2 s3,
+    Zset.incl s2 s3 = false ->
+    Zset.incl (Zset.union s1 s2) s3 = false.
+Proof.
+  intros.
+  destruct (Zset.incl (Zset.union s1 s2) s3) eqn:E; trivial.
+  rewrite Zset_incl_union in E. intuition. congruence.
+Qed.
+
+Lemma sop_asystable_ni : forall l, syscall_lowstep l SOPASysTable.
+Proof.
+  intros l id acs EQ args1 args2 res1 res2 EQUIV RES1 RES2.
+  destruct id as [|[|[|?]]]; inv EQ.
+  destruct args1 as [| [v12 l12] [| [[p1|? ?] l1] [|? ?]]]; inv RES1.
+  destruct args2 as [| [v22 l22] [| [[p2|? ?] l2] [|? ?]]]; inv RES2.
+  simpl in *.
+  repeat match goal with
+           | H : low_equiv_list _ (_ :: _) _ |- _ => inv H
+           | H : low_equiv_stkelt _ _ _ |- _ => inv H
+           | H : low_equiv_atom _ _ _ |- _ => inv H
+         end; try reflexivity; constructor; simpl in *;
+  eauto using Zset_add_incl_false, Zset_union_l_incl_false, Zset_union_r_incl_false.
 Qed.
 
 End SOPSysCalls.
