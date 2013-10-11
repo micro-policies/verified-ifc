@@ -178,7 +178,7 @@ Proof.
       eapply HT_compose; try eapply extend_array_spec_wp; eauto.
       eapply HT_compose; try eapply pack_spec_wp; eauto.
       eapply push_spec_wp. }
-  intros m s (mi & aargs & cargs & s0 & ? & LEN & MATCH & SUCC & FAIL). subst.
+  intros m s (mi & aargs & cargs & s0 & ? & LEN & MEM & MATCH & SUCC & FAIL). subst.
   destruct cargs as [|[xv1 xt1] [|[xv2 xt2] [|? ?]]]; inv LEN. simpl.
   repeat match goal with
            | H : Forall2 _ _ _ |- _ => inv H
@@ -207,7 +207,11 @@ Proof.
              | |- _ /\ _ => split
              | |- Vptr _ _ = Vptr _ _ => reflexivity
            end; eauto.
-    + admit.
+    + intro. subst.
+      destruct MEM as [? MEM].
+      match goal with
+        | H : extends _ _ |- _ => apply H in MEM
+      end. congruence.
     + match goal with
         | H : memarr _ _ ((map Vint ?l1 ++ map Vint ?l2) ++ [Vint ?p]) |- _ =>
           let H' := fresh "H'" in
