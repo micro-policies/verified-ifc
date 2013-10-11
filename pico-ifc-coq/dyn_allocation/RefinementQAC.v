@@ -1161,12 +1161,11 @@ Proof.
     destruct UP as [USER KERNEL].
     exploit mi_valid; eauto.
     intros (f1 & f2 & FRAME1 & FRAME2 & MATCH).
-    transitivity (Mem.get_frame m_ext b2).
-    + rewrite FRAME2. symmetry. eauto.
-    + symmetry. eapply USER.
-      destruct (Mem.stamp b2) eqn:STAMP; trivial.
-      exploit ui_no_kernel; eauto.
-      congruence.
+    rewrite FRAME2. symmetry.
+    apply USER; eauto.
+    destruct (Mem.stamp b2) eqn:STAMP; trivial.
+    exploit ui_no_kernel; eauto.
+    congruence.
 Qed.
 
 Lemma handler_final_mem_matches_labToVal_preserved :
@@ -1523,7 +1522,7 @@ Definition csyscall_impl_correct (asc : ASysCall T) csc : Prop :=
             length cargs = asi_arity asc /\
             Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
             (forall m' ares cres tres,
-               user_memory_doesnt_change m m' ->
+               user_memory_extension m m' ->
                (forall b fr, Mem.stamp b = Kernel ->
                              Mem.get_frame m b = Some fr ->
                              Mem.get_frame m' b = Some fr) ->
@@ -1545,7 +1544,7 @@ Lemma csyscall_impl_correct_ht :
                   length cargs = asi_arity asc /\
                   Forall2 (fun aa ca => match_atoms mi aa ca m) aargs cargs /\
                   (forall m' ares cres,
-                     user_memory_doesnt_change m m' ->
+                     user_memory_extension m m' ->
                      (forall b fr, Mem.stamp b = Kernel ->
                                    Mem.get_frame m b = Some fr ->
                                    Mem.get_frame m' b = Some fr) ->
@@ -1807,7 +1806,7 @@ Proof. intros. induction FORALL; eauto. Qed.
 
 Lemma syscall_extends :
   forall m2 m2'
-         (USERMEM : user_memory_doesnt_change m2 m2')
+         (USERMEM : user_memory_extension m2 m2')
          (KERNELMEM : forall b fr,
                         Mem.stamp b = Kernel ->
                         Mem.get_frame m2 b = Some fr ->
@@ -1817,7 +1816,6 @@ Proof.
   intros.
   intros b2 fr H.
   destruct (Mem.stamp b2) eqn:STAMP; eauto.
-  rewrite USERMEM; eauto.
 Qed.
 Hint Resolve syscall_extends.
 
@@ -1825,7 +1823,7 @@ Lemma match_atoms_syscall :
   forall m1 m2 m2' mi
          (DEF : mem_def_on_cache cblock m2)
          (MEMINJ : Meminj m1 m2 mi)
-         (USERMEM : user_memory_doesnt_change m2 m2')
+         (USERMEM : user_memory_extension m2 m2')
          (KERNELMEM : forall b fr,
                         Mem.stamp b = Kernel ->
                         Mem.get_frame m2 b = Some fr ->
@@ -1844,7 +1842,7 @@ Lemma meminj_syscall :
   forall m1 m2 m2' mi
          (DEF : mem_def_on_cache cblock m2)
          (MEMINJ : Meminj m1 m2 mi)
-         (USERMEM : user_memory_doesnt_change m2 m2')
+         (USERMEM : user_memory_extension m2 m2')
          (KERNELMEM : forall b fr,
                         Mem.stamp b = Kernel ->
                         Mem.get_frame m2 b = Some fr ->
@@ -1865,7 +1863,9 @@ Proof.
   - intros.
     eapply mi_invalid; eauto.
     destruct (Mem.stamp b2) eqn:STAMP.
-    + rewrite <- USERMEM; eauto.
+    + destruct (Mem.get_frame m2 b2) as [fr|] eqn:FRAME; trivial.
+      apply USERMEM in FRAME; eauto.
+      congruence.
     + destruct (Mem.get_frame m2 b2) as [fr|] eqn:FRAME; trivial.
       apply KERNELMEM in FRAME; eauto.
       congruence.
@@ -1875,7 +1875,7 @@ Qed.
 Lemma cache_up2date_syscall :
   forall m2 m2'
          (CACHE : cache_up2date cblock fetch_rule m2)
-         (USERMEM : user_memory_doesnt_change m2 m2')
+         (USERMEM : user_memory_extension m2 m2')
          (KERNELMEM : forall b fr,
                         Mem.stamp b = Kernel ->
                         Mem.get_frame m2 b = Some fr ->

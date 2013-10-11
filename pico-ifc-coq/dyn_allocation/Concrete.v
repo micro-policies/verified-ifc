@@ -162,8 +162,11 @@ Inductive cache_hit_read (m: list Atom) tagr tagrpc : Prop :=
                      (TAG_ResPC: tag_in_mem m addrTagResPC tagrpc),
                 cache_hit_read m tagr tagrpc.
 
-Definition user_memory_doesnt_change (m m' : memory) :=
-  forall b, Mem.stamp b = User -> Mem.get_frame m' b = Mem.get_frame m b.
+Definition user_memory_extension (m m' : memory) :=
+  forall b fr,
+    Mem.stamp b = User ->
+    Mem.get_frame m b = Some fr ->
+    Mem.get_frame m' b = Some fr.
 
 Definition kernel_memory_extension (m m' : memory) : Prop :=
   forall b fr,
@@ -173,12 +176,11 @@ Definition kernel_memory_extension (m m' : memory) : Prop :=
     Mem.get_frame m' b = Some fr.
 
 (** [fault_handler_memory_update] expresses the changes to the memory
-that the fault handler is allowed to do. This means that the user
-memory doesn't change and that all kernel blocks that were already
-present stay untouched, with the possible exception of the cache block *)
+that the fault handler is allowed to do: Every frame that was already
+present must stay the same, except for the cache. *)
 
 Definition fault_handler_memory_update (m m': memory) :=
-  user_memory_doesnt_change m m' /\
+  user_memory_extension m m' /\
   kernel_memory_extension m m'.
 
 Definition update_cache_spec_mvec (m m': memory) :=

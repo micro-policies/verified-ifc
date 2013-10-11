@@ -1071,7 +1071,8 @@ Proof.
   clear - Hm' Hm'' stamp_cblock.
   split.
   - split.
-    + intros b USER.
+    + intros b fr USER DEF.
+      rewrite <- DEF.
       transitivity (Mem.get_frame m' b);
       eapply get_frame_store_neq; eauto; congruence.
     + intros b fr _ NEQ DEF.
