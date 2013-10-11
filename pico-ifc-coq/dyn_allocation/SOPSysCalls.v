@@ -13,6 +13,7 @@ Require Import Arrays.
 Require Import ConcreteMachine.
 Require Import Memory.
 Require Import Lattices.
+Require Import RefinementAQA.
 Require Import RefinementQAC.
 Require Import SOPCLattice.
 Require Import NIAbstractMachine.
@@ -285,6 +286,21 @@ Proof.
   rewrite Zset_incl_spec in *.
   intros p IN. rewrite Zset.In_add. right.
   rewrite Zset.In_union. eauto.
+Qed.
+
+Lemma sop_asystable_parametric : parametric_asystable SOPASysTable.
+Proof.
+  intros [|[|[|?]]]; simpl; constructor.
+  constructor.
+  intros.
+  destruct args1 as [|[v11 l11] [|[[p1|? ?] l12] [|? ?]]];
+  repeat match goal with
+           | H : Forall2 _ (_ :: _) _ |- _ => inv H
+           | H : Forall2 _ [] _ |- _ => inv H
+           | H : match_atoms _ _ _ _ _ _ _ _ _ |- _ => inv H
+           | H : match_vals _ _ _ _ _ |- _ => inv H
+           | H : RefinementAQA.match_tags _ _ _ |- _ => inv H
+         end; repeat constructor; eauto.
 Qed.
 
 End SOPSysCalls.
