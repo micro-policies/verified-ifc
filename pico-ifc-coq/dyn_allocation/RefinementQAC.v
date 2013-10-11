@@ -1527,7 +1527,7 @@ Definition csyscall_impl_correct (asc : ASysCall T) csc : Prop :=
                              Mem.get_frame m b = Some fr ->
                              Mem.get_frame m' b = Some fr) ->
                asi_sem asc aargs = Some ares ->
-               @match_atoms S mi ares cres m ->
+               @match_atoms S mi ares cres m' ->
                Q m' ((Vint 1, tres) ::: cres ::: s0)) /\
             (forall m' tres,
                asi_sem asc aargs = None ->
@@ -1549,7 +1549,7 @@ Lemma csyscall_impl_correct_ht :
                                    Mem.get_frame m b = Some fr ->
                                    Mem.get_frame m' b = Some fr) ->
                      asi_sem asc aargs = Some ares ->
-                     @match_atoms S mi ares cres m ->
+                     @match_atoms S mi ares cres m' ->
                      let (prop, outcome) := Q m' (cres ::: s0) in
                      prop /\ outcome = Success) /\
                   (forall m',
@@ -1923,7 +1923,7 @@ Proof.
                                      (fun m' s' => match asi_sem asc aargs with
                                                     | Some ares =>
                                                       (exists cres,
-                                                         match_atoms mi ares cres mem /\
+                                                         match_atoms mi ares cres m' /\
                                                          s' = cres ::: sc0 /\
                                                          extends mem m' /\
                                                          cache_up2date cblock fetch_rule m' /\
