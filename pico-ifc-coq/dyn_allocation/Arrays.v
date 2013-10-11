@@ -35,9 +35,9 @@ Ltac apply_wp :=
   try unfold pop, nop, push, dup, swap;
   match goal with
   | |- HT _ _ [Store] _ _ => eapply store_spec_wp'
-  | |- HT _ _ [Add] _ _  => eapply add_spec_wp'
-  | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec_wp
-  | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec_wp
+  | |- HT _ _ [Add] _ _  => eapply add_spec
+  | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec
+  | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec
   | |- HT _ _ [Load] _ _ => eapply load_spec_wp'
   | |- HT _ _ [Push ?N] _ _ => eapply push_spec_wp
   | |- HT _ _ [Pop] _ _ => eapply pop_spec_wp
@@ -372,12 +372,12 @@ Proof.
   { eexists (Vint 0, handlerTag).
     erewrite load_alloc; eauto.
     simpl.
-    (* suffices for 8.4pl1: 
+    (* suffices for 8.4pl1:
     destruct (EquivDec.equiv_dec b b ). *)
     (* explicit arguments in following needed for 8.4 *)
-    destruct(  
-       @EquivDec.equiv_dec _ _ 
-         (@eq_equivalence (Memory.block privilege)) _ b b); try congruence. 
+    destruct(
+       @EquivDec.equiv_dec _ _
+         (@eq_equivalence (Memory.block privilege)) _ b b); try congruence.
     destruct (Z_lt_dec 0 (1 + cnt)); try omega.
     reflexivity. }
   eapply valid_store in VALID. destruct VALID.
@@ -407,7 +407,7 @@ Proof.
         (* explicit arguments for 8.4 *)
         destruct (
            @EquivDec.equiv_dec _
-              (@eq (Memory.block privilege)) _ _ b); try congruence. 
+              (@eq (Memory.block privilege)) _ _ b); try congruence.
         destruct (Z_le_dec 0 p); try omega.
         destruct (Z_lt_dec p (1 + cnt)); try omega.
         reflexivity.
@@ -978,7 +978,7 @@ Proof.
                                        (s0 := (x,t2):::s0).
       intros.
       eapply HT_compose_flip; try eauto using genEq_spec_wp.
-      eapply HT_strengthen_premise; try eapply dup_spec_wp.
+      eapply HT_strengthen_premise; try eapply dup_spec.
       split_vc.
       unfold val_eq.
       destruct (EquivDec.equiv_dec x x0); eauto.
@@ -1047,7 +1047,7 @@ Proof.
   - eapply forall_array_spec_wp with (f := fun _ s0 y => val_list_in_b y vs2) (s0 := (Vptr a2 0,t2):::s0).
     intros.
     eapply HT_compose_flip; try eapply in_array_spec_wp.
-    eapply HT_strengthen_premise; try eapply dup_spec_wp.
+    eapply HT_strengthen_premise; try eapply dup_spec.
     split_vc.
   - clear H0. split_vc.
 Qed.

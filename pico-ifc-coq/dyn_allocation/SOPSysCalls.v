@@ -91,7 +91,7 @@ Proof.
   intros.
   unfold genIsPointer.
   eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply dup_spec_wp.
+  { eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply sub_spec_wp.
     eapply HT_compose; try eapply push_spec_wp.
     eapply HT_compose; try eapply genEq_spec_wp; eauto.
@@ -137,9 +137,9 @@ Ltac apply_wp :=
   (*try unfold pop, nop, push, dup, swap;*)
   match goal with
   | |- HT _ _ [Store] _ _ => eapply store_spec_wp'
-  | |- HT _ _ [Add] _ _  => eapply add_spec_wp'
-  | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec_wp
-  | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec_wp
+  | |- HT _ _ [Add] _ _  => eapply add_spec
+  | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec
+  | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec
   | |- HT _ _ [Load] _ _ => eapply load_spec_wp'
   | |- HT _ _ [Push ?N] _ _ => eapply push_spec_wp
   | |- HT _ _ [Pop] _ _ => eapply pop_spec_wp
@@ -162,8 +162,8 @@ Proof.
   unfold joinPbody.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply unpack_spec_wp.
-    eapply HT_compose; try eapply swap_spec_wp.
-    eapply HT_compose; try eapply dup_spec_wp.
+    eapply HT_compose; try eapply swap_spec.
+    eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply genIsPointer_spec.
     eapply ifNZ_spec_existential.
     - eapply HT_compose; try eapply pop_spec_wp.
@@ -171,12 +171,12 @@ Proof.
       eapply HT_compose; try eapply pop_spec_wp.
       eapply push_spec_wp.
     - eapply HT_compose; try eapply unpack_spec_wp.
-      eapply HT_compose; try eapply swap_spec_wp.
-      eapply HT_compose; try eapply swap_spec_wp.
+      eapply HT_compose; try eapply swap_spec.
+      eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply concat_arrays_spec_wp; eauto.
-      eapply HT_compose; try eapply swap_spec_wp.
-      eapply HT_compose; try eapply swap_spec_wp.
-      eapply HT_compose; try eapply swap_spec_wp.
+      eapply HT_compose; try eapply swap_spec.
+      eapply HT_compose; try eapply swap_spec.
+      eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply extend_array_spec_wp; eauto.
       eapply HT_compose; try eapply pack_spec_wp; eauto.
       eapply push_spec_wp. }

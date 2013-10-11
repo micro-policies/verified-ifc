@@ -54,7 +54,6 @@ Ltac split_vc :=
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
-
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
 Variable table : CSysTable.
@@ -85,73 +84,7 @@ Definition state := CS.
 
 Ltac nil_help :=   replace (@nil CEvent) with (op_cons Silent (@nil CEvent)) by reflexivity.
 
-(* Simplest example: the specification of a single instruction run in
-privileged mode *)
-Lemma add_spec: forall (z1 z2 z: val) (l1 l2: val) (m: memory) (s: stack),
-  add z1 z2 = Some z ->
-  HT  [Add]
-      (fun m1 s1 => m1 = m /\ s1 = CData (z1,l1) :: CData (z2,l2) :: s)
-      (fun m2 s2 => m2 = m /\ s2 = CData (z, handlerTag) :: s).
-Proof.
-  (* Introduce hyps *)
-  intros.
-  unfold CodeTriples.HT. intros. intuition.
-  eexists.
-  eexists.
-  eexists.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor; auto.
-  eapply cstep_add_p ; eauto.
-Qed.
-
-Lemma add_spec_I: forall (z1 z2: val) (I: memory -> stack -> Prop),
- HT  [Add]
-      (fun m1 s1 =>
-         match s1 with
-             | CData (z,l) :: CData (z',l') :: s =>
-               exists zr, Memory.add z1 z2 = Some zr /\
-               z = z1 /\ z' = z2 /\ I m1 s
-             | _ => False
-         end)
-      (fun m2 s2 =>
-         match s2 with
-             | CData (z,l) :: s => Memory.add z1 z2 = Some z /\ I m2 s
-             | _ => False
-         end).
-Proof.
-  (* Introduce hyps *)
-  intros.
-  unfold CodeTriples.HT. intros.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *.
-  destruct stk0 as [| a stk0]; try solve [intuition].
-  destruct a; try intuition.
-  destruct a as [a l].
-  destruct stk0 as [| b stk0]; try solve [intuition].
-  destruct b as [[b l'] | ]; try intuition.
-  split_vc.
-  substs.
-
-  split.
-
-  Focus 2.
-  eapply rte_step; eauto.
-  split_vc. subst.
-  eapply cstep_add_p ; eauto.
-  (* Finish running *)
-  simpl. eauto.
-Qed.
-
-Lemma add_spec_wp' : forall Q,
+Lemma add_spec : forall Q,
   HT [Add]
      (fun m0 s0 =>
         exists v1 t1 v2 t2 vr s,
@@ -283,7 +216,7 @@ Proof.
   eapply cstep_sub_p; eauto.
 Qed.
 
-Lemma dup_spec_wp: forall P n,
+Lemma dup_spec: forall P n,
   HT   (Dup n :: nil)
        (fun m s => exists x, index_list n s = Some x /\ P m (x :: s))
        P.
@@ -302,7 +235,7 @@ Proof.
   eapply cstep_dup_p ; eauto.
 Qed.
 
-Lemma swap_spec_wp: forall P n,
+Lemma swap_spec: forall P n,
   HT   (Swap n :: nil)
        (fun m s => exists y s0 x s', s = y::s0 /\
                                      index_list n s = Some x /\
@@ -647,8 +580,10 @@ Proof.
   - eapply PushCachePtr_spec.
   - eapply HT_compose.
     + eapply push_spec''.
-    + eapply add_spec.
+    + eapply HT_strengthen_premise; try eapply add_spec.
       simpl.
+      intros m s (? & ?). subst.
+      repeat eexists.
       repeat f_equal; omega.
 Qed.
 
@@ -2493,7 +2428,7 @@ Proof.
   intros i H.
   eapply HT_compose with (Q:= (fun m s => exists s' t, s = (Vint i,t) ::: (Vint i,t) ::: s' /\ I m ((Vint i,t):::s'))).
   eapply HT_strengthen_premise.
-  eapply dup_spec_wp.
+  eapply dup_spec.
   intros m s [s' [t' [H1 H2]]].
   eexists. split.  simpl. rewrite H1; auto.
   subst s. eexists. intuition eauto.
@@ -2516,7 +2451,7 @@ Proof.
   eapply push_spec'.
 
   eapply HT_strengthen_premise.
-  eapply add_spec_wp'.
+  eapply add_spec.
   simpl. intros m s [R1 [s' [t [R2 R3]]]].
   eexists (Vint (-1)). eexists handlerTag. eexists (Vint i0). eexists t. eexists (Vint (i0 - 1)). eexists.
   repeat split.
@@ -2791,11 +2726,11 @@ Proof.
   unfold extract_offset_body.
   eapply HT_strengthen_premise.
   eapply HT_compose; try apply push_spec_wp.
-  eapply HT_compose; try apply add_spec_wp'.
-  eapply HT_compose; try apply swap_spec_wp.
+  eapply HT_compose; try apply add_spec.
+  eapply HT_compose; try apply swap_spec.
   eapply HT_compose; try apply push_spec_wp.
-  eapply HT_compose; try apply add_spec_wp'.
-  apply swap_spec_wp.
+  eapply HT_compose; try apply add_spec.
+  apply swap_spec.
   intros m s (n & b & off & s0 & t1 & t2 & t3 & ? & POST).
   subst.
   Opaque Z.add.
@@ -2836,8 +2771,8 @@ Proof.
   unfold extract_offset.
   intros.
   eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply dup_spec_wp.
-    eapply HT_compose; try eapply dup_spec_wp.
+  { eapply HT_compose; try eapply dup_spec.
+    eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply sub_spec_wp.
     eapply HT_compose; try eapply push_spec_wp.
     eapply HT_compose.
@@ -2860,8 +2795,8 @@ Proof.
       - clear.
         intros Q'.
         eapply HT_strengthen_premise.
-        { eapply HT_compose; try apply dup_spec_wp.
-          eapply HT_compose; try apply dup_spec_wp.
+        { eapply HT_compose; try apply dup_spec.
+          eapply HT_compose; try apply dup_spec.
           eapply HT_compose; try apply genEq_spec_wp.
           eapply genNot_spec_wp. }
         simpl.
@@ -2887,7 +2822,7 @@ Proof.
         replace (off - Z.of_nat (S n) + 1) with (off - Z.of_nat n); eauto.
         zify. omega. }
     eapply HT_strengthen_premise.
-    { eapply HT_compose; try eapply swap_spec_wp.
+    { eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; eapply pop_spec_wp. }
     intros m s (n & (z & b & off & s0 & t1 & t2 & t3 & ? & ? & POST) & COND). subst.
     simpl.
