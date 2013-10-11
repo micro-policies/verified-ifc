@@ -260,7 +260,7 @@ Proof.
   rewrite Zset_incl_union in E. intuition. congruence.
 Qed.
 
-Lemma sop_asystable_ni : forall l, syscall_lowstep l SOPASysTable.
+Lemma sop_asystable_lowstep : forall l, syscall_lowstep l SOPASysTable.
 Proof.
   intros l id acs EQ args1 args2 res1 res2 EQUIV RES1 RES2.
   destruct id as [|[|[|?]]]; inv EQ.
@@ -273,6 +273,18 @@ Proof.
            | H : low_equiv_atom _ _ _ |- _ => inv H
          end; try reflexivity; constructor; simpl in *;
   eauto using Zset_add_incl_false, Zset_union_l_incl_false, Zset_union_r_incl_false.
+Qed.
+
+Lemma sop_asystable_inv : systable_inv SOPASysTable.
+Proof.
+  intros id args asc res EQ INV RES.
+  destruct id as [|[|[|?]]]; inv EQ.
+  destruct args as [| [v12 l12] [| [[p1|? ?] l1] [|? ?]]]; inv RES.
+  destruct v12 as [i|b off]; simpl; trivial.
+  assert (H := INV _ (or_introl eq_refl)). simpl in H.
+  rewrite Zset_incl_spec in *.
+  intros p IN. rewrite Zset.In_add. right.
+  rewrite Zset.In_union. eauto.
 Qed.
 
 End SOPSysCalls.
