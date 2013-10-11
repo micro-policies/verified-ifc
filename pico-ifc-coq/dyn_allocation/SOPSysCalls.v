@@ -92,7 +92,7 @@ Proof.
   unfold genIsPointer.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply dup_spec.
-    eapply HT_compose; try eapply sub_spec_wp.
+    eapply HT_compose; try eapply sub_spec.
     eapply HT_compose; try eapply push_spec_wp.
     eapply HT_compose; try eapply genEq_spec_wp; eauto.
     eapply genNot_spec_wp; eauto. }

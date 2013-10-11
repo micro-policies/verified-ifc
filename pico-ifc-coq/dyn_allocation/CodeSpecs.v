@@ -119,69 +119,7 @@ Proof.
   eapply cstep_add_p; eauto.
 Qed.
 
-Lemma sub_spec: forall z1 l1 z2 l2 z, forall m0 s0,
-  Memory.sub z1 z2 = Some z ->
-  HT [Sub]
-     (fun m s => m = m0 /\ s = (z1,l1) ::: (z2,l2) ::: s0)
-     (fun m s => m = m0 /\ s = (z,handlerTag) ::: s0).
-Proof.
-  unfold CodeTriples.HT; intros.
-  eexists.
-  eexists.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help. econstructor; auto.
-  eapply cstep_sub_p; eauto.
-Qed.
-
-Lemma sub_spec_I: forall (z1 z2: val) (I: memory -> stack -> Prop),
-  HT  [Sub]
-      (fun m1 s1 =>
-         match s1 with
-             | CData (z,l) :: CData (z',l') :: s =>
-               exists zr, Memory.sub z1 z2 = Some zr /\
-               z = z1 /\ z' = z2 /\ I m1 s
-             | _ => False
-         end)
-      (fun m2 s2 =>
-         match s2 with
-             | CData (z,l) :: s => Memory.sub z1 z2 = Some z /\ l = handlerTag /\ I m2 s
-             | _ => False
-         end).
-Proof.
-  (* Introduce hyps *)
-  intros.
-  unfold CodeTriples.HT. intros.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *.
-  destruct stk0 as [| a stk0]; try solve [intuition].
-  destruct a; try intuition.
-  destruct a as [a l].
-  destruct stk0 as [| b stk0]; try solve [intuition].
-  destruct b as [[b l'] | ]; try intuition.
-  split_vc.
-  substs.
-
-  (* Run an instruction *)
-  intuition.
-
-  Focus 2.
-  eapply rte_step; eauto.
-  eapply cstep_sub_p ; eauto.
-
-  (* Finish running *)
-  simpl. auto.
-Qed.
-
-Lemma sub_spec_wp : forall Q,
+Lemma sub_spec : forall Q,
   HT [Sub]
      (fun m0 s0 =>
         exists v1 t1 v2 t2 vr s,
@@ -2773,7 +2711,7 @@ Proof.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply dup_spec.
-    eapply HT_compose; try eapply sub_spec_wp.
+    eapply HT_compose; try eapply sub_spec.
     eapply HT_compose; try eapply push_spec_wp.
     eapply HT_compose.
     { unfold extract_offset_loop.
