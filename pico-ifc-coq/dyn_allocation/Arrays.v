@@ -1193,6 +1193,7 @@ Lemma extend_array_spec_wp : forall (Q : memory -> stack -> Prop),
                  (forall r m1 t,
                     extends m m1 ->
                     Mem.get_frame m r = None ->
+                    Mem.stamp r = Kernel ->
                     memarr m1 r (vs++[x]) ->
                     Q m1 ((Vptr r 0,t):::s0)))
    Q.
