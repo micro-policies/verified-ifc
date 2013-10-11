@@ -240,16 +240,6 @@ Hint Constructors INIT_MEM.
 Variable (m0: memory).
 Hypothesis initial_m0 : INIT_MEM m0.
 
-Lemma extension_comp_nth_labToVal : forall m1 m2 (n m:nat) (vls: Vector.t T n) z,
-    nth_labToVal vls m z m1 ->
-    extends m1 m2 ->
-    mem_def_on_cache cblock m1 ->
-    nth_labToVal vls m z m2.
-Proof.
-  unfold nth_labToVal; intros.
-  destruct (le_lt_dec n0 m); eauto.
-  eapply labToVal_extension_comp; eauto.
-Qed.
 
 Lemma extension_comp_value_on_cache :
   forall m1 m2 addr v,
@@ -965,21 +955,6 @@ Proof.
   eauto using extends_refl.
 Qed.
 
-
-
-
-(* MOVE *)
-Lemma extends_valid_address: forall m m' a,
-                               valid_address cblock a m ->
-                               extends m m' ->
-                               valid_address cblock a m'.
-Proof.
-  intros m m' a VALID EXT.
-  inv VALID.
-  eapply extends_load in H; eauto.
-  econstructor. eauto.
-Qed.
-
 Lemma faultHandler_specEscape_Some: forall raddr lr lpc m0,
   INIT_MEM m0 ->
   valid_address cblock addrTagRes m0 ->
@@ -1021,9 +996,9 @@ Proof.
               store cblock addrTagRes (zr, t1) m = Some m' /\
               store cblock addrTagResPC (zpc, t2) m' = Some m'').
   {
-   exploit (extends_valid_address m0 m addrTagRes); eauto. intros HvalidRes.
-   exploit (extends_valid_address m0 m addrTagResPC); eauto. intros HvalidResPC.
-   eapply (valid_store cblock addrTagRes (zr,t1)) in HvalidRes.
+   exploit (extends_valid_address cblock m0 m addrTagRes); eauto. intros HvalidRes.
+   exploit (extends_valid_address cblock m0 m addrTagResPC); eauto. intros HvalidResPC.
+   eapply (valid_store _ _ _ cblock addrTagRes (zr,t1)) in HvalidRes.
    destruct HvalidRes as [m' ?].
    eapply valid_address_upd with (a:= addrTagResPC) in HvalidResPC; eauto.
    eapply valid_store in HvalidResPC.

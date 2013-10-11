@@ -95,17 +95,6 @@ Proof.
   econstructor; eauto using extends_load, memseq_extension_comp.
 Qed.
 
-(* MOVE *)
-Fixpoint take {T} (n : nat) (l : list T) : list T :=
-  match n with
-    | O => []
-    | S n' =>
-      match l with
-        | [] => []
-        | x :: l' => x :: take n' l'
-      end
-  end.
-
 Definition add_principal_to_lab (ps : Zset.t) (v : val privilege) : Zset.t :=
   match v with
     | Vint p => Zset.add p ps

@@ -410,39 +410,6 @@ Variable atable : ASysTable T.
 
 Let match_actions e1 e2 := match_actions match_events e1 e2.
 
-(* MOVE *)
-Lemma labsToVals_extension_comp :
-  forall m1 m2 n (vls : Vector.t _ n) ts
-         (Hvls : labsToVals vls m1 ts)
-         (EXT : extends m1 m2)
-         (DEF : mem_def_on_cache cblock m1),
-    labsToVals vls m2 ts.
-Proof.
-  unfold labsToVals.
-  intros m1 m2 n vls [[t1 t2] t3].
-  intuition;
-  eapply extension_comp_nth_labToVal; eauto.
-Qed.
-Hint Resolve labsToVals_extension_comp.
-
-Lemma labsToVals_cache :
-  forall m1 m2 n (vls : Vector.t _ n) ts
-         (Hvls : labsToVals vls m1 ts)
-         (EQ : mem_eq_except_cache cblock m1 m2),
-  labsToVals vls m2 ts.
-Proof.
-  unfold labsToVals, nth_labToVal.
-  intros.
-  destruct ts as [[t1 t2] t3].
-  intuition;
-  repeat match goal with
-           | H : context[le_lt_dec n ?m] |- context[le_lt_dec n ?m] =>
-             destruct (le_lt_dec n m); trivial
-         end;
-  eauto using labToVal_cache.
-Qed.
-Hint Resolve labsToVals_cache.
-
 Lemma cache_hit_read_mem_extends :
   forall m m' rpct rt
          (EXT : extends m m')
@@ -503,7 +470,9 @@ Proof.
     exists vls, pcl, rpcl, rpct, rl, rt.
     assert (EXT : extends m m').
     { unfold extends. intros. eapply alloc_get_frame_old; eauto. }
-    repeat split; eauto using labToVal_extension_comp, cache_hit_read_mem_extends.
+    repeat split;
+    eauto using labToVal_extension_comp, cache_hit_read_mem_extends,
+                labsToVals_extension_comp.
 Qed.
 
 Lemma store_cache_up2date :
@@ -535,11 +504,12 @@ Proof.
       congruence. }
     specialize (UP2DATE _ _ _ HIT).
     destruct UP2DATE as (vls & pcl & rpcl & rpct & rl & rt & ? & ? & ? & ? & ? & READ').
-    repeat eexists; eauto.
+    repeat eexists; eauto using labsToVals_cache.
     clear - STORE READ' stamp_cblock STAMP.
     unfold cache_hit_read_mem in *.
     destruct (Mem.get_frame m cblock) as [cache|] eqn:CACHE; try solve [inversion READ'].
-    erewrite <- get_frame_store_neq in CACHE; eauto; try congruence.
+    erewrite <- get_frame_store_neq in CACHE;
+    eauto using labsToVals_extension_comp; try congruence.
     rewrite CACHE.
     assumption.
 Qed.
@@ -1627,13 +1597,6 @@ Proof.
       destruct SYSC as (cti & code' & cti'' & ? & ? & PC). subst.
       eexists ((arity, code) :: cti).
       repeat eexists; eauto.
-Qed.
-
-(* MOVE *)
-Lemma index_list_app' X : forall (l1 l2 : list X) (x : X),
-                            index_list (length l1) (l1 ++ x :: l2) = Some x.
-Proof.
-  induction l1 as [|x' l1 IH]; intros; simpl in *; subst; eauto.
 Qed.
 
 Lemma build_kernel_code_app_aux :

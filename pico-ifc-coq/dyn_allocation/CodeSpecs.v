@@ -880,27 +880,6 @@ Proof.
   eapply cstep_nop_p ; eauto.
 Qed.
 
-(* NC: to prove that addresses are valid per this definition, we just
-   need to know that that the memory is at least as large as the
-   [tmuCacheSize] defined in Concrete.v, since we only use
-   [valid_address] assumptions for [addrTag*]. *)
-Definition valid_address b off (m: memory) :=
-  exists v, load b off m = Some v.
-
-Lemma valid_store: forall b off v m,
-  valid_address b off m ->
-  exists m', store b off v m = Some m'.
-Proof.
-  unfold valid_address, load, store.
-  intros.
-  destruct H as [v' Hv].
-  destruct (Mem.get_frame m b) as [v''|] eqn:FRAME; try congruence.
-
-  exploit valid_update; eauto.
-  intros [fr' Hfr'].
-  rewrite Hfr'.
-  eapply Mem.upd_get_frame; eauto.
-Qed.
 
 Lemma store_spec_wp: forall Q b a al v,
   Mem.stamp b = Kernel ->
@@ -2267,69 +2246,6 @@ Lemma HT_compose_bwd:
 Proof.
   intros; eapply HT_compose; eauto.
 Qed.
-
-Lemma valid_address_upd: forall b a b' a' vl m m',
-  valid_address b a m ->
-  store b' a' vl m = Some m' ->
-  valid_address b a m'.
-Proof.
-  unfold valid_address; intuition.
-  destruct H.
-  unfold load, store in *.
-  destruct (b == b').
-  - inv e.
-    destruct (Mem.get_frame m b') eqn:E; try congruence.
-    destruct (upd_m a' vl l) eqn:E'; try congruence.
-    inv H0.
-    rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H2).
-    destruct (equiv_dec b'); try congruence.
-    unfold upd_m, read_m in *.
-    destruct (a <? 0); try congruence.
-    destruct (a' <? 0); try congruence.
-    destruct (eq_nat_dec (Z.to_nat a) (Z.to_nat a')).
-    + rewrite e0 in *; erewrite update_list_spec; eauto.
-    + erewrite <- update_list_spec2; eauto.
-  - destruct (Mem.get_frame m b) eqn:E; try congruence.
-    destruct (Mem.get_frame m b') eqn:E'; try congruence.
-    destruct (upd_m a' vl l0) eqn:E0; try congruence.
-    rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H0).
-    destruct (equiv_dec b'); try congruence.
-    rewrite E.
-    eauto.
-Qed.
-
-(* DP: TODO ???
-Lemma store_twice_test: forall a1 a2 v1 v2 vl1 vl2,
-  a1 <> a2 ->
-  forall m s,
-  valid_address a1 m ->
-  valid_address a2 m ->
-  HT (storeAt a1 ++ storeAt a2)
-     (fun m0 s0 => m0 = m /\
-                   s0 = CData (v1, vl1) :: CData (v2,vl2) :: s)
-     (fun m1 s1 => s1 = s /\
-                   exists m', upd_m a1 (v1,vl1) m = Some m' /\
-                              upd_m a2 (v2,vl2) m' = Some m1).
-Proof.
-  introv Hneq Hvalid1 Hvalid2; intros.
-
-  eapply valid_store in Hvalid1.
-  destruct Hvalid1 as [m' ?]; eauto.
-
-  eapply valid_address_upd with (m':=m') in Hvalid2.
-  eapply valid_store in Hvalid2.
-  destruct Hvalid2; eauto.
-
-  eapply HT_compose_bwd.
-  apply storeAt_spec_wp.
-  eapply HT_strengthen_premise.
-  apply storeAt_spec_wp.
-
-  intuition; subst; eauto.
-  eauto.
-Qed.
-*)
-
 
 (* ********* Specifications for loops **************** *)
 

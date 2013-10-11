@@ -285,14 +285,6 @@ Proof.
     eexists (a1 :: args1). eauto.
 Qed.
 
-(* MOVE *)
-Lemma Forall2_length :
-  forall A B (R : A -> B -> Prop) l1 l2,
-    Forall2 R l1 l2 -> length l1 = length l2.
-Proof.
-  induction 1; eauto; simpl; congruence.
-Qed.
-
 Lemma a_qa_simulation :
   forall s1 s2 e s2'
          (STEP : step_rules fetch_rule atable s2 e s2')

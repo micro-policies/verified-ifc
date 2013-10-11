@@ -31,18 +31,6 @@ Local Notation memory := (Mem.t Atom privilege).
 Local Notation PcAtom := (PcAtom val).
 Local Notation block := (block privilege).
 
-(* MOVE *)
-Lemma extends_valid_address: forall b m m' off
-                                    (VALID : valid_address b off m)
-                                    (EXT : extends m m'),
-                               valid_address b off m'.
-Proof.
-  intros.
-  unfold valid_address in *.
-  destruct VALID.
-  eauto using extends_load.
-Qed.
-
 Ltac apply_wp :=
   try unfold pop, nop, push, dup, swap;
   match goal with
@@ -90,64 +78,6 @@ Section with_hints.  (* Limit hints to this section. *)
 Hint Resolve extends_refl.
 Hint Resolve extends_trans.
 Hint Resolve extends_valid_address.
-
-(* MOVE *)
-Lemma valid_address_store_l :
-  forall b off a m m'
-         (STORE : store b off a m = Some m'),
-    valid_address b off m.
-Proof.
-  unfold store, valid_address, load.
-  intros.
-  destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try congruence.
-  destruct (upd_m off a fr) as [fr'|] eqn:FRAME'; try congruence.
-  clear - FRAME'.
-  unfold upd_m, read_m in *.
-  destruct (off <? 0); try congruence.
-  gdep fr. gdep fr'. gdep (Z.to_nat off).
-  clear.
-  intros off.
-  induction off as [|off IH]; intros fr' fr H; destruct fr as [|a' fr]; simpl in *; try congruence; eauto.
-  destruct (update_list off a fr) as [fr''|] eqn:FRAME''; try congruence.
-  eapply IH; eauto.
-Qed.
-
-Lemma valid_address_store_r :
-  forall b off a m m'
-         (STORE : store b off a m = Some m'),
-    valid_address b off m'.
-Proof.
-  intros.
-  eauto using valid_address_store_l, valid_address_upd.
-Qed.
-
-(* TODO: Move to CodeSpecs.v *)
-Lemma extends_update :
-  forall m m1 m2 b off a
-         (EXT : extends m m1)
-         (STORE : store b off a m1 = Some m2)
-         (INVALID : ~ valid_address b off m),
-    extends m m2.
-Proof.
-  intros.
-  intros b' fr' FRAME'.
-  assert (b' <> b).
-  { intros NEQ.
-    subst.
-    destruct (load b off m) as [r|] eqn:LOAD.
-    - apply INVALID. unfold valid_address. eauto.
-    - eapply valid_address_store_l in STORE.
-      destruct STORE as [res RES].
-      unfold load in *.
-      rewrite FRAME' in LOAD.
-      apply EXT in FRAME'.
-      rewrite FRAME' in RES.
-      congruence. }
-  apply EXT in FRAME'.
-  rewrite <- FRAME'.
-  eapply get_frame_store_neq; eauto.
-Qed.
-
 Hint Resolve extends_update.
 
 (* Memory copy.  *)
@@ -167,7 +97,7 @@ Definition copy :=
              [Store]).
 
 (* The loop invariant for copy. *)
-Definition Icopy (sz:Z) bdst odst bsrc osrc m0 s0 :=
+Definition Icopy (sz:Z) bdst odst bsrc osrc (m0 : memory) s0 :=
   fun m s =>
     exists cnt t1 t2 t3,
       s = (Vint cnt,t1):::(Vptr bdst odst,t2):::(Vptr bsrc osrc,t3):::s0 /\
@@ -626,7 +556,7 @@ Proof.
   split.
   { simpl. intros.
     eapply memseq_valid with (z := z) in SEQ0; try omega.
-    exploit extends_valid_address; eauto.
+    exploit @extends_valid_address; eauto.
     unfold valid_address in *.
     rewrite LOADm0m1; eauto. }
   split.

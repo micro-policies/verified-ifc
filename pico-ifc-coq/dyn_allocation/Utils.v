@@ -1087,3 +1087,26 @@ Qed.
 Inductive match_options {A B} (R : A -> B -> Prop) : option A -> option B -> Prop :=
 | mo_none : match_options R None None
 | mo_some : forall a b, R a b -> match_options R (Some a) (Some b).
+
+Lemma Forall2_length :
+  forall A B (R : A -> B -> Prop) l1 l2,
+    Forall2 R l1 l2 -> length l1 = length l2.
+Proof.
+  induction 1; eauto; simpl; congruence.
+Qed.
+
+Fixpoint take {T} (n : nat) (l : list T) : list T :=
+  match n with
+    | O => []
+    | S n' =>
+      match l with
+        | [] => []
+        | x :: l' => x :: take n' l'
+      end
+  end.
+
+Lemma index_list_app' X : forall (l1 l2 : list X) (x : X),
+                            index_list (length l1) (l1 ++ x :: l2) = Some x.
+Proof.
+  induction l1 as [|x' l1 IH]; intros; simpl in *; subst; eauto.
+Qed.

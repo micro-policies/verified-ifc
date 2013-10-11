@@ -243,6 +243,50 @@ fun z0z1z2 =>
   nth_labToVal vls 1 z1 m /\
   nth_labToVal vls 2 z2 m.
 
+Lemma extension_comp_nth_labToVal : forall m1 m2 (n m:nat) (vls: Vector.t T n) z,
+    nth_labToVal vls m z m1 ->
+    extends m1 m2 ->
+    mem_def_on_cache m1 ->
+    nth_labToVal vls m z m2.
+Proof.
+  unfold nth_labToVal; intros.
+  destruct (le_lt_dec n m); eauto.
+  eapply labToVal_extension_comp; eauto.
+Qed.
+
+Lemma labsToVals_extension_comp :
+  forall m1 m2 n (vls : Vector.t _ n) ts
+         (Hvls : labsToVals vls m1 ts)
+         (EXT : extends m1 m2)
+         (DEF : mem_def_on_cache m1),
+    labsToVals vls m2 ts.
+Proof.
+  unfold labsToVals.
+  intros m1 m2 n vls [[t1 t2] t3].
+  intuition;
+  eapply extension_comp_nth_labToVal; eauto.
+Qed.
+Hint Resolve labsToVals_extension_comp.
+
+Lemma labsToVals_cache :
+  forall m1 m2 n (vls : Vector.t _ n) ts
+         (Hvls : labsToVals vls m1 ts)
+         (EQ : mem_eq_except_cache m1 m2),
+  labsToVals vls m2 ts.
+Proof.
+  unfold labsToVals, nth_labToVal.
+  intros.
+  destruct ts as [[t1 t2] t3].
+  destruct Hvls as (H1 & H2 & H3).
+  repeat split;
+  repeat match goal with
+           | H : context[le_lt_dec n ?m] |- context[le_lt_dec n ?m] =>
+             destruct (le_lt_dec n m); trivial
+         end;
+  eauto using labToVal_cache.
+Qed.
+Hint Resolve labsToVals_cache.
+
 End Glue.
 
 End Spec_alt.

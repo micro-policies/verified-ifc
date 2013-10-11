@@ -627,6 +627,120 @@ Proof.
   erewrite EXT; eauto.
 Qed.
 
+Definition valid_address {T S} b off (m: memory T S) :=
+  exists v, load b off m = Some v.
+
+Lemma extends_valid_address: forall {T S} (b : block S) (m m' : memory T S) off
+                                    (VALID : valid_address b off m)
+                                    (EXT : extends m m'),
+                               valid_address b off m'.
+Proof.
+  intros.
+  unfold valid_address in *.
+  destruct VALID.
+  eauto using extends_load.
+Qed.
+
+Lemma valid_address_store_l :
+  forall T S (E:EqDec S eq) b off a (m m' : memory T S)
+         (STORE : store b off a m = Some m'),
+    valid_address b off m.
+Proof.
+  unfold store, valid_address, load.
+  intros.
+  destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try congruence.
+  destruct (update_list_Z off a fr) as [fr'|] eqn:FRAME'; try congruence.
+  clear - FRAME'.
+  unfold update_list_Z, index_list_Z in *.
+  destruct (off <? 0)%Z; try congruence.
+  gdep fr. gdep fr'. gdep (Z.to_nat off).
+  clear.
+  intros off.
+  induction off as [|off IH]; intros fr' fr H; destruct fr as [|a' fr]; simpl in *; try congruence; eauto.
+  destruct (update_list off a fr) as [fr''|] eqn:FRAME''; try congruence.
+  eapply IH; eauto.
+Qed.
+
+Lemma valid_address_upd: forall T S (E:EqDec S eq) b a b' a' vl (m m' : memory T S),
+  valid_address b a m ->
+  store b' a' vl m = Some m' ->
+  valid_address b a m'.
+Proof.
+  unfold valid_address; intuition.
+  destruct H.
+  unfold load, store in *.
+  destruct (b == b').
+  - inv e.
+    destruct (Mem.get_frame m b') eqn:EQ; try congruence.
+    destruct (update_list_Z a' vl l) eqn:EQ'; try congruence.
+    inv H0.
+    rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H2).
+    destruct (equiv_dec b'); try congruence.
+    unfold update_list_Z, index_list_Z in *.
+    destruct (a <? 0)%Z; try congruence.
+    destruct (a' <? 0)%Z; try congruence.
+    destruct (eq_nat_dec (Z.to_nat a) (Z.to_nat a')).
+    + rewrite e0 in *; erewrite update_list_spec; eauto.
+    + erewrite <- update_list_spec2; eauto.
+  - destruct (Mem.get_frame m b) eqn:EQ; try congruence.
+    destruct (Mem.get_frame m b') eqn:EQ'; try congruence.
+    destruct (update_list_Z a' vl l0) eqn:E0; try congruence.
+    rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H0).
+    destruct (equiv_dec b'); try congruence.
+    rewrite EQ.
+    eauto.
+Qed.
+
+Lemma valid_address_store_r :
+  forall T S (E:EqDec S eq) b off a (m m' : memory T S)
+         (STORE : store b off a m = Some m'),
+    valid_address b off m'.
+Proof.
+  intros.
+  eauto using valid_address_store_l, valid_address_upd.
+Qed.
+
+Lemma extends_update :
+  forall T S (E:EqDec S eq) (m m1 m2 : memory T S) b off a
+         (EXT : extends m m1)
+         (STORE : store b off a m1 = Some m2)
+         (INVALID : ~ valid_address b off m),
+    extends m m2.
+Proof.
+  intros.
+  intros b' fr' FRAME'.
+  assert (b' <> b).
+  { intros NEQ.
+    subst.
+    destruct (load b off m) as [r|] eqn:LOAD.
+    - apply INVALID. unfold valid_address. eauto.
+    - eapply valid_address_store_l in STORE.
+      destruct STORE as [res RES].
+      unfold load in *.
+      rewrite FRAME' in LOAD.
+      apply EXT in FRAME'.
+      rewrite FRAME' in RES.
+      congruence. }
+  apply EXT in FRAME'.
+  rewrite <- FRAME'.
+  eapply get_frame_store_neq; eauto.
+Qed.
+
+Lemma valid_store: forall T S (E:EqDec S eq) b off v (m : memory T S),
+  valid_address b off m ->
+  exists m', store b off v m = Some m'.
+Proof.
+  unfold valid_address, load, store.
+  intros.
+  destruct H as [v' Hv].
+  destruct (Mem.get_frame m b) as [v''|] eqn:FRAME; try congruence.
+
+  exploit valid_update; eauto.
+  intros [fr' Hfr'].
+  rewrite Hfr'.
+  eapply Mem.upd_get_frame; eauto.
+Qed.
+
 Section Injections.
 
 Variables T1 T2 S1 S2 : Type.
