@@ -214,98 +214,6 @@ Proof.
   eapply cstep_push_p ; eauto.
 Qed.
 
-Lemma push_spec': forall v P,
-  HT   (push v)
-       P
-       (fun m s => head s = Some (CData (Vint v,handlerTag)) /\
-                            P m (tail s)).
-Proof.
-  intros v P.
-  intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
-  exists (CData (Vint v, handlerTag) :: stk0). eexists c0.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor; auto.
-  eapply cstep_push_p ; eauto.
-  apply Hcode.
-Qed.
-
-(* Ghost variable style *)
-(* NC: to write a generic instruction-verification tactic, it seems we
-   may only need to factor out the specific unfoldings (here [push'])
-   and the specific step lemmas (here [cp_push]). *)
-Lemma push_spec'': forall v, forall m0 s0,
-  HT (push v)
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData (Vint v,handlerTag) :: s0).
-Proof.
-  intros.
-  intros imem stk0 c0 fh0 n n' Hcode HP' Hn'.
-  eexists.
-  eexists.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold push, code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor ; auto.
-  eapply cstep_push_p; eauto.
-Qed.
-
-Lemma push_spec_I: forall v I,
-  HT (push v)
-     I
-     (fun m s => match s with
-                   | CData (Vint z,t)::tl => I m tl /\ v = z /\ t = handlerTag
-                   | _ => False
-                 end).
-Proof.
-  intros.
-  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
-  eexists.
-  eexists.
-
-  (* Load an instruction *)
-  subst.
-  unfold push, code_at in *.
-  intuition.
-  Focus 2.
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_push_p; eauto.
-
-  simpl. auto.
-Qed.
-
-Lemma push_spec_wp : forall i Q,
-  HT [Push i]
-     (fun m s0 => Q m ((Vint i,handlerTag):::s0))
-     Q.
-Proof.
-  intros.
-  eexists.
-  eexists.
-  intuition eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_push_p; eauto.
-Qed.
-
 Lemma PushCachePtr_spec: forall m0 s0,
   HT [PushCachePtr]
      (fun m s => m = m0 /\ s = s0)
@@ -330,6 +238,28 @@ Lemma PushCachePtr_spec': forall P,
      P
      (fun m s => head s = Some (CData (Vptr cblock 0,handlerTag)) /\
                             P m (tail s)).
+Proof.
+  repeat intro.
+  exists ((CData (Vptr cblock 0, handlerTag))::stk0).
+  exists mem0.
+  simpl in H1.
+  intuition; subst.
+
+  (* Load an instruction *)
+  subst. simpl.
+  unfold code_at in *. intuition.
+
+  (* Run an instruction *)
+  nil_help.
+  econstructor; auto.
+  eapply cstep_push_cache_ptr_p; eauto.
+Qed.
+
+Lemma PushCachePtr_spec_wp : forall Q,
+  HT [PushCachePtr]
+     (fun m s =>
+        Q m (CData (Vptr cblock 0,handlerTag) :: s))
+     Q.
 Proof.
   repeat intro.
   exists ((CData (Vptr cblock 0, handlerTag))::stk0).
@@ -513,16 +443,15 @@ Lemma push_cptr_spec: forall ofs, forall m0 s0,
      (fun m s => m = m0 /\ s = CData (Vptr cblock ofs,handlerTag) :: s0).
 Proof.
   intros.
-  replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
-  eapply HT_compose.
-  - eapply PushCachePtr_spec.
-  - eapply HT_compose.
-    + eapply push_spec''.
-    + eapply HT_strengthen_premise; try eapply add_spec.
-      simpl.
-      intros m s (? & ?). subst.
-      repeat eexists.
-      repeat f_equal; omega.
+  eapply HT_strengthen_premise.
+  { replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
+    eapply HT_compose; try eapply PushCachePtr_spec_wp.
+    eapply HT_compose; try eapply push_spec.
+    eapply add_spec. }
+  simpl.
+  intros m s (? & ?). subst.
+  repeat eexists.
+  repeat f_equal; omega.
 Qed.
 
 Lemma push_cptr_spec': forall ofs P,
@@ -532,34 +461,15 @@ Lemma push_cptr_spec': forall ofs P,
                             P m (tail s)).
 Proof.
   intros.
-  replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
-  eapply HT_compose.
-  - eapply PushCachePtr_spec'.
-  - eapply HT_compose.
-    + eapply push_spec'.
-    + simpl.
-
-  unfold CodeTriples.HT. intros. intuition.
-  destruct stk0; simpl in H2; inv H2.
-  destruct stk0; simpl in H0; inv H0.
-  simpl in *.
-  exists ((CData (Vptr cblock ofs, handlerTag))::stk0).
-  eexists.
-  eexists.
-  intuition.
-  simpl; eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor; auto.
-  eapply cstep_add_p ; eauto.
-  simpl; eauto.
-  replace (ofs + 0) with ofs by omega.
-  constructor; auto.
+  eapply HT_strengthen_premise.
+  { replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
+    eapply HT_compose; try eapply PushCachePtr_spec_wp.
+    eapply HT_compose; try eapply push_spec.
+    eapply add_spec. }
+  simpl.
+  intros.
+  repeat eexists; eauto. unfold value.
+  repeat f_equal; omega.
 Qed.
 
 Lemma unpack_spec_wp : forall Q,
@@ -1031,17 +941,13 @@ Lemma skip_spec: forall c P,
        P.
 Proof.
   intros c P.
-  unfold skip.
-  rewrite app_ass.
-  eapply HT_compose.
-  eapply push_spec'.
   eapply HT_strengthen_premise.
-  eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
-
-  intros.
-  simpl.
-  exists (tl s); intuition.
-  destruct s; inversion H0; eauto.
+  { unfold skip.
+    rewrite app_ass.
+    eapply HT_compose; try eapply push_spec.
+    eapply skipNZ_continuation_spec_NZ with (v:= 1); omega. }
+  simpl. intros.
+  repeat eexists. auto.
 Qed.
 
 Lemma ifNZ_spec_Z: forall v t f P Q,
@@ -1560,33 +1466,27 @@ Lemma some_spec: forall c, forall m0 s0 s1,
      (fun m s => m = m0 /\ s = (Vint 1,handlerTag) ::: s1).
 Proof.
   introv HTc.
-  unfold some.
-  eapply HT_compose.
-  eauto.
-  eapply push_spec''.
+  eapply HT_strengthen_premise.
+  { unfold some.
+    eapply HT_compose; eauto.
+    eapply HT_strengthen_premise; try eapply push_spec.
+    intros m s (? & ?). subst. eauto. }
+  intros m s (? & ?). subst. eauto.
 Qed.
 
-Lemma some_spec_I: forall c, forall P Q,
-  HT c P Q ->
-  HT (some c) P
-     (fun m s =>
-        match s with
-            | (Vint 1,t) ::: tl => Q m tl
-            | _ => False
-        end).
+Lemma some_spec': forall c P Q,
+                    HT c P (fun m s => Q m ((Vint 1,handlerTag) ::: s)) ->
+                    HT (some c) P Q.
 Proof.
-  introv HTc.
+  intros.
   unfold some.
-  eapply HT_compose.
-  eauto.
-  specialize (push_spec_I 1 Q). intros Hspec.
-  eapply HT_weaken_conclusion; eauto.
-  go_match.
+  eapply HT_compose; eauto.
+  eapply push_spec.
 Qed.
 
-Definition none_spec     := push_spec''.
-Definition genTrue_spec  := push_spec''.
-Definition genFalse_spec := push_spec''.
+Definition none_spec     := push_spec.
+Definition genTrue_spec  := push_spec.
+Definition genFalse_spec := push_spec.
 
 Definition ZtoBool (z:Z) :=  negb (z =? 0).
 Definition valToBool (v : val) :=
@@ -1684,14 +1584,14 @@ Proof.
   intros.
   unfold genAnd.
   destruct b1; eapply HT_strengthen_premise.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
     apply nop_spec_wp.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
     rewrite val_eq_int. reflexivity.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply HT_compose; [eapply pop_spec_wp|].
@@ -1721,7 +1621,7 @@ Proof.
   intros.
   unfold genAnd.
   destruct b1; eapply HT_strengthen_premise.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
     apply nop_spec_wp.
@@ -1729,7 +1629,7 @@ Proof.
     repeat (eexists; try split; eauto).
     + rewrite val_eq_int. reflexivity.
     + simpl. eauto.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply HT_compose; [eapply pop_spec_wp|].
@@ -1752,7 +1652,7 @@ Proof.
   destruct (valToBool v1) eqn:E.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
     eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       apply nop_spec_wp.
@@ -1763,7 +1663,7 @@ Proof.
       destruct (equiv_dec (Vint 0) v1); congruence.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply HT_compose; try eapply pop_spec_wp.
@@ -1808,7 +1708,7 @@ Proof.
   intros.
   unfold genOr.
   destruct b1; eapply HT_strengthen_premise.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); try omega.
     eapply HT_compose; try eapply pop_spec_wp.
@@ -1817,7 +1717,7 @@ Proof.
     do 6 eexists. do 2 (split; eauto).
     rewrite val_eq_int. simpl.
     repeat (eexists; try split; eauto).
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply nop_spec_wp.
@@ -1846,7 +1746,7 @@ Proof.
   intros.
   unfold genAnd.
   destruct b1; eapply HT_strengthen_premise.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
     eapply HT_compose; [eapply pop_spec_wp|].
@@ -1854,7 +1754,7 @@ Proof.
   - go_match.
     repeat (eexists; try split; eauto).
     + rewrite val_eq_int. reflexivity.
-  - eapply HT_compose; [eapply push_spec_wp|].
+  - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply nop_spec_wp.
@@ -1877,7 +1777,7 @@ Proof.
   destruct (valToBool v1) eqn:E.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
     eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       eapply HT_compose; try eapply pop_spec_wp.
@@ -1890,7 +1790,7 @@ Proof.
       * repeat (eexists; try split; eauto).
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply nop_spec_wp.
@@ -1935,14 +1835,14 @@ Proof.
   cases (0 =? v) as Heq.
   - apply Z.eqb_eq in Heq. subst.
     eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec_wp.
     + intros m s [H1 H2]. subst.
       do 6 eexists.
       repeat (split; eauto).
       rewrite val_eq_int. reflexivity.
   - eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec_wp.
     + intros m s [H1 H2]. subst.
       do 6 eexists.
@@ -1968,14 +1868,14 @@ Proof.
   cases (0 =? v) as Heq.
   - apply Z.eqb_eq in Heq. subst.
     eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec_wp.
     + go_match.
       do 6 eexists.
       repeat (split; eauto).
       destruct (equiv_dec (Vint 0) (Vint 0)); congruence.
   - eapply HT_strengthen_premise.
-    + eapply HT_compose; try eapply push_spec_wp.
+    + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec_wp.
     + go_match.
       do 6 eexists.
@@ -2383,20 +2283,17 @@ Proof.
   3: intros m s [i' [t [s'' [P1 [P2 P3]]]]]; eexists; intuition eauto.
   2: omega.
   intros.
-  eapply HT_compose.
-  apply P; auto.
-  eapply HT_compose.
-  eapply push_spec'.
+  eapply HT_compose; eauto.
 
-  eapply HT_strengthen_premise.
-  eapply add_spec.
-  simpl. intros m s [R1 [s' [t [R2 R3]]]].
-  eexists (Vint (-1)). eexists handlerTag. eexists (Vint i0). eexists t. eexists (Vint (i0 - 1)). eexists.
-  repeat split.
-  - destruct s. inv R1. inv R1. simpl in R2. subst s. split; eauto.
-  - replace (i0 - 1) with ((-1) + i0) by omega. reflexivity.
-  - eexists. eexists. eexists. split. eauto.
-    split; auto; omega.
+  { eapply HT_strengthen_premise.
+    eapply HT_compose; try eapply push_spec.
+    eapply add_spec.
+    intros m ? (s & ? & ? & ?). subst.
+    do 6 eexists. do 2 (split; eauto). reflexivity.
+    do 3 eexists. split; eauto. split; try omega.
+    replace (-1 + i0) with (Z.pred i0) by omega.
+    eauto. }
+
   - eapply HT_strengthen_premise.
     + eapply nop_spec_wp.
     + intros. destruct H0 as [s'' [t [P1 P2]]]. eexists.  intuition eauto.
@@ -2428,14 +2325,18 @@ Proof.
   eapply genRepeat_spec; eauto.
 Qed.
 
-Lemma ret_specEscape: forall raddr (P: HProp),
+Lemma ret_specEscape: forall raddr (Q: memory -> stack -> Prop * Outcome),
   HTEscape raddr [Ret]
-    (fun m s => exists s', s = (CRet raddr false false::s') /\ P m s')
-    (fun m s => (P m s , Success)).
+    (fun m s => exists s', s = (CRet raddr false false::s') /\
+                           let (prop, outcome) := Q m s' in
+                           prop /\ outcome = Success)
+    Q.
 Proof.
   intros. cases raddr; subst.
-  unfold CodeTriples.HTEscape. intros. intuition.
-  jauto_set_hyps; intuition.
+  unfold CodeTriples.HTEscape.
+  intros imem stk0 mem0 fh n CODE (s' & ? & H). subst.
+  eexists s', mem0. destruct (Q mem0 s') as [prop outcome].
+  intuition. subst.
   repeat eexists.
   eauto.
 
@@ -2450,14 +2351,19 @@ Proof.
   eapply cptr_done.
 Qed.
 
-Lemma jump_specEscape_Failure: forall tag raddr (P: HProp),
+Lemma jump_specEscape_Failure: forall raddr (Q: memory -> stack -> Prop * Outcome),
   HTEscape raddr [Jump]
-           (fun m s => exists s0, (Vint (-1), tag) ::: s0 = s /\ P m s0)
-           (fun m s => (P m s , Failure)).
+           (fun m s => exists tag s0, (Vint (-1), tag) ::: s0 = s /\
+                                      let (prop, outcome) := Q m s0 in
+                                      prop /\ outcome = Failure)
+           Q.
 Proof.
   intros.
-  unfold CodeTriples.HTEscape. intros.
-  jauto_set_hyps; intuition.
+  unfold CodeTriples.HTEscape.
+  intros imem stk0 mem0 fh n CODE (tag & s0 & ? & H). subst.
+  eexists s0, mem0.
+  destruct (Q mem0 s0) as [prop outcome]. destruct H; subst.
+  simpl.
   repeat eexists.
   eauto.
 
@@ -2663,10 +2569,10 @@ Proof.
   intros.
   unfold extract_offset_body.
   eapply HT_strengthen_premise.
-  eapply HT_compose; try apply push_spec_wp.
+  eapply HT_compose; try apply push_spec.
   eapply HT_compose; try apply add_spec.
   eapply HT_compose; try apply swap_spec.
-  eapply HT_compose; try apply push_spec_wp.
+  eapply HT_compose; try apply push_spec.
   eapply HT_compose; try apply add_spec.
   apply swap_spec.
   intros m s (n & b & off & s0 & t1 & t2 & t3 & ? & POST).
@@ -2712,7 +2618,7 @@ Proof.
   { eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply sub_spec.
-    eapply HT_compose; try eapply push_spec_wp.
+    eapply HT_compose; try eapply push_spec.
     eapply HT_compose.
     { unfold extract_offset_loop.
       eapply while_spec with
@@ -2782,13 +2688,14 @@ Proof.
   replace (off - off) with 0 by ring. eauto.
 Qed.
 
-Lemma genSysRet_specEscape_Some: forall raddr (Q: memory -> stack -> Prop),
+Lemma genSysRet_specEscape_Some: forall raddr (Q: memory -> stack -> Prop * Outcome),
   HTEscape raddr genSysRet
            (fun m s =>
               exists s0,
               s = (Vint 1, handlerTag) ::: CRet raddr false false :: s0 /\
-              Q m s0)
-           (fun m s  => (Q m s, Success)).
+              let (prop, outcome) := Q m s0 in
+              prop /\ outcome = Success)
+           Q.
 Proof.
   intros.
   unfold genSysRet.
@@ -2800,22 +2707,20 @@ Proof.
     intuition. split_vc.
 Qed.
 
-Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop),
+Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop * Outcome),
   HTEscape raddr genError
-           P
-           (fun m s => (P m s , Failure)).
+           (fun m s => let (prop, outcome) := P m s in
+                       prop /\ outcome = Failure)
+           P.
 Proof.
   intros.
   unfold genError.
-  eapply HTEscape_compose.
-  - eapply push_spec'.
-  - eapply HTEscape_strengthen_premise.
-    + eapply jump_specEscape_Failure; auto.
-    + intuition.
-      cases s; subst.
-      * rewrite hd_error_nil in *; false.
-      * rewrite hd_error_cons in *.
-        inversion H0; subst; jauto.
+  eapply HTEscape_strengthen_premise.
+  { eapply HTEscape_compose; try eapply push_spec.
+    eapply jump_specEscape_Failure. }
+  simpl.
+  intros m s H.
+  repeat eexists; eauto.
 Qed.
 
 Lemma genSysRet_specEscape_None: forall raddr s0 m0,

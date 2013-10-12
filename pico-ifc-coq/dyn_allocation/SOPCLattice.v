@@ -318,7 +318,7 @@ Proof.
   eapply HT_compose_flip.
   eapply alloc_array_spec_wp; eauto.
   eapply HT_strengthen_premise.
-  eapply push_spec_wp; eauto.
+  eapply push_spec; eauto.
   intros m s (EXT & POST).
   do 3 eexists.
   repeat (split; eauto; try omega).

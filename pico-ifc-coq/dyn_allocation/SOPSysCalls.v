@@ -93,7 +93,7 @@ Proof.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply sub_spec.
-    eapply HT_compose; try eapply push_spec_wp.
+    eapply HT_compose; try eapply push_spec.
     eapply HT_compose; try eapply genEq_spec_wp; eauto.
     eapply genNot_spec_wp; eauto. }
   intros m s (v & t & s0 & ? & POST). subst. simpl.
@@ -141,7 +141,7 @@ Ltac apply_wp :=
   | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec
   | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec
   | |- HT _ _ [Load] _ _ => eapply load_spec_wp'
-  | |- HT _ _ [Push ?N] _ _ => eapply push_spec_wp
+  | |- HT _ _ [Push ?N] _ _ => eapply push_spec
   | |- HT _ _ [Pop] _ _ => eapply pop_spec_wp
   end;
   simpl.
@@ -169,7 +169,7 @@ Proof.
     - eapply HT_compose; try eapply pop_spec_wp.
       eapply HT_compose; try eapply pop_spec_wp.
       eapply HT_compose; try eapply pop_spec_wp.
-      eapply push_spec_wp.
+      eapply push_spec.
     - eapply HT_compose; try eapply unpack_spec_wp.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply swap_spec.
@@ -179,7 +179,7 @@ Proof.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply extend_array_spec_wp; eauto.
       eapply HT_compose; try eapply pack_spec_wp; eauto.
-      eapply push_spec_wp. }
+      eapply push_spec. }
   intros m s (mi & aargs & cargs & s0 & ? & LEN & MEM & MATCH & SUCC & FAIL). subst.
   destruct cargs as [|[xv1 xt1] [|[xv2 xt2] [|? ?]]]; inv LEN. simpl.
   repeat match goal with

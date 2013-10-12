@@ -385,12 +385,12 @@ Proof.
     try (simpl in H); subst.
 
   (* True *)
-  eapply HT_weaken_conclusion.
-  eapply push_spec_I. go_match.
+  eapply HT_strengthen_premise.
+  eapply push_spec. go_match. intuition eauto.
 
   (* False *)
-  eapply HT_weaken_conclusion.
-  eapply push_spec_I. go_match.
+  eapply HT_strengthen_premise.
+  eapply push_spec. go_match. intuition eauto.
 
   (* Flows *)
   eapply HT_compose.
@@ -517,13 +517,13 @@ Proof.
       go_match.
 
     + intros.
-      eapply HT_weaken_conclusion.
-      eapply some_spec_I.
+      eapply HT_strengthen_premise.
+      eapply some_spec'.
 
       eapply HT_compose.
       eapply genExpr_spec with (I:= I); eauto.
 
-      eapply HT_strengthen_premise.
+      eapply HT_consequence.
       eapply genExpr_spec with
       (I:= fun m s => match s with
                         | (z, t) ::: tl0 =>
@@ -532,10 +532,13 @@ Proof.
                           /\ extends m0 m
                         | _ => False
                       end); eauto.
-      unfold extension_comp, extends in *.
-      simpl. intuition. go_match. eauto using labToVal_extension_comp.
-      go_match.
-      go_match.
+      * unfold extension_comp, extends in *.
+        simpl. intuition. go_match. eauto using labToVal_extension_comp.
+      * unfold extension_comp, extends in *.
+        simpl. intuition. go_match. eauto using labToVal_extension_comp.
+        go_match.
+      * go_match.
+      * eauto.
     + intros; false; omega.
 Qed.
 
@@ -563,9 +566,10 @@ Proof.
   go_match.
   unfold boolToZ in *; false; try omega.
 
-  eapply HT_weaken_conclusion.
-  eapply (push_spec_I cblock table 0); eauto.
+  eapply HT_strengthen_premise.
+  eapply (push_spec cblock table 0); eauto.
   go_match.
+  intuition auto.
 Qed.
 
 Definition listify_apply_rule (ar: option (T * T))
@@ -650,9 +654,9 @@ Proof.
   unfold genCheckOp.
   eapply HT_weaken_conclusion.
   eapply genTestEqual_spec_I; try assumption. intros I' HextI'.
-  eapply HT_weaken_conclusion.
-  eapply (push_spec_I) with (I:= fun m s => extends m0 m /\ I' m s).
-  go_match.
+  eapply HT_strengthen_premise.
+  eapply push_spec.
+  go_match. intuition eauto.
   intros I' HextI'.
   eapply HT_consequence.
   eapply loadFromCache_spec_I with (v := Vint (opCodeToZ opcode)) (I:= fun m s => extends m0 m /\ I' m s); eauto.
