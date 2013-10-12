@@ -214,48 +214,7 @@ Proof.
   eapply cstep_push_p ; eauto.
 Qed.
 
-Lemma PushCachePtr_spec: forall m0 s0,
-  HT [PushCachePtr]
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData (Vptr cblock 0,handlerTag) :: s0).
-Proof.
-  repeat intro.
-  do 2 eexists.
-  intuition; subst.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor; auto.
-  eapply cstep_push_cache_ptr_p; eauto.
-Qed.
-
-Lemma PushCachePtr_spec': forall P,
-  HT [PushCachePtr]
-     P
-     (fun m s => head s = Some (CData (Vptr cblock 0,handlerTag)) /\
-                            P m (tail s)).
-Proof.
-  repeat intro.
-  exists ((CData (Vptr cblock 0, handlerTag))::stk0).
-  exists mem0.
-  simpl in H1.
-  intuition; subst.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor; auto.
-  eapply cstep_push_cache_ptr_p; eauto.
-Qed.
-
-Lemma PushCachePtr_spec_wp : forall Q,
+Lemma PushCachePtr_spec : forall Q,
   HT [PushCachePtr]
      (fun m s =>
         Q m (CData (Vptr cblock 0,handlerTag) :: s))
@@ -445,7 +404,7 @@ Proof.
   intros.
   eapply HT_strengthen_premise.
   { replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
-    eapply HT_compose; try eapply PushCachePtr_spec_wp.
+    eapply HT_compose; try eapply PushCachePtr_spec.
     eapply HT_compose; try eapply push_spec.
     eapply add_spec. }
   simpl.
@@ -463,7 +422,7 @@ Proof.
   intros.
   eapply HT_strengthen_premise.
   { replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
-    eapply HT_compose; try eapply PushCachePtr_spec_wp.
+    eapply HT_compose; try eapply PushCachePtr_spec.
     eapply HT_compose; try eapply push_spec.
     eapply add_spec. }
   simpl.
