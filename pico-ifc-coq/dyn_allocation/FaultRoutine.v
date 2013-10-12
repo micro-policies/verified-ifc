@@ -894,10 +894,10 @@ Proof.
   eapply ifNZ_spec.
   eapply HT_compose_flip.
   eapply HT_compose_flip.
-  eapply genTrue_spec_wp; eauto.
+  eapply genTrue_spec; eauto.
   eapply storeAt_spec; eauto.
   eapply storeAt_spec; eauto.
-  eapply genFalse_spec_wp.
+  eapply genFalse_spec.
 
   intros. destruct H as [s0 [zr [zpc Hint]]]. intuition.
   split_vc.
@@ -929,10 +929,10 @@ Proof.
 
   eapply HT_compose_flip.
   eapply HT_compose_flip.
-  eapply genTrue_spec_wp; eauto.
+  eapply genTrue_spec; eauto.
   eapply storeAt_spec; eauto.
   eapply storeAt_spec; eauto.
-  eapply genFalse_spec_wp.
+  eapply genFalse_spec.
 
   intros. destruct H as [s0 [zr [zpc [t Hint]]]].
   split_vc.

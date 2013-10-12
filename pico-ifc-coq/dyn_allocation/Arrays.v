@@ -871,7 +871,7 @@ Proof.
   eapply fold_array_spec_wp with
            (n:= fun _ _ => boolToVal false)
            (f:= fun m0 s0 x v => orv (boolToVal (f m0 s0 x)) v); eauto.
-  - intro. eapply HT_strengthen_premise. eapply genFalse_spec_wp.
+  - intro. eapply HT_strengthen_premise. eapply genFalse_spec.
     split_vc.
   - intro.
     eapply HT_compose_flip.
@@ -935,7 +935,7 @@ Proof.
   eapply fold_array_spec_wp with
            (n:= fun _ _ => boolToVal true)
            (f:= fun m0 s0 x v => andv (boolToVal (f m0 s0 x)) v); eauto.
-  - intro. eapply HT_strengthen_premise; try eapply genTrue_spec_wp.
+  - intro. eapply HT_strengthen_premise; try eapply genTrue_spec.
     split_vc.
   - intro.
     eapply HT_compose_flip.
