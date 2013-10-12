@@ -292,28 +292,18 @@ Proof.
   destruct initial_m0.
   inv Hhandler.
   assert (Hmem0: mem_def_on_cache cblock m0) by (eapply INIT_MEM_def_on_cache; eauto).
-  case_eq v; intros; subst; simpl;
-  match goal with
-    | [HH : value_on_cache cblock _ ?addr ?zz |-
-       HT (loadFromCache ?addr) _ _] =>
-       eapply HT_strengthen_premise
-              with (P:= (fun m1 s0 => value_on_cache cblock m1 addr zz /\
-                                      ((fun m s => extends m0 m /\ I m s) m1 s0)));
-       try solve [intuition eauto];
-       eapply HT_weaken_conclusion
-  end;
-  try (eapply loadFromCache_spec_I with (I := (fun m s => extends m0 m /\ I m s))); eauto;
-  simpl; intros;
-  destruct s; intuition;
-  (destruct c; intuition);
-  (destruct a; intuition);
-  subst; intuition eauto using labToVal_extension_comp;
-  unfold nth_labToVal in *;
-  repeat match goal with
-           | H : context [le_lt_dec ?n ?m] |- _ =>
-             destruct (le_lt_dec n m); try omega
-         end;
-  erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
+  case_eq v; intros; eapply HT_strengthen_premise;
+  try eapply loadFromCache_spec; eauto; intros; intuition;
+  eexists; split; eauto using extension_comp_value_on_cache;
+  split; eauto;
+  split; eauto; simpl;
+  subst; unfold nth_labToVal in *; eauto using labToVal_extension_comp.
+  - destruct (le_lt_dec n 0); try omega.
+    erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
+  - destruct (le_lt_dec n 1); try omega.
+    erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
+  - destruct (le_lt_dec n 2); try omega.
+    erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
 Qed.
 
 Hint Resolve  extension_comp_INIT_MEM INIT_MEM_def_on_cache.
@@ -658,9 +648,10 @@ Proof.
   eapply push_spec.
   go_match. intuition eauto.
   intros I' HextI'.
-  eapply HT_consequence.
-  eapply loadFromCache_spec_I with (v := Vint (opCodeToZ opcode)) (I:= fun m s => extends m0 m /\ I' m s); eauto.
-  go_match. intuition eauto using extension_comp_value_on_cache.
+  eapply HT_strengthen_premise.
+  eapply loadFromCache_spec; eauto.
+  go_match.
+  eexists. split; eauto. intuition eauto using extension_comp_value_on_cache.
   go_match. intuition.
   go_match.
   simpl.

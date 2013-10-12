@@ -161,7 +161,7 @@ Proof.
   intros S Q.
   unfold joinPbody.
   eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply unpack_spec_wp.
+  { eapply HT_compose; try eapply unpack_spec.
     eapply HT_compose; try eapply swap_spec.
     eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply genIsPointer_spec.
@@ -170,7 +170,7 @@ Proof.
       eapply HT_compose; try eapply pop_spec_wp.
       eapply HT_compose; try eapply pop_spec_wp.
       eapply push_spec.
-    - eapply HT_compose; try eapply unpack_spec_wp.
+    - eapply HT_compose; try eapply unpack_spec.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply concat_arrays_spec_wp; eauto.
@@ -178,7 +178,7 @@ Proof.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply extend_array_spec_wp; eauto.
-      eapply HT_compose; try eapply pack_spec_wp; eauto.
+      eapply HT_compose; try eapply pack_spec; eauto.
       eapply push_spec. }
   intros m s (mi & aargs & cargs & s0 & ? & LEN & MEM & MATCH & SUCC & FAIL). subst.
   destruct cargs as [|[xv1 xt1] [|[xv2 xt2] [|? ?]]]; inv LEN. simpl.

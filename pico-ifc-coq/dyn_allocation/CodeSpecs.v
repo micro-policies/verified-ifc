@@ -293,7 +293,7 @@ Proof.
 Qed.
 
 
-Lemma unpack_spec_wp : forall Q,
+Lemma unpack_spec : forall Q,
   HT [Unpack]
      (fun m s => exists x l s0,
                  s = (x,l):::s0 /\
@@ -315,7 +315,7 @@ Proof.
   eapply cstep_unpack_p; eauto.
 Qed.
 
-Lemma pack_spec_wp : forall Q,
+Lemma pack_spec : forall Q,
   HT [Pack]
      (fun m s => exists x t l l0 s0,
                  s = (l,t):::(x,l0):::s0 /\
@@ -337,38 +337,20 @@ Proof.
   eapply cstep_pack_p; eauto.
 Qed.
 
-Lemma loadFromCache_spec: forall ofs x, forall m0 s0,
-  load cblock ofs m0 = Some x ->
+Lemma loadFromCache_spec: forall ofs (Q : HProp),
   HT (loadFromCache ofs)
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData x :: s0).
+     (fun m s =>
+        exists v,
+          value_on_cache cblock m ofs v /\
+          forall t, Q m (CData (v, t) :: s))
+     Q.
 Proof.
   intros.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply push_cptr_spec.
     eapply load_spec; eauto. }
-  intros m s (? & ?). subst.
+  intros m s (? & [] & POST). subst.
   repeat eexists; eauto.
-Qed.
-
-Lemma loadFromCache_spec_I: forall a v I,
-  HT (loadFromCache a)
-     (fun m s => value_on_cache cblock m a v /\
-                 I m s)
-     (fun m s =>
-        match s with
-            | CData (z,t) :: tl =>
-              v = z /\ I m tl
-            | _ => False
-        end).
-Proof.
-  intros.
-  eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply push_cptr_spec.
-    eapply load_spec. }
-  simpl.
-  intros m s [[t H] INV].
-  repeat eexists; eauto. split; eauto.
 Qed.
 
 Lemma pop_spec: forall v vl, forall m0 s0,
