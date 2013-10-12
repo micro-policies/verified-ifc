@@ -500,36 +500,38 @@ Proof.
   cases_if in Happly.
   inv  Happly. intros I Hext.
 
-  - eapply (ite_spec_specialized_I' cblock table (boolToZ true)); eauto.
+  eapply HT_strengthen_premise.
+  { eapply ite_spec with (Pt := fun m s =>
+                                  I m s /\ extends m0 m /\ INIT_MEM m
+                          );
+    try eapply some_spec'; try eapply none_spec; eauto.
 
-    + eapply HT_weaken_conclusion.
-      eapply (genScond_spec (allow am) true H I); eauto.
+    - eapply HT_weaken_conclusion.
+      eapply genScond_spec; eauto.
       go_match.
+      do 3 eexists. split; eauto.
+      split; eauto.
+      omega.
 
-    + intros.
-      eapply HT_strengthen_premise.
-      eapply some_spec'.
-
-      eapply HT_compose.
-      eapply genExpr_spec with (I:= I); eauto.
-
-      eapply HT_consequence.
-      eapply genExpr_spec with
-      (I:= fun m s => match s with
-                        | (z, t) ::: tl0 =>
-                          I m tl0
-                          /\ labToVal (eval_expr eval_var (labResPC am)) z m
-                          /\ extends m0 m
-                        | _ => False
-                      end); eauto.
-      * unfold extension_comp, extends in *.
-        simpl. intuition. go_match. eauto using labToVal_extension_comp.
-      * unfold extension_comp, extends in *.
-        simpl. intuition. go_match. eauto using labToVal_extension_comp.
-        go_match.
-      * go_match.
-      * eauto.
-    + intros; false; omega.
+    - eapply HT_compose.
+      + eapply HT_strengthen_premise.
+        eapply genExpr_spec with (I := fun m s => I m s /\ INIT_MEM m); eauto.
+        * intro. go_match. intuition eauto.
+        * intuition.
+      + eapply HT_consequence.
+        eapply genExpr_spec with (I := fun m s =>
+                                         match s with
+                                           | (v,_) ::: tl =>
+                                             I m tl
+                                             /\ labToVal (eval_expr eval_var (labResPC am)) v m
+                                             /\ extends m0 m
+                                           | _ => False
+                                         end); eauto.
+        * intro. go_match; eauto using extends_trans.
+          eapply labToVal_extension_comp; eauto.
+        * go_match.
+        * go_match. }
+  eauto.
 Qed.
 
 Lemma genApplyRule_spec_None:
@@ -549,17 +551,23 @@ Proof.
   unfold apply_rule in Happly.
   cases_if in Happly.
 
-  eapply ite_spec_specialized_I' with (v:=boolToZ false); eauto; intros.
-  eapply HT_weaken_conclusion.
-  eapply genScond_spec; auto. unfold eval_var, n.
-  rewrite H.
-  go_match.
-  unfold boolToZ in *; false; try omega.
+  eapply ite_spec with (Pt := fun m s => 0 <> 0 /\ True)
+                           (* Dirty trick to use HT_fold_constant_premise *)
+                       (Pf := fun m s =>
+                                I m s /\ extends m0 m /\ INIT_MEM m
+                       );
+  try eapply some_spec'; eauto.
 
-  eapply HT_strengthen_premise.
-  eapply (push_spec cblock table 0); eauto.
-  go_match.
-  intuition auto.
+    - eapply HT_weaken_conclusion.
+      eapply genScond_spec; eauto.
+      go_match.
+      do 3 eexists. split; eauto.
+
+    - eapply HT_fold_constant_premise.
+      omega.
+
+    - eapply HT_strengthen_premise; try eapply none_spec.
+      intuition.
 Qed.
 
 Definition listify_apply_rule (ar: option (T * T))
