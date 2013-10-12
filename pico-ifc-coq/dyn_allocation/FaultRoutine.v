@@ -504,7 +504,7 @@ Proof.
   { eapply ite_spec with (Pt := fun m s =>
                                   I m s /\ extends m0 m /\ INIT_MEM m
                           );
-    try eapply some_spec'; try eapply none_spec; eauto.
+    try eapply some_spec; try eapply none_spec; eauto.
 
     - eapply HT_weaken_conclusion.
       eapply genScond_spec; eauto.
@@ -556,7 +556,7 @@ Proof.
                        (Pf := fun m s =>
                                 I m s /\ extends m0 m /\ INIT_MEM m
                        );
-  try eapply some_spec'; eauto.
+  try eapply some_spec; eauto.
 
     - eapply HT_weaken_conclusion.
       eapply genScond_spec; eauto.

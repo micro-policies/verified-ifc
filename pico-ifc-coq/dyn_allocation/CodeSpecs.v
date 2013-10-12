@@ -632,10 +632,6 @@ Proof.
     eexists; intuition eauto.
 Qed.
 
-(* Might make more sense to make [Qc] be the thing that [Qc] implies
-   here.  I.e., this version has an implicit use of
-   [HT_strengthen_premise] in it, which could always be inserted
-   manually when needed. *)
 Lemma ite_spec: forall c t f (P Pt Pf: HProp) Q,
   let P' := fun m s => exists v l s', s = (Vint v,l) ::: s' /\
                                       (v <> 0 -> Pt m s') /\
@@ -957,25 +953,7 @@ End IndexedCasesSpec_EXT.
 
 End GT_ext.
 
-(* NC: this might be a way to do "transformer" style ... *)
-Lemma some_spec: forall c, forall m0 s0 s1,
-  HT c
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = s1) ->
-  HT (some c)
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = (Vint 1,handlerTag) ::: s1).
-Proof.
-  introv HTc.
-  eapply HT_strengthen_premise.
-  { unfold some.
-    eapply HT_compose; eauto.
-    eapply HT_strengthen_premise; try eapply push_spec.
-    intros m s (? & ?). subst. eauto. }
-  intros m s (? & ?). subst. eauto.
-Qed.
-
-Lemma some_spec': forall c P Q,
+Lemma some_spec: forall c P Q,
                     HT c P (fun m s => Q m ((Vint 1,handlerTag) ::: s)) ->
                     HT (some c) P Q.
 Proof.
