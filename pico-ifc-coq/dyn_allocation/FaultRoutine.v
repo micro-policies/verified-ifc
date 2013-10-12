@@ -820,8 +820,8 @@ Proof.
   (genQ:= genQ ar I); try assumption.
   - Case "default case that we never reach".
     unfold GT_ext; intros.
-    eapply HT_consequence.
-    eapply nop_spec_I with (I:= fun m s => extends m1 m /\ I m s /\ I m1 s); eauto.
+    eapply HT_strengthen_premise.
+    eapply nop_spec.
     intros. intuition; subst.
     unfold extends in * ; eauto.
     eauto.

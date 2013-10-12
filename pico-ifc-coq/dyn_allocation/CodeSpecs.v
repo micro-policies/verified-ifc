@@ -373,28 +373,7 @@ Proof.
   eapply cstep_pop_p; eauto.
 Qed.
 
-Lemma nop_spec: forall m0 s0,
-  HT [Noop]
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = s0).
-Proof.
-  unfold CodeTriples.HT.
-  intros.
-  exists s0.
-  exists m0.
-  intuition.
-  simpl in H1; subst.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_nop_p ; eauto.
-Qed.
-
-Lemma nop_spec_I: forall I,  HT [Noop] I I.
+Lemma nop_spec: forall Q,  HT [Noop] Q Q.
 Proof.
   unfold CodeTriples.HT.
   intros.
@@ -1298,17 +1277,6 @@ Proof.
   eapply push_spec.
 Qed.
 
-Lemma nop_spec_wp: forall Q,
-  HT [Noop] Q Q.
-Proof.
-  unfold CodeTriples.HT; simpl; intros.
-  eexists; eexists; intuition eauto. subst.
-
-  (* Run an instruction *)
-  eapply rte_step; eauto.
-  eapply cstep_nop_p ; eauto.
-Qed.
-
 Lemma genAnd_spec: forall b1 t1 b2 t2, forall m0 s0,
   HT genAnd
      (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
@@ -1323,7 +1291,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
-    apply nop_spec_wp.
+    apply nop_spec.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
     rewrite val_eq_int. reflexivity.
@@ -1360,7 +1328,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
-    apply nop_spec_wp.
+    apply nop_spec.
   - go_match.
     repeat (eexists; try split; eauto).
     + rewrite val_eq_int. reflexivity.
@@ -1391,7 +1359,7 @@ Proof.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_Z with (v:=0); eauto.
-      apply nop_spec_wp.
+      apply nop_spec.
     + intros m s [H1 H2]. subst.
       do 6 eexists. do 2 (split; eauto).
       do 2 eexists. split; repeat f_equal; eauto.
@@ -1456,7 +1424,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
-    eapply nop_spec_wp.
+    eapply nop_spec.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
     rewrite val_eq_int. reflexivity.
@@ -1493,7 +1461,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
-    eapply nop_spec_wp.
+    eapply nop_spec.
   - go_match.
     repeat (eexists; try split; eauto).
     + rewrite val_eq_int. reflexivity.
@@ -1529,7 +1497,7 @@ Proof.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
-      eapply nop_spec_wp.
+      eapply nop_spec.
     + intros m s [H1 H2]. subst.
       do 6 eexists. do 2 (split; eauto).
       do 2 eexists. rewrite val_eq_int. split; eauto.
@@ -2031,7 +1999,7 @@ Proof.
     eauto. }
 
   - eapply HT_strengthen_premise.
-    + eapply nop_spec_wp.
+    + eapply nop_spec.
     + intros. destruct H0 as [s'' [t [P1 P2]]]. eexists.  intuition eauto.
 
   - intros m s [s' [t [P1 P2]]]. eexists. eexists. eexists.
