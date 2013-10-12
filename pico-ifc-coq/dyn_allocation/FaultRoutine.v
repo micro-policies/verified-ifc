@@ -860,25 +860,6 @@ Proof.
   intros; intuition; intuition.
 Qed.
 
-(* trying in WP wtyle *)
-Lemma storeAt_spec_wp': forall a Q,
-  HT (storeAt a)
-     (fun m0 s0 => exists vl s m, s0 = vl ::: s /\
-                               store cblock a vl m0 = Some m /\
-                               Q m s)
-     Q.
-Proof.
-  intros.
-  eapply HT_compose_flip.
-  eapply store_spec_wp'; eauto.
-  unfold push.
-  eapply HT_strengthen_premise.
-  eapply push_cptr_spec.
-
-  intuition; eauto. destruct H as [vl [s0 [m0 Hint]]]. intuition; substs.
-  do 5 eexists; intuition; eauto.
-Qed.
-
 Lemma genStoreResults_spec_Some: forall Q,
   forall lr lpc,
     ar = Some (lpc,lr) ->
@@ -906,8 +887,8 @@ Proof.
   eapply HT_compose_flip.
   eapply HT_compose_flip.
   eapply genTrue_spec_wp; eauto.
-  eapply storeAt_spec_wp'.
-  eapply storeAt_spec_wp'.
+  eapply storeAt_spec; eauto.
+  eapply storeAt_spec; eauto.
   eapply genFalse_spec_wp.
 
   intros. destruct H as [s0 [zr [zpc Hint]]]. intuition.
@@ -941,8 +922,8 @@ Proof.
   eapply HT_compose_flip.
   eapply HT_compose_flip.
   eapply genTrue_spec_wp; eauto.
-  eapply storeAt_spec_wp'.
-  eapply storeAt_spec_wp'.
+  eapply storeAt_spec; eauto.
+  eapply storeAt_spec; eauto.
   eapply genFalse_spec_wp.
 
   intros. destruct H as [s0 [zr [zpc [t Hint]]]].

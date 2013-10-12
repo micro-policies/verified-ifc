@@ -34,7 +34,7 @@ Local Notation block := (block privilege).
 Ltac apply_wp :=
   try unfold pop, nop, push, dup, swap;
   match goal with
-  | |- HT _ _ [Store] _ _ => eapply store_spec_wp'
+  | |- HT _ _ [Store] _ _ => eapply store_spec
   | |- HT _ _ [Add] _ _  => eapply add_spec
   | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec
   | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec

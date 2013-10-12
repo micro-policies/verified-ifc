@@ -392,16 +392,18 @@ Proof.
   eapply cstep_nop_p ; eauto.
 Qed.
 
-
-Lemma store_spec_wp: forall Q b a al v,
-  Mem.stamp b = Kernel ->
-  forall m s,
-  HT [Store]
-     (fun m0 s0 => s0 = (Vptr b a,al) ::: v ::: s /\
-                   store b a v m0 = Some m /\
-                   Q m s)
-     Q.
+Lemma store_spec : forall Q,
+       HT [Store]
+         (fun (m0 : memory) (s0 : stack) =>
+          exists b a al v m s,
+          Mem.stamp b = Kernel /\
+          s0 = (Vptr b a, al) ::: v ::: s /\ store b a v m0 = Some m /\ Q m s)
+         Q.
 Proof.
+  intros. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. apply HT_fold_constant_premise. intro.
   unfold CodeTriples.HT.
   intros.
   jauto_set_hyps; intros.
@@ -418,127 +420,22 @@ Proof.
   eapply cstep_store_p; eauto.
 Qed.
 
-Lemma store_spec: forall b a al v vl m s,
-  Mem.stamp b = Kernel ->
-  HT [Store]
-     (fun m0 s0 => m0 = m /\
-                   s0 = (Vptr b a,al) ::: (v,vl) ::: s /\
-                   valid_address b a m) (* NC: better to move this outside? *)
-     (fun m1 s1 => s1 = s /\
-                   store b a (v,vl) m = Some m1).
-Proof.
-  unfold CodeTriples.HT.
-  intros.
-  edestruct valid_store.
-  iauto.
-  eexists.
-  eexists.
-  intuition; subst.
-  eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help. econstructor; auto.
-  eapply cstep_store_p; eauto.
-Qed.
-
-Lemma store_spec_I: forall b a al v vl Is (Im: memory -> Z -> Prop),
-                    forall (IMperAddr: forall m a m' v,
-                                         Im m a ->
-                                         store b a v m = Some m' ->
-                                         (forall a', a' <> a -> Im m' a')),
-  HT [Store]
-     (fun m s =>
-        match s with
-            | (Vptr b' a',zl) ::: (vz,vzl) ::: tl =>
-              Mem.stamp b = Kernel /\
-              b' = b /\ a' = a /\ al = zl /\
-              v = vz /\ vl = vzl /\
-              valid_address b a m /\
-              Is tl /\ (forall a, Im m a)
-            | _ => False
-        end)
-     (fun m s => Is s /\
-                 (forall addr, addr <> a -> Im m addr) /\
-                 (load b a m = Some (v,vl))).
-Proof.
-  unfold CodeTriples.HT.
-  intros.
-  subst.
-  destruct stk0 ; try solve [intuition].
-  destruct c as [[z1 zl] |] ; try solve [intuition].
-  destruct z1; try solve [intuition].
-  destruct stk0 ; try solve [intuition].
-  destruct c as [[z2 zl2] |] ; try solve [intuition].
-  intuition. substs.
-
-  edestruct valid_store.
-  iauto.
-
-  eexists.
-  exists x.
-  intuition; subst.
-  eauto.
-  eapply IMperAddr; eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  Focus 2.
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_store_p; eauto.
-  unfold code_at in *. intuition.
-  eapply load_store_new; eassumption.
-Qed.
-
-Lemma store_spec_wp' : forall Q,
-       HT [Store]
-         (fun (m0 : memory) (s0 : stack) =>
-          exists b a al v m s,
-          Mem.stamp b = Kernel /\
-          s0 = (Vptr b a, al) ::: v ::: s /\ store b a v m0 = Some m /\ Q m s)
-         Q.
-Proof.
-  intros. eapply HT_forall_exists. intro. eapply HT_forall_exists.
-  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
-  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
-  intro. apply HT_fold_constant_premise. intro.
-  eapply store_spec_wp. assumption.
-Qed.
-
-Lemma storeAt_spec: forall a v vl m s,
+Lemma storeAt_spec: forall a Q,
   HT (storeAt a)
-     (fun m0 s0 => m0 = m /\
-                   s0 = (v,vl) ::: s /\
-                   valid_address cblock a m)
-     (fun m1 s1 => s1 = s /\
-                   store cblock a (v,vl) m = Some m1).
-Proof.
-  intros.
-  eapply HT_strengthen_premise.
-  - eapply HT_compose; try eapply push_cptr_spec.
-    eapply store_spec. eauto.
-  - intuition; eauto. subst. eauto.
-Qed.
-
-
-(* NC: [valid_address a m0] implies [upd_m] succeeds *)
-Lemma storeAt_spec_wp: forall a vl Q,
-  forall m s,
-  HT (storeAt a)
-     (fun m0 s0 => s0 = vl ::: s /\
-                   store cblock a vl m0 = Some m /\
-                   Q m s)
+     (fun m0 s0 => exists vl s m, s0 = vl ::: s /\
+                               store cblock a vl m0 = Some m /\
+                               Q m s)
      Q.
 Proof.
   intros.
+  eapply HT_compose_flip.
+  eapply store_spec; eauto.
+  unfold push.
   eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply push_cptr_spec.
-    eapply store_spec_wp; eauto. }
-  intuition; eauto. subst. eauto.
+  eapply push_cptr_spec.
+
+  intuition; eauto. destruct H as [vl [s0 [m0 Hint]]]. intuition; substs.
+  do 5 eexists; intuition; eauto.
 Qed.
 
 Lemma alloc_spec_wp : forall Q : memory -> stack -> Prop,  (* the annotation on Q is crucial *)
