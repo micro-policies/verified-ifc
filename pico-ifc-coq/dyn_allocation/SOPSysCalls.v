@@ -148,7 +148,7 @@ Proof.
     eapply HT_compose; try eapply swap_spec.
     eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply genIsPointer_spec.
-    eapply ifNZ_spec_existential.
+    eapply ifNZ_spec.
     - eapply HT_compose; try eapply pop_spec.
       eapply HT_compose; try eapply pop_spec.
       eapply HT_compose; try eapply pop_spec.

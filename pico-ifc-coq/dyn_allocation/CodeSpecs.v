@@ -438,7 +438,7 @@ Proof.
   do 5 eexists; intuition; eauto.
 Qed.
 
-Lemma alloc_spec_wp : forall Q : memory -> stack -> Prop,  (* the annotation on Q is crucial *)
+Lemma alloc_spec : forall Q : memory -> stack -> Prop,  (* the annotation on Q is crucial *)
   HT [Alloc]
      (fun m0 s0 => exists s t xv xl cnt,
                      s0 = (Vint cnt,t) ::: (xv, xl) ::: s /\
@@ -612,26 +612,7 @@ Proof.
   auto.
 Qed.
 
-Lemma ifNZ_spec: forall v l t f Pt Pf Q,
-  HT   t Pt Q ->
-  HT   f Pf Q ->
-  HT   (ifNZ t f)
-       (fun m s => (exists s', s = CData (Vint v,l) :: s' /\
-                                   (v <> 0 -> Pt m s') /\
-                                   (v =  0 -> Pf m s')))
-       Q.
-Proof.
-  intros v l t f Pt Pf Q HTt HTf.
-  eapply HT_strengthen_premise.
-  eapply ifNZ_spec_helper; eauto.
-  intros m s [s' [s_eq [HNZ HZ]]].
-  destruct (dec_eq v 0); subst; intuition;
-    eexists; intuition eauto.
-Qed.
-
-(* I need to existentially bind [v] for the [ite_spec]. May have been
-   easier to use existentials from the beginning ... *)
-Lemma ifNZ_spec_existential: forall t f Pt Pf Q,
+Lemma ifNZ_spec: forall t f Pt Pf Q,
   HT   t Pt Q ->
   HT   f Pf Q ->
   HT   (ifNZ t f)
@@ -641,13 +622,14 @@ Lemma ifNZ_spec_existential: forall t f Pt Pf Q,
        Q.
 Proof.
   intros t f Pt Pf Q HTt HTf.
-  eapply HT_forall_exists.
-  intro v.
-  eapply HT_forall_exists.
-  intro l.
-  apply ifNZ_spec.
-  auto.
-  auto.
+  eapply HT_forall_exists. intros v.
+  eapply HT_forall_exists. intros l.
+  eapply HT_forall_exists. intros s'.
+  eapply HT_strengthen_premise.
+  eapply ifNZ_spec_helper; eauto.
+  intros m s (? & H1 & H2). subst.
+  destruct (dec_eq v 0); subst; intuition;
+    eexists; intuition eauto.
 Qed.
 
 (* Might make more sense to make [Qc] be the thing that [Qc] implies
@@ -667,7 +649,7 @@ Proof.
   unfold ite.
   eapply HT_compose.
   apply HTc.
-  apply ifNZ_spec_existential.
+  apply ifNZ_spec.
   auto.
   auto.
 Qed.
@@ -1877,7 +1859,7 @@ Proof.
   eapply HT_strengthen_premise with (fun m s => exists i' t s', s = (Vint i',t)::: s' /\
                                            (i' <> 0 -> Q i m s') /\
                                            (i' = 0 -> Q0 m s')).
-  eapply ifNZ_spec_existential with (Pt := Q i) (Pf := Q0).
+  eapply ifNZ_spec with (Pt := Q i) (Pf := Q0).
   destruct (Z.eq_dec i 0). unfold CodeTriples.HT. intros. destruct H1 as [i' [t [s'' [_ [_ [CONTRA _]]]]]].  exfalso; omega.
   eapply HT_strengthen_premise.
   eapply loopNZ_spec.

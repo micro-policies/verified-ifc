@@ -883,7 +883,7 @@ Proof.
   rewrite Har_eq.
   unfold genStoreResults.
   eapply HT_strengthen_premise.
-  eapply ifNZ_spec_existential.
+  eapply ifNZ_spec.
   eapply HT_compose_flip.
   eapply HT_compose_flip.
   eapply genTrue_spec_wp; eauto.
@@ -916,7 +916,7 @@ Proof.
   unfold genStoreResults.
 
   eapply HT_strengthen_premise.
-  eapply ifNZ_spec_existential.
+  eapply ifNZ_spec.
 
 
   eapply HT_compose_flip.

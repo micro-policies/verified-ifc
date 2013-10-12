@@ -362,7 +362,7 @@ Proof.
   unfold alloc_array.
   Opaque Z.add. (* not sure why this is necessary this time *)
   unfold alloc_array.
-  build_vc ltac: (try apply alloc_spec_wp; eauto).
+  build_vc ltac: (try apply alloc_spec; eauto).
   intros m s (cnt & t & s0 & ? & ? & H).
   subst. simpl.
   clear stamp_cblock.
