@@ -236,38 +236,7 @@ Proof.
   eapply cstep_push_cache_ptr_p; eauto.
 Qed.
 
-Lemma push_cptr_spec_I: forall v I,
-  HT (push_cptr v)
-     I
-     (fun m s => match s with
-                   | CData (Vptr b addr,t)::tl => I m tl /\ b = cblock /\ addr = v /\ t = handlerTag
-                   | _ => False
-                 end).
-Proof.
-  intros.
-  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
-  eexists.
-  eexists.
-
-  (* Load an instruction *)
-  subst.
-  unfold push_cptr, code_at in *.
-  intuition.
-  Focus 2.
-  (* Run an instruction *)
-  do 3 try (eapply rte_step); eauto.
-  eapply cstep_push_cache_ptr_p; eauto.
-  reflexivity.
-  eapply cstep_push_p; eauto.
-  reflexivity.
-  simpl.
-  replace (fh0 + 3) with (fh0 + 1 + 1 + 1) by omega.
-  eapply cstep_add_p; eauto.
-  reflexivity.
-  simpl. intuition omega.
-Qed.
-
-Lemma push_cptr_spec_wp :
+Lemma push_cptr_spec :
   forall v Q,
     HT (push_cptr v)
        (fun m s => Q m ((Vptr cblock v, handlerTag) ::: s))
@@ -396,41 +365,6 @@ Proof.
   eapply load_spec_wp.
 Qed.
 
-Lemma push_cptr_spec: forall ofs, forall m0 s0,
-  HT (push_cptr ofs)
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = CData (Vptr cblock ofs,handlerTag) :: s0).
-Proof.
-  intros.
-  eapply HT_strengthen_premise.
-  { replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
-    eapply HT_compose; try eapply PushCachePtr_spec.
-    eapply HT_compose; try eapply push_spec.
-    eapply add_spec. }
-  simpl.
-  intros m s (? & ?). subst.
-  repeat eexists.
-  repeat f_equal; omega.
-Qed.
-
-Lemma push_cptr_spec': forall ofs P,
-  HT (push_cptr ofs)
-     P
-     (fun m s => head s = Some (CData (Vptr cblock ofs,handlerTag)) /\
-                            P m (tail s)).
-Proof.
-  intros.
-  eapply HT_strengthen_premise.
-  { replace (push_cptr ofs) with ([PushCachePtr]++[Push ofs]++[Add]) by auto.
-    eapply HT_compose; try eapply PushCachePtr_spec.
-    eapply HT_compose; try eapply push_spec.
-    eapply add_spec. }
-  simpl.
-  intros.
-  repeat eexists; eauto. unfold value.
-  repeat f_equal; omega.
-Qed.
-
 Lemma unpack_spec_wp : forall Q,
   HT [Unpack]
      (fun m s => exists x l s0,
@@ -482,11 +416,10 @@ Lemma loadFromCache_spec: forall ofs x, forall m0 s0,
      (fun m s => m = m0 /\ s = CData x :: s0).
 Proof.
   intros.
-  eapply HT_compose.
-  eapply push_cptr_spec.
-  eapply load_spec.
-  eauto.
-  apply stamp_cblock.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply push_cptr_spec.
+    eapply load_spec; eauto. }
+  intros m s (? & ?). subst. eauto.
 Qed.
 
 Lemma loadFromCache_spec_I: forall a v I,
@@ -501,15 +434,12 @@ Lemma loadFromCache_spec_I: forall a v I,
         end).
 Proof.
   intros.
-  eapply HT_compose.
-  eapply push_cptr_spec_I.
-  simpl.
   eapply HT_strengthen_premise.
-  eapply load_spec_I with (b := cblock) (a:= a) (v:= v) (I:= I) ; eauto.
-  intros.
-  destruct s; try solve [intuition].
-  destruct c; try solve [intuition].
-  destruct a0 as [[?|b addr] t]; try solve [intuition].
+  { eapply HT_compose; try eapply push_cptr_spec.
+    eapply load_spec_wp'. }
+  simpl.
+  intros m s [[t H] INV].
+  repeat eexists; eauto. split; eauto.
 Qed.
 
 Lemma pop_spec: forall v vl, forall m0 s0,
@@ -748,16 +678,10 @@ Lemma storeAt_spec: forall a v vl m s,
                    store cblock a (v,vl) m = Some m1).
 Proof.
   intros.
-  eapply HT_compose.
-  eapply HT_consequence'.
-  eapply push_cptr_spec.
-  intuition; eauto.
-  intuition; eauto.
-  Focus 2. (* Eeek! *)
-  eapply store_spec.
-  apply stamp_cblock.
-  intuition; eauto.
-  jauto.
+  eapply HT_strengthen_premise.
+  - eapply HT_compose; try eapply push_cptr_spec.
+    eapply store_spec. eauto.
+  - intuition; eauto. subst. eauto.
 Qed.
 
 
@@ -771,18 +695,10 @@ Lemma storeAt_spec_wp: forall a vl Q,
      Q.
 Proof.
   intros.
-  eapply HT_compose.
-  eapply push_cptr_spec'.
   eapply HT_strengthen_premise.
-  eapply store_spec_wp.
-  apply stamp_cblock.
-  intuition; eauto.
-  destruct s0; simpl in *.
-  - false.
-  - subst.
-    unfold value in *.
-    inversion H0; subst.
-    reflexivity.
+  { eapply HT_compose; try eapply push_cptr_spec.
+    eapply store_spec_wp; eauto. }
+  intuition; eauto. subst. eauto.
 Qed.
 
 Lemma alloc_spec_wp : forall Q : memory -> stack -> Prop,  (* the annotation on Q is crucial *)

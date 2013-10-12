@@ -882,7 +882,7 @@ Proof.
   eapply store_spec_wp'; eauto.
   unfold push.
   eapply HT_strengthen_premise.
-  eapply push_cptr_spec_wp.
+  eapply push_cptr_spec.
 
   intuition; eauto. destruct H as [vl [s0 [m0 Hint]]]. intuition; substs.
   do 5 eexists; intuition; eauto.
