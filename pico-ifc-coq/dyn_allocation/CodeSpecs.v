@@ -1120,73 +1120,22 @@ Proof.
       rewrite val_eq_int. rewrite Z.eqb_sym. eauto.
 Qed.
 
-Lemma genImpl_spec: forall b1 t1 b2 t2, forall m0 s0,
-  HT genImpl
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),t1) ::
-                               CData (Vint (boolToZ b2),t2) :: s0)
-     (fun m s => m = m0 /\ exists t, s = CData (Vint (boolToZ (implb b1 b2)),t) :: s0).
-Proof.
-  intros.
-  eapply HT_strengthen_premise.
-  unfold genImpl.
-  eapply HT_compose; try eapply genNot_spec.
-  eapply genOr_spec.
-  simpl.
-  intros m s (? & ?). subst.
-  do 3 eexists. split; eauto. intros t'.
-  do 5 eexists. split; eauto.
-  intros t. split; eauto.
-  destruct b1, b2; eexists; eauto.
-Qed.
-
-Lemma genTestEqual_spec_I: forall c1 c2, forall v1 v2, forall m0,
-  (forall I (Hext: extension_comp I),
-     HT c1
-        (fun m s => extends m0 m /\ I m s)
-        (fun m s => match s with
-                        | (z1,t):::tl =>
-                          v1 = z1 /\ extends m0 m /\ I m tl
-                        | _ => False
-                    end)) ->
-  (forall I (Hext: extension_comp I),
-     HT c2
-        (fun m s => extends m0 m /\ I m s)
-        (fun m s => match s with
-                      | (z2,t)::: tl =>
-                        extends m0 m /\ v2 = z2 /\ I m tl
-                      | _ => False
-                    end)) ->
-  (forall I (Hext: extension_comp I),
-     HT (genTestEqual c1 c2)
-        (fun m s => extends m0 m /\ I m s)
-        (fun m s => match s with
-                      | (z,t)::: tl =>
-                        extends m0 m /\ val_eq v2 v1 = z /\
-                        I m tl
-                      | _ => False
-                    end)).
+Lemma genTestEqual_spec:
+  forall c1 c2 (P Q R : HProp),
+    HT c2 Q (fun m s => exists v1 t1 v2 t2 s0,
+                          s = (v1,t1) ::: (v2,t2) ::: s0 /\
+                          forall t',
+                            R m ((val_eq v1 v2, t') ::: s0)) ->
+    HT c1 P Q ->
+    HT (genTestEqual c1 c2) P R.
 Proof.
   intros.
   unfold genTestEqual.
-  eapply HT_compose.
-  eapply H; auto.
-  eapply HT_compose.
-  eapply HT_strengthen_premise.
-  eapply H0 with
-  (I:= fun m s =>  match s with
-                     | (z1,t1):::tl =>
-                       z1 = v1 /\
-                       I m tl /\ extends m0 m
-                     | _ => False
-                   end).
-  unfold extension_comp, extends.
-  intros; intuition. go_match.
-  go_match.
-  eapply HT_strengthen_premise.
-  { eapply genEq_spec. }
-  intros.
-  go_match.
-  split_vc.
+  eapply HT_compose; eauto.
+  eapply HT_compose; eauto.
+  eapply HT_strengthen_premise; try eapply genEq_spec.
+  intros m s (v1 & t1 & v2 & t2 & s0 & ? & ?). subst.
+  repeat eexists. eauto.
 Qed.
 
 Lemma HT_compose_bwd:

@@ -651,27 +651,22 @@ Proof.
   destruct initial_m0.
   inv Hhandler. intuition.
   unfold genCheckOp.
-  eapply HT_weaken_conclusion.
-  eapply genTestEqual_spec_I; try assumption. intros I' HextI'.
   eapply HT_strengthen_premise.
-  eapply push_spec.
+  { eapply genTestEqual_spec.
+    - eapply loadFromCache_spec; eauto.
+    - eapply push_spec; eauto. }
   go_match. intuition eauto.
-  intros I' HextI'.
-  eapply HT_strengthen_premise.
-  eapply loadFromCache_spec; eauto.
-  go_match.
-  eexists. split; eauto. intuition eauto using extension_comp_value_on_cache.
-  go_match. intuition.
-  go_match.
-  simpl.
-  intuition.
+  eexists. split; eauto.
+  intros t.
+  do 5 eexists. split; eauto. intros _.
+  split; eauto.
   destruct (EquivDec.equiv_dec (Vint (opCodeToZ opcode))
                                (Vint (opCodeToZ opcode'))) as [E|E]; simpl in E.
   - inv E.
-    rewrite Z.eqb_refl. reflexivity.
+    rewrite Z.eqb_refl. split; eauto.
   - assert (NEQ : opCodeToZ opcode' <> opCodeToZ opcode) by congruence.
     rewrite <- Z.eqb_neq in NEQ.
-    rewrite NEQ. reflexivity.
+    rewrite NEQ. split; eauto.
 Qed.
 
 Lemma genCheckOp_spec_GT_ext:
