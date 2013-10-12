@@ -974,23 +974,7 @@ Definition valToBool (v : val) :=
     | _ => true
   end.
 
-Lemma genEq_spec: forall v1 t1 v2 t2 m0 s0,
-  HT genEq
-     (fun m s => m = m0 /\ s = (v1,t1):::(v2,t2):::s0)
-     (fun m s => m = m0 /\ s = (val_eq v1 v2,handlerTag):::s0).
-Proof.
-  intros. unfold genEq.
-  intros imem stk0 mem0 fh n n' CODE [? ?] Hn'. subst.
-  simpl in CODE. destruct CODE as [CODE _].
-
-  repeat eexists.
-
-  eapply rte_step; eauto.
-
-  eapply cstep_eq_p; eauto.
-Qed.
-
-Lemma genEq_spec_wp : forall Q : memory -> stack -> Prop,
+Lemma genEq_spec : forall Q : memory -> stack -> Prop,
   HT genEq
      (fun m s => exists v1 t1 v2 t2 m0 s0 ,
                    m = m0 /\ (* tedious trick again *)
@@ -998,17 +982,16 @@ Lemma genEq_spec_wp : forall Q : memory -> stack -> Prop,
                    Q m0 ((val_eq v1 v2,handlerTag):::s0))
      Q.
 Proof.
-  intros.
-  eapply HT_forall_exists. intro v1.
-  eapply HT_forall_exists. intro t1.
-  eapply HT_forall_exists. intro v2.
-  eapply HT_forall_exists. intro t2.
-  eapply HT_forall_exists. intro m0.
-  eapply HT_forall_exists. intro s0.
-  eapply HT_consequence'.
-  eapply genEq_spec; eauto.
-  intros. simpl. jauto.
-  intros. destruct H as [m' [s' [? [? ?]]]]. simpl in H0. destruct H0. subst.  auto.
+  intros. unfold genEq.
+  intros imem stk0 mem0 fh n n' CODE PRE Hn'. subst.
+  simpl in CODE. destruct CODE as [CODE _].
+  destruct PRE as (v1 & t1 & v2 & t2 & m0 & s0 & H1 & H2 & H3). subst.
+
+  repeat eexists; eauto.
+
+  eapply rte_step; eauto.
+
+  eapply cstep_eq_p; eauto.
 Qed.
 
 Lemma val_eq_int :
@@ -1053,14 +1036,14 @@ Proof.
   unfold genAnd.
   destruct b1; eapply HT_strengthen_premise.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
     apply nop_spec.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
     rewrite val_eq_int. reflexivity.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply HT_compose; [eapply pop_spec|].
     eapply genFalse_spec_wp.
@@ -1090,7 +1073,7 @@ Proof.
   unfold genAnd.
   destruct b1; eapply HT_strengthen_premise.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
     apply nop_spec.
   - go_match.
@@ -1098,7 +1081,7 @@ Proof.
     + rewrite val_eq_int. reflexivity.
     + simpl. eauto.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply HT_compose; [eapply pop_spec|].
     eapply genFalse_spec_wp.
@@ -1121,7 +1104,7 @@ Proof.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       apply nop_spec.
     + intros m s [H1 H2]. subst.
@@ -1132,7 +1115,7 @@ Proof.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply HT_compose; try eapply pop_spec.
       eapply genFalse_spec_wp.
@@ -1177,7 +1160,7 @@ Proof.
   unfold genOr.
   destruct b1; eapply HT_strengthen_premise.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_Z with (v:=0); try omega.
     eapply HT_compose; try eapply pop_spec.
     eapply genTrue_spec_wp.
@@ -1186,7 +1169,7 @@ Proof.
     rewrite val_eq_int. simpl.
     repeat (eexists; try split; eauto).
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply nop_spec.
   - intros m s [H1 H2]. subst.
@@ -1215,7 +1198,7 @@ Proof.
   unfold genAnd.
   destruct b1; eapply HT_strengthen_premise.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
     eapply HT_compose; [eapply pop_spec|].
     eapply genTrue_spec_wp.
@@ -1223,7 +1206,7 @@ Proof.
     repeat (eexists; try split; eauto).
     + rewrite val_eq_int. reflexivity.
   - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec_wp|].
+    eapply HT_compose; [eapply genEq_spec|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
     eapply nop_spec.
   - go_match.
@@ -1246,7 +1229,7 @@ Proof.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       eapply HT_compose; try eapply pop_spec.
       eapply genTrue_spec_wp.
@@ -1259,7 +1242,7 @@ Proof.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply HT_compose; try eapply genEq_spec_wp.
+      eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply nop_spec.
     + intros m s [H1 H2]. subst.
@@ -1304,14 +1287,14 @@ Proof.
   - apply Z.eqb_eq in Heq. subst.
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply genEq_spec_wp.
+      eapply genEq_spec.
     + intros m s [H1 H2]. subst.
       do 6 eexists.
       repeat (split; eauto).
       rewrite val_eq_int. reflexivity.
   - eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply genEq_spec_wp.
+      eapply genEq_spec.
     + intros m s [H1 H2]. subst.
       do 6 eexists.
       repeat (split; eauto).
@@ -1337,14 +1320,14 @@ Proof.
   - apply Z.eqb_eq in Heq. subst.
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply genEq_spec_wp.
+      eapply genEq_spec.
     + go_match.
       do 6 eexists.
       repeat (split; eauto).
       destruct (equiv_dec (Vint 0) (Vint 0)); congruence.
   - eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
-      eapply genEq_spec_wp.
+      eapply genEq_spec.
     + go_match.
       do 6 eexists.
       repeat (split; eauto).
@@ -1475,7 +1458,7 @@ Proof.
   intros; intuition. go_match.
   go_match.
   eapply HT_strengthen_premise.
-  { eapply genEq_spec_wp. }
+  { eapply genEq_spec. }
   intros.
   go_match.
   split_vc.
@@ -2109,7 +2092,7 @@ Proof.
         eapply HT_strengthen_premise.
         { eapply HT_compose; try apply dup_spec.
           eapply HT_compose; try apply dup_spec.
-          eapply HT_compose; try apply genEq_spec_wp.
+          eapply HT_compose; try apply genEq_spec.
           eapply genNot_spec_wp. }
         simpl.
         intros m s (n & (z & b & off & s0 & t1 & t2 & t3 & H1 & H2 & H3) & POST). subst.

@@ -94,7 +94,7 @@ Proof.
   { eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply sub_spec.
     eapply HT_compose; try eapply push_spec.
-    eapply HT_compose; try eapply genEq_spec_wp; eauto.
+    eapply HT_compose; try eapply genEq_spec; eauto.
     eapply genNot_spec_wp; eauto. }
   intros m s (v & t & s0 & ? & POST). subst. simpl.
   destruct (sub_diag_isPointer v) as (v' & E1 & E2).
