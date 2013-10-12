@@ -429,10 +429,11 @@ Proof.
 
   go_match.
 
-  eapply HT_consequence.
-  eapply (genAnd_spec_I) with (I:= fun m s => extends m0 m /\ I m s) ; eauto.
+  eapply HT_strengthen_premise.
+  { eapply genAnd_spec. }
   go_match.
-  go_match.
+  do 5 eexists. split; eauto. intros _.
+  destruct (eval_cond eval_var c1) eqn:E1; simpl; eauto.
 
     (* OR *)
   eapply HT_compose.

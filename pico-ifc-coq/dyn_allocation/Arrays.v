@@ -939,7 +939,7 @@ Proof.
     split_vc.
   - intro.
     eapply HT_compose_flip.
-    eapply genAnd_spec_general_wp; eauto.
+    eapply genAnd_spec; eauto.
     eapply HT_strengthen_premise; solve [split_vc].
   - split_vc. rewrite boolToVal_forallb in H3. auto.
 Qed.

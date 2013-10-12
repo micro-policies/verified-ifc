@@ -1006,81 +1006,22 @@ Proof.
     rewrite E'. reflexivity.
 Qed.
 
-Lemma genAnd_spec: forall b1 t1 b2 t2, forall m0 s0,
-  HT genAnd
-     (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
-        [b1] is [true]. *)
-     (fun m s => m = m0 /\ s = CData (Vint (boolToZ b1),t1) ::
-                               CData (Vint (boolToZ b2),t2) :: s0)
-     (fun m s => m = m0 /\ exists t, s = CData (Vint (boolToZ (andb b1 b2)),t) :: s0).
-Proof.
-  intros.
-  unfold genAnd.
-  destruct b1; eapply HT_strengthen_premise.
-  - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec|].
-    eapply ifNZ_spec_Z with (v:=0); eauto.
-    apply nop_spec.
-  - intros m s [H1 H2]. subst.
-    repeat (eexists; try split; eauto).
-    rewrite val_eq_int. reflexivity.
-  - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec|].
-    eapply ifNZ_spec_NZ with (v:=1); try congruence.
-    eapply HT_compose; [eapply pop_spec|].
-    eapply genFalse_spec.
-  - intros m s [H1 H2]. subst.
-    repeat (eexists; try split; eauto).
-    rewrite val_eq_int. reflexivity.
-Qed.
-
-Lemma genAnd_spec_I: forall b1 b2, forall I,
-  HT genAnd
-     (fun m s =>
-        match s with
-          | CData (Vint z1 ,t1) ::CData (Vint z2,t2) :: tl =>
-            z1 = boolToZ b1 /\ z2 = boolToZ b2 /\
-            I m tl
-          | _ => False
-        end)
-     (fun m s =>
-        match s with
-          | CData (Vint z,t) :: tl =>
-            z = boolToZ (andb b1 b2) /\
-            I m tl
-          | _ => False
-        end).
-Proof.
-  intros.
-  unfold genAnd.
-  destruct b1; eapply HT_strengthen_premise.
-  - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec|].
-    eapply ifNZ_spec_Z with (v:=0); eauto.
-    apply nop_spec.
-  - go_match.
-    repeat (eexists; try split; eauto).
-    + rewrite val_eq_int. reflexivity.
-    + simpl. eauto.
-  - eapply HT_compose; [eapply push_spec|].
-    eapply HT_compose; [eapply genEq_spec|].
-    eapply ifNZ_spec_NZ with (v:=1); try congruence.
-    eapply HT_compose; [eapply pop_spec|].
-    eapply genFalse_spec.
-  - go_match.
-    repeat (eexists; try split; eauto).
-    rewrite val_eq_int. reflexivity.
-Qed.
-
 Definition andv (v1 v2 : val) : val :=
   if valToBool v1 then v2 else Vint 0.
 
-Lemma genAnd_spec_general : forall v1 t1 v2 t2, forall m0 s0,
+Lemma genAnd_spec: forall (Q:memory -> stack -> Prop),
   HT genAnd
-     (fun m s => m = m0 /\ s = (v1,t1):::(v2,t2):::s0)
-     (fun m s => m = m0 /\ exists t, s = (andv v1 v2,t):::s0).
+     (fun m s => exists v1 t1 v2 t2 s0,
+                   s = (v1,t1):::(v2,t2):::s0 /\
+                   forall t, Q m ((andv v1 v2,t):::s0))
+     Q.
 Proof.
   intros.
+  eapply HT_forall_exists.  intro v1.
+  eapply HT_forall_exists.  intro t1.
+  eapply HT_forall_exists.  intro v2.
+  eapply HT_forall_exists.  intro t2.
+  eapply HT_forall_exists.  intro s0.
   unfold genAnd, andv.
   destruct (valToBool v1) eqn:E.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
@@ -1104,32 +1045,6 @@ Proof.
     + intros m s [H1 H2]. subst.
       do 6 eexists. do 2 (split; eauto).
       do 2 eexists. rewrite val_eq_int. split; eauto.
-      do 3 eexists. repeat (split; eauto).
-Qed.
-
-Lemma genAnd_spec_general_wp : forall (Q:memory -> stack -> Prop),
-  HT genAnd
-     (fun m s => exists v1 t1 v2 t2 s0,
-                   s = (v1,t1):::(v2,t2):::s0 /\
-                   forall t, Q m ((andv v1 v2,t):::s0))
-     Q.
-Proof.
-  intros.
-  eapply HT_strengthen_premise with
-     (fun m s => exists v1 t1 v2 t2 s0 m0,
-                   s = (v1,t1):::(v2,t2):::s0 /\ m = m0 /\
-                   forall t, Q m0 ((andv v1 v2,t):::s0)).
-  eapply HT_forall_exists.  intro v1.
-  eapply HT_forall_exists.  intro t1.
-  eapply HT_forall_exists.  intro v2.
-  eapply HT_forall_exists.  intro t2.
-  eapply HT_forall_exists.  intro s0.
-  eapply HT_forall_exists.  intro m1.
-  eapply HT_consequence'.
-  eapply genAnd_spec_general.
-  split_vc.
-  split_vc. subst. eauto.
-  split_vc.
 Qed.
 
 Lemma genOr_spec: forall b1 t1 b2 t2, forall m0 s0,
