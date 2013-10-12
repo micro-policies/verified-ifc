@@ -453,10 +453,10 @@ Proof.
   intuition; eauto. go_match.
   go_match.
 
-  eapply HT_consequence.
-  eapply (genOr_spec_I) with (I:= fun m s => extends m0 m /\ I m s) ; eauto.
+  eapply HT_strengthen_premise; try eapply genOr_spec.
   go_match.
-  go_match.
+  do 5 eexists. split; eauto. intros _.
+  destruct (eval_cond eval_var c1) eqn:E1; simpl; eauto.
 Qed.
 
 (* XXX: how to best model [option]s and monadic sequencing in the code

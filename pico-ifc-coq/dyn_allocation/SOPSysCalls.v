@@ -95,7 +95,7 @@ Proof.
     eapply HT_compose; try eapply sub_spec.
     eapply HT_compose; try eapply push_spec.
     eapply HT_compose; try eapply genEq_spec; eauto.
-    eapply genNot_spec_wp; eauto. }
+    eapply genNot_spec; eauto. }
   intros m s (v & t & s0 & ? & POST). subst. simpl.
   destruct (sub_diag_isPointer v) as (v' & E1 & E2).
   eexists. split; eauto.
@@ -103,7 +103,8 @@ Proof.
   do 6 eexists. do 2 (split; eauto).
   rewrite E2. unfold boolToVal.
   do 3 eexists. split; eauto.
-  intros. rewrite Bool.negb_involutive. eauto.
+  intros.
+  destruct v; eauto.
 Qed.
 
 Definition joinPbody :=      (* a p *)

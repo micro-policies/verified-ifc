@@ -875,7 +875,7 @@ Proof.
     split_vc.
   - intro.
     eapply HT_compose_flip.
-    eapply genOr_spec_general_wp; eauto.
+    eapply genOr_spec; eauto.
     eapply HT_strengthen_premise.
     eapply H.
     split_vc.
