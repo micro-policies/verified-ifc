@@ -353,57 +353,7 @@ Proof.
   repeat eexists; eauto.
 Qed.
 
-Lemma pop_spec: forall v vl, forall m0 s0,
-  HT [Pop]
-     (fun m s => m = m0 /\ s = CData (v,vl) :: s0)
-     (fun m s => m = m0 /\ s = s0).
-Proof.
-  unfold CodeTriples.HT.
-  intros.
-  eexists.
-  eexists.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_pop_p; eauto.
-Qed.
-
-Lemma pop_spec_I: forall v I,
-  HT [Pop]
-     (fun m s => match s with
-                     | CData (Vint z,l) :: tl => v = z /\ I m tl
-                     | _ => False
-                 end)
-     (fun m s => I m s).
-Proof.
-  unfold CodeTriples.HT.
-  intros.
-  subst. simpl.
-  destruct stk0 as [| a tl]; try solve [intuition].
-  destruct a as [z l|]; try solve [intuition].
-  destruct z.
-  destruct v0; try solve [intuition].
-  intuition. subst.
-  eexists.
-  eexists.
-  intuition.
-
-  Focus 2.
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_pop_p; eauto.
-  eauto.
-Qed.
-
-Lemma pop_spec_wp: forall Q,
+Lemma pop_spec: forall Q,
   HT [Pop]
      (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
      Q.
@@ -1380,7 +1330,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
-    eapply HT_compose; [eapply pop_spec_wp|].
+    eapply HT_compose; [eapply pop_spec|].
     eapply genFalse_spec_wp.
   - intros m s [H1 H2]. subst.
     repeat (eexists; try split; eauto).
@@ -1418,7 +1368,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_NZ with (v:=1); try congruence.
-    eapply HT_compose; [eapply pop_spec_wp|].
+    eapply HT_compose; [eapply pop_spec|].
     eapply genFalse_spec_wp.
   - go_match.
     repeat (eexists; try split; eauto).
@@ -1452,7 +1402,7 @@ Proof.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
-      eapply HT_compose; try eapply pop_spec_wp.
+      eapply HT_compose; try eapply pop_spec.
       eapply genFalse_spec_wp.
     + intros m s [H1 H2]. subst.
       do 6 eexists. do 2 (split; eauto).
@@ -1497,7 +1447,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); try omega.
-    eapply HT_compose; try eapply pop_spec_wp.
+    eapply HT_compose; try eapply pop_spec.
     eapply genTrue_spec_wp.
   - intros m s [H1 H2]. subst.
     do 6 eexists. do 2 (split; eauto).
@@ -1535,7 +1485,7 @@ Proof.
   - eapply HT_compose; [eapply push_spec|].
     eapply HT_compose; [eapply genEq_spec_wp|].
     eapply ifNZ_spec_Z with (v:=0); eauto.
-    eapply HT_compose; [eapply pop_spec_wp|].
+    eapply HT_compose; [eapply pop_spec|].
     eapply genTrue_spec_wp.
   - go_match.
     repeat (eexists; try split; eauto).
@@ -1566,7 +1516,7 @@ Proof.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec_wp.
       eapply ifNZ_spec_Z with (v:=0); eauto.
-      eapply HT_compose; try eapply pop_spec_wp.
+      eapply HT_compose; try eapply pop_spec.
       eapply genTrue_spec_wp.
     + intros m s [H1 H2]. subst.
       do 6 eexists. do 2 (split; eauto).
@@ -2453,7 +2403,7 @@ Proof.
         zify. omega. }
     eapply HT_strengthen_premise.
     { eapply HT_compose; try eapply swap_spec.
-      eapply HT_compose; eapply pop_spec_wp. }
+      eapply HT_compose; eapply pop_spec. }
     intros m s (n & (z & b & off & s0 & t1 & t2 & t3 & ? & ? & POST) & COND). subst.
     simpl.
     do 4 eexists. repeat (split; eauto).

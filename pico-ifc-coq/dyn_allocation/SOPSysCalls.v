@@ -133,23 +133,6 @@ Hint Resolve extends_refl.
 Hint Resolve extends_trans.
 Hint Resolve extends_valid_address.
 
-Ltac apply_wp :=
-  (*try unfold pop, nop, push, dup, swap;*)
-  match goal with
-  | |- HT _ _ [Store] _ _ => eapply store_spec_wp'
-  | |- HT _ _ [Add] _ _  => eapply add_spec
-  | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec
-  | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec
-  | |- HT _ _ [Load] _ _ => eapply load_spec
-  | |- HT _ _ [Push ?N] _ _ => eapply push_spec
-  | |- HT _ _ [Pop] _ _ => eapply pop_spec_wp
-  end;
-  simpl.
-
-Ltac build_vc wptac :=
-  let awp := (try apply_wp; try wptac) in
-  try (eapply HT_compose_flip; [(build_vc wptac; awp)| (awp; eapply HT_strengthen_premise; awp)]).
-
 Lemma sop_syscall_impls_correct :
   ctable_impl_correct (CLatt := SOPClatt cblock) cblock SOPASysTable SOPCSysTable faultHandler.
 Proof.
@@ -166,9 +149,9 @@ Proof.
     eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply genIsPointer_spec.
     eapply ifNZ_spec_existential.
-    - eapply HT_compose; try eapply pop_spec_wp.
-      eapply HT_compose; try eapply pop_spec_wp.
-      eapply HT_compose; try eapply pop_spec_wp.
+    - eapply HT_compose; try eapply pop_spec.
+      eapply HT_compose; try eapply pop_spec.
+      eapply HT_compose; try eapply pop_spec.
       eapply push_spec.
     - eapply HT_compose; try eapply unpack_spec.
       eapply HT_compose; try eapply swap_spec.
