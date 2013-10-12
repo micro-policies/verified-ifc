@@ -263,77 +263,21 @@ Proof.
   assumption.
 Qed.
 
-Lemma load_spec: forall b ofs al x, forall m0 s0,
-  load b ofs m0 = Some x ->
-  Mem.stamp b = Kernel ->
+Lemma load_spec : forall Q,
   HT [Load]
-     (fun m s => m = m0 /\ s = CData (Vptr b ofs,al) :: s0)
-     (fun m s => m = m0 /\ s = CData x :: s0).
-Proof.
-  intros b ofs al x m0 s0  Hmem.
-  intros imem stk0 c0 fh0 n n' Hcode HP' Hn'.
-  eexists.
-  eexists.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help. econstructor; auto.
-  eapply cstep_load_p; eauto.
-Qed.
-
-Lemma load_spec_I: forall b a v I,
-  HT [Load]
-     (fun m s =>
-        match s with
-            | CData (Vptr b' a',al) :: tl =>
-              b' = b /\ a' = a /\
-              Mem.stamp b = Kernel /\
-              value_on_cache b m a v /\ (* This works, even though the name is slightly misleading *)
-              I m tl
-            | _ => False
-        end)
-     (fun m s =>
-        match s with
-            | CData (z,t) :: tl =>
-              v = z /\ I m tl
-            | _ => False
-        end).
-Proof.
-  intros b a v I. unfold CodeTriples.HT.
-  intros fh stk0 mem imem pc n Hcode HP' Hn'.
-  subst.
-  destruct stk0 as [| hd tl]; try solve [intuition].
-  destruct hd as [a' |]; try solve [intuition].
-  destruct a' as [a' ].
-  destruct a' as [|b' a']; intuition. subst.
-  destruct H2.
-  eexists. eexists.
-  simpl in *.
-  intuition.
-
-  Focus 2.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_load_p; eauto.
-  simpl. auto.
-Qed.
-
-Lemma load_spec_wp: forall b off t x Q,
-  forall s,
-  HT [Load]
-     (fun m s0 => s0 = (Vptr b off,t) ::: s /\
-                  Mem.stamp b = Kernel /\
-                  load b off m = Some x /\
-                  Q m (x ::: s))
+     (fun m s0 => exists b off t x s,
+                    s0 = (Vptr b off,t) ::: s /\
+                    Mem.stamp b = Kernel /\
+                    load b off m = Some x /\
+                    Q m (x ::: s))
      Q.
 Proof.
-  intros b off t x Q s.
+  intros. eapply HT_forall_exists.
+  intros b. eapply HT_forall_exists.
+  intros off. eapply HT_forall_exists.
+  intros t. eapply HT_forall_exists.
+  intros x. eapply HT_forall_exists.
+  intros s0.
   intros imem mem0 stk0 fh0 n n' Hcode HP' Hn'.
   eexists.
   eexists.
@@ -348,22 +292,6 @@ Proof.
   eapply cstep_load_p; eauto.
 Qed.
 
-Lemma load_spec_wp': forall Q,
-  HT [Load]
-     (fun m s0 => exists b off t x s,
-                    s0 = (Vptr b off,t) ::: s /\
-                    Mem.stamp b = Kernel /\
-                    load b off m = Some x /\
-                    Q m (x ::: s))
-     Q.
-Proof.
-  intros. eapply HT_forall_exists.
-  intros. eapply HT_forall_exists.
-  intros. eapply HT_forall_exists.
-  intros. eapply HT_forall_exists.
-  intros. eapply HT_forall_exists.
-  eapply load_spec_wp.
-Qed.
 
 Lemma unpack_spec_wp : forall Q,
   HT [Unpack]
@@ -419,7 +347,8 @@ Proof.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply push_cptr_spec.
     eapply load_spec; eauto. }
-  intros m s (? & ?). subst. eauto.
+  intros m s (? & ?). subst.
+  repeat eexists; eauto.
 Qed.
 
 Lemma loadFromCache_spec_I: forall a v I,
@@ -436,7 +365,7 @@ Proof.
   intros.
   eapply HT_strengthen_premise.
   { eapply HT_compose; try eapply push_cptr_spec.
-    eapply load_spec_wp'. }
+    eapply load_spec. }
   simpl.
   intros m s [[t H] INV].
   repeat eexists; eauto. split; eauto.

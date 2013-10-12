@@ -38,7 +38,7 @@ Ltac apply_wp :=
   | |- HT _ _ [Add] _ _  => eapply add_spec
   | |- HT _ _ [Dup ?N] _ _ => eapply dup_spec
   | |- HT _ _ [Swap ?N] _ _ => eapply swap_spec
-  | |- HT _ _ [Load] _ _ => eapply load_spec_wp'
+  | |- HT _ _ [Load] _ _ => eapply load_spec
   | |- HT _ _ [Push ?N] _ _ => eapply push_spec
   | |- HT _ _ [Pop] _ _ => eapply pop_spec_wp
   end;
