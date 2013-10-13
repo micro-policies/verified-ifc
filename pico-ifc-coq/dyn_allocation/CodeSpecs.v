@@ -1138,13 +1138,6 @@ Proof.
   repeat eexists. eauto.
 Qed.
 
-Lemma HT_compose_bwd:
-  forall (c1 c2 : code) (P Q R : HProp),
-    HT c2 Q R -> HT c1 P Q -> HT (c1 ++ c2) P R.
-Proof.
-  intros; eapply HT_compose; eauto.
-Qed.
-
 (* ********* Specifications for loops **************** *)
 
 (* Several different versions of the spec. *)
@@ -1672,6 +1665,131 @@ Proof.
     + eapply HT_strengthen_premise.
       * eapply while_spec_end; eauto.
       * simpl. eauto.
+Qed.
+
+Require Import Coq.Init.Wf.
+Require Import Coq.Arith.Wf_nat.
+
+Lemma jump_back_spec' :
+  forall c1 c2 (P1 P2 Q R : HProp),
+    HT c1 P1 (fun m s =>
+                exists v t s',
+                  s = (Vint v, t) ::: s' /\
+                  (v = 0 /\ Q m s' \/
+                   v <> 0 /\ R m s')) ->
+    HT c2 Q P2 ->
+    HT (c1 ++ skipNZ (length c2 + 2) ++ c2 ++
+        push 1 ++ [BranchNZ (- Z.of_nat (length (c1 ++ skipNZ (length c2 + 2) ++ c2) + 1))])
+       P2 R ->
+    HT (c1 ++ skipNZ (length c2 + 2) ++ c2 ++
+        push 1 ++ [BranchNZ (- Z.of_nat (length (c1 ++ skipNZ (length c2 + 2) ++ c2) + 1))])
+       P1 R.
+Proof.
+  intros c1 c2 P1 P2 Q R HT1 HT2 HT3.
+  intros imem stk0 mem0 fh n n' CODE PRE Hn'.
+  assert (CODE1 : code_at n fh c1) by eauto using code_at_compose_1.
+  exploit code_at_compose_2; eauto. intros CODE2.
+  assert (CODE3 : code_at (n + Z.of_nat (length c1)) fh (skipNZ (length c2 + 2)))
+    by eauto using code_at_compose_1.
+  exploit HT1; eauto.
+  intros (stk1' & mem1 & (v & t & stk1 & ? & COND) & RUN).
+  destruct COND as [[Hv POST] | [Hv POST]]; subst stk1'.
+  - generalize (skipNZ_spec_Z (length c2 + 2) Q v Hv imem
+                              ((Vint v, t) ::: stk1) mem1 fh).
+    intros H. exploit H; eauto. clear H.
+    intros (stk2 & mem2 & POST' & RUN').
+    specialize (HT2 imem).
+    assert (CODE4 : code_at (n + Z.of_nat (length c1)
+                               + Z.of_nat (length (skipNZ (length c2 + 2))))
+                            fh c2)
+      by eauto using code_at_compose_1, code_at_compose_2.
+    exploit HT2; eauto.
+    intros (stk3 & mem3 & POST'' & RUN'').
+    exploit HT3; eauto.
+    intros (stk4 & mem4 & POST''' & RUN''').
+    eexists stk4, mem4. split; trivial.
+    eapply runsToEnd_trans; try eapply RUN.
+    eapply runsToEnd_trans; try eapply RUN'.
+    eapply runsToEnd_trans; try eapply RUN''.
+    eapply runsToEnd_trans; try eapply RUN'''.
+    assert (CODE5 : code_at (n + Z.of_nat (length c1)
+                               + Z.of_nat (length (skipNZ (length c2 + 2)))
+                               + Z.of_nat (length c2))
+                            fh (push 1 ++ [BranchNZ (- Z.of_nat (length (c1 ++ skipNZ (length c2 + 2) ++ c2) + 1))]))
+      by eauto using code_at_compose_1, code_at_compose_2.
+    simpl in CODE5. destruct CODE5 as (? & ? & _).
+    eapply rte_step; try reflexivity.
+    { eapply cstep_push_p; eauto. }
+    eapply rte_step; try reflexivity.
+    { eapply cstep_branchnz_p'; eauto. }
+    simpl.
+    match goal with
+      | |- runsToEnd _ _
+                     {| pc := (?pc1, _) |}
+                     {| pc := (?pc2, _) |} =>
+        cut (pc1 = pc2); try (intros E; rewrite E; eauto)
+    end.
+    clear.
+    rewrite app_length.
+    repeat rewrite Nat2Z.inj_add. simpl.
+    change (Z.pos (Pos.of_succ_nat (length c2))) with (Z.of_nat (S (length c2))).
+    rewrite Nat2Z.inj_succ.
+    omega.
+  - eexists stk1, mem1.
+    split; trivial.
+    eapply runsToEnd_trans; try eapply RUN.
+    eapply rte_step; eauto.
+    eapply cstep_branchnz_p'.
+    { simpl in CODE3. intuition. eauto. }
+    generalize (Z.eqb_spec v 0).
+    intros REFL.
+    destruct (v =? 0); inv REFL; try congruence.
+    repeat rewrite app_length. simpl.
+    zify. omega.
+Qed.
+
+Lemma while_spec' :
+  forall (I : memory -> stack -> nat -> Prop)
+         (Pc Pb Q : memory -> stack -> Prop)
+         (c b : code)
+         (VC : forall n,
+                 HT b Pb (fun m s => exists n', n' < n /\ I m s n')%nat /\
+                 HT c Pc (fun m s => exists v t s0,
+                                       s = (Vint v, t) ::: s0 /\
+                                       (v <> 0 -> Pb m s0) /\
+                                       (v = 0 -> Q m s0)) /\
+                 forall m s, I m s n -> Pc m s),
+    HT (while c b)
+       (fun m s => exists n, I m s n)
+       Q.
+Proof.
+  intros.
+  apply HT_forall_exists. intros n.
+  induction n as [n IH'] using (well_founded_ind lt_wf).
+  assert (IH : HT (while c b)
+                  (fun m s => exists n', n' < n /\ I m s n')%nat
+                  Q).
+  { apply HT_forall_exists. intro.
+    apply HT_fold_constant_premise. auto. }
+  clear IH'.
+  specialize (VC n).
+  destruct VC as (HTb & HTc & PRE).
+  eapply HT_strengthen_premise; try apply PRE.
+  clear PRE.
+  unfold while, while_body, jump_back in *.
+  repeat rewrite <- app_assoc in *.
+  repeat rewrite (app_assoc c genNot) in *.
+  eapply jump_back_spec'; eauto.
+  eapply HT_compose; eauto.
+  eapply HT_strengthen_premise; try eapply genNot_spec.
+  clear.
+  intros m s' (v & t & s & ? & H1 & H2). subst.
+  do 3 eexists. split; eauto.
+  intros.
+  do 3 eexists. split; eauto.
+  generalize (Z.eqb_spec v 0). intros REFL.
+  destruct (v =? 0); inv REFL; simpl; eauto.
+  intuition.
 Qed.
 
 Definition extract_offset_body : code :=
