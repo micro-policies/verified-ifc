@@ -977,7 +977,7 @@ Proof.
     + eapply exists_array_spec_wp with (f := fun _ _ y => if EquivDec.equiv_dec x y then true else false)
                                        (s0 := (x,t2):::s0).
       intros.
-      eapply HT_compose_flip; try eauto using genEq_spec.
+      eapply HT_compose_flip; try eapply genEq_spec.
       eapply HT_strengthen_premise; try eapply dup_spec.
       split_vc.
       unfold val_eq.

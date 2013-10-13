@@ -505,7 +505,7 @@ Proof.
   { eapply ite_spec with (Pt := fun m s =>
                                   I m s /\ extends m0 m /\ INIT_MEM m
                           );
-    try eapply some_spec; try eapply none_spec; eauto.
+    try eapply none_spec; eauto.
 
     - eapply HT_weaken_conclusion.
       eapply genScond_spec; eauto.
@@ -514,7 +514,9 @@ Proof.
       split; eauto.
       omega.
 
-    - eapply HT_compose.
+    - unfold some.
+      eapply HT_compose; try eapply push_spec.
+      eapply HT_compose.
       + eapply HT_strengthen_premise.
         eapply genExpr_spec with (I := fun m s => I m s /\ INIT_MEM m); eauto.
         * intro. go_match. intuition eauto.
