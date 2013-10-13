@@ -61,6 +61,7 @@ Variable table : CSysTable.
 Notation cstep := (cstep cblock table).
 Notation runsToEscape := (runsToEscape cblock table).
 Notation HT := (HT cblock table).
+Notation HTT := (HTT cblock table).
 Notation HTEscape := (HTEscape cblock table).
 
 (* To stop struggling with [replace]s *)
@@ -84,16 +85,15 @@ Definition state := CS.
 
 Ltac nil_help :=   replace (@nil CEvent) with (op_cons Silent (@nil CEvent)) by reflexivity.
 
-Lemma add_spec : forall Q,
-  HT [Add]
-     (fun m0 s0 =>
-        exists v1 t1 v2 t2 vr s,
-          s0 = (v1,t1) ::: (v2,t2) ::: s /\
-          add v1 v2 = Some vr /\
-          Q m0 ((vr,handlerTag) ::: s))
-     Q.
+Lemma add_spec :
+  HTT [Add]
+      (fun Q m0 s0 =>
+         exists v1 t1 v2 t2 vr s,
+           s0 = (v1,t1) ::: (v2,t2) ::: s /\
+           add v1 v2 = Some vr /\
+           Q m0 ((vr,handlerTag) ::: s)).
 Proof.
-  intros.
+  intros Q.
   eapply HT_forall_exists. intros v1.
   eapply HT_forall_exists. intros t1.
   eapply HT_forall_exists. intros v2.
@@ -119,16 +119,15 @@ Proof.
   eapply cstep_add_p; eauto.
 Qed.
 
-Lemma sub_spec : forall Q,
-  HT [Sub]
-     (fun m0 s0 =>
+Lemma sub_spec :
+  HTT [Sub]
+     (fun Q m0 s0 =>
         exists v1 t1 v2 t2 vr s,
           s0 = (v1,t1) ::: (v2,t2) ::: s /\
           Memory.sub v1 v2 = Some vr /\
-          Q m0 ((vr,handlerTag) ::: s))
-     Q.
+          Q m0 ((vr,handlerTag) ::: s)).
 Proof.
-  intros.
+  intros Q.
   eapply HT_forall_exists. intros v1.
   eapply HT_forall_exists. intros t1.
   eapply HT_forall_exists. intros v2.
@@ -154,12 +153,12 @@ Proof.
   eapply cstep_sub_p; eauto.
 Qed.
 
-Lemma dup_spec: forall P n,
-  HT   (Dup n :: nil)
-       (fun m s => exists x, index_list n s = Some x /\ P m (x :: s))
-       P.
+Lemma dup_spec:
+  forall n,
+  HTT [Dup n]
+      (fun Q m s => exists x, index_list n s = Some x /\ Q m (x :: s)).
 Proof.
-  intros P n.
+  intros n Q.
   unfold CodeTriples.HT.
   intros imem mem0 stk0 fh0 n0 n0' Hcode [x [HI HP]] Hn'.
   eexists. eexists. intuition. eauto.
@@ -173,15 +172,14 @@ Proof.
   eapply cstep_dup_p ; eauto.
 Qed.
 
-Lemma swap_spec: forall P n,
-  HT   (Swap n :: nil)
-       (fun m s => exists y s0 x s', s = y::s0 /\
-                                     index_list n s = Some x /\
-                                     update_list n y (x::s0) = Some s' /\
-                                     P m s')
-       P.
+Lemma swap_spec: forall n,
+  HTT [Swap n]
+      (fun Q m s => exists y s0 x s', s = y::s0 /\
+                                      index_list n s = Some x /\
+                                      update_list n y (x::s0) = Some s' /\
+                                      Q m s').
 Proof.
-  intros P n.
+  intros n Q.
   unfold CodeTriples.HT.
   intros imem mem0 stk0 fh0 n0 n0' Hcode [y [s0 [x [s' [HE [HI [HU HP]]]]]]] Hn'.
   eexists. eexists. intuition. eauto.
@@ -195,12 +193,11 @@ Proof.
   eapply cstep_swap_p ; eauto.
 Qed.
 
-Lemma push_spec: forall v P,
-  HT   (Push v :: nil)
-       (fun m s => P m (CData (Vint v,handlerTag) :: s))
-       P.
+Lemma push_spec: forall v,
+  HTT [Push v]
+      (fun Q m s => Q m (CData (Vint v,handlerTag) :: s)).
 Proof.
-  intros v P.
+  intros Q v.
   intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
   eexists. eexists. intuition. eauto.
 
@@ -214,11 +211,10 @@ Proof.
   eapply cstep_push_p ; eauto.
 Qed.
 
-Lemma PushCachePtr_spec : forall Q,
-  HT [PushCachePtr]
-     (fun m s =>
-        Q m (CData (Vptr cblock 0,handlerTag) :: s))
-     Q.
+Lemma PushCachePtr_spec :
+  HTT [PushCachePtr]
+      (fun Q m s =>
+         Q m (CData (Vptr cblock 0,handlerTag) :: s)).
 Proof.
   repeat intro.
   exists ((CData (Vptr cblock 0, handlerTag))::stk0).
@@ -237,13 +233,12 @@ Proof.
 Qed.
 
 Lemma push_cptr_spec :
-  forall v Q,
-    HT (push_cptr v)
-       (fun m s => Q m ((Vptr cblock v, handlerTag) ::: s))
-       Q.
+  forall v,
+    HTT (push_cptr v)
+        (fun Q m s => Q m ((Vptr cblock v, handlerTag) ::: s)).
 Proof.
   intros.
-  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
+  intros Q imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
   eexists. eexists.
 
   subst.
@@ -263,16 +258,15 @@ Proof.
   assumption.
 Qed.
 
-Lemma load_spec : forall Q,
-  HT [Load]
-     (fun m s0 => exists b off t x s,
-                    s0 = (Vptr b off,t) ::: s /\
-                    Mem.stamp b = Kernel /\
-                    load b off m = Some x /\
-                    Q m (x ::: s))
-     Q.
+Lemma load_spec :
+  HTT [Load]
+      (fun Q m s0 => exists b off t x s,
+                       s0 = (Vptr b off,t) ::: s /\
+                       Mem.stamp b = Kernel /\
+                       load b off m = Some x /\
+                       Q m (x ::: s)).
 Proof.
-  intros. eapply HT_forall_exists.
+  intros Q. eapply HT_forall_exists.
   intros b. eapply HT_forall_exists.
   intros off. eapply HT_forall_exists.
   intros t. eapply HT_forall_exists.
@@ -292,15 +286,13 @@ Proof.
   eapply cstep_load_p; eauto.
 Qed.
 
-
-Lemma unpack_spec : forall Q,
-  HT [Unpack]
-     (fun m s => exists x l s0,
-                 s = (x,l):::s0 /\
-                 Q m ((l,handlerTag):::(x,handlerTag):::s0))
-     Q.
+Lemma unpack_spec :
+  HTT [Unpack]
+      (fun Q m s => exists x l s0,
+                      s = (x,l):::s0 /\
+                      Q m ((l,handlerTag):::(x,handlerTag):::s0)).
 Proof.
-  intros.
+  intros Q.
   unfold CodeTriples.HT. intros. destruct H0 as [x [l [s0 [? ?]]]].
   eexists.
   eexists.
@@ -315,14 +307,13 @@ Proof.
   eapply cstep_unpack_p; eauto.
 Qed.
 
-Lemma pack_spec : forall Q,
-  HT [Pack]
-     (fun m s => exists x t l l0 s0,
-                 s = (l,t):::(x,l0):::s0 /\
-                 Q m ((x,l):::s0))
-     Q.
+Lemma pack_spec :
+  HTT [Pack]
+      (fun Q m s => exists x t l l0 s0,
+                      s = (l,t):::(x,l0):::s0 /\
+                      Q m ((x,l):::s0)).
 Proof.
-  intros.
+  intros Q.
   unfold CodeTriples.HT. intros. destruct H0 as [x [t [l [l0 [s0 [? ?]]]]]].
   eexists.
   eexists.
@@ -337,27 +328,27 @@ Proof.
   eapply cstep_pack_p; eauto.
 Qed.
 
-Lemma loadFromCache_spec: forall ofs (Q : HProp),
-  HT (loadFromCache ofs)
-     (fun m s =>
-        exists v,
-          value_on_cache cblock m ofs v /\
-          forall t, Q m (CData (v, t) :: s))
-     Q.
+Lemma loadFromCache_spec: forall ofs,
+  HTT (loadFromCache ofs)
+      (fun Q m s =>
+         exists v,
+           value_on_cache cblock m ofs v /\
+           forall t, Q m (CData (v, t) :: s)).
 Proof.
   intros.
-  eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply push_cptr_spec.
-    eapply load_spec; eauto. }
-  intros m s (? & [] & POST). subst.
+  unfold loadFromCache.
+  eapply HTT_strengthen_premise.
+  { eapply HTT_compose; try eapply push_cptr_spec.
+    eapply load_spec. }
+  intros Q m s (? & [] & POST). subst.
   repeat eexists; eauto.
 Qed.
 
-Lemma pop_spec: forall Q,
-  HT [Pop]
-     (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
-     Q.
+Lemma pop_spec:
+  HTT [Pop]
+      (fun Q m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0).
 Proof.
+  intros Q.
   unfold CodeTriples.HT.
   intros. destruct H0 as [v [vl [s0 [P1 P2]]]].
   eexists.
@@ -373,8 +364,9 @@ Proof.
   eapply cstep_pop_p; eauto.
 Qed.
 
-Lemma nop_spec: forall Q,  HT [Noop] Q Q.
+Lemma nop_spec: HTT [Noop] (fun Q => Q).
 Proof.
+  intros Q.
   unfold CodeTriples.HT.
   intros.
   exists stk0.
@@ -392,15 +384,15 @@ Proof.
   eapply cstep_nop_p ; eauto.
 Qed.
 
-Lemma store_spec : forall Q,
-       HT [Store]
-         (fun (m0 : memory) (s0 : stack) =>
-          exists b a al v m s,
-          Mem.stamp b = Kernel /\
-          s0 = (Vptr b a, al) ::: v ::: s /\ store b a v m0 = Some m /\ Q m s)
-         Q.
+Lemma store_spec :
+  HTT [Store]
+      (fun Q (m0 : memory) (s0 : stack) =>
+         exists b a al v m s,
+           Mem.stamp b = Kernel /\
+           s0 = (Vptr b a, al) ::: v ::: s /\ store b a v m0 = Some m /\ Q m s).
 Proof.
-  intros. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intros Q.
+  eapply HT_forall_exists. intro. eapply HT_forall_exists.
   intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
   intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
   intro. apply HT_fold_constant_premise. intro.
@@ -420,35 +412,31 @@ Proof.
   eapply cstep_store_p; eauto.
 Qed.
 
-Lemma storeAt_spec: forall a Q,
-  HT (storeAt a)
-     (fun m0 s0 => exists vl s m, s0 = vl ::: s /\
-                               store cblock a vl m0 = Some m /\
-                               Q m s)
-     Q.
+Lemma storeAt_spec: forall a,
+  HTT (storeAt a)
+      (fun Q m0 s0 => exists vl s m,
+                        s0 = vl ::: s /\
+                        store cblock a vl m0 = Some m /\
+                        Q m s).
 Proof.
   intros.
-  eapply HT_compose_flip.
-  eapply store_spec; eauto.
-  unfold push.
-  eapply HT_strengthen_premise.
-  eapply push_cptr_spec.
-
+  eapply HTT_strengthen_premise.
+  { eapply HTT_compose; try eapply push_cptr_spec.
+    eapply store_spec; eauto. }
   intuition; eauto. destruct H as [vl [s0 [m0 Hint]]]. intuition; substs.
   do 5 eexists; intuition; eauto.
 Qed.
 
-Lemma alloc_spec : forall Q : memory -> stack -> Prop,  (* the annotation on Q is crucial *)
-  HT [Alloc]
-     (fun m0 s0 => exists s t xv xl cnt,
-                     s0 = (Vint cnt,t) ::: (xv, xl) ::: s /\
-                     cnt >= 0 /\
-                     (forall b m,
-                        c_alloc Kernel cnt (xv,xl) m0 = Some (b, m) ->
-                        Q m ((Vptr b 0,handlerTag):::s)))
-     Q.
+Lemma alloc_spec :
+  HTT [Alloc]
+      (fun Q m0 s0 => exists s t xv xl cnt,
+                        s0 = (Vint cnt,t) ::: (xv, xl) ::: s /\
+                        cnt >= 0 /\
+                        (forall b m,
+                           c_alloc Kernel cnt (xv,xl) m0 = Some (b, m) ->
+                           Q m ((Vptr b 0,handlerTag):::s))).
 Proof.
-  intros.
+  intros Q.
   unfold CodeTriples.HT. intros.
   destruct H0 as (s & t & xv & xl & cnt & ? & ? & ?).
   subst.
