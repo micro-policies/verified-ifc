@@ -397,7 +397,7 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
            (ARGS: forall a, In a args -> exists d, a = CData d)
            (CS1: cs1 = CState m fh i ((Vint pcc,pccl):::args++s) (pcv,pcl) true)
            (CA: ca = Silent)
-           (CS2: cs2 = CState m fh i (args++(CRet (pcv+1, pcl) r true)::s) (pcc, handlerTag) true),
+           (CS2: cs2 = CState m fh i (args++(CRet (pcv+1, handlerTag) r true)::s) (pcc, handlerTag) true),
     cstep table cs1 ca cs2
 
 | cstep_ret: forall fh m i s s' pcv pcl rl rpcl pcret pcretl,
