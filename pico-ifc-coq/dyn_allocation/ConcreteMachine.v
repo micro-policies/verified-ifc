@@ -33,7 +33,7 @@ Definition cget (m:memory) : option (list Atom) := Mem.get_frame m cblock.
 Definition cupd (m:memory) (c:list Atom) : option memory := Mem.upd_frame m cblock c.
 
 Definition c_alloc (p:privilege) (size:Z) (a:Atom) (m:memory) :=
-  alloc Local p size a m.
+  alloc Global p size a m.
 
 (** Concrete machine transition relation.
     Each instructions has 3 semantic rules: (user mode - succ) (user mode - faulting) (kernel mode) *)
