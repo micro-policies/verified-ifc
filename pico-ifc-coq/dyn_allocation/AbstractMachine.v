@@ -153,7 +153,13 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
     (SYSLENGTH: length args = sys_info.(asi_arity))
     (SYSSEM: sys_info.(asi_sem) args = Some res), (* this encodes potential IFC check failures *)
     a_step (AState m i (map AData args ++ s) (pcv,pcl))
-           Silent (AState m i (AData res :: s) (pcv+1,pcl)).
+           Silent (AState m i (AData res :: s) (pcv+1,pcl))
+
+| step_sizeof: forall m i s pcv pcl b off pl fr
+    (INSTR: index_list_Z pcv i = Some SizeOf)
+    (FRAME: Mem.get_frame m b = Some fr),
+    a_step (AState m i (AData (Vptr b off, pl)::s) (pcv,pcl))
+           Silent (AState m i (AData (Vint (Z.of_nat (length fr)), pl)::s) (pcv+1,pcl)).
 
 Lemma a_step_instr : forall m i s pcv pcl s' e,
   a_step (AState m i s (pcv,pcl)) e s' ->

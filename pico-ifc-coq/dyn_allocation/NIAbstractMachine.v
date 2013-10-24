@@ -1204,6 +1204,20 @@ Proof.
     destruct EQ as [EQ1 EQ2].
     specialize (hyp_syscall_lowstep SYS args args0 EQ1 SYSSEM SYSSEM0).
     go.
+
+  - Case "SizeOf".
+    inv LEa.
+    + assert (LEN : length fr = length fr0).
+      { inv Hi1.
+        specialize (ISTACK _ (or_introl eq_refl)). inv ISTACK.
+        destruct LEm as [LOWF _].
+        assert (STAMP : Mem.stamp b0 <: o = true) by eauto with lat.
+        exploit LOWF; eauto. intros FRAMES.
+        rewrite FRAME in FRAMES. rewrite FRAME0 in FRAMES.
+        inv FRAMES. eapply Forall2_length; eauto. }
+      rewrite LEN. clear LEN.
+      go.
+    + go.
 Qed.
 
 Lemma all_data_below_lret :

@@ -32,6 +32,7 @@ match c with
 | OpRet => 1
 | OpVRet => 2
 | OpOutput => 1
+| OpSizeOf => 1
 end.
 
 Lemma labelCountBounds : forall opcode, labelCount opcode <= 3.
@@ -204,7 +205,15 @@ Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
     (SYSLENGTH: length args = sys_info.(asi_arity))
     (SYSSEM: sys_info.(asi_sem) args = Some res), (* this encodes potential IFC check failures *)
     step_rules (AState m i (map AData args ++ s) (pcv,pcl))
-               Silent (AState m i (AData res :: s) (pcv+1,pcl)).
+               Silent (AState m i (AData res :: s) (pcv+1,pcl))
+
+| step_sizeof: forall m i s pcv pcl b off pl fr rpcl rl
+    (INSTR: index_list_Z pcv i = Some SizeOf)
+    (FRAME: Mem.get_frame m b = Some fr)
+    (TMU: run_tmr OpSizeOf pcl <|pl|> = Some (rpcl,rl)),
+    step_rules (AState m i (AData (Vptr b off, pl)::s) (pcv,pcl))
+               Silent (AState m i (AData (Vint (Z.of_nat (length fr)), rl)::s) (pcv+1,rpcl)).
+
 
 Definition quasi_abstract_machine :=
   {| state := qa_state ;
@@ -249,6 +258,7 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
     | OpRet => ≪ TRUE, Lab1 , __ ≫
     | OpVRet => ≪ TRUE, Lab2 , JOIN Lab1 LabPC ≫ (* value, return addr *)
     | OpOutput => ≪ TRUE, LabPC , JOIN Lab1 LabPC ≫ (* output value *)
+    | OpSizeOf => ≪ TRUE, LabPC , Lab1 ≫
     end.
 
 Definition tini_quasi_abstract_machine := quasi_abstract_machine fetch_rule table.

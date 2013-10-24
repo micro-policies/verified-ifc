@@ -363,12 +363,14 @@ Proof.
               EQ : ?r2 = Some _ |- _ =>
               rewrite EQ in RES; inv RES
           end
+        | H : context[SizeOf] |- _ =>
+          exploit mi_valid'; eauto; intros (? & ? & FRAMES);
+          apply Forall2_length in FRAMES; rewrite <- FRAMES
       end;
 
   (* Always using mem_irrel causes spurious existentials to be generated *)
   solve [eexists; split; econstructor (simpl; solve [eauto 7 using Forall2_length
                                                     |eauto 7 with mem_irrel])].
-
 Qed.
 
 Program Definition abstract_quasi_abstract_sref :=

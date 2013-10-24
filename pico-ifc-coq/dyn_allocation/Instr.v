@@ -29,7 +29,8 @@ Inductive Instr :=
   | Halt : Instr
   | Output : Instr
   | Unpack : Instr
-  | Pack : Instr.
+  | Pack : Instr
+  | SizeOf : Instr.
 
 
 (* Convenience datatype for packaging the operation-specific label parameters
@@ -56,7 +57,8 @@ Inductive OpCode : Type :=
 | OpCall
 | OpRet 
 | OpVRet
-| OpOutput.
+| OpOutput
+| OpSizeOf.
 
 Definition opcode_of_instr (i : Instr) : option OpCode :=
   match i with
@@ -82,4 +84,5 @@ Definition opcode_of_instr (i : Instr) : option OpCode :=
     | Output => Some OpOutput
     | Unpack => None
     | Pack => None
+    | SizeOf => Some OpSizeOf
   end.

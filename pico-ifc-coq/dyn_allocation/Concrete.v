@@ -69,10 +69,11 @@ match opcode with
 | OpDup      => 14
 | OpSwap     => 15
 | OpAlloc    => 16
+| OpSizeOf   => 17
 end.
 
 (* Any number that doesn't occur in the above list. *)
-Definition invalidOpCode := 17.
+Definition invalidOpCode := 18.
 
 (* Where in the cache the various labels live *)
 Definition addrOpLabel  := 0.
