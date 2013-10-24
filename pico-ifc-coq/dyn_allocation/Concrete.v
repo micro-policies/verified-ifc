@@ -131,7 +131,7 @@ Inductive tag_in_mem (m: list Atom) addr tagv : Prop :=
               tag_in_mem m addr tagv.
 
 Inductive value_on_cache (m : memory) addr v : Prop :=
-| voc_intro : forall t, load cblock addr m = Some (v, t) ->
+| voc_intro : forall t, load (cblock, addr) m = Some (v, t) ->
                         value_on_cache m addr v.
 
 (* Tests the cache line *)
@@ -191,13 +191,13 @@ Definition update_cache_spec_mvec (m m': memory) :=
                 addr <> addrTag1    ->
                 addr <> addrTag2    ->
                 addr <> addrTag3    ->
-                load cblock addr m = load cblock addr m').
+                load (cblock, addr) m = load (cblock, addr) m').
 
 Definition update_cache_spec_rvec (m m': memory) :=
   fault_handler_memory_update m m' /\
   (forall addr, addr <> addrTagRes ->
                 addr <> addrTagResPC ->
-                load cblock addr m = load cblock addr m').
+                load (cblock, addr) m = load (cblock, addr) m').
 
 Definition cache_hit_mem (m:memory) (opcode:Z)
            (tags: val privilege * val privilege * val privilege) (pctags:val privilege) : Prop :=

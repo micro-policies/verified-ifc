@@ -130,22 +130,22 @@ Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
     qa_alloc size (xv,xl) m = Some (b,m') ->
     step_rules (AState m i (AData (Vint size,sizel)::AData (xv,xl)::s) (pcv,pcl))
                Silent
-               (AState m' i (AData (Vptr b 0,rl)::s) (pcv+1,rpcl))
+               (AState m' i (AData (Vptr (b, 0),rl)::s) (pcv+1,rpcl))
 
-| step_load: forall m i s pcv pcl b ofs addrl xv xl rl rpcl,
+| step_load: forall m i s pcv pcl p addrl xv xl rl rpcl,
     index_list_Z pcv i = Some Load ->
-    load b ofs m = Some (xv,xl) ->
+    load p m = Some (xv,xl) ->
     run_tmr OpLoad pcl <|addrl;xl|> = Some (rpcl,rl) ->
-    step_rules (AState m i ((AData (Vptr b ofs,addrl))::s) (pcv,pcl))
+    step_rules (AState m i ((AData (Vptr p,addrl))::s) (pcv,pcl))
                Silent
                (AState m i ((AData (xv, rl))::s) (pcv+1,rpcl))
 
-| step_store: forall m i s pcv pcl b ofs addrl xv xl mv ml rl rpcl m',
+| step_store: forall m i s pcv pcl p addrl xv xl mv ml rl rpcl m',
     index_list_Z pcv i = Some Store ->
-    load b ofs m = Some (mv,ml) ->
-    store b ofs (xv,rl) m = Some m' ->
+    load p m = Some (mv,ml) ->
+    store p (xv,rl) m = Some m' ->
     run_tmr OpStore pcl <|addrl;xl;ml|> = Some (rpcl,rl) ->
-    step_rules (AState m i ((AData (Vptr b ofs,addrl))::(AData (xv,xl))::s) (pcv,pcl))
+    step_rules (AState m i ((AData (Vptr p,addrl))::(AData (xv,xl))::s) (pcv,pcl))
                Silent
                (AState m' i s (pcv+1,rpcl))
 
@@ -207,11 +207,11 @@ Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
     step_rules (AState m i (map AData args ++ s) (pcv,pcl))
                Silent (AState m i (AData res :: s) (pcv+1,pcl))
 
-| step_sizeof: forall m i s pcv pcl b off pl fr rpcl rl
+| step_sizeof: forall m i s pcv pcl p pl fr rpcl rl
     (INSTR: index_list_Z pcv i = Some SizeOf)
-    (FRAME: Mem.get_frame m b = Some fr)
+    (FRAME: Mem.get_frame m (fst p) = Some fr)
     (TMU: run_tmr OpSizeOf pcl <|pl|> = Some (rpcl,rl)),
-    step_rules (AState m i (AData (Vptr b off, pl)::s) (pcv,pcl))
+    step_rules (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
                Silent (AState m i (AData (Vint (Z.of_nat (length fr)), rl)::s) (pcv+1,rpcl)).
 
 

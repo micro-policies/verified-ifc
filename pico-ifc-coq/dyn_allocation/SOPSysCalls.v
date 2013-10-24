@@ -44,7 +44,7 @@ Definition SOPASysTable : ASysTable Zset.t :=
 Definition isPointer (v : val privilege) : bool :=
   match v with
     | Vint _ => false
-    | Vptr _ _ => true
+    | Vptr _ => true
   end.
 
 Definition genIsPointer :=
@@ -62,19 +62,19 @@ Lemma sub_diag_isPointer :
 Proof.
   intros v.
   unfold val_eq.
-  destruct v as [i|b off].
+  destruct v as [i|[b off]].
   - eexists (Vint 0).
     simpl.
     replace (i - i)%Z with 0%Z by omega.
     split; eauto.
     destruct (EquivDec.equiv_dec (Vint 0) (Vint 0)); try congruence.
     reflexivity.
-  - eexists (Vptr b 0).
+  - eexists (Vptr (b,0%Z)).
     simpl.
-    destruct (EquivDec.equiv_dec b b); try congruence.
+    rewrite equiv_dec_refl.
     replace (off - off)%Z with 0%Z by omega.
     split; eauto.
-    destruct (EquivDec.equiv_dec (Vint 0) (Vptr b 0)); try congruence.
+    destruct (EquivDec.equiv_dec (Vint 0) (Vptr (b, 0%Z))); try congruence.
     reflexivity.
 Qed.
 
@@ -180,7 +180,7 @@ Proof.
            | |- forall _, _ => intro
            | H : context[CodeGen.boolToZ (isPointer ?v) = _] |- _ =>
              destruct v; simpl in *; try congruence; clear H
-           | H : match_vals _ _ _ _ (Vptr _ _) |- _ => inv H
+           | H : match_vals _ _ _ _ (Vptr _) |- _ => inv H
            | H : match_vals _ _ _ _ (Vint _) |- _ => inv H
          end; eauto.
   eapply SUCC.
@@ -191,7 +191,7 @@ Proof.
     eexists. eexists.
     repeat match goal with
              | |- _ /\ _ => split
-             | |- Vptr _ _ = Vptr _ _ => reflexivity
+             | |- Vptr _ = Vptr _ => reflexivity
            end; eauto.
     + intro. subst.
       destruct MEM as [? MEM].
@@ -249,8 +249,8 @@ Lemma sop_asystable_lowstep : forall l, syscall_lowstep l SOPASysTable.
 Proof.
   intros l id acs EQ args1 args2 res1 res2 EQUIV RES1 RES2.
   destruct id as [|[|[|?]]]; inv EQ.
-  destruct args1 as [| [v12 l12] [| [[p1|? ?] l1] [|? ?]]]; inv RES1.
-  destruct args2 as [| [v22 l22] [| [[p2|? ?] l2] [|? ?]]]; inv RES2.
+  destruct args1 as [| [v12 l12] [| [[p1|[? ?]] l1] [|[? ?]]]]; inv RES1.
+  destruct args2 as [| [v22 l22] [| [[p2|[? ?]] l2] [|[? ?]]]]; inv RES2.
   simpl in *.
   repeat match goal with
            | H : Forall2 _ (_ :: _) _ |- _ => inv H
@@ -264,7 +264,7 @@ Lemma sop_asystable_inv : systable_inv SOPASysTable.
 Proof.
   intros id args asc res EQ INV RES.
   destruct id as [|[|[|?]]]; inv EQ.
-  destruct args as [| [v12 l12] [| [[p1|? ?] l1] [|? ?]]]; inv RES.
+  destruct args as [| [v12 l12] [| [[p1|[? ?]] l1] [|[? ?]]]]; inv RES.
   destruct v12 as [i|b off]; simpl; trivial.
   assert (H := INV _ (or_introl eq_refl)). simpl in H.
   rewrite Zset_incl_spec in *.
@@ -277,12 +277,13 @@ Proof.
   intros [|[|[|?]]]; simpl; constructor.
   constructor.
   intros.
-  destruct args1 as [|[v11 l11] [|[[p1|? ?] l12] [|? ?]]];
+  destruct args1 as [|[v11 l11] [|[[p1|[? ?]] l12] [|[? ?]]]];
   repeat match goal with
            | H : Forall2 _ (_ :: _) _ |- _ => inv H
            | H : Forall2 _ [] _ |- _ => inv H
            | H : match_atoms _ _ _ _ _ _ _ _ _ |- _ => inv H
            | H : match_vals _ _ _ _ _ |- _ => inv H
+           | H : match_ptrs _ _ _ _ _ |- _ => inv H
            | H : RefinementAQA.match_tags _ _ _ |- _ => inv H
          end; repeat constructor; eauto.
 Qed.

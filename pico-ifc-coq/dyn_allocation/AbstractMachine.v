@@ -23,7 +23,7 @@ Context {T: Type}
 Variable table : ASysTable T.
 
 Definition a_state := AS T T. (* We stamp block with allocation label *)
-Definition a_alloc 
+Definition a_alloc
       (size:Z) (lpc:T) (a:Atom T T) (m:memory T T): option (block T * memory T T) :=
   alloc Local lpc size a m.
 
@@ -85,21 +85,21 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
     (ALLOC: a_alloc size (sizel \_/ pcl) (xv,xl) m = Some (b,m')),
     a_step (AState m i ((AData (Vint size,sizel))::(AData (xv,xl))::s) (pcv,pcl))
                Silent
-               (AState m' i (AData (Vptr b 0,sizel \_/ pcl)::s) (pcv+1,pcl))
+               (AState m' i (AData (Vptr (b, 0),sizel \_/ pcl)::s) (pcv+1,pcl))
 
-| step_load: forall m i s pcv pcl addrl b ofs xv xl
+| step_load: forall m i s pcv pcl addrl p xv xl
     (INSTR: index_list_Z pcv i = Some Load)
-    (LOAD: load b ofs m = Some (xv,xl)),
-    a_step (AState m i ((AData (Vptr b ofs,addrl))::s) (pcv,pcl))
+    (LOAD: load p m = Some (xv,xl)),
+    a_step (AState m i ((AData (Vptr p,addrl))::s) (pcv,pcl))
                Silent
                (AState m i ((AData (xv,addrl \_/ xl)::s)) (pcv+1,pcl))
 
-| step_store: forall m i s pcv pcl b ofs addrl xv xl mv ml m'
+| step_store: forall m i s pcv pcl p addrl xv xl mv ml m'
     (INSTR: index_list_Z pcv i = Some Store)
-    (LOAD: load b ofs m = Some (mv,ml))
+    (LOAD: load p m = Some (mv,ml))
     (CHECK: addrl \_/ pcl <: ml = true)
-    (STORE: store b ofs (xv, addrl \_/ (xl \_/ pcl)) m = Some m'),
-    a_step (AState m i ((AData (Vptr b ofs,addrl))::(AData (xv,xl))::s) (pcv,pcl))
+    (STORE: store p  (xv, addrl \_/ (xl \_/ pcl)) m = Some m'),
+    a_step (AState m i ((AData (Vptr p,addrl))::(AData (xv,xl))::s) (pcv,pcl))
                Silent
                (AState m' i s (pcv+1,pcl))
 
@@ -130,12 +130,12 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
                Silent
                (AState m i (args++(ARet (pcv+1,pcl) r)::s) (pcv',pcl' \_/ pcl))
 
-| step_ret: forall m i s pcv pcl pcv' pcl' s' 
+| step_ret: forall m i s pcv pcl pcv' pcl' s'
     (INSTR: index_list_Z pcv i = Some Ret)
     (POP: pop_to_return s ((ARet (pcv',pcl') false)::s')),
     a_step (AState m i s (pcv,pcl)) Silent (AState m i s' (pcv',pcl'))
 
-| step_vret: forall m i s pcv pcl pcv' pcl' resv resl s' 
+| step_vret: forall m i s pcv pcl pcv' pcl' resv resl s'
     (INSTR: index_list_Z pcv i = Some VRet)
     (POP: pop_to_return s ((ARet (pcv',pcl') true)::s')),
     a_step (AState m i (AData (resv,resl)::s) (pcv,pcl))
@@ -155,10 +155,10 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
     a_step (AState m i (map AData args ++ s) (pcv,pcl))
            Silent (AState m i (AData res :: s) (pcv+1,pcl))
 
-| step_sizeof: forall m i s pcv pcl b off pl fr
+| step_sizeof: forall m i s pcv pcl p pl fr
     (INSTR: index_list_Z pcv i = Some SizeOf)
-    (FRAME: Mem.get_frame m b = Some fr),
-    a_step (AState m i (AData (Vptr b off, pl)::s) (pcv,pcl))
+    (FRAME: Mem.get_frame m (fst p) = Some fr),
+    a_step (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
            Silent (AState m i (AData (Vint (Z.of_nat (length fr)), pl)::s) (pcv+1,pcl)).
 
 Lemma a_step_instr : forall m i s pcv pcl s' e,
@@ -170,7 +170,7 @@ Proof.
   inv H ; eauto.
 Qed.
 
-Definition abstract_machine := 
+Definition abstract_machine :=
   {| state := a_state ;
     event := (Event T) ;
     step := a_step ;
@@ -182,5 +182,5 @@ Definition abstract_machine :=
                        astk := map (fun a: (Z*T) => let (i,l) := a in AData (Vint i,l)) d;
                        apc := (0%Z, b) |}
   |}.
-                  
+
 End ARuleMachine.

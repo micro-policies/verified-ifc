@@ -57,11 +57,13 @@ Notation meminj := (meminj unit privilege).
 Notation Meminj := (Meminj T (val privilege) unit privilege match_tags).
 Notation match_atoms := (match_atoms T (val privilege) unit privilege match_tags).
 Notation match_vals := (match_vals unit privilege).
+Notation match_ptrs := (match_ptrs unit privilege).
 Notation update_meminj := (update_meminj unit privilege).
 
 Hint Resolve match_vals_eq.
 Hint Constructors Memory.match_atoms.
 Hint Constructors Memory.match_vals.
+Hint Constructors Memory.match_ptrs.
 Hint Resolve update_meminj_eq.
 Hint Unfold match_frames.
 
@@ -163,7 +165,7 @@ Proof.
     eapply alloc_get_frame_old; eauto. }
   inv H; constructor.
   - inv ATOMS. constructor; eauto.
-    inv VALS; constructor; trivial.
+    inv VALS; try inv PTRS; constructor; constructor; trivial.
     rewrite update_meminj_neq; eauto.
     eapply mi_valid in BLOCK; eauto.
     destruct BLOCK as [? [? [? [? ?]]]].
@@ -476,16 +478,16 @@ Proof.
 Qed.
 
 Lemma store_cache_up2date :
-  forall b off a m m'
-         (STORE : store b off a m = Some m')
-         (STAMP : Mem.stamp b = User)
+  forall p a m m'
+         (STORE : store p a m = Some m')
+         (STAMP : Mem.stamp (fst p) = User)
          (CACHE : cache_up2date m),
     cache_up2date m'.
 Proof.
-  intros.
+  intros. destruct p as [b off]. simpl in *.
   destruct CACHE.
   constructor.
-  - unfold store in STORE.
+  - unfold store in STORE. simpl in *.
     destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try solve [inversion STORE].
     destruct (upd_m off a fr) as [fr'|] eqn:FRAME'; try solve [inversion STORE].
     unfold mem_def_on_cache in *. destruct DEF as [fr'' DEF].
@@ -646,7 +648,8 @@ Ltac match_inv :=
          end;
   repeat match goal with
            | H : match_vals _ _ (Vint _) |- _ => inv H
-           | H : match_vals _ _ (Vptr _ _) |- _ => inv H
+           | H : match_vals _ _ (Vptr _) |- _ => inv H
+           | H : match_ptrs _ _ _ |- _ => inv H
            | H : match_tags ?l ?t _ |- _ =>
              unfold match_tags in H; subst t
          end.
@@ -686,7 +689,10 @@ Proof.
   destruct (v11 == v12) as [E1 | E1]; compute in E1; subst;
   destruct (v21 == v22) as [E2 | E2]; compute in E2; subst;
   auto;
-  inv VALS1; inv VALS2; try congruence.
+  repeat match goal with
+           | H : match_vals _ _ _ |- _ => inv H
+           | H : match_ptrs _ _ _ |- _ => inv H
+         end; try congruence.
   cut (b2 = b3); try congruence.
   eapply mi_inj; eauto.
 Qed.
@@ -717,13 +723,13 @@ Qed.
 Hint Resolve cache_hit_read_mem_mem_def_on_cache.
 
 Lemma store_user_valid_update :
-  forall b ofs a m2 m2'
+  forall p a m2 m2'
          (DEF : mem_def_on_cache cblock m2)
-         (STORE : store b ofs a m2 = Some m2')
-         (USER : Mem.stamp b = User),
+         (STORE : store p a m2 = Some m2')
+         (USER : Mem.stamp (fst p) = User),
     valid_update m2 m2'.
 Proof.
-  intros.
+  intros. destruct p as [b off]. simpl in *.
   constructor; eauto.
   intros b' fr KERNEL NEQ H.
   rewrite <- H.
@@ -791,7 +797,7 @@ Proof.
 
   inv Hstep; inv CS1; simpl in *; try congruence;
 
-  match_inv;
+  match_inv; simpl in *;
 
   on_case ltac:(instr OpAdd)
           "Couldn't analyze Add"
@@ -818,7 +824,8 @@ Proof.
 
   on_case ltac:(first [instr OpLoad | instr OpStore])
           "Couldn't analyze Load or Store"
-          ltac:(complete_exploit meminj_load; match_inv);
+          ltac:(exploit meminj_load; eauto using mp_intro;
+                intros (? & ? & ?); match_inv);
 
   on_case ltac:(first [instr OpRet | instr OpVRet])
           "Couldn't analyze Ret cases"
@@ -832,10 +839,10 @@ Proof.
                 eauto; try solve [constructor; eauto];
                 intros [? [? ?]];
                 match goal with
-                  | MUPDT : store _ _ _ ?m2 = Some ?m2',
+                  | MUPDT : store _ _ ?m2 = Some ?m2',
                     STAMP : Mem.stamp _ = User,
                     CREAD : cache_hit_read_mem _ _ _ _ |- _ =>
-                    generalize (@store_cache_up2date _ _ _ _ _ MUPDT STAMP CACHE); intro;
+                    generalize (@store_cache_up2date _ _ _ _ MUPDT STAMP CACHE); intro;
                     assert (valid_update m2 m2') by eauto
                 end);
 
@@ -915,7 +922,8 @@ Proof.
 
   on_case ltac:(first [instr OpLoad | instr OpStore])
           "Couldn't analyze Load or Store"
-          ltac:(complete_exploit meminj_load; match_inv);
+          ltac:(exploit meminj_load; eauto using mp_intro;
+                intros (? & ? & ?); match_inv);
 
   on_case ltac:(first [instr OpRet | instr OpVRet])
           "Couldn't analyze Ret cases"
@@ -1189,7 +1197,7 @@ Proof.
   destruct (Mem.get_frame m2 cblock) as [cache|] eqn:CACHE; try solve [inversion HIT].
   destruct MATCH as (m2'' & EXT & ? & ? & READ & ? & E).
   apply EXT in CACHE.
-  unfold load, cache_hit_read_mem in *.
+  unfold load, cache_hit_read_mem in *. simpl in *.
   destruct (Mem.get_frame m2' cblock) as [cache'|] eqn:CACHE'; try solve [inversion READ].
   destruct READ.
   rewrite CACHE in E.

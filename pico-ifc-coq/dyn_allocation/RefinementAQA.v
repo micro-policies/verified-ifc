@@ -38,11 +38,13 @@ Notation meminj := (meminj T unit).
 Notation Meminj := (Meminj T T T unit match_tags).
 Notation match_atoms := (match_atoms T T T unit match_tags).
 Notation match_vals := (match_vals T unit).
+Notation match_ptrs := (match_ptrs T unit).
 Notation update_meminj := (update_meminj T unit).
 
 Hint Resolve match_vals_eq.
 Hint Constructors Memory.match_atoms.
 Hint Constructors Memory.match_vals.
+Hint Constructors Memory.match_ptrs.
 Hint Resolve update_meminj_eq.
 
 Inductive match_stk_elmt (mi : meminj) : StkElmt T T -> StkElmt T unit -> memory T unit -> Prop :=
@@ -78,7 +80,7 @@ Proof.
   induction STK; constructor; trivial.
   inv H; constructor.
   inv ATOMS. constructor; auto.
-  inv VALS; constructor.
+  inv VALS; try inv PTRS; do 2 constructor.
   rewrite update_meminj_neq; auto.
   eapply mi_valid in BLOCK; eauto.
   destruct BLOCK as [? [? [? [? ?]]]].
@@ -264,7 +266,8 @@ Ltac inv_match :=
            | STKELMT : match_stk_elmt _ _ _ _ |- _ => inv STKELMT
            | ATOMS : match_atoms _ _ (_,_) _ |- _ => inv ATOMS
            | VALS : match_vals _ _ (Vint _) |- _ => inv VALS
-           | VALS : match_vals _ _ (Vptr _ _) |- _ => inv VALS
+           | VALS : match_vals _ _ (Vptr _) |- _ => inv VALS
+           | PTRS : match_ptrs _ _ _ |- _ => inv PTRS
            | TAGS : match_tags _ _ _ |- _ => unfold match_tags in TAGS; subst
          end.
 
@@ -335,8 +338,9 @@ Proof.
           try solve [constructor; eauto];
           intros [? [? [? ?]]];
           exploit alloc_match_stacks; eauto; intro
-        | H : load _ _ _ = Some _ |- _ =>
-          exploit meminj_load; eauto; intros [[? ?] [? H']];
+        | H : load _ _ = Some _ |- _ =>
+          exploit meminj_load; eauto;
+          try solve [econstructor; eauto]; intros [[? ?] [? H']];
           inv H'; inv_match
         | H : Forall2 _ _ (_ ++ _) |- _ =>
           exploit match_stacks_app; eauto; intros [? [? [? [? ?]]]]; subst
@@ -346,7 +350,7 @@ Proof.
 
   (* For some weird reason, trying to merge this match with the previous one doesn't work. *)
   try match goal with
-        | H : store _ _ _ _ = Some _ |- _ =>
+        | H : store _ _ _ = Some _ |- _ =>
           exploit (meminj_store T T T unit _ _ valid_update_match_tags);
           eauto; try solve [econstructor; eauto]; intros [? [? ?]]
         | H : swap _ _ = Some _ |- _ =>
@@ -369,8 +373,8 @@ Proof.
       end;
 
   (* Always using mem_irrel causes spurious existentials to be generated *)
-  solve [eexists; split; econstructor (simpl; solve [eauto 7 using Forall2_length
-                                                    |eauto 7 with mem_irrel])].
+  solve [eexists; split; econstructor (simpl; solve [eauto 9 using Forall2_length
+                                                    |eauto 9 with mem_irrel])].
 Qed.
 
 Program Definition abstract_quasi_abstract_sref :=

@@ -213,7 +213,7 @@ Proof.
          ConcreteMachine.cget in *.
   destruct (Mem.get_frame m cblock) as [cache|] eqn:E; inv H.
   inv UNPACK. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC.
-  econstructor; econstructor; unfold load; rewrite E; jauto.
+  econstructor; econstructor; unfold load; simpl in *; rewrite E; jauto.
 Qed.
 
 Variable (opcode: OpCode).
@@ -258,7 +258,7 @@ Lemma INIT_MEM_def_on_cache: forall m, INIT_MEM m -> mem_def_on_cache cblock m.
 Proof.
   intros m H.
   destruct H. inv H.
-  unfold load in *. unfold mem_def_on_cache.
+  unfold load in *. simpl in *. unfold mem_def_on_cache.
   destruct (Mem.get_frame m cblock); inv H1; eauto.
 Qed.
 
@@ -874,12 +874,12 @@ Lemma genStoreResults_spec_Some: forall Q,
          (fun m s => exists s0 zr zpc,
             labToVal_rule_res ar zr zpc m /\
             listify_apply_rule ar s0 zr zpc s /\
-            valid_address cblock addrTagRes m /\
-            valid_address cblock addrTagResPC m /\
+            valid_address (cblock, addrTagRes) m /\
+            valid_address (cblock, addrTagResPC) m /\
             forall t1 t2,
             exists m' m'',
-              (store cblock addrTagRes (zr,t1) m = Some m')
-               /\ store cblock addrTagResPC (zpc,t2) m' = Some m''
+              (store (cblock, addrTagRes) (zr,t1) m = Some m')
+               /\ store (cblock, addrTagResPC) (zpc,t2) m' = Some m''
                /\ labToVal_rule_res ar zr zpc m''
                /\ Q m'' ((Vint 1,handlerTag):::s0))
          Q
@@ -940,8 +940,8 @@ Qed.
 
 Lemma faultHandler_specEscape_Some: forall raddr lr lpc m0,
   INIT_MEM m0 ->
-  valid_address cblock addrTagRes m0 ->
-  valid_address cblock addrTagResPC m0 ->
+  valid_address (cblock, addrTagRes) m0 ->
+  valid_address (cblock, addrTagResPC) m0 ->
   ar = Some (lpc, lr) ->
   forall s0,
     HTEscape cblock table raddr faultHandler
@@ -976,14 +976,14 @@ Proof.
 
   assert (Hm'm'':
             exists m' m'',
-              store cblock addrTagRes (zr, t1) m = Some m' /\
-              store cblock addrTagResPC (zpc, t2) m' = Some m'').
+              store (cblock, addrTagRes) (zr, t1) m = Some m' /\
+              store (cblock, addrTagResPC) (zpc, t2) m' = Some m'').
   {
-   exploit (extends_valid_address cblock m0 m addrTagRes); eauto. intros HvalidRes.
-   exploit (extends_valid_address cblock m0 m addrTagResPC); eauto. intros HvalidResPC.
-   eapply (valid_store _ _ _ cblock addrTagRes (zr,t1)) in HvalidRes.
+   exploit (extends_valid_address (cblock,addrTagRes) m0 m); eauto. intros HvalidRes.
+   exploit (extends_valid_address (cblock,addrTagResPC) m0 m); eauto. intros HvalidResPC.
+   eapply (valid_store _ _ _ (cblock,addrTagRes) (zr,t1)) in HvalidRes.
    destruct HvalidRes as [m' ?].
-   eapply valid_address_upd with (a:= addrTagResPC) in HvalidResPC; eauto.
+   eapply valid_address_upd in HvalidResPC; eauto.
    eapply valid_store in HvalidResPC.
    destruct HvalidResPC as [m'' ?]; eauto.
   }
@@ -1014,13 +1014,13 @@ Proof.
   {  unfold labToVal_rule_res in *.
      rewrite H2 in *. intuition; eapply labToVal_cache; eauto.
   }
-  { assert (Hm''' : load cblock addrTagRes m'' = Some (zr, t1)).
+  { assert (Hm''' : load (cblock, addrTagRes) m'' = Some (zr, t1)).
     { eapply load_store_new in Hm'.
       erewrite load_store_old; eauto.
       compute; congruence. }
     clear Hm'.
     eapply load_store_new in Hm''.
-    unfold load, cache_hit_read_mem in *.
+    unfold load, cache_hit_read_mem in *. simpl in *.
     destruct (Mem.get_frame m'' cblock) as [fr|]; try congruence.
     econstructor; econstructor; eauto.
   }
@@ -1039,7 +1039,7 @@ Proof.
       eapply get_frame_store_neq; eauto.
   - intros addr NEQ1 NEQ2.
     symmetry.
-    transitivity (load cblock addr m');
+    transitivity (load (cblock, addr) m');
     eapply load_store_old; eauto; congruence.
 Qed.
 
@@ -1097,12 +1097,12 @@ Theorem handler_correct_succeed : handler_spec_succeed cblock table labelCount f
 Proof.
  unfold handler_spec_succeed.
  intros.
-  assert (valid_address cblock addrTagRes c).
-  { unfold cache_hit_mem, valid_address, load in *.
+  assert (valid_address (cblock, addrTagRes) c).
+  { unfold cache_hit_mem, valid_address, load in *. simpl.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGR. eauto. }
-  assert (valid_address cblock addrTagResPC c).
-  { unfold cache_hit_mem, valid_address, load in *.
+  assert (valid_address (cblock, addrTagResPC) c).
+  { unfold cache_hit_mem, valid_address, load in *. simpl.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGRPC. eauto. }
   edestruct (faultHandler_specEscape_Some cblock stamp_cblock table
@@ -1113,7 +1113,7 @@ Proof.
  - exploit (@init_enough cblock stamp_cblock table _ fetch_rule _ _ _ _ (labelCount opcode) vls); eauto.
    intros Hmem.
    repeat match goal with
-            | H : valid_address _ _ _ |- _ =>
+            | H : valid_address _ _ |- _ =>
               destruct H as ([? ?] & ?)
           end;
    econstructor; simpl in LABS; intuition; eauto;
@@ -1129,12 +1129,12 @@ Theorem handler_correct_fail : handler_spec_fail cblock table labelCount fetch_r
 Proof.
   unfold handler_spec_fail.
   intros.
-  assert (valid_address cblock addrTagRes c).
-  { unfold cache_hit_mem, valid_address, load in *.
+  assert (valid_address (cblock, addrTagRes) c).
+  { unfold cache_hit_mem, valid_address, load in *. simpl.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGR. eauto. }
-  assert (valid_address cblock addrTagResPC c).
-  { unfold cache_hit_mem, valid_address, load in *.
+  assert (valid_address (cblock, addrTagResPC) c).
+  { unfold cache_hit_mem, valid_address, load in *. simpl.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGRPC. eauto. }
   edestruct (faultHandler_specEscape_None cblock stamp_cblock table _ fetch_rule None opcode vls pcl RULE raddr c)
@@ -1142,7 +1142,7 @@ Proof.
   - exploit (@init_enough cblock stamp_cblock table _ fetch_rule _ _ _ _ (labelCount opcode)); eauto.
     intros Hmem.
     repeat match goal with
-             | H : valid_address _ _ _ |- _ =>
+             | H : valid_address _ _ |- _ =>
                destruct H as ([? ?] & ?)
            end;
     econstructor; simpl in LABS; intuition; eauto;

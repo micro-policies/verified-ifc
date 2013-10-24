@@ -26,7 +26,7 @@ Definition labToVal (l: Zset.t) (t: val privilege) (m: memory (val privilege) pr
   exists c b,
     b <> cblock /\
     Mem.stamp b = Kernel /\
-    t = Vptr b 0 /\
+    t = Vptr (b, 0) /\
     memarr m b (map Vint c) /\
     (forall a, In a c <-> Zset.In a l).
 
@@ -44,7 +44,7 @@ Proof.
   gdep z.
   induction vs as [|v vs IH]; intros; try solve [constructor].
   inv SEQ; econstructor; eauto.
-  unfold load in *.
+  unfold load in *. simpl in *.
   destruct (Mem.get_frame m b) as [fr|] eqn:E; try congruence.
   apply H2 in E; eauto.
   rewrite E.
@@ -64,7 +64,7 @@ Proof.
   repeat (split; eauto).
   destruct ARR.
   econstructor; eauto using mem_eq_except_cache_memseq.
-  unfold load in *.
+  unfold load in *. simpl in *.
   destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try congruence.
   destruct EQ as [_ EQ].
   eapply EQ in FRAME; eauto.
@@ -104,7 +104,7 @@ Definition add_principal_to_lab (ps : Zset.t) (v : val privilege) : Zset.t :=
 Definition valToLab (v : val privilege) (m: memory (val privilege) privilege) : Zset.t :=
   match v with
     | Vint _ => Zset.empty
-    | Vptr b _ =>
+    | Vptr (b, _) =>
       match Mem.get_frame m b with
         | Some ((Vint len, _) :: ps) =>
           fold_left add_principal_to_lab (map fst (take (Z.to_nat len) ps)) Zset.empty
@@ -149,7 +149,7 @@ Lemma memseq_get_frame :
 Proof.
   intros.
   induction SEQ as [off|off v t vs LOAD SEQ IH]; intros; eauto.
-  unfold load in LOAD.
+  unfold load in LOAD. simpl in LOAD.
   rewrite FRAME in LOAD.
   assert (H : dropZ off fr = (v, t) :: dropZ (off + 1) fr).
   { clear - LOAD POS.
@@ -276,7 +276,7 @@ Proof.
   unfold labToVal, valToLab ; intros.
   destruct H as (vs & b & NEQ & KERNEL & E & ARR & IN). subst.
   destruct ARR as [? t LOAD SEQ ?]. subst.
-  unfold load in *.
+  unfold load in *. simpl in LOAD.
   destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try congruence.
   destruct fr as [|len fr]; try solve [inv LOAD].
   unfold read_m in LOAD. simpl in LOAD. inv LOAD.

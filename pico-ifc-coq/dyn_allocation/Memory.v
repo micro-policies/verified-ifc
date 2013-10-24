@@ -54,8 +54,8 @@ Module Type MEM.
   Parameter stamp : forall {S}, block S -> S.
 
   (* DD -> DP : is a block some kind of "stamped pointer"? *)
-  Parameter get_frame : forall {A S}, t A S -> block S -> option (list A).  
-  Parameter upd_frame : 
+  Parameter get_frame : forall {A S}, t A S -> block S -> option (list A).
+  Parameter upd_frame :
     forall {A S:Type} {EqS:EqDec S eq}, t A S -> block S -> list A -> option (t A S).
   Parameter upd_get_frame : forall A S (EqS:EqDec S eq) (m:t A S) (b:block S) fr fr',
     get_frame m b = Some fr ->
@@ -63,7 +63,7 @@ Module Type MEM.
       upd_frame m b fr' = Some m'.
   Parameter get_upd_frame : forall A S (EqS:EqDec S eq) (m m':t A S) (b:block S) fr,
     upd_frame m b fr = Some m' ->
-    forall b', 
+    forall b',
       get_frame m' b' = if b == b' then Some fr else get_frame m b'.
   Parameter upd_frame_defined : forall A S (EqS:EqDec S eq) (m m':t A S) (b:block S) fr,
     upd_frame m b fr = Some m' ->
@@ -90,30 +90,30 @@ Module Type MEM.
 
   Parameter alloc :
     forall {A S} {EqS:EqDec S eq}, alloc_mode -> t A S -> S -> list A -> (block S * t A S).
-  Parameter alloc_stamp : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b, 
+  Parameter alloc_stamp : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b,
     alloc am m s fr = (b,m') -> stamp b = s.
-  Parameter alloc_get_fresh : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b, 
+  Parameter alloc_get_fresh : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b,
     alloc am m s fr = (b,m') -> get_frame m b = None.
-  Parameter alloc_get_frame : forall A S (eqS:EqDec S eq) am (m m':t A S) s fr b, 
+  Parameter alloc_get_frame : forall A S (eqS:EqDec S eq) am (m m':t A S) s fr b,
     alloc am m s fr = (b,m') ->
     forall b', get_frame m' b' = if b == b' then Some fr else get_frame m b'.
   Parameter alloc_upd : forall A S (eqS:EqDec S eq) am (m:t A S) b fr1 s fr2 m',
     upd_frame m b fr1 = Some m' ->
     fst (alloc am m' s fr2) = fst (alloc am m s fr2).
-  Parameter alloc_local_comm : 
-    forall A S (EqS:EqDec S eq)  (m m1 m2 m1' m2':t A S) s s' fr fr' b1 b2 b1', 
-    s <> s' ->                                           
-    alloc Local m s fr = (b1,m1) -> 
-    alloc Local m1 s' fr' = (b2,m2) -> 
+  Parameter alloc_local_comm :
+    forall A S (EqS:EqDec S eq)  (m m1 m2 m1' m2':t A S) s s' fr fr' b1 b2 b1',
+    s <> s' ->
+    alloc Local m s fr = (b1,m1) ->
+    alloc Local m1 s' fr' = (b2,m2) ->
     alloc Local m s' fr' = (b1',m1') ->
     b1' = b2.
-  Parameter alloc2_local : 
-    forall A S (EqS:EqDec S eq)  (m1 m2 m1' m2':t A S) s fr1 fr2 fr' b, 
-    alloc Local m1 s fr1 = (b,m1') -> 
+  Parameter alloc2_local :
+    forall A S (EqS:EqDec S eq)  (m1 m2 m1' m2':t A S) s fr1 fr2 fr' b,
+    alloc Local m1 s fr1 = (b,m1') ->
     alloc Local m2 s fr2 = (b,m2') ->
     fst (alloc Local m1' s fr') = fst (alloc Local m2' s fr').
 
-  Parameter alloc_next_block_no_fr : 
+  Parameter alloc_next_block_no_fr :
     forall A S (EqS:EqDec S eq) (m:t A S) s fr1 fr2,
     fst (alloc Local m s fr1) = fst (alloc Local m s fr2).
 
@@ -149,8 +149,8 @@ Module Mem: MEM.
 
   Definition get_frame {A S} (m:t A S) := content m.
 
-  Program Definition map {A B S} (f:list A-> list B) (m:t A S) : t B S := 
-    MEM 
+  Program Definition map {A B S} (f:list A-> list B) (m:t A S) : t B S :=
+    MEM
       (fun b => option_map f (get_frame m b))
       (next m)
       _.
@@ -164,7 +164,7 @@ Module Mem: MEM.
     auto.
   Qed.
 
-  Program Definition empty A S : t A S := MEM 
+  Program Definition empty A S : t A S := MEM
     (fun b => None) (fun _ => 1%Z) _.
 
   Lemma get_empty : forall A S b, get_frame (empty A S) b = None.
@@ -211,14 +211,14 @@ Module Mem: MEM.
 
   Program Definition upd_frame_rich {A S} {EqS:EqDec S eq} (m:t A S) (b0:block S) (fr:list A)
   : option { m' : (t A S) |
-             (forall b', 
-                get_frame m' b' = if b0 == b' then Some fr else get_frame m b') 
+             (forall b',
+                get_frame m' b' = if b0 == b' then Some fr else get_frame m b')
            /\ forall s, next m s = next m' s} :=
     match m b0 with
       | None => None
       | Some _ =>
         Some (MEM
-                (fun b => if b0 == b then Some fr else m b) 
+                (fun b => if b0 == b then Some fr else m b)
                 (next m) _)
     end.
   Next Obligation.
@@ -229,7 +229,7 @@ Module Mem: MEM.
   Qed.
 
   Definition upd_frame {A S} {EqS:EqDec S eq} (m:t A S) (b0:block S) (fr:list A)
-  : option (t A S) := 
+  : option (t A S) :=
     match upd_frame_rich m b0 fr with
       | None => None
       | Some (exist m' _) => Some m'
@@ -255,12 +255,12 @@ Module Mem: MEM.
 
   Lemma get_upd_frame : forall A S (eqS:EqDec S eq) (m m':t A S) (b:block S) fr,
     upd_frame m b fr = Some m' ->
-    forall b', 
+    forall b',
       get_frame m' b' = if b == b' then Some fr else get_frame m b'.
   Proof.
     unfold upd_frame; intros.
     destruct (upd_frame_rich m b fr); try congruence.
-    destruct s; inv H; intuition.    
+    destruct s; inv H; intuition.
   Qed.
 
   Lemma upd_frame_defined : forall A S (EqS:EqDec S eq) (m m':t A S) (b:block S) fr,
@@ -281,7 +281,7 @@ Module Mem: MEM.
   Opaque Z.add.
 
   Program Definition alloc
-             {A S} {EqS:EqDec S eq} (am:alloc_mode) (m:t A S) (s:S) (fr:list A) 
+             {A S} {EqS:EqDec S eq} (am:alloc_mode) (m:t A S) (s:S) (fr:list A)
             : (block S * t A S) :=
     ((next m s,s),
      MEM
@@ -299,14 +299,14 @@ Module Mem: MEM.
       + apply content_next; omega.
   Qed.
 
-  Lemma alloc_stamp : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b, 
+  Lemma alloc_stamp : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b,
     alloc am m s fr = (b,m') -> stamp _ b = s.
   Proof.
     unfold alloc; intros.
     inv H; auto.
   Qed.
 
-  Lemma alloc_get_fresh : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b, 
+  Lemma alloc_get_fresh : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b,
     alloc am m s fr = (b,m') -> get_frame m b = None.
   Proof.
     unfold alloc; intros.
@@ -314,7 +314,7 @@ Module Mem: MEM.
     apply content_next; omega.
   Qed.
 
-  Lemma alloc_get_frame : forall A S (eqS:EqDec S eq) am (m m':t A S) s fr b, 
+  Lemma alloc_get_frame : forall A S (eqS:EqDec S eq) am (m m':t A S) s fr b,
     alloc am m s fr = (b,m') ->
     forall b', get_frame m' b' = if b == b' then Some fr else get_frame m b'.
   Proof.
@@ -334,11 +334,11 @@ Module Mem: MEM.
     rewrite T; auto.
   Qed.
 
-  Lemma alloc_local_comm : 
-    forall A S (EqS:EqDec S eq) (m m1 m2 m1' m2':t A S) s s' fr fr' b1 b2 b1', 
-    s <> s' ->                                           
-    alloc Local m s fr = (b1,m1) -> 
-    alloc Local m1 s' fr' = (b2,m2) -> 
+  Lemma alloc_local_comm :
+    forall A S (EqS:EqDec S eq) (m m1 m2 m1' m2':t A S) s s' fr fr' b1 b2 b1',
+    s <> s' ->
+    alloc Local m s fr = (b1,m1) ->
+    alloc Local m1 s' fr' = (b2,m2) ->
     alloc Local m s' fr' = (b1',m1') ->
     b1' = b2.
   Proof.
@@ -347,9 +347,9 @@ Module Mem: MEM.
     destruct (equiv_dec s s'); try congruence.
   Qed.
 
-  Lemma alloc2_local : 
-    forall A S (EqS:EqDec S eq)  (m1 m2 m1' m2':t A S) s fr1 fr2 fr' b, 
-    alloc Local m1 s fr1 = (b,m1') -> 
+  Lemma alloc2_local :
+    forall A S (EqS:EqDec S eq)  (m1 m2 m1' m2':t A S) s fr1 fr2 fr' b,
+    alloc Local m1 s fr1 = (b,m1') ->
     alloc Local m2 s fr2 = (b,m2') ->
     fst (alloc Local m1' s fr') = fst (alloc Local m2' s fr').
   Proof.
@@ -358,7 +358,7 @@ Module Mem: MEM.
     rewrite H1; auto.
   Qed.
 
-  Lemma alloc_next_block_no_fr : 
+  Lemma alloc_next_block_no_fr :
     forall A S (EqS:EqDec S eq) (m:t A S) s fr1 fr2,
     fst (alloc Local m s fr1) = fst (alloc Local m s fr2).
   Proof.
@@ -370,42 +370,57 @@ End Mem.
 
 (* CH: some of the stuff that follows doesn't really belong in this file *)
 
-Inductive val {S} := 
+Definition block S := Mem.block S.
+Definition ptr S := (block S * Z)%type.
+
+Inductive val {S} :=
   | Vint (n:Z)
-  | Vptr (b:Mem.block S) (n:Z).
+  | Vptr (p:ptr S).
 Implicit Arguments val [].
 
 Definition add {S} (v1 v2:val S) : option (val S) :=
   match v1, v2 with
     | Vint i1, Vint i2 => Some (Vint (i1+i2))
-    | Vptr b i1, Vint i2 => Some (Vptr b (i1-i2))
-    | Vint i1, Vptr b i2 => Some (Vptr b (i1+i2))
-    | _, _ => None 
-  end.
+    | Vptr (b, i1), Vint i2 => Some (Vptr (b,i1-i2))
+    | Vint i1, Vptr (b, i2) => Some (Vptr (b,i1+i2))
+    | _, _ => None
+  end%Z.
 
 Definition sub {S} {EqS:EqDec S eq} (v1 v2:val S) : option (val S) :=
   match v1, v2 with
     | Vint i1, Vint i2 => Some (Vint (i1-i2))
-    | Vptr b i1, Vint i2 => Some (Vptr b (i1-i2))
-    | Vptr b1 i1, Vptr b2 i2 =>
+    | Vptr (b, i1), Vint i2 => Some (Vptr (b,i1-i2))
+    | Vptr (b1, i1), Vptr (b2, i2) =>
       (* CH: returning the offset difference as an integer would be much
              more natural and useful than returning another pointer *)
-      if b1 == b2 then Some (Vptr b1 (i1-i2)) else None
-    | _, _ => None 
-  end.
+      (* AAA: Not quite; this enables one to reset a pointer to its *)
+      (*origin and extract its offset field *)
+      if b1 == b2 then Some (Vptr (b1,i1-i2)) else None
+    | _, _ => None
+  end%Z.
+
+Instance EqDec_ptr : forall {S} {EqS:EqDec S eq}, EqDec (ptr S) eq.
+Proof.
+  intros S H [b1 off1] [b2 off2].
+  unfold complement, equiv; simpl;
+  try solve [right; congruence].
+  destruct (b1 == b2) as [Eb | Eb]; subst.
+  2: right; congruence.
+  compute in Eb. subst.
+  destruct (Z.eq_dec off1 off2); subst; auto.
+  right; congruence.
+Qed.
 
 Instance EqDec_block : forall {S} {EqS:EqDec S eq}, EqDec (val S) eq.
 Proof.
-  intros S H [z1|b1 off1] [z2|b2 off2];
+  intros S H [z1|[b1 off1]] [z2|[b2 off2]];
   unfold complement, equiv; simpl;
   try solve [right; congruence].
   - destruct (Z.eq_dec z1 z2); subst; auto.
     right. congruence.
-  - destruct (b1 == b2) as [Eb | Eb]; subst.
+  - destruct ((b1, off1) == (b2, off2)) as [Eb | Eb].
     2: right; congruence.
-    compute in Eb. subst.
-    destruct (Z.eq_dec off1 off2); subst; auto.
-    right; congruence.
+    inv Eb. left. congruence.
 Qed.
 
 Definition val_eq {S} {eqS:EqDec S eq} (v1 v2 : val S) : val S :=
@@ -415,26 +430,25 @@ Definition Atom Label S := (val S * Label)%type.
 Definition PcAtom Label := (Z * Label)%type.
 
 Definition memory T S :=  Mem.t (Atom T S) S.
-Definition block S := Mem.block S.
 
-Definition load {A S} (b:block S) (addr:Z) (m:memory A S) : option (Atom A S) :=
-  match Mem.get_frame m b with
+Definition load {A S} (p:ptr S) (m:memory A S) : option (Atom A S) :=
+  match Mem.get_frame m (fst p) with
     | None => None
-    | Some fr => index_list_Z addr fr
+    | Some fr => index_list_Z (snd p) fr
   end.
 
-Definition store {A S} {EqS:EqDec S eq} (b:block S) (addr:Z) (a:Atom A S) (m:memory A S) 
+Definition store {A S} {EqS:EqDec S eq} (p:ptr S) (a:Atom A S) (m:memory A S)
 : option (memory A S) :=
-  match Mem.get_frame m b with
+  match Mem.get_frame m (fst p) with
     | None => None
-    | Some fr => 
-      match update_list_Z addr a fr with
+    | Some fr =>
+      match update_list_Z (snd p) a fr with
         | None => None
-        | Some fr' => (Mem.upd_frame m b fr')
+        | Some fr' => (Mem.upd_frame m (fst p) fr')
       end
   end.
 
-(* [alloc s size a m] returns : 
+(* [alloc s size a m] returns :
  - a block stamped [s], pointing to a new block of size [size], initialized with all [a]
  - the new memory where that block has been allocated
 *)
@@ -445,16 +459,16 @@ Definition alloc {A S} {EqS:EqDec S eq} (am:alloc_mode)
     | None => None
   end.
 
-Lemma load_alloc : forall {A S} {eqS:EqDec S eq} {am} {m m':memory A S} {size s a b}, 
+Lemma load_alloc : forall {A S} {eqS:EqDec S eq} {am} {m m':memory A S} {size s a b},
     alloc am s size a m = Some (b,m') ->
-    forall b' ofs', 
-      load b' ofs' m' =
+    forall b' ofs',
+      load (b', ofs') m' =
       if b == b' then if Z_le_dec 0 ofs' then
                         if Z_lt_dec ofs' size then Some a else None
                       else None
-      else load b' ofs' m.
+      else load (b', ofs') m.
 Proof.
-  unfold alloc, load; intros.
+  unfold alloc, load; intros. simpl in *.
   destruct (zreplicate size a) eqn:Ez; try congruence; inv H.
   rewrite (Mem.alloc_get_frame _ _ _ _ _ _ _ _ _ H1).
   destruct (equiv_dec b).
@@ -464,61 +478,77 @@ Proof.
   - destruct (equiv_dec b); try congruence.
 Qed.
 
-Lemma load_store : forall {A S} {eqS:EqDec S eq} {m m':memory A S} {b ofs a}, 
-    store b ofs a m = Some m' ->
-    forall b' ofs', 
-      load b' ofs' m' =
-      if b == b' then
-        if Z_eq_dec ofs ofs' then Some a else load b' ofs' m
-      else load b' ofs' m.
+Require Import Coq.Logic.Eqdep_dec.
+
+Lemma equiv_dec_refl :
+  forall S {EqS : EqDec S eq} (x : S),
+    (x == x) = left eq_refl.
+Proof.
+  intros.
+  destruct (x == x) as [E | E]; try congruence.
+  compute in E.
+  f_equal.
+  apply UIP_dec.
+  auto.
+Qed.
+
+Lemma load_store : forall {A S} {eqS:EqDec S eq} {m m':memory A S} {p a},
+    store p a m = Some m' ->
+    forall p',
+      load p' m' =
+      if p == p' then Some a else load p' m.
 Proof.
   unfold store, load; intros.
-  destruct (Mem.get_frame m b) eqn:E1; try congruence.
-  destruct (update_list_Z ofs a l) eqn:E2; try congruence.
-  rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H).
-  destruct (equiv_dec b);
-  destruct (equiv_dec b); try congruence.
-  - inv e; clear e0.
-    destruct Z.eq_dec.
-    + inv e.
-      eapply update_list_Z_spec; eauto.
-    + rewrite E1.
-      symmetry.
-      eapply update_list_Z_spec2; eauto.
+  destruct (Mem.get_frame m (fst p)) as [fr|] eqn:E1; try congruence.
+  destruct (update_list_Z (snd p) a fr) as [fr'|] eqn:E2; try congruence.
+  destruct (equiv_dec p p') as [E | E].
+  - compute in E. subst p'.
+    destruct p as [b off]. simpl in *.
+    rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H).
+    rewrite equiv_dec_refl.
+    eapply update_list_Z_spec; eauto.
+  - rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H).
+    match goal with
+      | |- context[if ?EQ then _ else _] => destruct EQ as [Eb | Eb]
+    end; eauto.
+    assert (snd p <> snd p') by (destruct p, p'; simpl in *; congruence).
+    rewrite <- Eb.
+    rewrite E1.
+    symmetry.
+    eapply update_list_Z_spec2; eauto.
 Qed.
 
-Lemma load_store_old : forall {A S} {eqS:EqDec S eq} {m m':memory A S} {b ofs a}, 
-    store b ofs a m = Some m' ->
-    forall b' ofs', 
-      (b',ofs') <> (b,ofs) ->
-      load b' ofs' m' = load b' ofs' m.
+Lemma load_store_old : forall {A S} {eqS:EqDec S eq} {m m':memory A S} {p a},
+    store p a m = Some m' ->
+    forall p',
+      p <> p' ->
+      load p' m' = load p' m.
 Proof.
   intros.
   rewrite (load_store H).
-  destruct (@equiv_dec (block S)); try congruence.
-  destruct Z.eq_dec; try congruence.
+  destruct (@equiv_dec (ptr S)); try congruence.
 Qed.
 
-Lemma load_store_new : forall {A S} {eqS:EqDec S eq} {m m':memory A S} {b ofs a}, 
-    store b ofs a m = Some m' ->
-    load b ofs m' = Some a.
+Lemma load_store_new : forall {A S} {eqS:EqDec S eq} {m m':memory A S}
+    {p a},
+    store p a m = Some m' ->
+    load p m' = Some a.
 Proof.
   intros.
   rewrite (load_store H).
-  destruct (@equiv_dec (block S)); try congruence.
-  destruct Z.eq_dec; try congruence.
+  destruct (@equiv_dec (ptr S)); try congruence.
 Qed.
 
-Lemma load_some_store_some : forall {A S} {eqS:EqDec S eq} {m:memory A S} {b ofs a}, 
-    load b ofs m = Some a ->
+Lemma load_some_store_some : forall {A S} {eqS:EqDec S eq} {m:memory A S} {p a},
+    load p m = Some a ->
     forall a':Atom A S,
-      exists m', store b ofs a' m = Some m'.
+      exists m', store p a' m = Some m'.
 Proof.
   unfold load, store; intros.
-  destruct (Mem.get_frame m b) eqn:E; try congruence.
+  destruct (Mem.get_frame m (fst p)) eqn:E; try congruence.
   exploit index_list_Z_valid; eauto.
-  destruct 1.                                
-  destruct (@update_list_Z_Some _ a' l ofs); auto.
+  destruct 1.
+  destruct (@update_list_Z_Some _ a' l (snd p)); auto.
   rewrite H2.
   eapply Mem.upd_get_frame; eauto.
 Qed.
@@ -575,12 +605,12 @@ Qed.
 Lemma get_frame_store_neq :
   forall T S {eqS : EqDec S eq}
          (m : memory T S) b b' off a m'
-         (STORE : store b off a m = Some m')
+         (STORE : store (b, off) a m = Some m')
          (NEQ : b' <> b),
     Mem.get_frame m' b' = Mem.get_frame m b'.
 Proof.
   unfold store.
-  intros.
+  intros. simpl in *.
   destruct (Mem.get_frame m b) as [f|] eqn:FRAME; try congruence.
   destruct (update_list_Z off a f) as [f'|] eqn:NEWFRAME; try congruence.
   eapply get_frame_upd_frame_neq; eauto.
@@ -616,24 +646,24 @@ Proof. unfold extends. auto. Qed.
 Lemma extends_trans : forall {T S} (m1 m2 m3 : memory T S), extends m1 m2 -> extends m2 m3 -> extends m1 m3.
 Proof. unfold extends. auto. Qed.
 
-Lemma extends_load {T S} (m1 m2 : memory T S) b off a :
+Lemma extends_load {T S} (m1 m2 : memory T S) p a :
   forall (EXT : extends m1 m2)
-         (DEF : load b off m1 = Some a),
-    load b off m2 = Some a.
+         (DEF : load p m1 = Some a),
+    load p m2 = Some a.
 Proof.
   intros.
   unfold load in *.
-  destruct (Mem.get_frame m1 b) as [fr|] eqn:FRAME; inv DEF.
+  destruct (Mem.get_frame m1 (fst p)) as [fr|] eqn:FRAME; inv DEF.
   erewrite EXT; eauto.
 Qed.
 
-Definition valid_address {T S} b off (m: memory T S) :=
-  exists v, load b off m = Some v.
+Definition valid_address {T S} p (m: memory T S) :=
+  exists v, load p m = Some v.
 
-Lemma extends_valid_address: forall {T S} (b : block S) (m m' : memory T S) off
-                                    (VALID : valid_address b off m)
+Lemma extends_valid_address: forall {T S} (p : ptr S) (m m' : memory T S)
+                                    (VALID : valid_address p m)
                                     (EXT : extends m m'),
-                               valid_address b off m'.
+                               valid_address p m'.
 Proof.
   intros.
   unfold valid_address in *.
@@ -642,18 +672,18 @@ Proof.
 Qed.
 
 Lemma valid_address_store_l :
-  forall T S (E:EqDec S eq) b off a (m m' : memory T S)
-         (STORE : store b off a m = Some m'),
-    valid_address b off m.
+  forall T S (E:EqDec S eq) p a (m m' : memory T S)
+         (STORE : store p a m = Some m'),
+    valid_address p m.
 Proof.
   unfold store, valid_address, load.
   intros.
-  destruct (Mem.get_frame m b) as [fr|] eqn:FRAME; try congruence.
-  destruct (update_list_Z off a fr) as [fr'|] eqn:FRAME'; try congruence.
+  destruct (Mem.get_frame m (fst p)) as [fr|] eqn:FRAME; try congruence.
+  destruct (update_list_Z (snd p) a fr) as [fr'|] eqn:FRAME'; try congruence.
   clear - FRAME'.
   unfold update_list_Z, index_list_Z in *.
-  destruct (off <? 0)%Z; try congruence.
-  gdep fr. gdep fr'. gdep (Z.to_nat off).
+  destruct (snd p <? 0)%Z; try congruence.
+  gdep fr. gdep fr'. gdep (Z.to_nat (snd p)).
   clear.
   intros off.
   induction off as [|off IH]; intros fr' fr H; destruct fr as [|a' fr]; simpl in *; try congruence; eauto.
@@ -661,14 +691,15 @@ Proof.
   eapply IH; eauto.
 Qed.
 
-Lemma valid_address_upd: forall T S (E:EqDec S eq) b a b' a' vl (m m' : memory T S),
-  valid_address b a m ->
-  store b' a' vl m = Some m' ->
-  valid_address b a m'.
+Lemma valid_address_upd: forall T S (E:EqDec S eq) p p' vl (m m' : memory T S),
+  valid_address p m ->
+  store p' vl m = Some m' ->
+  valid_address p m'.
 Proof.
   unfold valid_address; intuition.
   destruct H.
   unfold load, store in *.
+  destruct p as [b a], p' as [b' a']. simpl in *.
   destruct (b == b').
   - inv e.
     destruct (Mem.get_frame m b') eqn:EQ; try congruence.
@@ -692,27 +723,27 @@ Proof.
 Qed.
 
 Lemma valid_address_store_r :
-  forall T S (E:EqDec S eq) b off a (m m' : memory T S)
-         (STORE : store b off a m = Some m'),
-    valid_address b off m'.
+  forall T S (E:EqDec S eq) p a (m m' : memory T S)
+         (STORE : store p a m = Some m'),
+    valid_address p m'.
 Proof.
   intros.
   eauto using valid_address_store_l, valid_address_upd.
 Qed.
 
 Lemma extends_update :
-  forall T S (E:EqDec S eq) (m m1 m2 : memory T S) b off a
+  forall T S (E:EqDec S eq) (m m1 m2 : memory T S) p a
          (EXT : extends m m1)
-         (STORE : store b off a m1 = Some m2)
-         (INVALID : ~ valid_address b off m),
+         (STORE : store p a m1 = Some m2)
+         (INVALID : ~ valid_address p m),
     extends m m2.
 Proof.
   intros.
   intros b' fr' FRAME'.
-  assert (b' <> b).
+  assert (b' <> fst p).
   { intros NEQ.
     subst.
-    destruct (load b off m) as [r|] eqn:LOAD.
+    destruct (load p m) as [r|] eqn:LOAD.
     - apply INVALID. unfold valid_address. eauto.
     - eapply valid_address_store_l in STORE.
       destruct STORE as [res RES].
@@ -726,14 +757,14 @@ Proof.
   eapply get_frame_store_neq; eauto.
 Qed.
 
-Lemma valid_store: forall T S (E:EqDec S eq) b off v (m : memory T S),
-  valid_address b off m ->
-  exists m', store b off v m = Some m'.
+Lemma valid_store: forall T S (E:EqDec S eq) p v (m : memory T S),
+  valid_address p m ->
+  exists m', store p v m = Some m'.
 Proof.
   unfold valid_address, load, store.
   intros.
   destruct H as [v' Hv].
-  destruct (Mem.get_frame m b) as [v''|] eqn:FRAME; try congruence.
+  destruct (Mem.get_frame m (fst p)) as [v''|] eqn:FRAME; try congruence.
 
   exploit valid_update; eauto.
   intros [fr' Hfr'].
@@ -749,11 +780,17 @@ Context {eqS1 : EqDec S1 eq}
 
 Definition meminj := block S2 -> option (block S1).
 
+Inductive match_ptrs (mi : meminj) : ptr S1 -> ptr S2 -> Prop :=
+| mp_intro : forall b1 b2 off
+                    (BLOCK : mi b2 = Some b1),
+               match_ptrs mi (b1, off) (b2, off).
+Hint Constructors match_ptrs.
+
 Inductive match_vals (mi : meminj) : val S1 -> val S2 -> Prop :=
 | mv_num : forall z, match_vals mi (Vint z) (Vint z)
-| mv_ptr : forall b1 b2 off
-                  (BLOCK : mi b2 = Some b1),
-             match_vals mi (Vptr b1 off) (Vptr b2 off).
+| mv_ptr : forall p1 p2
+                  (PTRS : match_ptrs mi p1 p2),
+             match_vals mi (Vptr p1) (Vptr p2).
 Hint Constructors match_vals.
 
 Variable match_tags : T1 -> T2 -> memory T2 S2 -> Prop.
@@ -875,8 +912,8 @@ Proof.
       constructor; auto.
       inv H.
       inv VALS; eauto.
-      constructor; eauto.
-      constructor.
+      constructor; eauto. inv PTRS.
+      do 2 constructor.
       rewrite update_meminj_neq; auto.
       congruence.
     + rewrite update_meminj_neq in FRAME; auto.
@@ -895,8 +932,8 @@ Proof.
         constructor; auto.
         inv H.
         constructor; eauto.
-        inv VALS; auto.
-        constructor.
+        inv VALS; auto. inv PTRS.
+        do 2 constructor.
         rewrite update_meminj_neq; eauto.
         cut (mi b2 = None); try congruence.
         eapply mi_invalid; eauto.
@@ -955,7 +992,10 @@ Lemma add_defined : forall mi v11 v12 v21 v22 r2
                         match_vals mi r1 r2.
 Proof.
   intros.
-  inv V1; inv V2; simpl in *; inv ADD; eauto.
+  repeat match goal with
+           | H : match_vals _ _ _ |- _ => inv H
+           | H : match_ptrs _ _ _ |- _ => inv H
+         end; simpl in *; inv ADD; eauto.
 Qed.
 
 Lemma sub_defined : forall mi v11 v12 v21 v22 r2
@@ -967,7 +1007,10 @@ Lemma sub_defined : forall mi v11 v12 v21 v22 r2
                         match_vals mi r1 r2.
 Proof.
   intros.
-  inv V1; inv V2; simpl in *; eauto; try congruence;
+  repeat match goal with
+           | H : match_vals _ _ _ |- _ => inv H
+           | H : match_ptrs _ _ _ |- _ => inv H
+         end; simpl in *; eauto; try congruence;
   try match goal with
         | H : context[if ?b then _ else _] |- _ =>
           destruct b as [E | E]; compute in E; subst; try congruence
@@ -998,7 +1041,10 @@ Proof.
   destruct (v11 == v12) as [E1 | E1]; compute in E1; subst;
   destruct (v21 == v22) as [E2 | E2]; compute in E2; subst;
   auto;
-  inv VALS1; inv VALS2; try congruence.
+  repeat match goal with
+           | H : match_vals _ _ _ |- _ => inv H
+           | H : match_ptrs _ _ _ |- _ => inv H
+         end; try congruence.
   cut (b2 = b3); try congruence.
   eapply mi_inj; eauto.
 Qed.
@@ -1021,20 +1067,20 @@ Proof.
 Qed.
 
 Lemma meminj_load :
-  forall m1 m2 mi b1 b2 off a2
+  forall m1 m2 mi p1 p2 a2
          (INJ : Meminj m1 m2 mi)
-         (LOAD : load b2 off m2 = Some a2)
-         (MATCH : mi b2 = Some b1),
+         (LOAD : load p2 m2 = Some a2)
+         (MATCH : match_ptrs mi p1 p2),
     exists a1,
-      load b1 off m1 = Some a1 /\
+      load p1 m1 = Some a1 /\
       match_atoms mi a1 a2 m2.
 Proof.
   unfold load.
   intros.
-  destruct (Mem.get_frame m2 b2) as [f2|] eqn:E2; try congruence.
-  exploit mi_valid'; eauto.
+  destruct (Mem.get_frame m2 (fst p2)) as [f2|] eqn:E2; try congruence.
+  inv MATCH. exploit mi_valid'; eauto.
   intros [f1 [H1 H2]].
-  rewrite H1.
+  simpl. rewrite H1.
   eapply match_frames_valid_index; eauto.
 Qed.
 
@@ -1145,22 +1191,22 @@ Qed.
 
 Lemma meminj_store :
   forall m1 m2 mi
-         b1 b2 off a1 a2 m2'
+         p1 p2 a1 a2 m2'
          (INJ : Meminj m1 m2 mi)
-         (STORE : store b2 off a2 m2 = Some m2')
+         (STORE : store p2 a2 m2 = Some m2')
          (VALS : match_atoms mi a1 a2 m2)
-         (MATCH : mi b2 = Some b1)
+         (MATCH : match_ptrs mi p1 p2)
          (VALID : valid_update m2 m2'),
     exists m1',
-      store b1 off a1 m1 = Some m1' /\
+      store p1 a1 m1 = Some m1' /\
       Meminj m1' m2' mi.
 Proof.
   unfold store.
   intros.
-  destruct (Mem.get_frame m2 b2) as [f2|] eqn:Ef2; try congruence.
-  exploit mi_valid'; eauto.
+  destruct (Mem.get_frame m2 (fst p2)) as [f2|] eqn:Ef2; try congruence.
+  inv MATCH. exploit mi_valid'; eauto.
   intros [f1 [H1 H2]].
-  rewrite H1.
+  simpl in *. rewrite H1.
   destruct (update_list_Z off a2 f2) eqn:E; try congruence.
   exploit match_frames_update_success; eauto.
   intros [f1' [Ef' ?]].

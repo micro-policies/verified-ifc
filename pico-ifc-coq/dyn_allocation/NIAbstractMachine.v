@@ -480,15 +480,15 @@ Hint Extern 1 =>
 
 
 Lemma load_equiv_mem:
-  forall o b ofs m1 m2 v1 v2,
+  forall o p m1 m2 v1 v2,
     equiv_mem o m1 m2 ->
-    Mem.stamp b <: o = true ->
-    load b ofs m1 = Some v1 ->
-    load b ofs m2 = Some v2 ->
+    Mem.stamp (fst p) <: o = true ->
+    load p m1 = Some v1 ->
+    load p m2 = Some v2 ->
     low_equiv_atom o v1 v2.
 Proof.
-  intros o b ofs m1 m2 v1 v2 [H _] Hs H0 H1.
-  unfold load in *.
+  intros o [b ofs] m1 m2 v1 v2 [H _] Hs H0 H1.
+  unfold load in *. simpl in *.
   assert (T:=H b Hs); inv T.
   - rewrite <- H3 in *; congruence.
   - rewrite <- H2 in *.
@@ -497,25 +497,25 @@ Proof.
 Qed.
 
 Lemma store_equiv_mem:
-  forall o m1 m2 b1 b2 ofs1 ofs2 l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2',
+  forall o m1 m2 p1 p2 l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2',
   equiv_mem o m1 m2 ->
-  Mem.stamp b1 <: l1 = true ->
-  Mem.stamp b2 <: l2 = true ->
-  low_equiv_atom o (Vptr b1 ofs1, l1) (Vptr b2 ofs2, l2) ->
-  load b1 ofs1 m1 = Some (o1,ll1) ->
-  load b2 ofs2 m2 = Some (o2,ll2) ->
+  Mem.stamp (fst p1) <: l1 = true ->
+  Mem.stamp (fst p2) <: l2 = true ->
+  low_equiv_atom o (Vptr p1, l1) (Vptr p2, l2) ->
+  load p1 m1 = Some (o1,ll1) ->
+  load p2 m2 = Some (o2,ll2) ->
   l1 <: ll1 = true ->
   l2 <: ll2 = true ->
   low_equiv_atom o (v1, lll1) (v2, lll2) ->
-  store b1 ofs1 (v1, join l1 lll1) m1 = Some m1' ->
-  store b2 ofs2 (v2, join l2 lll2) m2 = Some m2' ->
+  store p1 (v1, join l1 lll1) m1 = Some m1' ->
+  store p2 (v2, join l2 lll2) m2 = Some m2' ->
   equiv_mem o m1' m2'.
 Proof.
-  intros o m1 m2 b1 b2 ofs1 ofs2 l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2'.
-  intros [H H'] Hs1 Hs2 H0 H1 H2 H3 H4 H5 H6 H7.
+  intros o m1 m2 [b1 ofs1] [b2 ofs2] l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2'.
+  intros [H H'] Hs1 Hs2 H0 H1 H2 H3 H4 H5 H6 H7. simpl in *.
   split.
   + { intros b Hb.
-      unfold load, store in *.
+      unfold load, store in *. simpl in *.
       inv H0.
       - assert (Hs2': Mem.stamp b2 <: o = true) by (eauto with lat).
         generalize (H b2 Hs2'); intros T; inv T.
@@ -580,14 +580,14 @@ Proof.
     apply H'; auto.
 Qed.
 
-Lemma store_high_equiv_mem: forall o m1 m2 l1 l2 o1 v b ofs,
+Lemma store_high_equiv_mem: forall o m1 m2 l1 l2 o1 v p,
   l1 <: o = false ->
   l2 <: o = false ->
-  load b ofs m1 = Some (o1, l1) ->
-  store b ofs (v, l2) m1 = Some m2 ->
+  load p m1 = Some (o1, l1) ->
+  store p (v, l2) m1 = Some m2 ->
   equiv_mem o m1 m2.
 Proof.
-  unfold load, store; intros.
+  unfold load, store; intros. destruct p as [b ofs]. simpl in *.
   destruct (Mem.get_frame m1 b) eqn:E1; try congruence.
   unfold Atom in *.
   destruct (update_list_Z ofs (v,l2) l) eqn:E2; try congruence.
@@ -958,12 +958,12 @@ Qed.
 Definition inv_atom (a:Atom T T) : Prop :=
   match a with
     | (Vint _,_) => True
-    | (Vptr b _, l) => Mem.stamp b <: l  = true
+    | (Vptr p, l) => Mem.stamp (fst p) <: l  = true
   end.
 
 Inductive inv_state : @a_state T -> Prop :=
 | inv_state_def: forall m i s pc lpc
-    (IMEM: forall b ofs a, load b ofs m = Some a -> inv_atom a)
+    (IMEM: forall p a, load p m = Some a -> inv_atom a)
     (ISTACK: forall a, In (AData a) s -> inv_atom a),
     inv_state (AState m i s (pc,lpc)).
 
@@ -998,9 +998,9 @@ Proof.
   try (intros a [Ha | Ha]; [inv Ha|apply ISTACK; simpl; auto; fail]);
   simpl; auto.
   - Case "Add".
-    destruct x1v; destruct x2v; inv ADD; simpl in *; auto with lat.
+    destruct x1v as [|[]]; destruct x2v as [|[]]; inv ADD; simpl in *; auto with lat.
   - Case "Sub".
-    destruct x1v; destruct x2v; inv SUB; simpl in *; auto with lat.
+    destruct x1v as [|[]]; destruct x2v as [|[]]; inv SUB; simpl in *; auto with lat.
     destruct (b == b0).
     + inv H0. auto with lat.
     + congruence.
@@ -1013,7 +1013,7 @@ Proof.
     apply in_or_app.
     destruct H as [H | H]; eauto using swap_In.
   - Case "Alloc".
-    intros.
+    intros. destruct p as [b' ofs].
     rewrite (load_alloc ALLOC) in H.
     destruct (@equiv_dec (block T)); try congruence.
     + destruct Z_le_dec; try congruence.
@@ -1026,12 +1026,11 @@ Proof.
     rewrite (Mem.alloc_stamp _ _ _ _ _ _ _ _ _ H0).
     auto with lat.
   - Case "Load".
-    generalize (IMEM _ _ _ LOAD); destruct xv; simpl; auto with lat.
+    generalize (IMEM _ _ LOAD); destruct xv; simpl; auto with lat.
   - Case "Store".
     intros.
     rewrite (load_store STORE) in H.
-    destruct (@equiv_dec (block T)); eauto.
-    destruct Z.eq_dec; eauto.
+    destruct (@equiv_dec (ptr T)); eauto.
     inv H.
     destruct xv; simpl in *; auto with lat.
   - Case "Call".
@@ -1144,20 +1143,20 @@ Proof.
   - Case "Load".
     inv_equiv_atom; try go.
     SCase "Load from low addresses".
-    assert (Mem.stamp b0 <: addrl0 = true).
+    assert (Mem.stamp (fst p0) <: addrl0 = true).
       inv Hi2.
-      apply (ISTACK (Vptr b0 ofs0, addrl0)); auto with datatypes.
+      apply (ISTACK (Vptr p0, addrl0)); auto with datatypes.
     assert (Hmemv: low_equiv_atom o (xv, xl) (xv0, xl0)) by
         (eapply load_equiv_mem; eauto with lat).
     inv Hmemv; go.
 
   - Case "Store".
-    assert (Mem.stamp b0 <: addrl0 = true).
+    assert (Mem.stamp (fst p0) <: addrl0 = true).
       inv Hi2.
-      apply (ISTACK (Vptr b0 ofs0, addrl0)); auto with datatypes.
-    assert (Mem.stamp b <: addrl = true).
+      apply (ISTACK (Vptr p0, addrl0)); auto with datatypes.
+    assert (Mem.stamp (fst p) <: addrl = true).
       inv Hi1.
-      apply (ISTACK (Vptr b ofs, addrl)); auto with datatypes.
+      apply (ISTACK (Vptr p, addrl)); auto with datatypes.
     repeat inv_equiv_atom;
     assert (m' ~~m m'0) by (
       eapply store_equiv_mem with (10:= STORE) (11:= STORE0);
@@ -1211,7 +1210,7 @@ Proof.
       { inv Hi1.
         specialize (ISTACK _ (or_introl eq_refl)). inv ISTACK.
         destruct LEm as [LOWF _].
-        assert (STAMP : Mem.stamp b0 <: o = true) by eauto with lat.
+        assert (STAMP : Mem.stamp (fst p0) <: o = true) by eauto with lat.
         exploit LOWF; eauto. intros FRAMES.
         rewrite FRAME in FRAMES. rewrite FRAME0 in FRAMES.
         inv FRAMES. eapply Forall2_length; eauto. }

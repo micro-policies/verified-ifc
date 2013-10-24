@@ -220,7 +220,7 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
     forall (INST: fh @ pcv # PushCachePtr)
            (CS1: cs1 = CState m fh i s (pcv,pcl) true)
            (CA: ca = Silent)
-           (CS2: cs2 = CState m fh i ((Vptr cblock 0,handlerTag):::s) (pcv+1,handlerTag) true),
+           (CS2: cs2 = CState m fh i ((Vptr (cblock, 0),handlerTag):::s) (pcv+1,handlerTag) true),
     cstep table cs1 ca cs2
 
 | cstep_alloc: forall fh m i s pcv pcl b size sizel xv xl m' rpcl rl,
@@ -230,7 +230,7 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
            (ALLOC: c_alloc User size (xv,xl) m = Some (b,m'))
            (CS1: cs1 = CState m fh i (CData (Vint size, sizel)::CData (xv,xl)::s) (pcv,pcl) false)
            (CA: ca = Silent)
-           (CS2: cs2 = CState m' fh i (CData (Vptr b 0,rl)::s) (pcv+1,rpcl) false),
+           (CS2: cs2 = CState m' fh i (CData (Vptr (b, 0),rl)::s) (pcv+1,rpcl) false),
       cstep table cs1 ca cs2
 
 | cstep_alloc_f: forall c' fh m m' i s pcv pcl size sizel xv xl,
@@ -248,70 +248,70 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
            (ALLOC: c_alloc Kernel size (xv,xl) m = Some (b,m'))
            (CS1: cs1 = CState m fh i (CData (Vint size, sizel)::CData (xv,xl)::s) (pcv,pcl) true)
            (CA: ca = Silent)
-           (CS2: cs2 = CState m' fh i (CData (Vptr b 0,handlerTag)::s) (pcv+1,handlerTag) true),
+           (CS2: cs2 = CState m' fh i (CData (Vptr (b, 0),handlerTag)::s) (pcv+1,handlerTag) true),
       cstep table cs1 ca cs2
 
-| cstep_load: forall fh m i s rpcl pcv pcl rl b ofs addrl xv xl,
+| cstep_load: forall fh m i s rpcl pcv pcl rl p addrl xv xl,
    forall(INST: i @ pcv # Load)
          (CHIT: cache_hit_mem m (opCodeToZ OpLoad) (addrl, xl, __) pcl)
          (CREAD: cache_hit_read_mem m rl rpcl)
-         (MREAD: load b ofs m = Some (xv,xl))
-         (PRIV: Mem.stamp b = User)
-         (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl)   false)
+         (MREAD: load p m = Some (xv,xl))
+         (PRIV: Mem.stamp (fst p) = User)
+         (CS1: cs1 = CState m fh i ((Vptr p,addrl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((xv,rl):::s) (pcv+1,rpcl) false),
      cstep table cs1 ca cs2
 
-| cstep_load_f: forall c' fh m i s pcv pcl b ofs addrl xv xl m',
+| cstep_load_f: forall c' fh m i s pcv pcl p addrl xv xl m',
    forall(INST: i @ pcv # Load)
          (CMISS: ~ cache_hit_mem m (opCodeToZ OpLoad) (addrl,xl,__) pcl)
-         (MREAD: load b ofs m = Some (xv,xl))
+         (MREAD: load p  m = Some (xv,xl))
          (CUPD : c' = build_cache (opCodeToZ OpLoad) (addrl,xl,__) pcl)
-         (PRIV: Mem.stamp b = User)
+         (PRIV: Mem.stamp (fst p) = User)
          (CUPDGET : cupd m c' = Some m')
-         (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl)   false)
+         (CS1: cs1 = CState m fh i ((Vptr p,addrl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
-         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr b ofs,addrl):::s) fh_start true),
+         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr p,addrl):::s) fh_start true),
      cstep table cs1 ca cs2
 
-| cstep_load_p: forall m fh i s pcv pcl b ofs addrl x,
+| cstep_load_p: forall m fh i s pcv pcl p addrl x,
    forall (INST: fh @ pcv # Load)
-          (READ: load b ofs m = Some x)
-          (PRIV: Mem.stamp b = Kernel)
-          (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::s) (pcv,pcl) true)
+          (READ: load p m = Some x)
+          (PRIV: Mem.stamp (fst p) = Kernel)
+          (CS1: cs1 = CState m fh i ((Vptr p,addrl):::s) (pcv,pcl) true)
           (CA: ca = Silent)
           (CS2: cs2 = CState m fh i (x:::s) (pcv+1,handlerTag) true),
     cstep table cs1 ca cs2
 
-| cstep_store: forall fh m m' i s rpcl pcv pcl rl b ofs addrl xv xl mv ml,
+| cstep_store: forall fh m m' i s rpcl pcv pcl rl p addrl xv xl mv ml,
    forall(INST: i @ pcv # Store)
          (CHIT: cache_hit_mem m (opCodeToZ OpStore) (addrl, xl, ml) pcl)
          (CREAD: cache_hit_read_mem m rl rpcl)
-         (MREAD: load b ofs m = Some (mv,ml))
-         (MUPDT: store b ofs (xv,rl) m = Some m')
-         (PRIV: Mem.stamp b = User)
-         (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::(xv,xl):::s) (pcv,pcl)   false)
+         (MREAD: load p m = Some (mv,ml))
+         (MUPDT: store p (xv,rl) m = Some m')
+         (PRIV: Mem.stamp (fst p) = User)
+         (CS1: cs1 = CState m fh i ((Vptr p,addrl):::(xv,xl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m' fh i s (pcv+1,rpcl) false),
      cstep table cs1 ca cs2
 
-| cstep_store_f: forall c' fh m i s pcv pcl b ofs addrl xv xl mv ml m',
+| cstep_store_f: forall c' fh m i s pcv pcl p addrl xv xl mv ml m',
    forall(INST: i @ pcv # Store)
          (CMISS: ~ cache_hit_mem m (opCodeToZ OpStore) (addrl,xl,ml) pcl)
-         (MREAD: load b ofs m = Some (mv,ml))
+         (MREAD: load p m = Some (mv,ml))
          (CUPD : c' = build_cache (opCodeToZ OpStore) (addrl,xl,ml) pcl)
-         (PRIV: Mem.stamp b = User)
+         (PRIV: Mem.stamp (fst p) = User)
          (CUPDGET : cupd m c' = Some m')
-         (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl):::(xv,xl):::s) (pcv,pcl)   false)
+         (CS1: cs1 = CState m fh i ((Vptr p,addrl):::(xv,xl):::s) (pcv,pcl)   false)
          (CA: ca = Silent)
-         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr b ofs,addrl):::(xv,xl):::s) fh_start true),
+         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr p,addrl):::(xv,xl):::s) fh_start true),
      cstep table cs1 ca cs2
 
-| cstep_store_p: forall m fh i s pcv pcl m' b ofs addrl x,
+| cstep_store_p: forall m fh i s pcv pcl m' p addrl x,
     forall (INST:fh @ pcv # Store)
-           (UPD: store b ofs x m = Some m')
-           (PRIV: Mem.stamp b = Kernel)
-           (CS1: cs1 = CState m fh i ((Vptr b ofs,addrl)::: x :::s) (pcv,pcl) true)
+           (UPD: store p x m = Some m')
+           (PRIV: Mem.stamp (fst p) = Kernel)
+           (CS1: cs1 = CState m fh i ((Vptr p,addrl)::: x :::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m' fh i s (pcv+1,handlerTag) true),
     cstep table cs1 ca cs2
@@ -505,30 +505,30 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
                             (sys_info.(csi_pc),handlerTag) true),
      cstep table cs1 ca cs2
 
-| cstep_sizeof: forall fh m i s pcv pcl b off pl fr rpcl rl,
+| cstep_sizeof: forall fh m i s pcv pcl p pl fr rpcl rl,
    forall(INST: i @ pcv # SizeOf)
-         (FRAME: Mem.get_frame m b = Some fr)
+         (FRAME: Mem.get_frame m (fst p) = Some fr)
          (CHIT: cache_hit_mem m (opCodeToZ OpSizeOf) (pl, __, __) pcl)
          (CREAD: cache_hit_read_mem m rl rpcl)
-         (CS1: cs1 = CState m fh i ((Vptr b off, pl):::s) (pcv,pcl) false)
+         (CS1: cs1 = CState m fh i ((Vptr p, pl):::s) (pcv,pcl) false)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((Vint (Z.of_nat (length fr)), rl):::s) (pcv+1,rpcl) false),
      cstep table cs1 ca cs2
 
-| cstep_sizeof_f: forall c' fh m i s pcv pcl b off pl m',
+| cstep_sizeof_f: forall c' fh m i s pcv pcl p pl m',
    forall(INST: i @ pcv # SizeOf)
          (CMISS: ~ cache_hit_mem m (opCodeToZ OpSizeOf) (pl,__,__) pcl)
          (CUPD : c' = build_cache (opCodeToZ OpSizeOf) (pl,__,__) pcl)
          (CUPDGET : cupd m c' = Some m')
-         (CS1: cs1 = CState m fh i ((Vptr b off,pl):::s) (pcv,pcl) false)
+         (CS1: cs1 = CState m fh i ((Vptr p,pl):::s) (pcv,pcl) false)
          (CA: ca = Silent)
-         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr b off,pl):::s) fh_start true),
+         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr p,pl):::s) fh_start true),
      cstep table cs1 ca cs2
 
-| cstep_sizeof_p: forall fh m i s pcv pcl b off pl fr,
+| cstep_sizeof_p: forall fh m i s pcv pcl p pl fr,
    forall(INST: fh @ pcv # SizeOf)
-         (FRAME: Mem.get_frame m b = Some fr)
-         (CS1: cs1 = CState m fh i ((Vptr b off, pl):::s) (pcv,pcl) true)
+         (FRAME: Mem.get_frame m (fst p) = Some fr)
+         (CS1: cs1 = CState m fh i ((Vptr p, pl):::s) (pcv,pcl) true)
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((Vint (Z.of_nat (length fr)), handlerTag):::s) (pcv+1,handlerTag) true),
      cstep table cs1 ca cs2

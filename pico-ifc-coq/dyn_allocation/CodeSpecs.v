@@ -214,10 +214,10 @@ Qed.
 Lemma PushCachePtr_spec :
   HTT [PushCachePtr]
       (fun Q m s =>
-         Q m (CData (Vptr cblock 0,handlerTag) :: s)).
+         Q m (CData (Vptr (cblock, 0),handlerTag) :: s)).
 Proof.
   repeat intro.
-  exists ((CData (Vptr cblock 0, handlerTag))::stk0).
+  exists ((CData (Vptr (cblock, 0), handlerTag))::stk0).
   exists mem0.
   simpl in H1.
   intuition; subst.
@@ -235,7 +235,7 @@ Qed.
 Lemma push_cptr_spec :
   forall v,
     HTT (push_cptr v)
-        (fun Q m s => Q m ((Vptr cblock v, handlerTag) ::: s)).
+        (fun Q m s => Q m ((Vptr (cblock, v), handlerTag) ::: s)).
 Proof.
   intros.
   intros Q imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
@@ -260,15 +260,14 @@ Qed.
 
 Lemma load_spec :
   HTT [Load]
-      (fun Q m s0 => exists b off t x s,
-                       s0 = (Vptr b off,t) ::: s /\
-                       Mem.stamp b = Kernel /\
-                       load b off m = Some x /\
+      (fun Q m s0 => exists p t x s,
+                       s0 = (Vptr p,t) ::: s /\
+                       Mem.stamp (fst p) = Kernel /\
+                       load p m = Some x /\
                        Q m (x ::: s)).
 Proof.
   intros Q. eapply HT_forall_exists.
-  intros b. eapply HT_forall_exists.
-  intros off. eapply HT_forall_exists.
+  intros p. eapply HT_forall_exists.
   intros t. eapply HT_forall_exists.
   intros x. eapply HT_forall_exists.
   intros s0.
@@ -387,14 +386,14 @@ Qed.
 Lemma store_spec :
   HTT [Store]
       (fun Q (m0 : memory) (s0 : stack) =>
-         exists b a al v m s,
-           Mem.stamp b = Kernel /\
-           s0 = (Vptr b a, al) ::: v ::: s /\ store b a v m0 = Some m /\ Q m s).
+         exists p al v m s,
+           Mem.stamp (fst p) = Kernel /\
+           s0 = (Vptr p, al) ::: v ::: s /\ store p v m0 = Some m /\ Q m s).
 Proof.
   intros Q.
   eapply HT_forall_exists. intro. eapply HT_forall_exists.
   intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
-  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
+  intro. eapply HT_forall_exists.
   intro. apply HT_fold_constant_premise. intro.
   unfold CodeTriples.HT.
   intros.
@@ -416,7 +415,7 @@ Lemma storeAt_spec: forall a,
   HTT (storeAt a)
       (fun Q m0 s0 => exists vl s m,
                         s0 = vl ::: s /\
-                        store cblock a vl m0 = Some m /\
+                        store (cblock, a) vl m0 = Some m /\
                         Q m s).
 Proof.
   intros.
@@ -434,7 +433,7 @@ Lemma alloc_spec :
                         cnt >= 0 /\
                         (forall b m,
                            c_alloc Kernel cnt (xv,xl) m0 = Some (b, m) ->
-                           Q m ((Vptr b 0,handlerTag):::s))).
+                           Q m ((Vptr (b, 0),handlerTag):::s))).
 Proof.
   intros Q.
   unfold CodeTriples.HT. intros.
@@ -1670,9 +1669,9 @@ Definition extract_offset_loop_body : code :=
 Lemma extract_offset_loop_body_spec :
   HTT extract_offset_loop_body
       (fun Q m s => exists n b off s0 t1 t2 t3,
-                      s = (Vint n,t1) ::: (Vptr b n,t2) ::: (Vptr b off,t3) ::: s0 /\
+                      s = (Vint n,t1) ::: (Vptr (b, n),t2) ::: (Vptr (b, off),t3) ::: s0 /\
                       forall t1' t2' t3',
-                        Q m ((Vint (n+1),t1') ::: (Vptr b (n+1),t2') ::: (Vptr b off,t3') ::: s0)).
+                        Q m ((Vint (n+1),t1') ::: (Vptr (b,n+1),t2') ::: (Vptr (b,off),t3') ::: s0)).
 Proof.
   unfold extract_offset_loop_body.
   eapply HTT_strengthen_premise.
@@ -1711,11 +1710,11 @@ Definition extract_offset : code :=
 Lemma extract_offset_spec :
   HTT extract_offset
       (fun Q m s =>
-         exists b off t s0,
-           off >= 0 /\
-           s = (Vptr b off, t) ::: s0 /\
+         exists p t s0,
+           snd p >= 0 /\
+           s = (Vptr p, t) ::: s0 /\
            forall t',
-             Q m ((Vint off, t') ::: s0)).
+             Q m ((Vint (snd p), t') ::: s0)).
 Proof.
   unfold extract_offset.
   intros.
@@ -1729,10 +1728,10 @@ Proof.
       eapply while_spec with
         (I := fun (Q : HProp) m s n =>
                 exists z b off s0 t1 t2 t3,
-                  s = (Vint z, t1) ::: (Vptr b z, t2) ::: (Vptr b off, t3) ::: s0 /\
+                  s = (Vint z, t1) ::: (Vptr (b, z), t2) ::: (Vptr (b, off), t3) ::: s0 /\
                   z = off - Z.of_nat n /\
                   forall t1' t2' t3',
-                    Q m ((Vint off, t1') ::: (Vptr b off, t2') ::: (Vptr b off, t3') ::: s0)).
+                    Q m ((Vint off, t1') ::: (Vptr (b, off), t2') ::: (Vptr (b, off), t3') ::: s0)).
       - eapply HTT_compose; try eapply dup_spec.
         eapply HTT_compose; try eapply dup_spec.
         eapply HTT_compose; try eapply genEq_spec.
@@ -1750,8 +1749,9 @@ Proof.
         do 3 eexists. split; eauto.
         split.
         + intros H.
-          destruct (equiv_dec (Vptr b (off - Z.of_nat n)) (Vptr b off)) as [C|C];
-          simpl in H; try congruence.
+          match type of H with
+            | context[if ?B then _ else _] => destruct B as [C|C]
+          end; simpl in H; try congruence.
           assert (NZ : off - Z.of_nat n <> off) by congruence. clear C.
           do 7 eexists. split; eauto.
           intros.
@@ -1764,8 +1764,9 @@ Proof.
             rewrite Nat2Z.inj_succ. omega. }
           eauto.
         + intros H.
-          destruct (equiv_dec (Vptr b (off - Z.of_nat n)) (Vptr b off)) as [C|C];
-          simpl in H; try congruence.
+          match type of H with
+            | context[if ?B then _ else _] => destruct B as [C|C]
+          end; simpl in H; try congruence.
           assert (Z : off - Z.of_nat n = off) by congruence. clear C.
           assert (ZERO : Z.of_nat n = 0) by omega. clear Z.
           rewrite ZERO.
@@ -1774,14 +1775,13 @@ Proof.
     eapply HTT_compose; try eapply swap_spec.
     eapply HTT_compose; try eapply pop_spec. }
   simpl.
-  intros Q m ? (b & off & t & s & POS & ? & POST). subst.
+  intros Q m ? ([b off] & t & s & POS & ? & POST). simpl in POS. subst.
   eexists. split; eauto.
   eexists. split; eauto.
-  do 4 eexists. eexists (Vptr b 0). eexists.
+  do 4 eexists. eexists (Vptr (b, 0)). eexists.
   split; eauto.
   split.
-  { simpl.
-    destruct (equiv_dec b b); try congruence.
+  { simpl. rewrite equiv_dec_refl.
     repeat f_equal. ring. }
   do 8 eexists. split; eauto.
   replace 0 with (off - off) by omega.
