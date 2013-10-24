@@ -849,7 +849,6 @@ Proof.
                 end);
 
 
-  (* For the BranchNZ case *)
   on_case ltac:(instr OpBranchNZ)
           "Case analysis for BranchNZ failed"
           ltac:(idtac;
@@ -860,6 +859,11 @@ Proof.
                     destruct (z =? 0);
                     inv H
                 end);
+
+  on_case ltac:(instr OpSizeOf)
+          "Length analysis for SizeOf failed"
+          ltac:(exploit mi_valid'; eauto; intros (? & ? & FRAMES);
+                apply Forall2_length in FRAMES; rewrite <- FRAMES);
 
   solve [
       eexists; eexists; split; try split;

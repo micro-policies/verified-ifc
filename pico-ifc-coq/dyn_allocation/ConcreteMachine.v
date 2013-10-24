@@ -504,6 +504,34 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
          (CS2: cs2 = CState m fh i (map CData args ++ (fh_vret (pcv+1) pcl) :: s)
                             (sys_info.(csi_pc),handlerTag) true),
      cstep table cs1 ca cs2
+
+| cstep_sizeof: forall fh m i s pcv pcl b off pl fr rpcl rl,
+   forall(INST: i @ pcv # SizeOf)
+         (FRAME: Mem.get_frame m b = Some fr)
+         (CHIT: cache_hit_mem m (opCodeToZ OpSizeOf) (pl, __, __) pcl)
+         (CREAD: cache_hit_read_mem m rl rpcl)
+         (CS1: cs1 = CState m fh i ((Vptr b off, pl):::s) (pcv,pcl) false)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i ((Vint (Z.of_nat (length fr)), rl):::s) (pcv+1,rpcl) false),
+     cstep table cs1 ca cs2
+
+| cstep_sizeof_f: forall c' fh m i s pcv pcl b off pl m',
+   forall(INST: i @ pcv # SizeOf)
+         (CMISS: ~ cache_hit_mem m (opCodeToZ OpSizeOf) (pl,__,__) pcl)
+         (CUPD : c' = build_cache (opCodeToZ OpSizeOf) (pl,__,__) pcl)
+         (CUPDGET : cupd m c' = Some m')
+         (CS1: cs1 = CState m fh i ((Vptr b off,pl):::s) (pcv,pcl) false)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr b off,pl):::s) fh_start true),
+     cstep table cs1 ca cs2
+
+| cstep_sizeof_p: forall fh m i s pcv pcl b off pl fr,
+   forall(INST: fh @ pcv # SizeOf)
+         (FRAME: Mem.get_frame m b = Some fr)
+         (CS1: cs1 = CState m fh i ((Vptr b off, pl):::s) (pcv,pcl) true)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i ((Vint (Z.of_nat (length fr)), handlerTag):::s) (pcv+1,handlerTag) true),
+     cstep table cs1 ca cs2
 .
 
 Import CodeGen.
