@@ -253,7 +253,7 @@ Proof.
   destruct args2 as [| [v22 l22] [| [[p2|? ?] l2] [|? ?]]]; inv RES2.
   simpl in *.
   repeat match goal with
-           | H : low_equiv_list _ (_ :: _) _ |- _ => inv H
+           | H : Forall2 _ (_ :: _) _ |- _ => inv H
            | H : low_equiv_stkelt _ _ _ |- _ => inv H
            | H : low_equiv_atom _ _ _ |- _ => inv H
          end; try reflexivity; constructor; simpl in *;

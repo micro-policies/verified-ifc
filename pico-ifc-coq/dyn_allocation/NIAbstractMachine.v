@@ -30,10 +30,10 @@ Proof.
 Qed.
 
 (** * Low equivalence relations *)
-Inductive low_equiv_atom {A} (o: Label) : relation (A * Label)%type := 
+Inductive low_equiv_atom {A} (o: Label) : relation (A * Label)%type :=
 | le_a_low : forall l v, l <: o = true -> low_equiv_atom o (v,l) (v,l)
-| le_a_high: forall l1 l2 v1 v2, 
-  l1 <: o = false -> 
+| le_a_high: forall l1 l2 v1 v2,
+  l1 <: o = false ->
   l2 <: o = false ->
   low_equiv_atom o (v1,l1) (v2,l2).
 Hint Constructors low_equiv_atom.
@@ -41,11 +41,11 @@ Hint Constructors low_equiv_atom.
 Instance low_pair (A:Type) (o: Label) : @Equivalence (A * Label) (low_equiv_atom o).
 Proof.
   constructor.
-  (* reflexive *) intro x. destruct x; 
+  (* reflexive *) intro x. destruct x;
   destruct (flows l o) eqn:?; auto.
   (* symmetric *) intros x y Hxy. inv Hxy ; auto.
-  (* transitive *) intros x y z Hxy Hyz. 
-  inv Hxy; auto. inv Hyz ; auto. 
+  (* transitive *) intros x y z Hxy Hyz.
+  inv Hxy; auto. inv Hyz ; auto.
 Qed.
 
 Global Instance low_atom (o: Label) : @Equivalence (Atom Label Label) (low_equiv_atom o) :=
@@ -54,14 +54,14 @@ Global Instance low_atom (o: Label) : @Equivalence (Atom Label Label) (low_equiv
 Global Instance low_pcatom (o: Label) : @Equivalence (PcAtom Label) (low_equiv_atom o) :=
   low_pair Z o.
 
-Hint Extern 1 => 
-  match goal with 
+Hint Extern 1 =>
+  match goal with
     | |- low_equiv_atom _ _ _ => reflexivity
   end.
 
 
-Lemma low_equiv_atom_join_value: 
-  forall A o (v1 v0 v v2:A) vl vl0  vl2 vl1, 
+Lemma low_equiv_atom_join_value:
+  forall A o (v1 v0 v v2:A) vl vl0  vl2 vl1,
     low_equiv_atom o (v1, vl) (v, vl0) ->
     low_equiv_atom o (v2, vl2) (v0, vl1) ->
     low_equiv_atom o (v1, vl \_/ vl2) (v, vl0 \_/ vl1).
@@ -70,8 +70,8 @@ Proof.
   inv H; inv H0; econstructor; eauto with lat.
 Qed.
 
-Lemma low_equiv_atom_binop_value: 
-  forall A o (f:A->A->option A) (v1 v2 v1' v2' v v':A) vl1 vl2  vl1' vl2', 
+Lemma low_equiv_atom_binop_value:
+  forall A o (f:A->A->option A) (v1 v2 v1' v2' v v':A) vl1 vl2  vl1' vl2',
     low_equiv_atom o (v1, vl1) (v1', vl1') ->
     low_equiv_atom o (v2, vl2) (v2', vl2') ->
     f v1 v2 = Some v ->
@@ -79,11 +79,11 @@ Lemma low_equiv_atom_binop_value:
     low_equiv_atom o (v, vl1 \_/ vl2) (v', vl1' \_/ vl2').
 Proof.
   intros.
-  inv H; inv H0; 
+  inv H; inv H0;
   try (assert (v'=v) by congruence; subst); econstructor; auto with lat.
 Qed.
 
-Inductive low_equiv_stkelt (o: Label) : StkElmt Label Label -> StkElmt Label Label -> Prop := 
+Inductive low_equiv_stkelt (o: Label) : StkElmt Label Label -> StkElmt Label Label -> Prop :=
 | le_data : forall a1 a2
   (LEa: low_equiv_atom o a1 a2),
   low_equiv_stkelt o (AData a1) (AData a2)
@@ -97,63 +97,47 @@ Proof.
   constructor.
   (* reflexive *) intro x. destruct x; auto.
   (* symmetric *) intros x y Hxy. inv Hxy ; constructor ; symmetry; auto.
-  (* transitive *) intros x y z Hxy Hyz. 
-  inv Hxy; inv Hyz; constructor; etransitivity; eauto. 
+  (* transitive *) intros x y z Hxy Hyz.
+  inv Hxy; inv Hyz; constructor; etransitivity; eauto.
 Qed.
 
-Hint Extern 1 => 
-  match goal with 
+Hint Extern 1 =>
+  match goal with
     | |- low_equiv_stkelt _ _ _ => reflexivity
   end.
 
-Inductive low_equiv_list (A: Type) (low_equiv_a: A -> A -> Prop) : 
-  list A -> list A -> Prop :=
-| le_nil: low_equiv_list low_equiv_a nil nil
-| le_cons: forall a1 a2 l1 l2, 
-  (low_equiv_a a1 a2) ->
-  (low_equiv_list low_equiv_a l1 l2) ->
-  low_equiv_list low_equiv_a (a1::l1) (a2::l2). 
-Hint Constructors low_equiv_list.
-
-Lemma low_equiv_list_app_left (A: Type) (low_equiv_a: A -> A -> Prop) : 
-  forall l1 l1' l2 l2', 
-    low_equiv_list low_equiv_a (l1++l2) (l1'++l2') ->
+(* TODO: Rename and move *)
+Lemma Forall2_app_left (A: Type) (low_equiv_a: A -> A -> Prop) :
+  forall l1 l1' l2 l2',
+    Forall2 low_equiv_a (l1++l2) (l1'++l2') ->
     length l1 = length l1' ->
-    low_equiv_list low_equiv_a l1 l1'.
+    Forall2 low_equiv_a l1 l1'.
 Proof.
-  induction l1; intros; simpl in *. 
+  induction l1; intros; simpl in *.
   destruct l1'; [ eauto | inv H0].
   destruct l1'; [inv H0 | eauto].
   simpl in *; inv H; auto.
   constructor ; eauto.
 Qed.
 
-Lemma low_equiv_list_app_right (A: Type) (low_equiv_a: A -> A -> Prop) : 
-  forall l1 l1' l2 l2', 
-    low_equiv_list low_equiv_a (l1++l2) (l1'++l2') ->
+(* TODO: Rename and move *)
+Lemma Forall2_app_right (A: Type) (low_equiv_a: A -> A -> Prop) :
+  forall l1 l1' l2 l2',
+    Forall2 low_equiv_a (l1++l2) (l1'++l2') ->
     length l1 = length l1' ->
-    low_equiv_list low_equiv_a l2 l2'.
+    Forall2 low_equiv_a l2 l2'.
 Proof.
-  induction l1; intros; simpl in *. 
+  induction l1; intros; simpl in *.
   destruct l1' ; [simpl in * ; auto | inv H0].
   destruct l1'; [ inv H0 | simpl in * ].
   inv H; auto.
   eapply IHl1 ; eauto.
 Qed.
 
-Lemma low_equiv_list_app (A: Type) (R: A -> A -> Prop) : forall l1 l2 l1' l2',
-  low_equiv_list R l1 l2 ->
-  low_equiv_list R l1' l2' ->
-  low_equiv_list R (l1++l1') (l2++l2').
-Proof.
-  induction l1; intros.
-  inv H.  simpl ; auto.
-  inv H. simpl. constructor ; auto.
-Qed. 
-    
-Lemma index_list_low_eq (A: Type) (low_equiv: A -> A -> Prop) : 
+(* TODO: Move and rename *)
+Lemma index_list_low_eq (A: Type) (low_equiv: A -> A -> Prop) :
   forall n l1 l2 v1 v2,
-    low_equiv_list low_equiv l1 l2 ->
+    Forall2 low_equiv l1 l2 ->
     index_list n l1 = Some v1 ->
     index_list n l2 = Some v2 ->
     low_equiv v1 v2.
@@ -165,114 +149,115 @@ Proof.
   eapply IHn ; eauto.
 Qed.
 
-
-Lemma index_list_Z_low_eq (A: Type) (low_equiv: A -> A -> Prop) : 
+(* TODO: Move and rename *)
+Lemma index_list_Z_low_eq (A: Type) (low_equiv: A -> A -> Prop) :
   forall i l1 l2 v1 v2,
-    low_equiv_list low_equiv l1 l2 ->
+    Forall2 low_equiv l1 l2 ->
     index_list_Z i l1 = Some v1 ->
     index_list_Z i l2 = Some v2 ->
     low_equiv v1 v2.
 Proof.
-  intros. eapply index_list_low_eq; eauto. 
-  eapply index_list_Z_nat; eauto. 
-  eapply index_list_Z_nat; eauto. 
+  intros. eapply index_list_low_eq; eauto.
+  eapply index_list_Z_nat; eauto.
+  eapply index_list_Z_nat; eauto.
 Qed.
 
 Lemma update_list_high: forall A o m1 m2,
-  low_equiv_list (low_equiv_atom o) m1 m2 ->
+  Forall2 (low_equiv_atom o) m1 m2 ->
   forall a m1' (o1:A) v l1 l2
     (Hl1 : l1 <: o = false)
-    (Hl2 : l2 <: o = false), 
+    (Hl2 : l2 <: o = false),
     index_list a m1 = Some (o1, l1) ->
     update_list a (v, l2) m1 = Some m1' ->
-    low_equiv_list (low_equiv_atom o) m1' m2.
+    Forall2 (low_equiv_atom o) m1' m2.
 Proof.
   induction 1; intros.
   destruct a; simpl in *; allinv.
-  
+
   destruct a; simpl in *; allinv.
   constructor ; auto. inv H ; auto.
 
-  case_eq (update_list a (v, l3) l1) ; intros;
+  case_eq (update_list a (v, l2) l) ; intros;
   rewrite H3 in *; allinv.
   constructor; auto.
-  eapply (IHlow_equiv_list a l o1 v l0) ; eauto.
-Qed.  
+  eapply (IHForall2 a l0 o1 v l1 l2) ; eauto.
+Qed.
 
 Lemma update_list_Z_high: forall A o m1 m2,
-  low_equiv_list (low_equiv_atom o) m1 m2 ->
+  Forall2 (low_equiv_atom o) m1 m2 ->
   forall a m1' o1 (v:A) l1 l2
     (Hl1 : l1 <: o = false)
-    (Hl2 : l2 <: o = false), 
+    (Hl2 : l2 <: o = false),
     index_list_Z a m1 = Some (o1, l1) ->
     update_list_Z a (v, l2) m1 = Some m1' ->
-    low_equiv_list (low_equiv_atom o) m1' m2.
+    Forall2 (low_equiv_atom o) m1' m2.
 Proof.
-  intros. 
-  eapply update_list_high with (l1 := l1) (l2 := l2); eauto. 
-  eapply index_list_Z_nat; eauto. 
+  intros.
+  eapply update_list_high with (l1 := l1) (l2 := l2); eauto.
+  eapply index_list_Z_nat; eauto.
   eapply update_list_Z_nat; eauto.
 Qed.
 
 
-Global Instance low_list 
-          (A: Type) 
+Global Instance low_list
+          (A: Type)
           (R: relation A)
-          (EqR: Equivalence R) : @Equivalence (list A) (@low_equiv_list A R).
+          (EqR: Equivalence R) : @Equivalence (list A) (@Forall2 A A R).
 Proof.
   constructor.
   (* reflexive *) unfold Reflexive. induction x; intros; constructor; auto. reflexivity.
-  (* symmetric *) 
-  unfold Symmetric. 
+  (* symmetric *)
+  unfold Symmetric.
   induction x ; intros; (inv H ; constructor ; auto). symmetry; auto.
-  (* transitive *) 
-  unfold Transitive. 
-  induction x; intros. 
+  (* transitive *)
+  unfold Transitive.
+  induction x; intros.
   inv H. auto. inv H. inv H0.
-  constructor. etransitivity; eauto. 
+  constructor. etransitivity; eauto.
   eapply IHx ; eauto.
 Qed.
 
-Hint Extern 1 => 
-  match goal with 
-    | |- low_equiv_list _ _ _ => reflexivity
+Hint Extern 1 =>
+  match goal with
+    | |- Forall2 _ _ _ => reflexivity
   end.
 
 Lemma update_list_low_equiv: forall A a obs l  m m' o (v:A)
   (Hl : l <: obs = false),
   index_list a m = Some (o, l) ->
   update_list a (v, l) m = Some m' ->
-  low_equiv_list (low_equiv_atom obs) m m'.
+  Forall2 (low_equiv_atom obs) m m'.
 Proof.
   induction a; intros.
-  destruct m ; simpl in *; allinv. 
-  constructor; auto. 
-  
-  destruct m ; simpl in *; allinv. 
+  destruct m ; simpl in *; allinv.
+  constructor; auto.
+
+  destruct m ; simpl in *; allinv.
   case_eq (update_list a (v, l) m) ; intros; rewrite H1 in *; allinv.
   constructor; eauto.
-Qed.  
+Qed.
 
 Lemma update_list_Z_low_equiv: forall A a obs l  m m' o (v:A)
   (Hl : l <: obs = false),
   index_list_Z a m = Some (o, l) ->
   update_list_Z a (v, l) m = Some m' ->
-  low_equiv_list (low_equiv_atom obs) m m'.
+  Forall2 (low_equiv_atom obs) m m'.
 Proof.
   intros. eapply update_list_low_equiv; eauto.
   eapply index_list_Z_nat; eauto.
   eapply update_list_Z_nat; eauto.
 Qed.
 
+(* TODO: Refactor and move *)
 Lemma update_list_low_gen :
   forall T (R : T -> T -> Prop) n
          (x1 x2 : T)
          (l1 l1' l2 l2' : list T)
          (ELTS : R x1 x2)
-         (LISTS : low_equiv_list R l1 l2)
+         (LISTS : Forall2 R l1 l2)
          (UPD1 : update_list n x1 l1 = Some l1')
          (UPD2 : update_list n x2 l2 = Some l2'),
-    low_equiv_list R l1' l2'.
+    Forall2 R l1' l2'.
 Proof.
   induction n; intros.
   - inv LISTS; simpl in *; allinv.
@@ -289,88 +274,90 @@ Proof.
     constructor; eauto.
 Qed.
 
+(* TODO: Refactor and move *)
 Lemma update_list_low : forall A o n m1 m2 a1 a2 m1' m2',
-  low_equiv_list (@low_equiv_atom A o) m1 m2 ->
+  Forall2 (@low_equiv_atom A o) m1 m2 ->
   low_equiv_atom o a1 a2 ->
   update_list n a1 m1 = Some m1' ->
   update_list n a2 m2 = Some m2' ->
-  low_equiv_list (low_equiv_atom o) m1' m2'.
+  Forall2 (low_equiv_atom o) m1' m2'.
 Proof.
   induction n ; intros.
   inv H; simpl in *; allinv.
   constructor ; auto.
-  
+
   inv H.
   simpl in *; allinv.
   simpl in H2, H1.
-  case_eq (update_list n a2 l2) ; case_eq (update_list n a1 l1) ; intros; 
+  case_eq (update_list n a2 l') ; case_eq (update_list n a1 l) ; intros;
     rewrite H in * ; rewrite H5 in * ; allinv.
   constructor ; eauto.
 Qed.
 
+(* TODO: Refactor and move *)
 Lemma update_list_Z_low : forall A o n m1 m2 a1 a2 m1' m2',
-  low_equiv_list (@low_equiv_atom A o) m1 m2 ->
+  Forall2 (@low_equiv_atom A o) m1 m2 ->
   low_equiv_atom o a1 a2 ->
   update_list_Z n a1 m1 = Some m1' ->
   update_list_Z n a2 m2 = Some m2' ->
-  low_equiv_list (low_equiv_atom o) m1' m2'.
+  Forall2 (low_equiv_atom o) m1' m2'.
 Proof.
   intros. eapply update_list_low; eauto.
   eapply update_list_Z_nat; eauto.
-  eapply update_list_Z_nat; eauto. 
+  eapply update_list_Z_nat; eauto.
 Qed.
 
-Lemma low_equiv_list_update_Z: forall o a1 a2 a1l a2l (o1:val Label) o1l o2 o2l m1 m2 m1' m2' v1 v1l v2 v2l,
+Lemma Forall2_update_Z: forall o a1 a2 a1l a2l (o1:val Label) o1l o2 o2l m1 m2 m1' m2' v1 v1l v2 v2l,
     low_equiv_atom o (a1, a1l) (a2, a2l) ->
-    low_equiv_list (low_equiv_atom o) m1 m2 ->
+    Forall2 (low_equiv_atom o) m1 m2 ->
     index_list_Z a1 m1 = Some (o1, o1l) ->
     index_list_Z a2 m2 = Some (o2, o2l) ->
      a1l <: o1l = true ->
-     a2l <: o2l = true ->  
+     a2l <: o2l = true ->
     low_equiv_atom o (v1, v1l) (v2, v2l) ->
     update_list_Z a1 (v1, join a1l v1l) m1 = Some m1' ->
     update_list_Z a2 (v2, join a2l v2l) m2 = Some m2' ->
-    low_equiv_list (low_equiv_atom o) m1' m2'.
+    Forall2 (low_equiv_atom o) m1' m2'.
 Proof.
   intros.
-  inv H; inv H5. 
+  inv H; inv H5.
 
-  eapply (@update_list_Z_low _ o) ; eauto. 
-  
+  eapply (@update_list_Z_low _ o) ; eauto.
+
   eapply update_list_Z_low with (3:= H6) (4:= H7) ; eauto.
   econstructor 2; eauto with lat.
 
-  assert (low_equiv_list (low_equiv_atom o) m1' m1).
-  assert (a1l \_/ v2l <: o = false) by eauto with lat. 
-  eapply update_list_Z_high with (4:= H1); eauto.  
+  assert (Forall2 (low_equiv_atom o) m1' m1).
+  assert (a1l \_/ v2l <: o = false) by eauto with lat.
+  eapply update_list_Z_high with (4:= H1); eauto.
   destruct (flows o1l o) eqn:?; auto.
-  assert (flows a1l o = true); eauto with lat. 
-  
-  assert (low_equiv_list (low_equiv_atom o) m1' m2) by (etransitivity; eauto). 
+  assert (flows a1l o = true); eauto with lat.
+
+  assert (Forall2 (low_equiv_atom o) m1' m2) by (etransitivity; eauto).
   assert (a2l \_/ v2l <: o = false) by eauto with lat.
   exploit (@update_list_Z_spec (Atom _ _) (v2, a1l \_/ v2l)) ; eauto. intros HH.
-  assert (low_equiv_list (low_equiv_atom o) m2' m2).
-  eapply update_list_Z_high with (4:= H2); eauto. 
+  assert (Forall2 (low_equiv_atom o) m2' m2).
+  eapply update_list_Z_high with (4:= H2); eauto.
   destruct (flows o2l o) eqn:?; auto.
   assert (flows a2l o = true); eauto with lat.
-  etransitivity; eauto. symmetry; auto. 
+  etransitivity; eauto. symmetry; auto.
 
-  assert (a1l \_/ v1l <: o = false) by eauto with lat. 
-  assert (low_equiv_list (low_equiv_atom o) m1' m1).
-  eapply update_list_Z_high with (4:= H1); eauto. 
+  assert (a1l \_/ v1l <: o = false) by eauto with lat.
+  assert (Forall2 (low_equiv_atom o) m1' m1).
+  eapply update_list_Z_high with (4:= H1); eauto.
   destruct (flows o1l o) eqn:?; auto.
-  assert (flows a1l o = true); eauto with lat.  
-  
+  assert (flows a1l o = true); eauto with lat.
+
   exploit (@update_list_Z_spec (Atom _ _) (v1, a1l \_/ v1l)) ; eauto. intros HH.
-  assert (low_equiv_list (low_equiv_atom o) m1' m2). 
-  etransitivity ; eauto. 
+  assert (Forall2 (low_equiv_atom o) m1' m2).
+  etransitivity ; eauto.
 
   assert (a2l \_/ v2l <: o = false) by eauto with lat.
-  assert (low_equiv_list (low_equiv_atom o) m2' m2).
-  eapply update_list_Z_high with (4:= H2); eauto. 
+  assert (Forall2 (low_equiv_atom o) m2' m2).
+  eapply update_list_Z_high with (4:= H2); eauto.
   destruct (flows o2l o) eqn:?; auto.
   assert (flows a2l o = true); eauto with lat.
-  etransitivity; eauto. symmetry; eauto. 
+  etransitivity; eauto. symmetry; eauto.
 Qed.
 
 Lemma update_high_low_equiv: forall A o addr m v l l' v' m',
@@ -378,56 +365,56 @@ Lemma update_high_low_equiv: forall A o addr m v l l' v' m',
   l <: o = false ->
   l <: l' = true ->
   update_list addr (v',l') m = Some m' ->
-  low_equiv_list (@low_equiv_atom A o) m m'.
+  Forall2 (@low_equiv_atom A o) m m'.
 Proof.
   induction addr; intros.
   destruct m ; simpl in *; allinv.
   constructor ; eauto.
-  constructor 2; auto with lat. 
+  constructor 2; auto with lat.
   destruct (flows l' o) eqn:?; auto.
-  assert (flows l o = true); eauto with lat.  
-  
+  assert (flows l o = true); eauto with lat.
+
   destruct m ; simpl in *; allinv.
   remember (update_list addr (v', l') m) as up.
   destruct up; allinv.
   constructor; eauto.
-Qed.  
-  
+Qed.
+
 Lemma update_Z_high_low_equiv: forall A o addr m v l l' v' m',
   index_list_Z addr m = Some (v,l) ->
   l <: o = false ->
   l <: l' = true ->
   update_list_Z addr (v',l') m = Some m' ->
-  low_equiv_list (@low_equiv_atom A o) m m'.
+  Forall2 (@low_equiv_atom A o) m m'.
 Proof.
-  intros. eapply update_high_low_equiv; eauto. 
-  eapply index_list_Z_nat; eauto. 
+  intros. eapply update_high_low_equiv; eauto.
+  eapply index_list_Z_nat; eauto.
   eapply update_list_Z_nat; eauto.
 Qed.
 
 Fixpoint below_lret (o: Label) (stk: list (StkElmt Label Label)) : list (StkElmt Label Label) :=
   match stk with
-    | nil => nil 
-    | (ARet (_,l) _)::stk' => 
-      match flows l o with 
+    | nil => nil
+    | (ARet (_,l) _)::stk' =>
+      match flows l o with
         | true => stk
         | false => below_lret o stk'
       end
     | _::stk' => below_lret o stk'
   end.
 
-Lemma below_lret_low_equiv : forall o l1 l2, 
-  low_equiv_list (low_equiv_stkelt o) l1 l2 ->
-  low_equiv_list (low_equiv_stkelt o) (below_lret o l1) (below_lret o l2). 
+Lemma below_lret_low_equiv : forall o l1 l2,
+  Forall2 (low_equiv_stkelt o) l1 l2 ->
+  Forall2 (low_equiv_stkelt o) (below_lret o l1) (below_lret o l2).
 Proof.
   induction 1; intros.
   simpl ; auto.
-  inv H; (simpl; auto). 
+  inv H; (simpl; auto).
   inv LEa; (rewrite H in *; auto).
   rewrite H1 ; auto.
 Qed.
 
-Lemma below_lret_adata : forall o l l', 
+Lemma below_lret_adata : forall o l l',
   (forall d, In d l -> exists a : Atom _ _, d = AData a) ->
   below_lret o (l ++ l') = below_lret o l'.
 Proof.
@@ -435,20 +422,13 @@ Proof.
   simpl; auto.
   destruct a. simpl ; auto. eapply IHl ; eauto.
   intros. eapply H ; eauto. constructor 2 ; auto.
-  
+
   eelim (H (ARet p b)); intros.
-  congruence. 
+  congruence.
   constructor ; auto.
 Qed.
 
-(* Replace with match_option *)
-Inductive equiv_option {A} (R:relation A) : relation (option A) :=
-  | equiv_option_none: equiv_option R None None
-  | equiv_option_some: forall a1 a2,
-    R a1 a2 -> equiv_option R (Some a1) (Some a2).
-Hint Constructors equiv_option.
-
-Global Instance declare_equiv_option {A} (R:relation A) `{Equivalence A R} : @Equivalence (option A) (equiv_option R).
+Global Instance declare_equiv_option {A} (R:relation A) `{Equivalence A R} : @Equivalence (option A) (match_options R).
 Proof.
   constructor.
   - intros [x|]; repeat constructor.
@@ -459,25 +439,25 @@ Proof.
     transitivity y; auto.
 Qed.
 
-Hint Extern 1 => 
-  match goal with 
-    | |- equiv_option _ _ _ => reflexivity
+Hint Extern 1 =>
+  match goal with
+    | |- match_options _ _ _ => reflexivity
   end.
 
-(* Low-equivalent memories: 
-   (1) low-equivalence of frames pointed to by low blocks 
+(* Low-equivalent memories:
+   (1) low-equivalence of frames pointed to by low blocks
    (2) allocating a low frame in them results in the same block
      DD -> DP : I understand this as "low allocation history is the same"
 *)
 Definition equiv_mem (o:Label) : relation (memory Label Label) :=
   fun m1 m2 =>
-    (forall b, 
+    (forall b,
       Mem.stamp b <: o = true ->
-      equiv_option (low_equiv_list (low_equiv_atom o))
+      match_options (Forall2 (low_equiv_atom o))
                     (Mem.get_frame m1 b) (Mem.get_frame m2 b) )
-      /\ 
-      (forall lbl fr, 
-         lbl <: o = true -> 
+      /\
+      (forall lbl fr,
+         lbl <: o = true ->
                 fst (Mem.alloc Local m1 lbl fr) = fst (Mem.alloc Local m2 lbl fr)).
 
 Global Instance declare_equiv_mem (o:Label): @Equivalence (memory Label Label) (equiv_mem o).
@@ -487,14 +467,14 @@ Proof.
   - intros m1 m2 [H H']; split.
     + intros b Hb; symmetry; auto.
     + intros; symmetry; auto.
-  - intros m1 m2 m3 H1 H2. 
+  - intros m1 m2 m3 H1 H2.
     destruct H1; destruct H2; split; intros.
     + transitivity (Mem.get_frame m2 b); auto.
     + rewrite H0; auto.
 Qed.
 
-Hint Extern 1 => 
-  match goal with 
+Hint Extern 1 =>
+  match goal with
     | |- equiv_mem _ _ _ => reflexivity
   end.
 
@@ -513,7 +493,7 @@ Proof.
   - rewrite <- H3 in *; congruence.
   - rewrite <- H2 in *.
     rewrite <- H3 in *.
-    eapply index_list_Z_low_eq; eauto. 
+    eapply index_list_Z_low_eq; eauto.
 Qed.
 
 Lemma store_equiv_mem:
@@ -543,28 +523,28 @@ Proof.
         * unfold Atom in *.
           repeat rewrite <- H8 in *; repeat rewrite <- H0 in *.
           repeat match goal with
-                   | id: match ?o with | Some _ => _ | None => None end = Some _ |- _ => 
+                   | id: match ?o with | Some _ => _ | None => None end = Some _ |- _ =>
                      destruct o eqn:?E;[idtac|congruence]
                  end.
           rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H7).
           rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H6).
           destruct (equiv_dec b2 b) as [Eb|Eb].
           + constructor.
-            eapply low_equiv_list_update_Z with (8:= E) (9:= E0); eauto.
+            eapply Forall2_update_Z with (8:= E) (9:= E0); eauto.
           + auto.
       - unfold Atom in *.
         destruct (Mem.get_frame (A:=val _*Label) m1 b1) eqn:E1; try congruence.
         destruct (Mem.get_frame (A:=val _*Label) m2 b2) eqn:E2; try congruence.
         repeat match goal with
-                 | id: match ?o with | Some _ => _ | None => None end = Some _ |- _ => 
+                 | id: match ?o with | Some _ => _ | None => None end = Some _ |- _ =>
                    destruct o eqn:?E;[idtac|congruence]
                end.
         rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H6).
         rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H7).
-        destruct (equiv_dec b1 b); 
+        destruct (equiv_dec b1 b);
           destruct (equiv_dec b2 b); subst.
         + constructor.
-          eapply low_equiv_list_update_Z with (8:= E0) (9:= E); eauto.
+          eapply Forall2_update_Z with (8:= E0) (9:= E); eauto.
           inv e; inv e0.
           generalize (H b Hb); unfold Atom; rewrite E2; rewrite E1.
           intros T; inv T; auto.
@@ -590,7 +570,7 @@ Proof.
   + intros.
     unfold store in *.
     repeat match goal with
-             | id: match ?o with | Some _ => _ | None => None end = Some _ |- _ => 
+             | id: match ?o with | Some _ => _ | None => None end = Some _ |- _ =>
                destruct o eqn:?E;[idtac|congruence]
            end.
     erewrite (Mem.alloc_upd _ _ _ Local m1); eauto.
@@ -622,7 +602,7 @@ Proof.
     - auto.
   + intros lbl fr Hl.
     symmetry.
-    eapply (Mem.alloc_upd _ _ _ Local m1); eauto.    
+    eapply (Mem.alloc_upd _ _ _ Local m1); eauto.
 Qed.
 
 Inductive low_equiv_full_state (o: Label) : @a_state Label -> @a_state Label -> Prop :=
@@ -631,7 +611,7 @@ Inductive low_equiv_full_state (o: Label) : @a_state Label -> @a_state Label -> 
     (Flowl1: l1 <: o = false)
     (Flowl2: l2 <: o = false)
     (LEm : equiv_mem o m1 m2)
-    (LEsH : low_equiv_list (low_equiv_stkelt o) (below_lret o stk1) (below_lret o stk2)),
+    (LEsH : Forall2 (low_equiv_stkelt o) (below_lret o stk1) (below_lret o stk2)),
     low_equiv_full_state o
       (AState m1 i stk1 (pcv1,l1))
       (AState m2 i stk2 (pcv2,l2))
@@ -639,7 +619,7 @@ Inductive low_equiv_full_state (o: Label) : @a_state Label -> @a_state Label -> 
   forall l m1 m2 i stk1 stk2 pcv
     (Flowl: l <: o = true)
     (LEm : equiv_mem o m1 m2)
-    (LEs : low_equiv_list (low_equiv_stkelt o) stk1 stk2),
+    (LEs : Forall2 (low_equiv_stkelt o) stk1 stk2),
     low_equiv_full_state o
       (AState m1 i stk1 (pcv,l))
       (AState m2 i stk2 (pcv,l)).
@@ -648,31 +628,31 @@ Hint Constructors low_equiv_full_state.
 Global Instance low_state (o: Label) : @Equivalence (@a_state Label) (@low_equiv_full_state o).
 Proof.
   constructor.
-  (* reflexive *) intros x. destruct x. destruct apc. 
+  (* reflexive *) intros x. destruct x. destruct apc.
   destruct (flows l o) eqn:?; auto.
-  intros s s' Hss'.  inv Hss'. 
-  (constructor; eauto); symmetry ; eauto. 
-  (constructor 2; eauto) ; symmetry; eauto.  
+  intros s s' Hss'.  inv Hss'.
+  (constructor; eauto); symmetry ; eauto.
+  (constructor 2; eauto) ; symmetry; eauto.
   (* transitive *)
   intros s s' s'' Hss' Hs's''.
-  inv Hss' ; inv Hs's''. 
-  (constructor ; eauto); etransitivity; eauto. 
-  (constructor ; eauto); etransitivity; eauto. 
+  inv Hss' ; inv Hs's''.
+  (constructor ; eauto); etransitivity; eauto.
+  (constructor ; eauto); etransitivity; eauto.
   apply below_lret_low_equiv; auto.
-  (constructor ; eauto); etransitivity; eauto. 
+  (constructor ; eauto); etransitivity; eauto.
   apply below_lret_low_equiv in LEs; auto.
   etransitivity; eauto.
-  (constructor 2 ; eauto); etransitivity; eauto.   
+  (constructor 2 ; eauto); etransitivity; eauto.
 Qed.
 
-Hint Extern 1 => 
-  match goal with 
+Hint Extern 1 =>
+  match goal with
     | |- low_equiv_full_state _ _ _ => reflexivity
   end.
 
 Lemma pc_labels1 : forall o s1 s2,
   low_equiv_full_state o s1 s2 ->
-  low_pc o s1 -> 
+  low_pc o s1 ->
   low_pc o s2.
 Proof.
   induction 1; intros. unfold low_pc in *;  simpl in *.
@@ -690,8 +670,8 @@ Proof.
   unfold low_pc in *;  simpl in *. auto.
 Qed.
 
-Lemma index_list_low_equiv_some: forall (A: Type) (R: relation A) n e l l', 
-  low_equiv_list R l l' ->
+Lemma index_list_low_equiv_some: forall (A: Type) (R: relation A) n e l l',
+  Forall2 R l l' ->
   index_list n l = None ->
   index_list n l' = Some e ->
   False.
@@ -702,13 +682,13 @@ Proof.
   eapply IHn ; eauto.
 Qed.
 
-Lemma index_list_Z_low_equiv_some: forall (A: Type) (R: relation A) n e l l', 
-  low_equiv_list R l l' ->
+Lemma index_list_Z_low_equiv_some: forall (A: Type) (R: relation A) n e l l',
+  Forall2 R l l' ->
   index_list_Z n l = None ->
   index_list_Z n l' = Some e ->
   False.
 Proof.
-  unfold index_list_Z. intros. 
+  unfold index_list_Z. intros.
   destruct (n <? 0)%Z. congruence.
   eapply index_list_low_equiv_some; eauto.
 Qed.
@@ -729,17 +709,17 @@ End ObsEquiv.
 
 Hint Resolve low_state.
 
-Hint Constructors 
+Hint Constructors
   low_equiv_atom
   low_equiv_stkelt
-  low_equiv_list
+  Forall2
   low_equiv_full_state.
 
-Hint Extern 1 => 
-  match goal with 
+Hint Extern 1 =>
+  match goal with
     | |- low_equiv_atom _ _ _ => reflexivity
     | |- low_equiv_stkelt _ _ _ => reflexivity
-    | |- low_equiv_list _ _ _ => reflexivity
+    | |- Forall2 _ _ _ => reflexivity
     | |- equiv_mem _ _ _ => reflexivity
     | |- low_equiv_full_state _ _ _ => reflexivity
   end.
@@ -757,8 +737,8 @@ Context {Latt: JoinSemiLattice T}.
 Variable atable : ASysTable T.
 
 Ltac exploit_low :=
-    repeat match goal with 
-        | [H: low_equiv_list _ (_::_) (_::_) |- _ ] => inv H
+    repeat match goal with
+        | [H: Forall2 _ (_::_) (_::_) |- _ ] => inv H
         | [H: low_equiv_stkelt _ (AData _) (AData _) |- _ ] => inv H
         | [H: low_equiv_stkelt _ (ARet _ _) (ARet _ _) |- _ ] => inv H
     end.
@@ -768,16 +748,16 @@ Ltac spec_pop_return :=
   let stk := fresh "stk" in
   let Hstk := fresh "Hstk" in
   (intros [? [? [? [? [Hstk ?]]]]]);
-  match type of Hstk with 
+  match type of Hstk with
     | ?aastk = _ =>
-      match goal with 
+      match goal with
         | [HH: pop_to_return aastk _ |- _ ] => (subst ; move_to_top HH)
       end
   end.
 
 Inductive abstract_i_equiv (o : T) : relation (abstract_init_data T) :=
   | ai_equiv : forall p d1 d2 b
-                      (STK : low_equiv_list (low_equiv_atom o) d1 d2),
+                      (STK : Forall2 (low_equiv_atom o) d1 d2),
                  abstract_i_equiv o (p,d1,b) (p,d2,b).
 
 Global Program Instance AMObservation : TINI.Observation (abstract_machine atable) (Event T) := {
@@ -788,26 +768,26 @@ Global Program Instance AMObservation : TINI.Observation (abstract_machine atabl
 }.
 
 Lemma low_equiv_step_pop_to_return: forall o  stk1 stk2,
-  low_equiv_list (low_equiv_stkelt o) stk1 stk2 ->
+  Forall2 (low_equiv_stkelt o) stk1 stk2 ->
   forall  rstk1 rstk2 ,
     pop_to_return stk1 rstk1 ->
     pop_to_return stk2 rstk2 ->
-    low_equiv_list (low_equiv_stkelt o) rstk1 rstk2.
+    Forall2 (low_equiv_stkelt o) rstk1 rstk2.
 Proof.
   induction 1; intros.
   - invh @pop_to_return.
   - invh @pop_to_return.
     + invh @pop_to_return; eauto.
       invh low_equiv_stkelt.
-    + invh (pop_to_return (a1::l1)); eauto.
+    + invh (pop_to_return (x::l)); eauto.
       invh low_equiv_stkelt.
 Qed.
 
 Section fix_observer.
 Variable o : T.
-Notation "'<<' m i s pc '>>'" := (AState m i s pc). 
+Notation "'<<' m i s pc '>>'" := (AState m i s pc).
 Notation "m1 '~~m' m2" := (equiv_mem o m1 m2) (at level 20).
-Notation "s1 '~~l' s2" := (low_equiv_list (low_equiv_stkelt o) s1 s2) (at level 20).
+Notation "s1 '~~l' s2" := (Forall2 (low_equiv_stkelt o) s1 s2) (at level 20).
 Notation "a1 '~~a' a2" := (low_equiv_atom o a1 a2) (at level 20).
 
 Arguments low_pc {Label Latt} o s /.
@@ -825,8 +805,8 @@ Variable hyp_syscall_lowstep : syscall_lowstep atable.
 Local Ltac go :=
   try congruence;
   try omega;
-  auto using below_lret_low_equiv with lat; 
-  try apply below_lret_low_equiv; 
+  auto using below_lret_low_equiv with lat;
+  try apply below_lret_low_equiv;
   constructor (go).
 
 Local Ltac inv_equiv_atom :=
@@ -917,16 +897,16 @@ Qed.
 
 Lemma low_equiv_replicate: forall (a1 a2:Atom T T),
   a1 ~~a a2 -> forall size,
-  low_equiv_list (low_equiv_atom o)
-               (replicate size a1) (replicate size a2).
+  Forall2 (low_equiv_atom o)
+          (replicate size a1) (replicate size a2).
 Proof.
   induction size; constructor; auto.
 Qed.
 
 Lemma low_equiv_zreplicate: forall size (a1 a2:Atom T T),
   a1 ~~a a2 ->
-  equiv_option (low_equiv_list (low_equiv_atom o))
-               (zreplicate size a1) (zreplicate size a2).
+  match_options (Forall2 (low_equiv_atom o))
+                (zreplicate size a1) (zreplicate size a2).
 Proof.
   unfold zreplicate; intros.
   destruct Z_lt_dec; constructor.
@@ -1045,9 +1025,9 @@ Proof.
     destruct (zreplicate size (xv, xl)); inv ALLOC.
     rewrite (Mem.alloc_stamp _ _ _ _ _ _ _ _ _ H0).
     auto with lat.
-  - Case "Load". 
+  - Case "Load".
     generalize (IMEM _ _ _ LOAD); destruct xv; simpl; auto with lat.
-  - Case "Store". 
+  - Case "Store".
     intros.
     rewrite (load_store STORE) in H.
     destruct (@equiv_dec (block T)); eauto.
@@ -1082,25 +1062,12 @@ Proof.
     apply in_map. assumption.
 Qed.
 
-Lemma index_list_low_equiv_list :
-  forall T (R : T -> T -> Prop) n (l1 l2 : list T) (x1 x2 : T),
-    low_equiv_list R l1 l2 ->
-    index_list n l1 = Some x1 ->
-    index_list n l2 = Some x2 ->
-    R x1 x2.
-Proof.
-  induction n as [|n IH]; intros [|x1' l1] [|x2' l2] x1 x2 EQ H1 H2;
-  simpl in *; try solve [inv H1 | inv H2]; inv EQ.
-  - congruence.
-  - eauto.
-Qed.
-
 Lemma swap_low_equiv :
   forall T (R : T -> T -> Prop) n (l1 l1' l2 l2' : list T)
          (SWAP1 : swap n l1 = Some l1')
          (SWAP2 : swap n l2 = Some l2')
-         (LEQUIV : low_equiv_list R l1 l2),
-    low_equiv_list R l1' l2'.
+         (LEQUIV : Forall2 R l1 l2),
+    Forall2 R l1' l2'.
 Proof.
   unfold swap.
   intros.
@@ -1116,7 +1083,7 @@ Proof.
          end;
   allinv.
   constructor.
-  - eapply index_list_low_equiv_list; eauto.
+  - eapply index_list_low_eq; eauto.
   - eapply update_list_low_gen; eauto.
 Qed.
 
@@ -1154,7 +1121,7 @@ Proof.
   - Case "Dup".
     eapply low_equiv_low; eauto.
     constructor; auto.
-    exploit index_list_low_equiv_list; eauto using index_list_app.
+    exploit index_list_low_eq; eauto using index_list_app.
 
   - Case "Swap".
     eapply low_equiv_low; eauto.
@@ -1175,7 +1142,7 @@ Proof.
         go.
 
   - Case "Load".
-    inv_equiv_atom; try go. 
+    inv_equiv_atom; try go.
     SCase "Load from low addresses".
     assert (Mem.stamp b0 <: addrl0 = true).
       inv Hi2.
@@ -1193,22 +1160,22 @@ Proof.
       apply (ISTACK (Vptr b ofs, addrl)); auto with datatypes.
     repeat inv_equiv_atom;
     assert (m' ~~m m'0) by (
-      eapply store_equiv_mem with (10:= STORE) (11:= STORE0); 
+      eapply store_equiv_mem with (10:= STORE) (11:= STORE0);
       eauto with lat);
     go.
 
   - Case "Call".
-    exploit low_equiv_list_app_left ; eauto; intros Hl.
-    exploit low_equiv_list_app_right ; eauto; intros Hr. 
+    exploit Forall2_app_left ; eauto; intros Hl.
+    exploit Forall2_app_right ; eauto; intros Hr.
     inv_equiv_atom.
     SCase "Low Call".
        constructor 2; eauto with lat.
-       eapply low_equiv_list_app ; eauto. 
+       eapply Forall2_app ; eauto.
 
     SCase "High Call".
        constructor; auto with lat.
-       rewrite below_lret_adata ; eauto. 
-       rewrite below_lret_adata ; eauto. 
+       rewrite below_lret_adata ; eauto.
+       rewrite below_lret_adata ; eauto.
        simpl; rewrite Flowl; go.
 
   - Case "Ret".
@@ -1223,16 +1190,16 @@ Proof.
     spec_pop_return.
     spec_pop_return.
     exploit low_equiv_step_pop_to_return; eauto; intros HspecRet.
-    exploit_low. 
+    exploit_low.
     repeat inv_equiv_atom; go.
 
   - Case "SysCall".
     assert (sys_info0 = sys_info) by congruence. subst. clear SYS0.
     assert (EQ : map AData args ~~l map AData args0 /\ s ~~l s0).
     { split.
-      - eapply low_equiv_list_app_left; eauto.
+      - eapply Forall2_app_left; eauto.
         repeat rewrite map_length. congruence.
-      - eapply low_equiv_list_app_right; eauto.
+      - eapply Forall2_app_right; eauto.
         repeat rewrite map_length. congruence. }
     destruct EQ as [EQ1 EQ2].
     specialize (hyp_syscall_lowstep SYS args args0 EQ1 SYSSEM SYSSEM0).
@@ -1288,18 +1255,18 @@ Proof.
   - Case "Store".
     destruct (flows ml o) eqn:?.
     SCase "ml <: o = true".
-      assert (t <: o = true) by eauto with lat. 
+      assert (t <: o = true) by eauto with lat.
       congruence.
     SCase "ml <: o = false".
       assert (amem ~~m m') by
         (eapply store_high_equiv_mem with (3:= LOAD) (4:= STORE); eauto with lat).
-      constructor; eauto. 
+      constructor; eauto.
 
   - Case "Call".
     constructor; eauto with lat.
     simpl.
     erewrite below_lret_adata; [idtac|eauto].
-    erewrite below_lret_adata; [idtac|eauto].   
+    erewrite below_lret_adata; [idtac|eauto].
     simpl in *.
     destruct (t<:o) eqn:Hc; go.
 
@@ -1350,10 +1317,10 @@ Proof.
   exploit a_step_instr; eauto. intros [instr1 Hinstr1].
 
   (* instr1 is Ret or VRet *)
-  inv Hs1; simpl in *; 
+  inv Hs1; simpl in *;
   try assert (l1 <: o = true) by (eapply join_2_rev; eassumption);
   try congruence;
-  inv Hs2; simpl in *; 
+  inv Hs2; simpl in *;
   try assert (l2 <: o = true) by (eapply join_2_rev; eassumption);
   try congruence.
 
@@ -1436,18 +1403,18 @@ Program Instance AMUnwindingSemantics
   s_inv := inv_state
 }.
 
-Lemma low_equiv_list_map : forall E1 E2
-                                  (R1: relation E1)
-                                  (R2: relation E2) 
-                                  g f (l1 l2: list E1), 
-                             (forall x y, R1 x y -> R2 (f x) (g y)) ->
-                             low_equiv_list R1 l1 l2 ->
-                             low_equiv_list R2 (map f l1) (map g l2).
+Lemma Forall2_map : forall E1 E2
+                           (R1: relation E1)
+                           (R2: relation E2)
+                           g f (l1 l2: list E1),
+                      (forall x y, R1 x y -> R2 (f x) (g y)) ->
+                      Forall2 R1 l1 l2 ->
+                      Forall2 R2 (map f l1) (map g l2).
 Proof.
   induction 2; intros; simpl; auto.
-Qed.  
+Qed.
 
-Lemma below_lret_alldata : 
+Lemma below_lret_alldata :
   forall o l,
     (forall e, In e l -> exists a, e = AData a) ->
     (below_lret o l) = nil.
@@ -1461,7 +1428,7 @@ Proof.
 Qed.
 
 
-Lemma map_AData : 
+Lemma map_AData :
   forall T (l: list (Z* T)) e,
    In e (map (fun a : Z * T => let (i,lbl) := a in AData (Vint i,lbl)) l) -> exists a : Atom T T, e = AData a.
 Proof.
@@ -1470,9 +1437,9 @@ Proof.
   eauto.
 Qed.
 
-Lemma map_AData' : 
+Lemma map_AData' :
   forall T (l: list (Z* T)) (e:StkElmt T T),
-   In e (map (fun a : Z * T => let (i,lbl) := a in AData (Vint i,lbl)) l) -> 
+   In e (map (fun a : Z * T => let (i,lbl) := a in AData (Vint i,lbl)) l) ->
    exists (i:Z) (lbl:T), e = AData (Vint i,lbl).
 Proof.
   induction l ; intros; inv H; eauto.
@@ -1484,7 +1451,7 @@ Next Obligation.
   inv H.
   destruct (flows b o) eqn:?.
   constructor 2; eauto.
-  eapply low_equiv_list_map; eauto.
+  eapply Forall2_map; eauto.
   destruct x; destruct y; simpl.
   intros.
   inv H; repeat econstructor; eauto.
@@ -1548,7 +1515,7 @@ Next Obligation.
         end
       ];
   try congruence.
-  exploit_low. 
+  exploit_low.
   inv LEa; try reflexivity.
   constructor 5; intros H; inv H;
   match goal with
