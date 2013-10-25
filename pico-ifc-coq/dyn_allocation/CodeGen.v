@@ -120,12 +120,12 @@ Definition dup := [Dup 0].
 Definition swap := [Swap 1].
 
 (* do c as along as top of stack is non-zero *)
-Definition loopNZ (c : code) : code :=
+Definition genLoop (c : code) : code :=
   c ++ dup ++ (BranchNZ (- (Z_of_nat (length (c ++ dup)))) :: nil).
 
 (* do c until (top of stack = 0) *)
-Definition genRepeat (c:code) :=
- dup ++ ifNZ (loopNZ (c ++ push (-1) ++ [Add])) nop.
+Definition genFor (c:code) :=
+ dup ++ ifNZ (genLoop (c ++ push (-1) ++ [Add])) nop.
 
 Definition jump_back (c : code) :=
   c ++ push 1 ++ [BranchNZ (- Z.of_nat (length c + 1))].

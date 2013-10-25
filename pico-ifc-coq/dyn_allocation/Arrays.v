@@ -87,14 +87,14 @@ Hint Resolve extends_update.
    Side Effects: copies (src0,src0+count] to (dst0,dst0+count]  (provided these regions are disjoint) *)
 
 Definition copy :=
-  genRepeat ([Dup 2] ++ (* src0 :: count :: dst0 :: src0 :: _ *)
-             [Dup 1] ++ (* count :: src0 :: count :: dst0 :: src0 :: _ *)
-             [Add] ++   (* src0+count :: count :: dst0 :: src0 :: _ *)
-             [Load] ++  (* mem[src0+count] :: count :: dst0 :: src0 :: _ *)
-             [Dup 2] ++ (* dst0 :: mem[src0+count] :: count :: dst0 :: src0 :: _ *)
-             [Dup 2] ++ (* count :: dst0 :: mem[src0+count] :: count :: dst0 :: src0 :: _ *)
-             [Add] ++   (* dst0+count :: mem[src0+count] :: count :: dst0 :: src0 :: _ *)
-             [Store]).
+  genFor ([Dup 2] ++ (* src0 :: count :: dst0 :: src0 :: _ *)
+          [Dup 1] ++ (* count :: src0 :: count :: dst0 :: src0 :: _ *)
+          [Add] ++   (* src0+count :: count :: dst0 :: src0 :: _ *)
+          [Load] ++  (* mem[src0+count] :: count :: dst0 :: src0 :: _ *)
+          [Dup 2] ++ (* dst0 :: mem[src0+count] :: count :: dst0 :: src0 :: _ *)
+          [Dup 2] ++ (* count :: dst0 :: mem[src0+count] :: count :: dst0 :: src0 :: _ *)
+          [Add] ++   (* dst0+count :: mem[src0+count] :: count :: dst0 :: src0 :: _ *)
+          [Store]).
 
 (* The loop invariant for copy. *)
 Definition Icopy (sz:Z) bdst odst bsrc osrc (m0 : memory) s0 :=
@@ -160,7 +160,7 @@ Proof.
   eapply HT_consequence' with
     (P := (fun m s => exists s' t, s = CData(Vint sz,t)::s' /\ Icopy sz bdst odst bsrc osrc m0 s0 m s))
     (Q := (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ Icopy sz bdst odst bsrc osrc m0 s0 m s)).
-  - eapply genRepeat_spec; eauto.
+  - eapply genFor_spec; eauto.
     intros.
     unfold Icopy.
     build_vc ltac:idtac; try solve [split_vc].
@@ -627,8 +627,8 @@ Definition fold_array gen_n gen_f :=     (* a S *)
       gen_n                              (* v a S *)
   ++  [Dup 1]                            (* a v a S *)
   ++  [Load]                             (* l v a S *)
-  ++  genRepeat                          (* i v a S *)
-         (fold_array_body gen_f)          (* i v' a S *)
+  ++  genFor                             (* i v a S *)
+        (fold_array_body gen_f)          (* i v' a S *)
   ++ pop                                 (* r a S *)
   ++ [Swap 1]                            (* a r S *)
   ++ pop                                 (* r S *)
@@ -731,7 +731,7 @@ Proof.
  unfold fold_array.
  build_vc idtac.  (* builds some stupid glue steps *)
  eapply HT_weaken_conclusion.
- eapply (genRepeat_spec' _ _ (fold_array_body gen_f) (Ifab f n a vs m0 s0)).
+ eapply (genFor_spec' _ _ (fold_array_body gen_f) (Ifab f n a vs m0 s0)).
  intros.
  eapply HT_consequence'.
  eapply (fab_spec gen_f f n a vs m0 s0 i H0).

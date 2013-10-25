@@ -1126,164 +1126,18 @@ Qed.
 
 (* ********* Specifications for loops **************** *)
 
-(* Several different versions of the spec. *)
-Lemma loopNZ_spec'': forall c I,
-(forall n, (0 < n)%nat ->
-  HT c
-     (fun m s => exists i t s', s = CData (Vint i,t) :: s' /\ I m s /\ i = Z_of_nat n)
-     (fun m s => exists i' t' s', s = CData (Vint i',t') :: s' /\ I m (CData (Vint i',t') :: s')
-                                  /\ i' = Z_of_nat (pred n))) ->
-(forall n, (0 < n)%nat ->
-  HT (loopNZ c)
-     (fun m s => exists i t s', s = CData (Vint i,t) :: s' /\ I m s /\ i = Z_of_nat n)
-     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
-Proof.
-  intros c I P.
-  unfold loopNZ, dup.
-  intros n H.  generalize dependent n.
-  induction n.
-  intros.  inversion H.
-  unfold CodeTriples.HT in *. intros.
-  destruct H1 as [i [t [s' [P1 [P2 P3]]]]].
-
-  edestruct P as [stk1 [cache1 [[i' [t' [s'' [Q1 [Q2 Q3]]]]] Q4]]].
-  eapply H. eapply code_at_compose_1; eauto.
-  eexists. eexists. eexists. split. eauto. eauto. eauto.
-  simpl in Q3. subst stk1.
-  pose proof (code_at_compose_2 _ _ _ _ H0).
-  pose proof (code_at_compose_1 _ _ _ _ H1).
-  pose proof (code_at_compose_2 _ _ _ _ H1).
-  clear H1.
-  unfold code_at in H3, H4. intuition.
-  rewrite app_length in H2, H3. simpl in H2, H3.
-
-  destruct (i' =? 0) eqn:EQ.
-  - (* no loop *)
-    apply Z.eqb_eq in EQ. rewrite EQ in Q3. simpl in Q3. subst i'.
-    eexists. eexists. split. eexists. eexists. split. eauto. eauto.
-    eapply runsToEnd_trans.
-    eapply Q4. clear Q4.
-    eapply runsToEnd_trans.
-    eapply rte_step; eauto.
-    eapply cstep_dup_p; eauto.  simpl. eauto.
-    subst.
-    eapply rte_step; eauto.
-    eapply cstep_branchnz_p'; eauto.
-    destruct (0 =? 0) eqn:E.
-     eapply rte_refl; eauto.
-     inv E.
-    replace (n0 + Z.of_nat (length c) + 1 + 1) with (n0 + Z.of_nat (length c + 2)) by (zify; omega). subst n'. eauto.
-
-  - (* loop *)
-  assert (i' <> 0) by (eapply Z.eqb_neq;  eauto). subst.
-  edestruct IHn as [stk3 [cache3 [[s''' [R1 [R2 R3]]] R4]]].
-  zify; omega.
-  eauto.
-  eexists (Z_of_nat n).  eexists t'. eexists s''.  eauto. eauto.
-  eexists.  eexists. split. eexists. eexists. split. eauto. eauto.
-  subst.
-  eapply runsToEnd_trans.
-  eapply Q4.  clear Q4.
-  repeat rewrite app_length in *. simpl in R4.
-  eapply runsToEnd_trans.
-  eapply rte_step. eauto.
-  eapply cstep_dup_p; eauto.  simpl. eauto.
-  eapply rte_step; eauto.
-  eapply cstep_branchnz_p'; eauto.
-  rewrite EQ. zify ; omega.
-  eapply rte_refl; eauto.
-Qed.
-
-Lemma loopNZ_spec': forall c I,
-(forall i, 0 < i ->
-  HT c
-     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
-     (fun m s => exists i' s' t', s = CData (Vint i',t') :: s' /\ I m (CData (Vint i',t') :: s') /\
-                                  i' = Z.pred i)) ->
-(forall i, 0 < i ->
-  HT (loopNZ c)
-     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
-     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
-Proof.
-  intros c I P.
-  unfold loopNZ, dup.
-  intros i H.  assert (0 <= i) by omega. generalize dependent H.
-
-  set (Q := fun i => 0 < i ->
-   HT (c ++ [Dup 0] ++ [BranchNZ (- Z.of_nat (length (c ++ [Dup 0])))])
-     (fun (m : memory) (s : stack) => exists s' t, s = (Vint i, t) ::: s' /\ I m s)
-     (fun (m : memory) (s : stack) => exists s' t, s = (Vint 0, t) ::: s' /\ I m s)).
-  generalize dependent i.
-  eapply (natlike_ind Q); unfold Q; clear Q.
-  intros.  inversion H.
-  unfold CodeTriples.HT in *. intros i E1 IH E2.
-  intros.
-  destruct H0 as [s' [t [P1 P2]]].
-
-  edestruct P as [stk1 [cache1 [[i' [s'' [t' [Q1 [Q2 Q3]]]]] Q4]]].
-  eauto.
-  eapply code_at_compose_1; eauto.
-  eexists. eexists. split. eauto. subst stk0.  eauto. eauto.
-  assert (i' = i). zify; omega. rewrite H0 in Q3. try rewrite <- Q3 in *. subst i'. clear Q3.
-  subst stk1.
-  pose proof (code_at_compose_2 _ _ _ _ H).
-  pose proof (code_at_compose_1 _ _ _ _ H0).
-  pose proof (code_at_compose_2 _ _ _ _ H0).
-  clear H0.
-  unfold code_at in H2, H3. intuition.
-  rewrite app_length in H1, H2. simpl in H1, H2.
-
-  destruct (i =? 0) eqn:EQ.
-
-  - (* no loop *)
-  apply Z.eqb_eq in EQ. (* rewrite EQ in Q3. simpl in Q3. *) subst i.
-  eexists. eexists. split. eexists. eexists. split. eauto. eauto.
-  eapply runsToEnd_trans.
-  eapply Q4. clear Q4.
-  eapply runsToEnd_trans.
-  eapply rte_step; eauto.
-  eapply cstep_dup_p; eauto. simpl. eauto.
-  eapply rte_step; eauto.
-  eapply cstep_branchnz_p'; eauto.
-  destruct (0 =?0) eqn:E.
-    eauto.
-    inv E.
-  replace (n + Z.of_nat (length c) + 1 + 1) with (n + Z.of_nat (length c + 2)) by (zify; omega). subst n'. eauto.
-
-  - (* loop *)
-  assert (i <> 0).  eapply Z.eqb_neq;  eauto.
-  edestruct IH as [stk3 [cache3 [[s''' [t'' [R1 R2]]] R3]]].
-  zify; omega.
-  eauto.
-  exists s''.  eexists. eauto. eauto.
-  eexists.  eexists. split. eexists. eexists. split. eauto. eauto.
-  eapply runsToEnd_trans.
-  eapply Q4.  clear Q4.
-  repeat rewrite app_length in *. simpl in R3.
-  eapply runsToEnd_trans.
-  eapply rte_step.  eauto.
-  eapply cstep_dup_p; eauto.
-  simpl; eauto.
-  eapply rte_step; eauto.
-  eapply cstep_branchnz_p'; eauto.
-  rewrite EQ. zify ; omega.
-  subst.
-  eapply rte_refl; auto.
-Qed.
-
-(* This is the most general version *)
-Lemma loopNZ_spec: forall c I,
+Lemma genLoop_spec: forall c I,
 (forall i, 0 < i ->
   HT c
      (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
      (fun m s => exists i' s' t, s = CData (Vint i',t) :: s' /\ I m (CData (Vint i',t) :: s') /\ 0 <= i' < i)) ->
 (forall i, 0 < i ->
-  HT (loopNZ c)
+  HT (genLoop c)
      (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
      (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
 Proof.
   intros c I P.
-  unfold loopNZ, dup.
+  unfold genLoop, dup.
   intros i H.  assert (0 <= i) by omega. generalize dependent H.
   set (Q := fun i => 0 < i ->
    HT (c ++ [Dup 0] ++ [BranchNZ (- Z.of_nat (length (c ++ [Dup 0])))])
@@ -1355,18 +1209,18 @@ Proof.
 
 Qed.
 
-Lemma genRepeat_spec: forall c I,
+Lemma genFor_spec: forall c I,
   (forall i, 0 < i ->
   HT c
      (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
      (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ forall t', I m (CData(Vint (Z.pred i),t')::s'))) ->
   (forall i, 0 <= i ->
-  HT (genRepeat c)
+  HT (genFor c)
      (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
      (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ I m s)).
 Proof.
   intros c I P.
-  unfold genRepeat.
+  unfold genFor.
   intros i H.
   eapply HT_compose with (Q:= (fun m s => exists s' t, s = (Vint i,t) ::: (Vint i,t) ::: s' /\ I m ((Vint i,t):::s'))).
   eapply HT_strengthen_premise.
@@ -1383,7 +1237,7 @@ Proof.
   eapply ifNZ_spec with (Pt := Q i) (Pf := Q0).
   destruct (Z.eq_dec i 0). unfold CodeTriples.HT. intros. destruct H1 as [i' [t [s'' [_ [_ [CONTRA _]]]]]].  exfalso; omega.
   eapply HT_strengthen_premise.
-  eapply loopNZ_spec.
+  eapply genLoop_spec.
   3: intros m s [i' [t [s'' [P1 [P2 P3]]]]]; eexists; intuition eauto.
   2: omega.
   intros.
@@ -1409,12 +1263,12 @@ Proof.
     + intros. unfold Q0. eexists. eexists. split. eauto. subst i. eauto. eauto.
 Qed.
 
-Lemma genRepeat_spec': forall c I,
+Lemma genFor_spec': forall c I,
   (forall i, 0 < i ->
   HT c
      (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
      (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ forall t', I m (CData(Vint (Z.pred i),t')::s'))) ->
-  HT (genRepeat c)
+  HT (genFor c)
      (fun m s => exists i s' t, 0 <= i /\ s = CData(Vint i,t)::s' /\ I m s)
      (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ I m s).
 Proof.
@@ -1426,7 +1280,7 @@ Proof.
   eapply HT_fold_constant_premise. intro.
   generalize t. eapply HT_exists_forall.
   generalize s'. eapply HT_exists_forall.
-  eapply genRepeat_spec; eauto.
+  eapply genFor_spec; eauto.
 Qed.
 
 Lemma ret_specEscape: forall raddr (Q: memory -> stack -> Prop * Outcome),
