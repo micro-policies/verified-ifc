@@ -217,7 +217,7 @@ Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
 
 | step_getoff: forall m i s pcv pcl p pl rpcl rl
     (INSTR: index_list_Z pcv i = Some GetOff)
-    (TMU: run_tmr OpSizeOf pcl <|pl|> = Some (rpcl,rl)),
+    (TMU: run_tmr OpGetOff pcl <|pl|> = Some (rpcl,rl)),
     step_rules (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
                Silent (AState m i (AData (Vint (snd p), rl)::s) (pcv+1,rpcl)).
 
