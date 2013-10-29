@@ -461,6 +461,23 @@ Proof.
   eapply cstep_alloc_p; eauto.
 Qed.
 
+Lemma getoff_spec :
+  HTT [GetOff]
+      (fun Q m s =>
+         exists p t s0,
+           s = (Vptr p, t) ::: s0 /\
+           forall t', Q m ((Vint (snd p), t') ::: s0)).
+Proof.
+  intros Q imem stk0 mem0 fh n n' CODE (p & t & s0 & ? & POST) Hn'. subst.
+
+  do 2 eexists.
+
+  split; try apply (POST handlerTag).
+  unfold code_at in *. intuition.
+  eapply rte_step; auto.
+  eapply cstep_getoff_p; eauto.
+Qed.
+
 Lemma skipNZ_continuation_spec_NZ: forall c P v,
   v <> 0 ->
   HT   (skipNZ (length c) ++ c)
@@ -1509,140 +1526,6 @@ Proof.
   generalize (Z.eqb_spec v 0). intros REFL.
   destruct (v =? 0); inv REFL; simpl; eauto.
   intuition.
-Qed.
-
-Definition extract_offset_loop_body : code :=
-            (* n :: (b,n) :: (b,off) :: s *)
-  push 1 ++ (* 1 :: n :: (b,n) :: (b,off) :: s *)
-  [Add]  ++ (* n+1 :: (b,n) :: (b,off) :: s *)
-  swap   ++ (* (b,n) :: n+1 :: (b,off) :: s *)
-  push 1 ++ (* 1 :: (b,n) :: n+1 :: (b,off) :: s *)
-  [Add]  ++ (* (b,n+1) :: n+1 :: (b,off) :: s *)
-  swap.     (* n+1 :: (b,n+1) :: (b,off) :: s *)
-
-Lemma extract_offset_loop_body_spec :
-  HTT extract_offset_loop_body
-      (fun Q m s => exists n b off s0 t1 t2 t3,
-                      s = (Vint n,t1) ::: (Vptr (b, n),t2) ::: (Vptr (b, off),t3) ::: s0 /\
-                      forall t1' t2' t3',
-                        Q m ((Vint (n+1),t1') ::: (Vptr (b,n+1),t2') ::: (Vptr (b,off),t3') ::: s0)).
-Proof.
-  unfold extract_offset_loop_body.
-  eapply HTT_strengthen_premise.
-  { eapply HTT_compose; try apply push_spec.
-    eapply HTT_compose; try apply add_spec.
-    eapply HTT_compose; try apply swap_spec.
-    eapply HTT_compose; try apply push_spec.
-    eapply HTT_compose; try apply add_spec.
-    apply swap_spec. }
-  intros Q m s (n & b & off & s0 & t1 & t2 & t3 & ? & POST).
-  subst.
-  Opaque Z.add.
-  repeat (eexists; simpl; eauto).
-  replace (1 + n) with (n + 1) by ring.
-  eapply POST.
-  Transparent Z.add.
-Qed.
-
-Definition extract_offset_loop : code :=
-  while (           (* n :: (b,n) :: (b,off) :: s *)
-         [Dup 2] ++ (* (b,off) :: n :: (b,n) :: (b,off) :: s *)
-         [Dup 2] ++ (* (b,n) :: (b,off) :: n :: (b,n) :: (b,off) :: s *)
-         [Eq]    ++ (* n == off :: n :: (b,n) :: (b,off) :: s *)
-         genNot     (* n != off :: n :: (b,n) :: (b,off) :: s *))
-        extract_offset_loop_body   (* off :: (b, off) :: (b, off) :: s *).
-
-Definition extract_offset : code :=
-             (* (b,off) :: s *)
-  dup    ++  (* (b,off) :: (b,off) :: s *)
-  dup    ++  (* (b,off) :: (b,off) :: (b,off) :: s *)
-  sub    ++  (* (b,0) :: (b,off) :: s *)
-  push 0 ++  (* 0 :: (b,0) :: (b,off) :: s *)
-  extract_offset_loop ++ (* off :: (b,off) :: (b,off) :: s *)
-  [Swap 2] ++ pop ++ pop.
-
-Lemma extract_offset_spec :
-  HTT extract_offset
-      (fun Q m s =>
-         exists p t s0,
-           snd p >= 0 /\
-           s = (Vptr p, t) ::: s0 /\
-           forall t',
-             Q m ((Vint (snd p), t') ::: s0)).
-Proof.
-  unfold extract_offset.
-  intros.
-  eapply HTT_strengthen_premise.
-  { eapply HTT_compose; try eapply dup_spec.
-    eapply HTT_compose; try eapply dup_spec.
-    eapply HTT_compose; try eapply sub_spec.
-    eapply HTT_compose; try eapply push_spec.
-    eapply HTT_compose.
-    { unfold extract_offset_loop.
-      eapply while_spec with
-        (I := fun (Q : HProp) m s n =>
-                exists z b off s0 t1 t2 t3,
-                  s = (Vint z, t1) ::: (Vptr (b, z), t2) ::: (Vptr (b, off), t3) ::: s0 /\
-                  z = off - Z.of_nat n /\
-                  forall t1' t2' t3',
-                    Q m ((Vint off, t1') ::: (Vptr (b, off), t2') ::: (Vptr (b, off), t3') ::: s0)).
-      - eapply HTT_compose; try eapply dup_spec.
-        eapply HTT_compose; try eapply dup_spec.
-        eapply HTT_compose; try eapply genEq_spec.
-        eapply genNot_spec.
-      - eapply extract_offset_loop_body_spec.
-      - intros Q n Pb Pc m s. subst Pc Pb.
-        simpl in *.
-        intros (z & b & off & s' & t1 & t2 & t3 & ? & ? & POST). subst.
-        eexists. split; eauto.
-        eexists. split; eauto.
-        do 5 eexists. split; eauto.
-        unfold val_eq.
-        do 3 eexists. split; eauto.
-        intros t'.
-        do 3 eexists. split; eauto.
-        split.
-        + intros H.
-          match type of H with
-            | context[if ?B then _ else _] => destruct B as [C|C]
-          end; simpl in H; try congruence.
-          assert (NZ : off - Z.of_nat n <> off) by congruence. clear C.
-          do 7 eexists. split; eauto.
-          intros.
-          destruct n as [|n].
-          { simpl in NZ. contradict NZ. ring. }
-          exists n. split; try omega.
-          do 7 eexists. split; eauto.
-          split.
-          { replace (off - Z.of_nat (S n) + 1) with (off - Z.of_nat n); eauto.
-            rewrite Nat2Z.inj_succ. omega. }
-          eauto.
-        + intros H.
-          match type of H with
-            | context[if ?B then _ else _] => destruct B as [C|C]
-          end; simpl in H; try congruence.
-          assert (Z : off - Z.of_nat n = off) by congruence. clear C.
-          assert (ZERO : Z.of_nat n = 0) by omega. clear Z.
-          rewrite ZERO.
-          replace (off - 0) with off by ring.
-          eauto. }
-    eapply HTT_compose; try eapply swap_spec.
-    eapply HTT_compose; try eapply pop_spec. }
-  simpl.
-  intros Q m ? ([b off] & t & s & POS & ? & POST). simpl in POS. subst.
-  eexists. split; eauto.
-  eexists. split; eauto.
-  do 4 eexists. eexists (Vptr (b, 0)). eexists.
-  split; eauto.
-  split.
-  { simpl. rewrite equiv_dec_refl.
-    repeat f_equal. ring. }
-  do 8 eexists. split; eauto.
-  replace 0 with (off - off) by omega.
-  split; try rewrite Z2Nat.id; eauto; try omega.
-  intros.
-  do 4 eexists. do 3 (split; eauto).
-  do 3 eexists. split; eauto.
 Qed.
 
 Lemma genSysRet_specEscape_Some: forall raddr (Q: memory -> stack -> Prop * Outcome),
