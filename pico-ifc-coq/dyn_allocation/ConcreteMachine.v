@@ -530,6 +530,32 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
          (CA: ca = Silent)
          (CS2: cs2 = CState m fh i ((Vint (Z.of_nat (length fr)), handlerTag):::s) (pcv+1,handlerTag) true),
      cstep table cs1 ca cs2
+
+| cstep_getoff: forall fh m i s pcv pcl p pl rpcl rl,
+   forall(INST: i @ pcv # GetOff)
+         (CHIT: cache_hit_mem m (opCodeToZ OpGetOff) (pl, __, __) pcl)
+         (CREAD: cache_hit_read_mem m rl rpcl)
+         (CS1: cs1 = CState m fh i ((Vptr p, pl):::s) (pcv, pcl) false)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i ((Vint (snd p), rl):::s) (pcv+1, rpcl) false),
+     cstep table cs1 ca cs2
+
+| cstep_getoff_f: forall c' fh m i s pcv pcl p pl m',
+   forall(INST: i @ pcv # GetOff)
+         (CMISS: ~ cache_hit_mem m (opCodeToZ OpGetOff) (pl, __, __) pcl)
+         (CUPD : c' = build_cache (opCodeToZ OpGetOff) (pl,__,__) pcl)
+         (CUPDGET : cupd m c' = Some m')
+         (CS1: cs1 = CState m fh i ((Vptr p, pl):::s) (pcv, pcl) false)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m' fh i ((fh_ret pcv pcl)::(Vptr p, pl):::s) fh_start true),
+     cstep table cs1 ca cs2
+
+| cstep_getoff_p: forall fh m i s pcv pcl p pl,
+   forall(INST: fh @ pcv # GetOff)
+         (CS1: cs1 = CState m fh i ((Vptr p, pl):::s) (pcv, pcl) true)
+         (CA: ca = Silent)
+         (CS2: cs2 = CState m fh i ((Vint (snd p), handlerTag):::s) (pcv+1, handlerTag) true),
+     cstep table cs1 ca cs2
 .
 
 Import CodeGen.

@@ -937,9 +937,11 @@ Proof.
       exists ts; exists pct
   end;
 
-  simpl; repeat econstructor;
-  unfold nth_labToVal, Vector.nth_order; simpl; eauto;
-  eapply labToVal_cache; eauto.
+  solve [
+      simpl; repeat econstructor;
+      unfold nth_labToVal, Vector.nth_order; simpl; eauto;
+      eapply labToVal_cache; eauto
+    ].
 
 Qed.
 
