@@ -70,10 +70,16 @@ match opcode with
 | OpSwap     => 15
 | OpAlloc    => 16
 | OpSizeOf   => 17
+| OpGetOff   => 18
 end.
 
 (* Any number that doesn't occur in the above list. *)
-Definition invalidOpCode := 18.
+Definition invalidOpCode := 19.
+
+Lemma invalidOpCodeCorrect : forall opcode, opCodeToZ opcode <> invalidOpCode.
+Proof.
+  intros []; vm_compute; congruence.
+Qed.
 
 (* Where in the cache the various labels live *)
 Definition addrOpLabel  := 0.

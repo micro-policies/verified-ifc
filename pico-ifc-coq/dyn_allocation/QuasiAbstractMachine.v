@@ -33,6 +33,7 @@ match c with
 | OpVRet => 2
 | OpOutput => 1
 | OpSizeOf => 1
+| OpGetOff => 1
 end.
 
 Lemma labelCountBounds : forall opcode, labelCount opcode <= 3.
@@ -259,6 +260,7 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
     | OpVRet => ≪ TRUE, Lab2 , JOIN Lab1 LabPC ≫ (* value, return addr *)
     | OpOutput => ≪ TRUE, LabPC , JOIN Lab1 LabPC ≫ (* output value *)
     | OpSizeOf => ≪ TRUE, LabPC , Lab1 ≫
+    | OpGetOff => ≪ TRUE, LabPC , Lab1 ≫
     end.
 
 Definition tini_quasi_abstract_machine := quasi_abstract_machine fetch_rule table.

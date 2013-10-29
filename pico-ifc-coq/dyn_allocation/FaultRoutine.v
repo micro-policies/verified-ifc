@@ -142,7 +142,8 @@ Definition opcodes :=
    OpDup;
    OpSwap;
    OpAlloc;
-   OpSizeOf].
+   OpSizeOf;
+   OpGetOff].
 
 (* Just making sure the above is correct *)
 Lemma opcodes_correct : forall op, In op opcodes.
