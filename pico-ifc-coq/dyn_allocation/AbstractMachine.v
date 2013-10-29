@@ -159,7 +159,12 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
     (INSTR: index_list_Z pcv i = Some SizeOf)
     (FRAME: Mem.get_frame m (fst p) = Some fr),
     a_step (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
-           Silent (AState m i (AData (Vint (Z.of_nat (length fr)), pl)::s) (pcv+1,pcl)).
+           Silent (AState m i (AData (Vint (Z.of_nat (length fr)), pl)::s) (pcv+1,pcl))
+
+| step_getoff: forall m i s pcv pcl p pl
+    (INSTR: index_list_Z pcv i = Some GetOff),
+    a_step (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
+           Silent (AState m i (AData (Vint (snd p), pl)::s) (pcv+1,pcl)).
 
 Lemma a_step_instr : forall m i s pcv pcl s' e,
   a_step (AState m i s (pcv,pcl)) e s' ->
