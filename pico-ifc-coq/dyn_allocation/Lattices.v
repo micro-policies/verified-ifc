@@ -109,6 +109,25 @@ Proof.
   auto.
 Qed.
 
+Lemma join_assoc {L:JoinSemiLattice T} : forall l1 l2 l3, l1 \_/ (l2 \_/ l3) = (l1 \_/ l2) \_/ l3.
+Proof.
+  intros.
+  apply flows_antisymm.
+  - repeat apply join_minimal; eauto using join_1, join_2, flows_refl.
+  - repeat apply join_minimal; eauto using join_1, join_2, flows_refl.
+Qed.
+
+Lemma join_comm {L:JoinSemiLattice T} : forall l1 l2, l1 \_/ l2 = l2 \_/ l1.
+Proof.
+  intros. apply flows_antisymm; eauto with lat.
+Qed.
+
+Lemma join_refl {L:JoinSemiLattice T} : forall l, l \_/ l = l.
+Proof.
+  intros.
+  apply flows_antisymm; eauto with lat.
+Qed.
+
 End JoinSemiLattice_properties.
 
 Hint Resolve
