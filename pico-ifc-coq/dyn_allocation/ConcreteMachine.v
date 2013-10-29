@@ -277,7 +277,6 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
 | cstep_load_p: forall m fh i s pcv pcl p addrl x,
    forall (INST: fh @ pcv # Load)
           (READ: load p m = Some x)
-          (PRIV: Mem.stamp (fst p) = Kernel)
           (CS1: cs1 = CState m fh i ((Vptr p,addrl):::s) (pcv,pcl) true)
           (CA: ca = Silent)
           (CS2: cs2 = CState m fh i (x:::s) (pcv+1,handlerTag) true),
@@ -310,7 +309,6 @@ Inductive cstep (table : CSysTable) (cs1 : CS) (ca : CEvent+τ) (cs2 : CS) : Pro
 | cstep_store_p: forall m fh i s pcv pcl m' p addrl x,
     forall (INST:fh @ pcv # Store)
            (UPD: store p x m = Some m')
-           (PRIV: Mem.stamp (fst p) = Kernel)
            (CS1: cs1 = CState m fh i ((Vptr p,addrl)::: x :::s) (pcv,pcl) true)
            (CA: ca = Silent)
            (CS2: cs2 = CState m' fh i s (pcv+1,handlerTag) true),
