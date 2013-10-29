@@ -213,8 +213,13 @@ Inductive step_rules : qa_state -> (@Event T)+τ -> qa_state -> Prop :=
     (FRAME: Mem.get_frame m (fst p) = Some fr)
     (TMU: run_tmr OpSizeOf pcl <|pl|> = Some (rpcl,rl)),
     step_rules (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
-               Silent (AState m i (AData (Vint (Z.of_nat (length fr)), rl)::s) (pcv+1,rpcl)).
+               Silent (AState m i (AData (Vint (Z.of_nat (length fr)), rl)::s) (pcv+1,rpcl))
 
+| step_getoff: forall m i s pcv pcl p pl rpcl rl
+    (INSTR: index_list_Z pcv i = Some GetOff)
+    (TMU: run_tmr OpSizeOf pcl <|pl|> = Some (rpcl,rl)),
+    step_rules (AState m i (AData (Vptr p, pl)::s) (pcv,pcl))
+               Silent (AState m i (AData (Vint (snd p), rl)::s) (pcv+1,rpcl)).
 
 Definition quasi_abstract_machine :=
   {| state := qa_state ;
