@@ -262,14 +262,17 @@ Qed.
 
 Lemma sop_asystable_inv : systable_inv SOPASysTable.
 Proof.
-  intros id args asc res EQ INV RES.
+  intros id args asc res pcl EQ INV RES.
   destruct id as [|[|[|?]]]; inv EQ.
   destruct args as [| [v12 l12] [| [[p1|[? ?]] l1] [|[? ?]]]]; inv RES.
   destruct v12 as [i|b off]; simpl; trivial.
   assert (H := INV _ (or_introl eq_refl)). simpl in H.
   rewrite Zset_incl_spec in *.
-  intros p IN. rewrite Zset.In_add. right.
-  rewrite Zset.In_union. eauto.
+  intros p IN.
+  apply H in IN. rewrite Zset.In_union in IN.
+  rewrite Zset.In_union.
+  rewrite Zset.In_add.
+  rewrite Zset.In_union. intuition.
 Qed.
 
 Lemma sop_asystable_parametric : parametric_asystable SOPASysTable.

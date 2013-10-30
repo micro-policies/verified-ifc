@@ -497,13 +497,14 @@ Proof.
 Qed.
 
 Lemma store_equiv_mem:
-  forall o m1 m2 p1 p2 l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2',
+  forall o m1 m2 p1 p2 pcl l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2',
   equiv_mem o m1 m2 ->
   Mem.stamp (fst p1) <: l1 = true ->
   Mem.stamp (fst p2) <: l2 = true ->
   low_equiv_atom o (Vptr p1, l1) (Vptr p2, l2) ->
   load p1 m1 = Some (o1,ll1) ->
   load p2 m2 = Some (o2,ll2) ->
+  pcl <: o = true ->
   l1 <: ll1 = true ->
   l2 <: ll2 = true ->
   low_equiv_atom o (v1, lll1) (v2, lll2) ->
@@ -511,8 +512,8 @@ Lemma store_equiv_mem:
   store p2 (v2, join l2 lll2) m2 = Some m2' ->
   equiv_mem o m1' m2'.
 Proof.
-  intros o m1 m2 [b1 ofs1] [b2 ofs2] l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2'.
-  intros [H H'] Hs1 Hs2 H0 H1 H2 H3 H4 H5 H6 H7. simpl in *.
+  intros o m1 m2 [b1 ofs1] [b2 ofs2] pcl l1 l2 v1 v2 ll1 ll2 o1 o2 lll1 lll2 m1' m2'.
+  intros [H H'] Hs1 Hs2 H0 H1 H2 Hlow H3 H4 H5 H6 H7. simpl in *.
   split.
   + { intros b Hb.
       unfold load, store in *. simpl in *.
@@ -955,26 +956,198 @@ Proof.
       simpl; congruence.
 Qed.
 
-Definition inv_atom (a:Atom T T) : Prop :=
+Definition inv_atom (a:Atom T T) (guard:T) : Prop :=
   match a with
     | (Vint _,_) => True
-    | (Vptr p, l) => Mem.stamp (fst p) <: l  = true
+    | (Vptr p, l) => Mem.stamp (fst p) <: l \_/ guard = true
   end.
+
+Lemma inv_atom_weaken :
+  forall v lv l lv' l',
+    inv_atom (v, lv) l ->
+    lv \_/ l <: lv' \_/ l' = true ->
+    inv_atom (v, lv') l'.
+Proof.
+  intros [?|[b off]]; simpl; auto.
+  intros.
+  eapply flows_trans; eauto.
+Qed.
+
+Definition inv_mem m : Prop :=
+  forall p a, load p m = Some a -> inv_atom a (Mem.stamp (fst p)).
+
+Inductive inv_stk : list (StkElmt T T) -> T -> Prop :=
+| istk_nil : forall lpc, inv_stk nil lpc
+| istk_data : forall a stk lpc
+                     (STK : inv_stk stk lpc)
+                     (ATOM : inv_atom a lpc),
+                inv_stk (AData a :: stk) lpc
+| istk_ret : forall pc b stk lpc
+                    (STK : inv_stk stk (snd pc)),
+               inv_stk (ARet pc b :: stk) lpc.
+
+Lemma inv_stk_weaken :
+  forall stk l l',
+    inv_stk stk l ->
+    l <: l' = true ->
+    inv_stk stk l'.
+Proof.
+  intros.
+  induction H; constructor; eauto using inv_atom_weaken.
+  destruct a.
+  eapply inv_atom_weaken; eauto 2; auto with lat.
+Qed.
+
+Lemma inv_stk_pop_to_return :
+  forall stk pcv pcl b pcl' stk',
+    inv_stk stk pcl' ->
+    pop_to_return stk (ARet (pcv, pcl) b :: stk') ->
+    inv_stk stk' pcl.
+Proof.
+  intros stk pcv pcl b pcl' stk' H1 H2.
+  induction stk as [|[a|pc' b'] stk IH].
+  - inv H2.
+  - inv H1. inv H2. auto.
+  - inv H1. inv H2. auto.
+Qed.
 
 Inductive inv_state : @a_state T -> Prop :=
 | inv_state_def: forall m i s pc lpc
-    (IMEM: forall p a, load p m = Some a -> inv_atom a)
-    (ISTACK: forall a, In (AData a) s -> inv_atom a),
+    (IMEM: inv_mem m)
+    (ISTACK: inv_stk s lpc),
     inv_state (AState m i s (pc,lpc)).
 
 Definition systable_inv (table : ASysTable T) : Prop :=
-  forall id args sc res
+  forall id args sc res lpc
          (SYS : table id = Some sc)
-         (IARGS : forall a, In a args -> inv_atom a)
+         (IARGS : forall a, In a args -> inv_atom a lpc)
          (RES : sc.(asi_sem) args = Some res),
-    inv_atom res.
+    inv_atom res lpc.
 
 Hypothesis table_systable_inv : systable_inv atable.
+
+Lemma inv_add : forall xv1 xl1 xv2 xl2 lpc xr,
+                  add xv1 xv2 = Some xr ->
+                  inv_atom (xv1, xl1) lpc ->
+                  inv_atom (xv2, xl2) lpc ->
+                  inv_atom (xr, xl1 \_/ xl2) lpc.
+Proof.
+  intros xv1 xl1 xv2 xl2 lpc xr H1 H2 H3.
+  destruct xv1 as [xv1|[b1 off1]], xv2 as [xv2|[b2 off2]]; simpl in *;
+  inv H1; trivial; simpl.
+  - rewrite <- join_assoc. auto with lat.
+  - rewrite (join_comm xl1). rewrite <- join_assoc. auto with lat.
+Qed.
+
+Lemma inv_sub : forall xv1 xl1 xv2 xl2 lpc xr,
+                  sub xv1 xv2 = Some xr ->
+                  inv_atom (xv1, xl1) lpc ->
+                  inv_atom (xv2, xl2) lpc ->
+                  inv_atom (xr, xl1 \_/ xl2) lpc.
+Proof.
+  intros xv1 xl1 xv2 xl2 lpc xr H1 H2 H3.
+  destruct xv1 as [xv1|[b1 off1]], xv2 as [xv2|[b2 off2]]; simpl in *;
+  inv H1; trivial; simpl.
+  - rewrite (join_comm xl1). rewrite <- join_assoc. auto with lat.
+  - match goal with
+      | H : (if ?B then _ else _) = Some _ |- _ =>
+        destruct B as [E|_]; inv H; compute in E; subst b2
+    end.
+    rewrite <- (join_refl lpc).
+    rewrite <- join_assoc. rewrite (join_assoc xl2).
+    rewrite (join_comm _ lpc).
+    rewrite join_assoc.
+    auto with lat.
+Qed.
+
+Lemma inv_alloc_mem :
+  forall size sizel pcl a m b m'
+         (ALLOC : a_alloc size (sizel \_/ pcl) a m = Some (b, m'))
+         (ATOM : inv_atom a pcl)
+         (MEM : inv_mem m),
+    inv_mem m'.
+Proof.
+  intros.
+  intros [b' off] a' LOAD. unfold a_alloc in ALLOC. simpl.
+  erewrite load_alloc in LOAD; eauto.
+  repeat match goal with
+           | H : (if ?B then _ else _) = Some _ |- _ =>
+             destruct B as [E|_] || destruct B; try solve [inv H]
+         end.
+  - compute in E. subst b'. inv LOAD.
+    unfold alloc in ALLOC.
+    destruct (zreplicate size a'); try discriminate.
+    inv ALLOC.
+    assert (STAMP : Mem.stamp b = sizel \_/ pcl) by eauto using Mem.alloc_stamp.
+    rewrite STAMP. clear STAMP.
+    destruct a' as [v' l']. clear - ATOM.
+    eapply inv_atom_weaken; eauto 2.
+    rewrite join_assoc. rewrite (join_comm l' sizel). rewrite <- join_assoc.
+    auto with lat.
+  - eapply MEM in LOAD. eauto.
+Qed.
+
+Lemma inv_alloc_res :
+  forall size (sizel pcl : T) a m b m'
+         (ALLOC : a_alloc size (sizel \_/ pcl) a m = Some (b, m')),
+    inv_atom (Vptr (b, 0)%Z, sizel) pcl.
+Proof.
+  intros.
+  unfold a_alloc, alloc in ALLOC.
+  destruct (zreplicate size a); try discriminate.
+  simpl. inv ALLOC.
+  assert (E : Mem.stamp b = sizel \_/ pcl) by eauto using Mem.alloc_stamp.
+  rewrite E. auto with lat.
+Qed.
+
+Lemma inv_store :
+  forall p addrl xv xl pcl m m',
+    inv_mem m ->
+    inv_atom (xv, xl) pcl ->
+    store p (xv, addrl \_/ pcl \_/ xl) m = Some m' ->
+    inv_mem m'.
+Proof.
+  intros p addrl xv xl pcl m m' H1 H3 H4 p' a LOAD.
+  erewrite load_store in LOAD; eauto.
+  destruct (equiv_dec p p') as [E | E].
+  - compute in E. subst p'. inv LOAD.
+    eapply inv_atom_weaken; eauto 2. auto with lat.
+  - apply H1. trivial.
+Qed.
+
+Lemma inv_stk_inv :
+  forall s1 s2 pcl
+         (DATA : forall se, In se s1 -> exists a, se = AData a)
+         (INV : inv_stk (s1 ++ s2) pcl),
+    (forall se, In se s1 -> exists a, se = AData a /\ inv_atom a pcl) /\
+    inv_stk s2 pcl.
+Proof.
+  intros s1 s2 pcl DATA INV.
+  induction s1 as [|se s1 IH]; simpl in *.
+  - split; trivial.
+    intuition.
+  - inv INV; eauto.
+    + exploit IH; eauto.
+      intros [H1 H2].
+      split; intuition eauto.
+    + specialize (DATA _ (or_introl eq_refl)). destruct DATA. congruence.
+Qed.
+
+Lemma inv_stk_app :
+  forall s1 s2 pcl
+         (INV1 : forall se, In se s1 -> exists a, se = AData a /\ inv_atom a pcl)
+         (INV2 : inv_stk s2 pcl),
+    inv_stk (s1 ++ s2) pcl.
+Proof.
+  intros.
+  induction s1 as [|se s1 IH]; simpl; trivial.
+  exploit IH.
+  { intros. apply INV1. intuition. }
+  intros H.
+  specialize (INV1 _ (or_introl eq_refl)).
+  destruct INV1 as (? & ? & ?). subst.
+  constructor; eauto.
+Qed.
 
 Lemma inv_step : forall as1 e as1',
   inv_state as1 ->
@@ -984,81 +1157,47 @@ Proof.
   intros as1 e as1' Hi Hs.
   inv Hs; inv Hi; constructor;
   try assumption;
+  repeat match goal with
+           | H : inv_stk (_ :: _) _ |- _ => inv H
+         end;
   try match goal with
-    | id: forall _, In (AData _) (AData ?a :: _) -> inv_atom _ |- _ =>
-      let I := fresh "I" in
-      assert (I:inv_atom a); [apply id; simpl; left; auto; fail|idtac]
-  end;
-  try match goal with
-    | id: forall _, In (AData _) (_::AData ?a :: _) -> inv_atom _ |- _ =>
-      let I := fresh "I" in
-      assert (I:inv_atom a); [apply id; simpl; right; left; auto; fail|idtac]
-  end;
-  try (intros; apply ISTACK; repeat right; assumption);
-  try (intros a [Ha | Ha]; [inv Ha|apply ISTACK; simpl; auto; fail]);
-  simpl; auto.
-  - Case "Add".
-    destruct x1v as [|[]]; destruct x2v as [|[]]; inv ADD; simpl in *; auto with lat.
-  - Case "Sub".
-    destruct x1v as [|[]]; destruct x2v as [|[]]; inv SUB; simpl in *; auto with lat.
-    destruct (b == b0).
-    + inv H0. auto with lat.
-    + congruence.
-  - Case "Dup".
-    apply ISTACK. eauto using in_or_app.
-  - Case "Swap".
-    intros a H.
-    apply ISTACK.
-    apply in_app_or in H.
-    apply in_or_app.
-    destruct H as [H | H]; eauto using swap_In.
-  - Case "Alloc".
-    intros. destruct p as [b' ofs].
-    rewrite (load_alloc ALLOC) in H.
-    destruct (@equiv_dec (block T)); try congruence.
-    + destruct Z_le_dec; try congruence.
-      destruct Z_lt_dec; try congruence.
-    + eauto.
-  - Case "Alloc".
-    unfold a_alloc, alloc in ALLOC.
-    unfold Atom in *.
-    destruct (zreplicate size (xv, xl)); inv ALLOC.
-    rewrite (Mem.alloc_stamp _ _ _ _ _ _ _ _ _ H0).
+        | |- inv_stk _ _ => constructor
+      end;
+  eauto using inv_add, inv_sub, inv_alloc_mem, inv_alloc_res,
+              inv_store, inv_stk_weaken, inv_stk_pop_to_return,
+              inv_atom_weaken;
+  try solve [simpl; auto];
+  try (exploit IMEM; [solve [eauto]|]).
+  - apply index_list_In in IDX.
+    eapply inv_stk_inv in DATA; eauto.
+    destruct DATA as [H1 H2].
+    edestruct H1 as (? & ? & ?); eauto. subst.
+    constructor; eauto.
+  - eapply inv_stk_inv in DATA; eauto.
+    destruct DATA as [DATA INV].
+    eapply inv_stk_app; eauto.
+    eapply swap_forall; eauto.
+  - simpl in ATOM. clear - ATOM. intros H.
+    eapply inv_atom_weaken; eauto 2.
+    rewrite (join_comm addrl). rewrite <- join_assoc.
     auto with lat.
-  - Case "Load".
-    generalize (IMEM _ _ LOAD); destruct xv; simpl; auto with lat.
-  - Case "Store".
-    intros.
-    rewrite (load_store STORE) in H.
-    destruct (@equiv_dec (ptr T)); eauto.
-    inv H.
-    destruct xv; simpl in *; auto with lat.
-  - Case "Call".
-    intros a Hi; generalize (ISTACK a); destruct a as [[|] lbl]; simpl; auto.
-    rewrite in_app_iff in *.
-    simpl in *.
-    intuition auto with lat datatypes.
-    congruence.
-  - Case "Ret".
-    spec_pop_return.
-    exploit @pop_to_return_spec3; eauto. intros HTEMP. inv HTEMP.
-    eauto with datatypes.
-  - Case "VRet".
-    intros a [Hi|Hi].
-    + inv Hi.
-      destruct resv; simpl in *; auto with  lat.
-    + spec_pop_return.
-      exploit @pop_to_return_spec3; eauto. intros HTEMP. inv HTEMP.
-      apply ISTACK; auto with datatypes.
-  - Case "SysCall".
-    intros a [E | E]; eauto using in_or_app.
-    inv E.
-    eapply table_systable_inv; eauto.
-    intros a' IN.
-    apply ISTACK.
-    apply in_or_app.
-    left.
-    apply in_map. assumption.
+  - eapply inv_stk_inv in ARGS; eauto.
+    destruct ARGS as [ARGS INV].
+    eapply inv_stk_app.
+    + intros se IN. apply ARGS in IN.
+      destruct IN as (a & ? & INV'). subst.
+      eexists a. split; trivial.
+      rewrite (surjective_pairing a) in *.
+      eapply inv_atom_weaken in INV'; eauto.
+      auto with lat.
+    + constructor. eauto.
+  - eapply inv_stk_inv in ISTACK; intuition eauto.
+    rewrite in_map_iff in H. destruct H as (? & ? & ?). subst. eauto.
+  - eapply table_systable_inv; eauto.
+    clear - ISTACK.
+    intros a H.
+    induction args as [|a' args IH]; simpl in *; intuition; subst;
+    inv ISTACK; auto.
 Qed.
 
 Lemma swap_low_equiv :
@@ -1143,23 +1282,20 @@ Proof.
   - Case "Load".
     inv_equiv_atom; try go.
     SCase "Load from low addresses".
-    assert (Mem.stamp (fst p0) <: addrl0 = true).
-      inv Hi2.
-      apply (ISTACK (Vptr p0, addrl0)); auto with datatypes.
+    assert (Mem.stamp (fst p0) <: addrl0 \_/ l = true).
+    { inv Hi2. inv ISTACK. simpl in *. trivial. }
     assert (Hmemv: low_equiv_atom o (xv, xl) (xv0, xl0)) by
         (eapply load_equiv_mem; eauto with lat).
     inv Hmemv; go.
 
   - Case "Store".
-    assert (Mem.stamp (fst p0) <: addrl0 = true).
-      inv Hi2.
-      apply (ISTACK (Vptr p0, addrl0)); auto with datatypes.
-    assert (Mem.stamp (fst p) <: addrl = true).
-      inv Hi1.
-      apply (ISTACK (Vptr p, addrl)); auto with datatypes.
+    assert (Mem.stamp (fst p0) <: addrl0 \_/ l = true).
+    { inv Hi2. inv ISTACK. simpl in *. trivial. }
+    assert (Mem.stamp (fst p) <: addrl \_/ l = true).
+    { inv Hi1. inv ISTACK. simpl in *. trivial. }
     repeat inv_equiv_atom;
     assert (m' ~~m m'0) by (
-      eapply store_equiv_mem with (10:= STORE) (11:= STORE0);
+      eapply store_equiv_mem with (11:= STORE) (12:= STORE0);
       eauto with lat);
     go.
 
@@ -1207,8 +1343,8 @@ Proof.
   - Case "SizeOf".
     inv LEa.
     + assert (LEN : length fr = length fr0).
-      { inv Hi1.
-        specialize (ISTACK _ (or_introl eq_refl)). inv ISTACK.
+      { inv Hi1. inv ISTACK.
+        simpl in *.
         destruct LEm as [LOWF _].
         assert (STAMP : Mem.stamp (fst p0) <: o = true) by eauto with lat.
         exploit LOWF; eauto. intros FRAMES.
@@ -1487,11 +1623,10 @@ Qed.
 Next Obligation.
   destruct i as [[p d] b].
   constructor.
-  unfold load; intros.
-  rewrite Mem.get_empty in H; discriminate.
-  intros.
-  apply map_AData' in H.
-  destruct H as (i & lbl & Hi); inv Hi; simpl; auto.
+  - intros p' a.
+    unfold load; intros.
+    rewrite Mem.get_empty in H; discriminate.
+  - induction d as [|[a l] d IH]; simpl; try constructor; simpl; trivial.
 Qed.
 
 Next Obligation.

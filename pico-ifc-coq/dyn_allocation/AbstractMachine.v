@@ -85,7 +85,7 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
     (ALLOC: a_alloc size (sizel \_/ pcl) (xv,xl) m = Some (b,m')),
     a_step (AState m i ((AData (Vint size,sizel))::(AData (xv,xl))::s) (pcv,pcl))
                Silent
-               (AState m' i (AData (Vptr (b, 0),sizel \_/ pcl)::s) (pcv+1,pcl))
+               (AState m' i (AData (Vptr (b, 0),sizel)::s) (pcv+1,pcl))
 
 | step_load: forall m i s pcv pcl addrl p xv xl
     (INSTR: index_list_Z pcv i = Some Load)
@@ -98,7 +98,7 @@ Inductive a_step : a_state -> (Event T)+τ -> a_state -> Prop :=
     (INSTR: index_list_Z pcv i = Some Store)
     (LOAD: load p m = Some (mv,ml))
     (CHECK: addrl \_/ pcl <: ml = true)
-    (STORE: store p  (xv, addrl \_/ (xl \_/ pcl)) m = Some m'),
+    (STORE: store p  (xv, addrl \_/ pcl \_/ xl) m = Some m'),
     a_step (AState m i ((AData (Vptr p,addrl))::(AData (xv,xl))::s) (pcv,pcl))
                Silent
                (AState m' i s (pcv+1,pcl))

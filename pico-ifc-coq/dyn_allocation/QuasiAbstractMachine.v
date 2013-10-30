@@ -253,11 +253,11 @@ Definition fetch_rule (opcode:OpCode) : (AllowModify (labelCount opcode)) :=
     | OpSwap => ≪ TRUE, LabPC, BOT ≫
     | OpPush => ≪ TRUE, LabPC , BOT ≫
     | OpPop => ≪ TRUE, LabPC, BOT ≫
-    | OpAlloc => ≪ TRUE, LabPC , JOIN Lab1 LabPC ≫
+    | OpAlloc => ≪ TRUE, LabPC , Lab1 ≫
     | OpLoad => ≪ TRUE, LabPC, JOIN Lab1 Lab2 ≫
     | OpStore => ≪ LE (JOIN Lab1 LabPC) Lab3,  (* addr, new value, old value *)
                    LabPC ,
-                  JOIN Lab1 (JOIN Lab2 LabPC) ≫
+                  JOIN (JOIN Lab1 LabPC) Lab2 ≫
     | OpJump => ≪ TRUE, JOIN Lab1 LabPC , __ ≫
     | OpBranchNZ => ≪ TRUE, JOIN Lab1 LabPC , __ ≫
     | OpCall => ≪ TRUE , JOIN Lab1 LabPC , LabPC ≫
