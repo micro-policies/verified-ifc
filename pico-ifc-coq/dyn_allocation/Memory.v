@@ -381,7 +381,7 @@ Implicit Arguments val [].
 Definition add {S} (v1 v2:val S) : option (val S) :=
   match v1, v2 with
     | Vint i1, Vint i2 => Some (Vint (i1+i2))
-    | Vptr (b, i1), Vint i2 => Some (Vptr (b,i1-i2))
+    | Vptr (b, i1), Vint i2 => Some (Vptr (b,i1+i2))
     | Vint i1, Vptr (b, i2) => Some (Vptr (b,i1+i2))
     | _, _ => None
   end%Z.
