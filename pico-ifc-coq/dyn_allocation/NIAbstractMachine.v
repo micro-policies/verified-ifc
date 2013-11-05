@@ -38,6 +38,14 @@ Inductive low_equiv_atom {A} (o: Label) : relation (A * Label)%type :=
   low_equiv_atom o (v1,l1) (v2,l2).
 Hint Constructors low_equiv_atom.
 
+Lemma low_equiv_atom_equal: 
+  forall {A} (a b:A) (k l:Label) (o:Label), k <: o = true ->
+    low_equiv_atom o (a,k) (b,l) -> a = b.
+Proof.
+  intros A a b k l o h; inversion 1; auto.
+  rewrite H3 in h. discriminate.
+Qed.
+
 Instance low_pair (A:Type) (o: Label) : @Equivalence (A * Label) (low_equiv_atom o).
 Proof.
   constructor.
