@@ -1,10 +1,10 @@
 This directory contains the Coq development corresponding to
-the basic set of machines described in the main part of 
+the basic set of machines described in the main part of
 the paper "A Verified Information-Flow Architecture."
 
 
 -- Contents
-   
+
    Main.v		top-level summary of main results
 
    Instr.v		instruction set shared by all machines
@@ -26,19 +26,27 @@ the paper "A Verified Information-Flow Architecture."
    CodeGen.v		definitions of generic code generators
    CodeTriples.v        definition and lemmas of triples
    CodeSpecs.v		definition of triples and lemmas on generic code generators
-   FaultRoutine.v	definition and correctness proof for fault handler generator 
+   Encodable.v          type class for types that can be encoded as integers
+   CLabels.v            type class that maps abstract rules to concrete rule implementations
+   FaultRoutine.v	definition and correctness proof for fault handler generator
    RefinementAC.v	Concrete machine refines Abstract machine
    NIConcreteMachine.v  Concrete machine enjoys TINI
-   RefinementCA.v	Abstract Machine refines Concrete machine      
+   RefinementCA.v	Abstract Machine refines Concrete machine
    Utils.v		utility lemmas and tactics
    LibTactics.v		more tactics (from Arthur Chargeraud)
+
+The symbolic rule machine presented in QuasiAbstractMachine.v is
+actually slightly more generic than the one presented in the
+paper. Here, the machine can work with any function from labels to
+labels as rules, as opposed to just IFC lattices. However, this
+additional generality doesn't affect much the rest of the development.
 
 -- Compile
         make all
    This will compile the coq definitions and proofs.
    This code is known to work with Coq 8.4.
- 
--- Glossary 
+
+-- Glossary
 
    There are a few differences in terminology between this development and the paper:
 
@@ -48,4 +56,4 @@ the paper "A Verified Information-Flow Architecture."
    Quasi-Abstract Machine	Symbolic rule machine
    tini_quasi_abstract_machine	Symbolic rule machine instantiated with rule table R^{abs}
    tini_concrete_machine	Concrete machine instantiated with fault handler generated from R^{abs}
-   etc. 
+   etc.
