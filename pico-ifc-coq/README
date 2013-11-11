@@ -1,7 +1,7 @@
 This directory contains the Coq developments corresponding to the machines
 described in the paper "A Verified Information-Flow Architecture."
 
-There are three subdirectories:
+There are two subdirectories:
 
 /basic_machines         corresponds to the basic model discussed in sections 3-10 of the paper.
 /extended_machines      corresponds to the machine extensions discussed in section 11
@@ -12,7 +12,7 @@ but sometimes in modified form.
 We recommend that you start by exploring /basic_machines. Consult the README
 and the Main.v file to get a top-level view of the results.
 
-/extended_machines contain longer READMEs that are intended to help
-guide you to the important differences in these developments.
+/extended_machines contain a longer README that is intended to help
+guide you to the important differences in this developments.
 
-The code in the three directories is known to work with Coq 8.4.
+The code is known to work with Coq 8.4.
