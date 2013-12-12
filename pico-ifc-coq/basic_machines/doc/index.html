@@ -1,0 +1,103 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+<HEAD>
+<TITLE>A Verified Information-Flow Architecture</TITLE>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+
+<style type="text/css">
+body {
+  color: black; background: white;
+  margin-left: 5%; margin-right: 5%;
+}
+h2 { margin-left: -5%;}
+h3 { margin-left: -3%; }
+h1,h2,h3 { font-family: sans-serif; }
+hr { margin-left: -5%; margin-right:-5%; }
+a:visited {color : #416DFF; text-decoration : none; font-weight : bold}
+a:link {color : #416DFF; text-decoration : none; font-weight : bold}
+a:hover {color : Red; text-decoration : underline; }
+a:active {color : Red; text-decoration : underline; }
+</style>
+
+</HEAD>
+<BODY>
+
+<H1 align="center">A Verified Information-Flow Architecture</H1>
+<H2 align="center">Commented Coq development (Basic Machine)</H2>
+<H3 align="center">December, 2013</H3>
+
+
+<P>The complete sources can be downloaded from
+<A HREF="">todo</A>.</P>
+
+<P>Copyright</A>.
+</P>
+
+<H2>Table of contents</H2>
+
+<H3> Common Definitions </H3>
+    <UL>
+      <LI> <a href="html/Instr.html">Instr.v</a>: instruction shared by all machines </LI>
+      <LI> <a href="html/Semantics.html">Semantics.v</a>: generic definition of a machine semantics </LI>
+      <LI> <a href="html/TINI.html">TINI.v</a>: definition of non-interference </LI>
+      <LI> <a href="html/Refinement.html">Refinement.v</a>: definition of a refinement between two semantics </LI>
+    </UL>
+
+<H3> Abstract Machine </H3>
+    <UL>
+      <LI> <a href="html/Lattice.html">Lattice.v</a>: generic definition of a semi-lattice ; two-point lattice </LI>
+      <LI> <a href="html/AbstractCommon.html">AbstractCommon.v</a>: basic definitions shared by the abstract and symbolic abstract machines </LI>
+      <LI> <a href="html/AbstractMachine.html">AbstractMachine.v</a>: semantics of the abstract machine </LI>
+      <LI> <a href="html/NIAbstractMachine.html">NIAbstractMachine.v</a>: the abstract machine satisfies TINI </LI>
+    </UL>
+
+<H3> Symbolic Abstract Machine </H3>
+    <UL>
+      <LI> <a href="html/Rules.html">Rules.v</a>: definition and evaluation of the DSL for rules </LI>
+      <LI> <a href="html/QuasiAbstractMachine.html">QuasiAbstractMachine.v</a>:  semantics of the quasi-abstract machine (= symbolic abstract machine) </LI>
+    </UL>
+
+<H3> Concrete Machine </H3>
+    <UL>
+      <LI> <a href="html/CLattices.html">CLattices.v</a>: generic definition of concrete lattices ; two-point concrete lattice </LI>
+      <LI> <a href="html/Concrete.html">Concrete.v</a>: basic definition for the concrete machine </LI>
+      <LI> <a href="html/ConcreteMachine.html">ConcreteMachine.v</a>: semantics of the concrete machine </LI>
+      <LI> <a href="html/ConcreteExecutions.html">ConcreteExecutions.v</a>: predicates about concrete machin executions </LI>
+      <LI> <a href="html/Determinism.html">Determinism.v</a>: the concrete machine is deterministic </LI>      
+      <LI> <a href="html/RefinementAC.html">RefinementAC.v</a>: the concrete machine refines the abstract machine </LI>      
+      <LI> <a href="html/RefinementCA.html">RefinementCA.v</a>: the abstract machine refines the concrete machine </LI>      
+      <LI> <a href="html/NIConcreteMachine.html">NIConcreteMachine.v</a>: the concrete machine satisfies TINI </LI>      
+    </UL>
+
+
+<H3> DSL Compiler - Fault Handler Generation  </H3>
+
+<UL>
+      <LI> <a href="html/CodeGen.html">CodeGen.v</a>: definition of generic codegenerators </LI>      
+      <LI> <a href="html/CodeTriples.html">CodeTriples.v</a>: definitions and lemmas about triples </LI>      
+      <LI> <a href="html/CodeSpecs.html">CodeSpecs.v</a>: triples and lemmas about generic code generators </LI>      
+      <LI> <a href="html/Encodable.html">Encodable.v</a>: type class for types that can be encoded as integers </LI>      
+      <LI> <a href="html/CLabels.html">CLabels.v</a>: type class for mapping abstract rules to concrete rule implementations </LI>
+      <LI> <a href="html/FaultRoutine.html">FaultRoutine.v</a>: definition and correctness proof of the fault handler generator </LI>
+
+    </UL>
+
+<H3>Altogether </H3>
+<UL>
+      <LI> <a href="html/Main.html">Main.v</a>: a recap of the main theorems of the paper </LI>      
+
+</UL>
+
+<H3>Utility files</H3>
+<UL>
+      <LI> <a href="html/Utils.html">Utils.v</a>: utility lemmas </LI>      
+      <LI> <a href="html/LibTactics.html">LibTactics.v</a>: more tactics (from Arthur Chargeraud) </LI>      
+ 
+</UL>
+      
+<HR>
+<ADDRESS>Contact mail address</ADDRESS>
+<HR>
+
+</BODY>
+</HTML>

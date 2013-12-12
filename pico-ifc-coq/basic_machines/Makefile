@@ -1,58 +1,73 @@
-DIRS= .
+DIRS=.
 INCLUDES=$(patsubst %,-I %, $(DIRS))
 
-FINAL := Main
-
-LIB := 	Utils Lattices LibTactics
-
-TMU := 	Semantics Instr
-
-TMU_A:= AbstractCommon AbstractMachine	\
-	Rules QuasiAbstractMachine
-
-TMU_AMNI := NIAbstractMachine
-
-TMU_ANI := TINI Refinement TINI_inf
-
-TMU_C := CLattices Concrete ConcreteMachine \
-	CodeGen CodeTriples CodeSpecs FaultRoutine\
-	Determinism RefinementAC ConcreteExecutions \
-	NIConcreteMachine RefinementCA Encodable CLabels
-
-ALLV := $(LIB) $(FINAL) $(TMU) $(TMU_A) $(TMU_AMNI) $(TMU_ANI) $(TMU_C) 
-
-VS := $(ALLV:%=%.v) 
-
+COQC=coqc -q $(INCLUDES)
+COQDEP=coqdep $(INCLUDES)
 COQEXEC=coqtop $(INCLUDES) -batch -load-vernac-source
-
 DEP2DOT=../dep2dot/dep2dot
 
-.PHONY: coq doc clean
+VS=\
+	Utils.v Lattices.v LibTactics.v \
+	Semantics.v Instr.v \
+	AbstractCommon.v AbstractMachine.v \
+	Rules.v QuasiAbstractMachine.v \
+	TINI.v NIAbstractMachine.v \
+	Refinement.v TINI_inf.v \
+	Concrete.v \
+	CodeGen.v ConcreteMachine.v Determinism.v \
+	ConcreteExecutions.v CodeTriples.v CodeSpecs.v \
+	Encodable.v CLattices.v  CLabels.v \
+	FaultRoutine.v RefinementAC.v \
+	NIConcreteMachine.v \
+	RefinementCA.v Main.v
 
-coq: Makefile.coq
-	$(MAKE) -f Makefile.coq
+proof: $(VS:.v=.vo)
 
-all: coq
+.PHONY: coq doc clean proof
 
-Makefile.coq: Makefile $(VS:%=%)
-	echo $(VS)
-	coq_makefile $(INCLUDES) $(VS) -o Makefile.coq
+all: 
+	make proof
+	make documentation
 
-coq.timestamp: Makefile.coq
-	date > coq.timestamp
-	$(MAKE) -f Makefile.coq || rm coq.timestamp
+documentation: doc/coq2html $(VS)
+	mkdir -p doc/html
+	rm -f doc/html/*.html
+	doc/coq2html -o 'doc/html/%.html' doc/*.glob \
+          $(filter-out doc/coq2html, $^)
+	cp doc/coq2html.css doc/coq2html.js doc/html/
+
+doc/coq2html: doc/coq2html.ml
+	ocamlopt -o doc/coq2html str.cmxa doc/coq2html.ml
+
+doc/coq2html.ml: doc/coq2html.mll
+	ocamllex doc/coq2html.mll
+
+latexdoc:
+	cd doc; $(COQDOC) --latex -o doc/doc.tex -g $(VS)
+
+.SUFFIXES: .v .vo
+
+.v.vo:
+	@rm -f doc/glob/$(*F).glob 
+	@echo "COQC $*.v" 
+	@$(COQC) -dump-glob doc/$(*F).glob $*.v
+
+depend: 
+	$(COQDEP) $(VS) > .depend
 
 clean:
-	rm -f Makefile.coq .depend *.v.d *.vo *.glob *~
+	rm -f Makefile.coq *.v.d *.vo *~
 	rm -fr html
+	rm -rf doc/html doc/*.glob doc/*~
+	rm -f doc/coq2html.ml doc/coq2html
+	rm -f doc/coq2html.{cmi,cmx,o}
 	rm -f $(patsubst %, %/*.vo, $(DIRS))
 	rm -f $(patsubst %, %/*.v.d, $(DIRS))
-	rm -f $(patsubst %, %/*.glob, $(DIRS))
+	rm -f $(patsubst %, %/*.glob, doc)
 	rm -f $(patsubst %, %/*~, $(DIRS))
 	rm -f $(patsubst %, %/*.o, $(DIRS))
 
-doc:
-	$(MAKE) -f Makefile.coq html
-
 view-deps:
 	coqdep -I . *.v | $(DEP2DOT) | dot -Txlib &
+
+include .depend

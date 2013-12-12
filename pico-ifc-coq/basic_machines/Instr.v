@@ -1,7 +1,9 @@
 Require Import Datatypes.
 Require Import ZArith.
 
-(* An [Atom] is an integer plus some metadata, and forms the basic
+(** Instructions used by the machines. *)
+
+(** An [Atom] is an integer plus some metadata, and forms the basic
 data unit in our machines. In the abstract and symbolic rule machine,
 this metadata field contains an element from some arbitrary
 information-flow lattice. In the concrete machine, it contains just a
@@ -9,7 +11,7 @@ plain integer. *)
 
 Definition Atom {Label: Type} := (Z * Label)%type.
 
-(* [Instr] is the type of instructions used in all three of our
+(** [Instr] is the type of instructions used in all three of our
 machines. Our machines are stack machines, thus most instructions
 operate on the machine stack, with no need for arguments. *)
 
@@ -41,10 +43,10 @@ Inductive Instr :=
   | Halt : Instr
   | Output : Instr.
 
-(* OpCodes are used to index TMU rules.  
+(** [OpCode]s are used to index TMU rules.  
 (If we ever move to having common rules for multiple instructions
 ("operation groups"), we should expect one OpCode per group.)
-There is no OpCode for Halt, as there is no stepping rule for Halt. *)
+There is no [OpCode] for Halt, as there is no stepping rule for Halt. *)
 
 Inductive OpCode : Type :=
 | OpNoop 

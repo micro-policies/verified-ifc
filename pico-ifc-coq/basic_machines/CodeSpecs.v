@@ -78,28 +78,6 @@ Proof.
   eapply cstep_push_p; eauto.
 Qed.
 
-Lemma load_spec: forall a al v vl, forall m0 s0,
-  index_list_Z a m0 = Some (v,vl) ->
-  HT [Load]
-     (fun m s => m = m0 /\ s = CData (a,al) :: s0)
-     (fun m s => m = m0 /\ s = CData (v,vl) :: s0).
-Proof.
-  intros a al v vl m0 s0  Hmem.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
-  eexists.
-  eexists.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. intuition. 
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_load_p; eauto.
-Qed.
-
 Lemma load_spec_wp: forall Q,
   HT [Load]
      (fun m s0 => exists a v vl s, 
@@ -187,31 +165,6 @@ Proof.
   unfold HT.
   intros.
   jauto_set_hyps; intros.
-  eexists.
-  eexists.
-  intuition; subst.
-  eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_store_p; eauto.
-Qed.
-
-Lemma store_spec: forall a al v vl m s,
-  HT [Store]
-     (fun m0 s0 => m0 = m /\
-                   s0 = (a,al) ::: (v,vl) ::: s /\
-                   valid_address a m) (* NC: better to move this outside? *)
-     (fun m1 s1 => s1 = s /\
-                   upd_m a (v,vl) m = Some m1).
-Proof.
-  unfold HT.
-  intros.
-  edestruct valid_store.
-  iauto.
   eexists.
   eexists.
   intuition; subst.
@@ -632,23 +585,6 @@ Proof.
 Qed.
 
 End IndexedCasesSpec.
-
-(* NC: this might be a way to do "transformer" style ... *)
-Lemma some_spec: forall c, forall m0 s0 s1,
-  HT c 
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = s1) ->
-  HT (some c)
-     (fun m s => m = m0 /\ s = s0)
-     (fun m s => m = m0 /\ s = (1,handlerTag) ::: s1).
-Proof.
-  introv HTc.
-  unfold some.
-  eapply HT_compose. eapply HTc.
-  eapply HT_strengthen_premise.
-  eapply push_spec_wp.
-  split_vc. subst; eauto. 
-Qed.
 
 Lemma genTrue_spec_wp: forall Q,
   HT genTrue
