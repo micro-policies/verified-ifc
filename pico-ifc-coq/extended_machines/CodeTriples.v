@@ -412,32 +412,4 @@ Proof.
   iauto.
 Qed.
 
-Definition Trans := (memory -> stack -> Prop) -> (memory -> stack -> Prop).
-
-(* Transformer style *)
-Definition HTT (c : code) (T : Trans) :=
-  forall Q, HT c (T Q) Q.
-
-Lemma HTT_strengthen_premise :
-  forall c (T T' : Trans)
-         (H : HTT c T)
-         (STRENGTHEN : forall Q m s, T' Q m s -> T Q m s),
-    HTT c T'.
-Proof.
-  intros. intro Q.
-  eapply HT_strengthen_premise; eauto.
-  eauto.
-Qed.
-
-Lemma HTT_compose :
-  forall c1 c2 (T1 T2 : Trans)
-         (HTT1 : HTT c1 T1)
-         (HTT2 : HTT c2 T2),
-    HTT (c1 ++ c2) (fun Q => T1 (T2 Q)).
-Proof.
-  intros.
-  intros Q.
-  eapply HT_compose; eauto.
-Qed.
-
 End Triples.
