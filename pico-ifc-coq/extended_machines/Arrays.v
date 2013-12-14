@@ -646,6 +646,111 @@ Definition Ifab (f : memory -> stack -> val -> val -> val) (n: memory -> stack -
         s = (Vint i,t1):::(v,t2):::(Vptr (a,0),t3):::s0  /\
         v = fold_right (f m0 s0) (n m0 s0) (dropZ i vs).
 
+Definition Ifab' (f : val -> val -> val)
+                 (n : val)
+                 (a : block) (vs : list val) m s (i : Z) :=
+  exists v t1 t2 s0,
+    i <= Z.of_nat (length vs) /\
+    memarr m a vs /\
+    Mem.stamp a = Kernel /\
+    s = (v,t1):::(Vptr (a,0),t2):::s0 /\
+    v = fold_right f n (dropZ i vs).
+
+Lemma memseq_dropZ :
+  forall ms b z p vs
+         (SEQ : memseq ms b z vs)
+         (POS : p >= 0),
+    memseq ms b (z + p) (dropZ p vs).
+Proof.
+  intros.
+  unfold dropZ.
+  destruct (Z.ltb_spec0 p 0); try omega.
+  replace (_ + p) with (z + Z.of_nat (Z.to_nat p)) by (rewrite Z2Nat.id; omega).
+  auto using memseq_drop.
+Qed.
+
+Lemma memarr_load :
+  forall m a vs i x t
+         (ARR : memarr m a vs)
+         (LOAD : load (a,i) m = Some (x,t))
+         (BOUNDS : 0 < i <= Z.of_nat (length vs)),
+    index_list_Z (Z.pred i) vs = Some x.
+Proof.
+  intros.
+  destruct ARR.
+  assert (SEQ' : memseq m a i (dropZ (Z.pred i) vs)).
+  { assert (E : i = 1 + Z.pred i) by omega.
+    rewrite E at 1. apply memseq_dropZ; trivial.
+    omega. }
+  rewrite index_list_Z_dropZ_zero; try omega.
+  exploit (@dropZ_cons _ (Z.pred i) vs); try omega.
+  intros (x' & H). rewrite H in *.
+  rewrite <- Zsucc_pred in *.
+  inv SEQ'.
+  assert (x' = x) by congruence. subst.
+  reflexivity.
+Qed.
+
+Definition fab_spec' :
+  forall gen_f f n a vs
+         (SPECf : forall (Q : memory -> stack -> Prop),
+                    HT cblock table gen_f
+                       (fun m s =>
+                          exists x tx v tv s0,
+                            s = (x,tx):::(v,tv):::s0 /\
+                            forall t, Q m ((f x v,t):::s0))
+                       Q)
+         (Q : memory -> stack -> Prop),
+    HT cblock table (fold_array_body gen_f)
+       (fun m s =>
+          exists i t s0,
+            s = (Vint i,t):::s0 /\
+            i > 0 /\ Ifab' f n a vs m s0 i /\
+            forall s' t',
+              Ifab' f n a vs m s' (Z.pred i) -> Q m ((Vint i,t'):::s'))
+       Q.
+Proof.
+  intros.
+  unfold fold_array_body.
+  eapply HT_strengthen_premise.
+  { repeat (eapply HT_compose; [eapply dup_spec|]).
+    eapply HT_compose; try eapply add_spec.
+    eapply HT_compose; try eapply load_spec.
+    eapply HT_compose; try eapply SPECf.
+    eapply HT_compose; try eapply swap_spec.
+    apply pop_spec. }
+  clear.
+  intros m ? (i & t & ? & ? & POS & INV & POST). subst.
+  destruct INV as (v & t1 & t2 & s & BOUNDS & ARR & STAMP & ? & ?).
+  subst. simpl.
+  do 3 (eexists; split; eauto).
+  do 6 eexists. split; eauto. simpl. split; eauto.
+  assert (Hx : exists x tx, load (a,i) m = Some (x,tx)).
+  { eapply memseq_read.
+    destruct ARR. eauto. omega. }
+  destruct Hx as (x & tx & Hx).
+  do 4 eexists. split; eauto. simpl. split; trivial.
+  replace (i + 0) with i by ring. split; eauto.
+  do 5 eexists. split; eauto. simpl.
+  intros.
+  do 4 eexists. do 3 (split; eauto).
+  do 3 eexists. split; eauto.
+  change (f x (fold_right f n (dropZ i vs))) with (fold_right f n (x :: dropZ i vs)).
+  exploit (@dropZ_cons _ (Z.pred i) vs); try omega.
+  intros (x' & H).
+  rewrite <- Zsucc_pred in H.
+  replace x' with x in *.
+  { rewrite <- H. apply POST.
+    unfold Ifab'.
+    do 4 eexists. split; try omega.
+    split; auto. }
+  exploit memarr_load; eauto; try omega.
+  intros H'.
+  rewrite index_list_Z_dropZ_zero in H'; try omega.
+  rewrite H in H'. compute in H'.
+  congruence.
+Qed.
+
 Lemma fab_spec : forall gen_f f n a vs m0 s0 i,
   (forall (Q: memory -> stack -> Prop),
   HT cblock table gen_f
