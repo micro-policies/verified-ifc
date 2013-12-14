@@ -1084,6 +1084,97 @@ Proof.
     rewrite length_drop in H. simpl in H. replace (length xs - length xs)%nat with O in H by omega. inv H.
 Qed.
 
+Lemma dropZ_nil :
+  forall X (i : Z) (l : list X)
+         (POS : (i >= 0)%Z)
+         (BOUNDS : dropZ i l = []),
+    (i >= Z.of_nat (length l))%Z.
+Proof.
+  intros.
+  destruct (Z_lt_dec i (Z.of_nat (length l))) as [H|]; try omega.
+  unfold dropZ in *.
+  destruct (Z.ltb_spec0 i 0); try omega.
+  rewrite Z2Nat.inj_lt in H; try omega.
+  rewrite Nat2Z.id in H.
+  apply drop_cons in H.
+  destruct H.
+  congruence.
+Qed.
+
+Lemma index_list_drop_zero :
+  forall X (i : nat) (l : list X),
+    index_list i l = index_list 0 (drop i l).
+Proof.
+  intros X i.
+  induction i as [|i IH].
+  - intros [|a l]; reflexivity.
+  - intros [|a l]; try reflexivity.
+    simpl. rewrite IH. reflexivity.
+Qed.
+
+Lemma index_list_Z_dropZ_zero :
+  forall X (i : Z) (l : list X)
+         (POS : (i >= 0)%Z),
+    index_list_Z i l = index_list_Z 0 (dropZ i l).
+Proof.
+  intros.
+  unfold index_list_Z, dropZ.
+  destruct (Z.ltb_spec0 i 0); try omega.
+  rewrite index_list_drop_zero.
+  reflexivity.
+Qed.
+
+Lemma index_list_drop :
+  forall X (i i' : nat) (l : list X),
+    index_list (i + i') l = index_list i (drop i' l).
+Proof.
+  intros X i.
+  induction i as [|i IH]; auto using index_list_drop_zero.
+  intros [|i'] [|a l]; try reflexivity.
+  - rewrite plus_0_r. reflexivity.
+  - simpl.
+    rewrite IH.
+    destruct (lt_dec i' (length l)) as [LT|GTE].
+    + apply drop_cons in LT.
+      destruct LT as [x H]. rewrite H. reflexivity.
+    + assert (LEN := length_drop i' l).
+      replace (length l - i')%nat with 0%nat in LEN by omega.
+      assert (LEN' := length_drop (S i') l).
+      replace (length l - S i')%nat with 0%nat in LEN' by omega.
+      destruct (drop i' l), (drop (S i') l); simpl in *; try discriminate.
+      destruct i; reflexivity.
+Qed.
+
+Lemma index_list_Z_dropZ :
+  forall X (i i' : Z) (l : list X)
+         (POS1 : (i' >= 0)%Z)
+         (POS2 : (i >= 0)%Z),
+    index_list_Z (i + i') l = index_list_Z i (dropZ i' l).
+Proof.
+  intros.
+  unfold index_list_Z, dropZ.
+  destruct (Z.ltb_spec0 i' 0); try omega.
+  destruct (Z.ltb_spec0 i 0); try omega.
+  destruct (Z.ltb_spec0 (i + i') 0); try omega.
+  rewrite Z2Nat.inj_add; try omega.
+  apply index_list_drop.
+Qed.
+
+Lemma dropZ_cons :
+  forall X i (l : list X)
+         (BOUNDS : (0 <= i < Z.of_nat (length l))%Z),
+    exists x, dropZ i l = x :: dropZ (Z.succ i) l.
+Proof.
+  intros.
+  unfold dropZ.
+  destruct (Z.ltb_spec0 i 0); try omega.
+  destruct (Z.ltb_spec0 (Z.succ i) 0); try omega.
+  rewrite Z2Nat.inj_succ; try omega.
+  apply drop_cons.
+  rewrite <- Nat2Z.id.
+  rewrite <- Z2Nat.inj_lt; omega.
+Qed.
+
 Inductive match_options {A B} (R : A -> B -> Prop) : option A -> option B -> Prop :=
 | mo_none : match_options R None None
 | mo_some : forall a b, R a b -> match_options R (Some a) (Some b).
