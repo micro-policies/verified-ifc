@@ -1317,6 +1317,47 @@ Proof.
   eapply genFor_spec; eauto.
 Qed.
 
+Lemma genFor_spec_wp :
+  forall I c
+         (HTc : forall (Q : HProp),
+                  HT c
+                     (fun m s => exists i t s',
+                                   s = (Vint i,t) ::: s' /\
+                                   i > 0 /\
+                                   I m s' i /\
+                                   forall m' t' s'',
+                                     I m' s'' (Z.pred i) ->
+                                     Q m' ((Vint i,t'):::s''))
+                     Q)
+         (Q : HProp)
+         (VC : forall m s t, I m s 0 -> Q m ((Vint 0,t):::s)),
+    HT (genFor c)
+       (fun m s => exists i t s',
+                     s = (Vint i,t) ::: s' /\
+                     i >= 0 /\
+                     I m s' i)
+       Q.
+Proof.
+  intros.
+  eapply HT_consequence.
+  { eapply genFor_spec' with (I := fun m s => exists i t s', s = (Vint i,t) ::: s' /\ I m s' i).
+    intros.
+    eapply HT_strengthen_premise.
+    apply HTc.
+    intros m ? (s & t & E & i' & t' & s'' & EE & HH). subst.
+    inv EE.
+    do 3 eexists. split; eauto.
+    split; try omega.
+    split; trivial.
+    intros m' INV.
+    do 2 eexists. split; eauto. }
+  - intros m s (i & t & s' & ? & POS & INV). subst.
+    do 3 eexists.
+    split; try split; eauto. omega.
+  - intros m s (s' & t & ? & ? & ? & ? & E & INV).
+    subst. apply VC. congruence.
+Qed.
+
 Lemma ret_specEscape: forall raddr (Q: memory -> stack -> Prop * Outcome),
   HTEscape raddr [Ret]
     (fun m s => exists s', s = (CRet raddr false false::s') /\
