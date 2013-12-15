@@ -906,10 +906,6 @@ Lemma fold_array_spec_wp' :
 Proof.
   intros.
   unfold fold_array.
-
-  (* Q: Is there a way of doing this without the HT_forall_exists? *)
-  eapply HT_forall_exists. intros a.
-  eapply HT_forall_exists. intros vs.
   eapply HT_strengthen_premise.
 
   (* Using PTs would remove the need for the things between the { }
@@ -920,10 +916,11 @@ Proof.
     eapply HT_compose; try eapply load_spec.
     eapply HT_compose; try eapply genFor_spec_wp
                        with (I := fun (Q : HProp) m s i =>
-                                    Ifab' f n a vs m s i /\
-                                    forall m' s' t,
-                                      Ifab' f n a vs m' s' 0 ->
-                                      Q m' ((Vint 0,t):::s')).
+                                    exists a vs,
+                                      Ifab' f n a vs m s i /\
+                                      forall m' s' t,
+                                        Ifab' f n a vs m' s' 0 ->
+                                        Q m' ((Vint 0,t):::s')).
     { intros. split.
       -
         (* Here, we want Coq to solve an unification problem of the
@@ -945,24 +942,25 @@ Proof.
         reflexivity.
 
       - simpl.
-        intros m s t (INV & HH).
+        intros m s t (a & vs & INV & HH).
         do 5 eexists. split; eauto. split; try omega.
-        split; eauto. }
+        split; eauto 7. }
 
     (* The focused goal now has an evar in the conclusion that gets
        instantiated after solving the second goal. Using PTs would
        make things easier here for the same reasons as above *)
-    { intros m s t (INV & POST). apply POST. trivial. }
+    { intros m s t (a & vs & INV & POST). apply POST. trivial. }
     eapply HT_compose; try eapply pop_spec.
     eapply HT_compose; try eapply swap_spec.
     eapply pop_spec. }
 
-  intros m s (t & s0 & ARR & KERNEL & ? & POST) ?.
+  intros m s (a & vs & t & s0 & ARR & KERNEL & ? & POST) ?.
   subst. simpl.
   eexists. split; eauto.
   destruct ARR as [c ? LOAD SEQ ?]. subst.
   do 4 eexists. do 3 (split; eauto).
   do 3 eexists. split; eauto. split; try omega.
+  do 2 eexists.
   split.
   { unfold Ifab'.
     do 4 eexists.
