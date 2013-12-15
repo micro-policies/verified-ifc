@@ -1318,39 +1318,32 @@ Proof.
 Qed.
 
 Lemma genFor_spec_wp :
-  forall I c
-         (HTc : forall (Q : HProp),
-                  HT c
-                     (fun m s => exists i t s',
-                                   s = (Vint i,t) ::: s' /\
-                                   i > 0 /\
-                                   I m s' i /\
-                                   forall m' t' s'',
-                                     I m' s'' (Z.pred i) ->
-                                     Q m' ((Vint i,t'):::s''))
-                     Q)
-         (Q : HProp)
-         (VC : forall m s t, I m s 0 -> Q m ((Vint 0,t):::s)),
+  forall I c Pc (Q : HProp)
+         (HTc : forall i,
+                  i > 0 ->
+                  HT c (Pc i)
+                       (fun m s => exists t s', s = (Vint i, t) ::: s' /\ I Q m s' (Z.pred i)) /\
+                  forall m s t, I Q m s i -> Pc i m ((Vint i,t):::s))
+         (VC : forall m s t, I Q m s 0 -> Q m ((Vint 0,t):::s)),
     HT (genFor c)
        (fun m s => exists i t s',
                      s = (Vint i,t) ::: s' /\
                      i >= 0 /\
-                     I m s' i)
+                     I Q m s' i)
        Q.
 Proof.
   intros.
   eapply HT_consequence.
-  { eapply genFor_spec' with (I := fun m s => exists i t s', s = (Vint i,t) ::: s' /\ I m s' i).
+  { eapply genFor_spec' with (I := fun m s => exists i t s', s = (Vint i,t) ::: s' /\ I Q m s' i).
     intros.
-    eapply HT_strengthen_premise.
-    apply HTc.
-    intros m ? (s & t & E & i' & t' & s'' & EE & HH). subst.
-    inv EE.
-    do 3 eexists. split; eauto.
-    split; try omega.
-    split; trivial.
-    intros m' INV.
-    do 2 eexists. split; eauto. }
+    eapply HT_consequence.
+    eapply (HTc i); try omega.
+    - intros m ? (s & t & E & i' & t' & s'' & EE & HH). subst.
+      eapply (HTc i); try omega.
+      inv EE. trivial.
+    - simpl.
+      intros m s (t & s' & ? & INV). subst.
+      eauto 10. }
   - intros m s (i & t & s' & ? & POS & INV). subst.
     do 3 eexists.
     split; try split; eauto. omega.
