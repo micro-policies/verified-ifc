@@ -691,6 +691,55 @@ Proof.
   reflexivity.
 Qed.
 
+(* AAA: When we use a Hoare triple in the premise of a WP rule (such
+as in fab_spec' below), using WP style is not very convenient.
+
+Suppose for concreteness that we want to prove a rule for a
+higher-order generator [macro] of the form
+
+   macro_spec : forall c (Q : HProp),
+                  Hc -> HT (macro c) P Q
+
+where P is some expression involving Q, and Hc is some hypothesis that
+states that some triple should be valid for c. (An example of this is
+fab_spec.) After proving this, we use macro_spec for proving another
+triple. If Hc is in WP form (i.e., something like (forall Q, HT c P'
+Q), where P' depends on Q), more likely than not, there will be a
+mismatch between P' and the precondition that is computed from Q when
+applying other previously proven Hoare logic rules. This forces us to
+apply HT_strengthen_premise explicitly to be able to prove the triple,
+and then prove the additional implication forall m s, P' m s -> P'' m
+s.
+
+One partial solution is to quantify the precondition in Hc
+existentially and supplying the postcondition we want as "input", as
+in genFor_spec_wp:
+
+(* genFor_spec_wp *)
+(*      : forall (cblock : block) (table : CSysTable) *)
+(*          (I : HProp -> CodeTriples.memory -> list CStkElmt -> Z -> Prop) *)
+(*          (c : CodeTriples.code) (Q : HProp), *)
+(*        (forall i : Z, *)
+(*         i > 0 -> *)
+(*         exists Pc, *)
+(*         HT cblock table c Pc *)
+(*           (fun (m : CodeTriples.memory) (s : CodeTriples.stack) => *)
+(*            exists t s', s = (Vint i, t) ::: s' /\ I Q m s' (Z.pred i)) /\ *)
+(*         (forall (m : CodeTriples.memory) (s : list CStkElmt) (t : val), *)
+(*          I Q m s i -> Pc m ((Vint i, t) ::: s))) -> *)
+(*        (forall (m : CodeTriples.memory) (s : list CStkElmt) (t : val), *)
+(*         I Q m s 0 -> Q m ((Vint 0, t) ::: s)) -> *)
+(*        HT cblock table (genFor c) *)
+(*          (fun (m : CodeTriples.memory) (s : CodeTriples.stack) => *)
+(*           exists i t s', s = (Vint i, t) ::: s' /\ i >= 0 /\ I Q m s' i) Q *)
+
+A good rule-of-thumb seems to be: triples in conclusions map an
+arbitrary postcondition to a precondition that validates the
+triple. In hypotheses, however, we instead suply the postcondition we
+need as input and let the other rules we've proved before figure out
+what the precondition should be.
+*)
+
 Definition fab_spec' :
   forall gen_f f n
          (SPECf : forall (Q : memory -> stack -> Prop),
@@ -921,34 +970,12 @@ Proof.
                                       forall m' s' t,
                                         Ifab' f n a vs m' s' 0 ->
                                         Q m' ((Vint 0,t):::s')).
-    { intros. split.
-      -
-        (* Here, we want Coq to solve an unification problem of the
-           form (?xxx i = Pre), where Pre is the pre condition in the
-           triple for fold_array_body. Unfortunately, Coq can't create
-           a function for us directly, so we have to be creative. This
-           is a case where using predicate transformers would make our
-           life easier, because the VCs are generated after all the
-           unification is done. *)
-
-        evar (Pre : HProp).
-        match goal with
-          | |- HT _ _ _ ?P _ =>
-            replace P with Pre
-        end.
-        { unfold Pre.
-          eapply fab_spec'. apply HTf. }
-        pattern i in Pre. subst Pre.
-        reflexivity.
-
+    { intros. eexists. split.
+      - eapply fab_spec'. apply HTf.
       - simpl.
         intros m s t (a & vs & INV & HH).
         do 5 eexists. split; eauto. split; try omega.
         split; eauto 7. }
-
-    (* The focused goal now has an evar in the conclusion that gets
-       instantiated after solving the second goal. Using PTs would
-       make things easier here for the same reasons as above *)
     { intros m s t (a & vs & INV & POST). apply POST. trivial. }
     eapply HT_compose; try eapply pop_spec.
     eapply HT_compose; try eapply swap_spec.

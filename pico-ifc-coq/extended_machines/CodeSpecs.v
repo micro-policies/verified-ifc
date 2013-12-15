@@ -1318,12 +1318,13 @@ Proof.
 Qed.
 
 Lemma genFor_spec_wp :
-  forall I c Pc (Q : HProp)
+  forall I c (Q : HProp)
          (HTc : forall i,
                   i > 0 ->
-                  HT c (Pc i)
+                  exists Pc,
+                    HT c Pc
                        (fun m s => exists t s', s = (Vint i, t) ::: s' /\ I Q m s' (Z.pred i)) /\
-                  forall m s t, I Q m s i -> Pc i m ((Vint i,t):::s))
+                    forall m s t, I Q m s i -> Pc m ((Vint i,t):::s))
          (VC : forall m s t, I Q m s 0 -> Q m ((Vint 0,t):::s)),
     HT (genFor c)
        (fun m s => exists i t s',
@@ -1336,11 +1337,11 @@ Proof.
   eapply HT_consequence.
   { eapply genFor_spec' with (I := fun m s => exists i t s', s = (Vint i,t) ::: s' /\ I Q m s' i).
     intros.
-    eapply HT_consequence.
-    eapply (HTc i); try omega.
+    exploit (HTc i); try omega. clear HTc.
+    intros (Pc & HTc & PRE).
+    eapply HT_consequence; eauto.
     - intros m ? (s & t & E & i' & t' & s'' & EE & HH). subst.
-      eapply (HTc i); try omega.
-      inv EE. trivial.
+      inv EE. auto.
     - simpl.
       intros m s (t & s' & ? & INV). subst.
       eauto 10. }
