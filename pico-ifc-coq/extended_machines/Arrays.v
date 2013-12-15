@@ -647,8 +647,8 @@ Definition Ifab (f : memory -> stack -> val -> val -> val) (n: memory -> stack -
         v = fold_right (f m0 s0) (n m0 s0) (dropZ i vs).
 
 Definition Ifab' (f : val -> val -> val)
-                 (n : val)
-                 (a : block) (vs : list val) m s (i : Z) :=
+                 (n : val) a vs
+                 m s (i : Z) :=
   exists v t1 t2 s0,
     i <= Z.of_nat (length vs) /\
     memarr m a vs /\
@@ -692,7 +692,7 @@ Proof.
 Qed.
 
 Definition fab_spec' :
-  forall gen_f f n a vs
+  forall gen_f f n
          (SPECf : forall (Q : memory -> stack -> Prop),
                     HT cblock table gen_f
                        (fun m s =>
@@ -703,7 +703,7 @@ Definition fab_spec' :
          (Q : memory -> stack -> Prop),
     HT cblock table (fold_array_body gen_f)
        (fun m s =>
-          exists i t s0,
+          exists i t a vs s0,
             s = (Vint i,t):::s0 /\
             i > 0 /\ Ifab' f n a vs m s0 i /\
             forall s' t',
@@ -720,7 +720,7 @@ Proof.
     eapply HT_compose; try eapply swap_spec.
     apply pop_spec. }
   clear.
-  intros m ? (i & t & ? & ? & POS & INV & POST). subst.
+  intros m ? (i & t & a & vs & ? & ? & POS & INV & POST). subst.
   destruct INV as (v & t1 & t2 & s & BOUNDS & ARR & STAMP & ? & ?).
   subst. simpl.
   do 3 (eexists; split; eauto).
@@ -742,8 +742,7 @@ Proof.
   replace x' with x in *.
   { rewrite <- H. apply POST.
     unfold Ifab'.
-    do 4 eexists. split; try omega.
-    split; auto. }
+    do 4 eexists. split; try split; eauto; try omega. }
   exploit memarr_load; eauto; try omega.
   intros H'.
   rewrite index_list_Z_dropZ_zero in H'; try omega.
@@ -881,6 +880,100 @@ Proof.
  auto.
 Qed.
 
+Lemma fold_array_spec_wp' :
+  forall gen_f gen_n n f
+         (HTn : forall (Q : memory -> stack -> Prop),
+                  HT cblock table gen_n
+                     (fun m s => forall t, Q m ((n,t):::s))
+                     Q)
+         (HTf : forall (Q : memory -> stack -> Prop),
+                    HT cblock table gen_f
+                       (fun m s =>
+                          exists x tx v tv s0,
+                            s = (x,tx):::(v,tv):::s0 /\
+                            forall t, Q m ((f x v,t):::s0))
+                       Q)
+         (Q : memory -> stack -> Prop),
+    HT cblock table
+       (fold_array gen_n gen_f)
+       (fun m s => exists a vs t s0,
+                     memarr m a vs /\
+                     Mem.stamp a = Kernel /\
+                     s = (Vptr (a, 0), t) ::: s0 /\
+                     forall m' t' s',
+                       Q m' ((fold_right f n vs,t'):::s'))
+       Q.
+Proof.
+  intros.
+  unfold fold_array.
+
+  (* Q: Is there a way of doing this without the HT_forall_exists? *)
+  eapply HT_forall_exists. intros a.
+  eapply HT_forall_exists. intros vs.
+  eapply HT_strengthen_premise.
+
+  (* Using PTs would remove the need for the things between the { }
+     with no need for ad-hoc tactics. *)
+
+  { eapply HT_compose; try eapply HTn.
+    eapply HT_compose; try eapply dup_spec.
+    eapply HT_compose; try eapply load_spec.
+    eapply HT_compose; try eapply genFor_spec_wp
+                       with (I := fun (Q : HProp) m s i =>
+                                    Ifab' f n a vs m s i /\
+                                    forall m' s' t,
+                                      Ifab' f n a vs m' s' 0 ->
+                                      Q m' ((Vint 0,t):::s')).
+    { intros. split.
+      -
+        (* Here, we want Coq to solve an unification problem of the
+           form (?xxx i = Pre), where Pre is the pre condition in the
+           triple for fold_array_body. Unfortunately, Coq can't create
+           a function for us directly, so we have to be creative. This
+           is a case where using predicate transformers would make our
+           life easier, because the VCs are generated after all the
+           unification is done. *)
+
+        evar (Pre : HProp).
+        match goal with
+          | |- HT _ _ _ ?P _ =>
+            replace P with Pre
+        end.
+        { unfold Pre.
+          eapply fab_spec'. apply HTf. }
+        pattern i in Pre. subst Pre.
+        reflexivity.
+
+      - simpl.
+        intros m s t (INV & HH).
+        do 5 eexists. split; eauto. split; try omega.
+        split; eauto. }
+
+    (* The focused goal now has an evar in the conclusion that gets
+       instantiated after solving the second goal. Using PTs would
+       make things easier here for the same reasons as above *)
+    { intros m s t (INV & POST). apply POST. trivial. }
+    eapply HT_compose; try eapply pop_spec.
+    eapply HT_compose; try eapply swap_spec.
+    eapply pop_spec. }
+
+  intros m s (t & s0 & ARR & KERNEL & ? & POST) ?.
+  subst. simpl.
+  eexists. split; eauto.
+  destruct ARR as [c ? LOAD SEQ ?]. subst.
+  do 4 eexists. do 3 (split; eauto).
+  do 3 eexists. split; eauto. split; try omega.
+  split.
+  { unfold Ifab'.
+    do 4 eexists.
+    repeat split; eauto; try solve [econstructor; eauto]; try omega.
+    rewrite dropZ_all. reflexivity. }
+  clear - POST.
+  intros m' s' ? (v & ? & ? & ? & _ & ARR & KERNEL & ? & ?).
+  subst.
+  do 3 eexists. split; eauto.
+  do 4 eexists. do 3 (split; eauto).
+Qed.
 
 Lemma fold_array_spec_wp: forall gen_f gen_n n f m0 s0 (Q: memory -> stack -> Prop),
   (forall (Q: memory -> stack -> Prop),
@@ -919,7 +1012,6 @@ Proof.
   split_vc.
   split_vc.
 Qed.
-
 
 (* Existsb. *)
 
