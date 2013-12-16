@@ -1,17 +1,8 @@
-(* A [ConcreteLattice] is a way of computing over the elements of some
-encodable lattice, as defined in [Encodable.v] and [Lattices.v]. This
-is used in the fault handler of the concrete machine to interpret the
-plain integer tags as ifc-labels.
-
-This comprises the implementation of three lattice primitives in
-machine code, [genBot], [genJoin] and [genFlows]. We also define the
-notion of a correct lattice encoding, [WfConcreteLattice], which will
-be needed when proving the correctness of the fault handler.*)
 
 Require Import ZArith.
 Require Import List.
 Import ListNotations. 
-Require Import LibTactics. 
+Require Import LibTactics.
 
 Require Import Instr.
 Require Import Lattices.
@@ -23,34 +14,41 @@ Require Import Encodable.
 
 Local Open Scope Z_scope. 
 
-(* The methods of [ConcreteLattice], are pieces of code that should
+(** A [ConcreteLattice] is a way of computing over the elements of some
+encodable lattice, as defined in [Encodable.v] and [Lattices.v]. This
+is used in the fault handler of the concrete machine to interpret the
+plain integer tags as ifc-labels.
+
+This comprises the implementation of three lattice primitives in
+machine code, [genBot], [genJoin] and [genFlows]. We also define the
+notion of a correct lattice encoding, [WfConcreteLattice], which will
+be needed when proving the correctness of the fault handler.
+*)
+
+(** The methods of [ConcreteLattice], are pieces of code that should
 implement the three lattice methods [bot], [join] and [flows],
 operating on integers encoding elements of [T]. Notice that we don't
 place any correctness assumptions on these operations; these
 requirements are laid out in the [WfConcreteLattice] class, given
 later. *)
-
 Class ConcreteLattice (T: Type) :=
 { genBot : list Instr
 ; genJoin : list Instr
 ; genFlows : list Instr
 }.
 
-(* As an example, we can implement the simple H/L lattice using the
-implementation of the corresponding boolean operations defined in
-[CodeGen.v] *)
-
+(** [TMUHL] is an example showing that we can implement the simple H/L
+lattice using the implementation of the corresponding boolean
+operations defined in [CodeGen.v] *)
 Instance TMUHL : ConcreteLattice Lab :=
-{
-  genBot := genFalse
+{ genBot := genFalse
   ;genJoin := genOr
   ;genFlows := genImpl
 }.
 
-(* In order for a lattice implementation to be correct, each piece of
+(** In order for a lattice implementation to be correct, each piece of
 code in [ConcreteLattice] must compute exactly what we expect. We
 specify that with the Hoare triples defined in [CodeTriples.v]. *)
-
 Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T) (E : Encodable T) :=
 { genBot_spec: forall Q,
    HT genBot
@@ -62,8 +60,6 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
                                        (labToZ l', handlerTag)::: s0 /\
                                    Q m ((labToZ (join l l'), handlerTag) ::: s0))
        Q
-  (* NC: we could discharge this by implementing [genFlows] in terms of
-   [genJoin], and using the fact that [flows l l' = true <-> join l l' = l']. *)
 ; genFlows_spec: forall Q,
    HT  genFlows
        (fun m s => exists l l' s0, s = (labToZ l, handlerTag) :::
@@ -73,10 +69,9 @@ Class WfConcreteLattice (T: Type) (L : JoinSemiLattice T) (CL: ConcreteLattice T
 
 }.
 
-(* We can easily show that the encoding of [Lab] above is correct. We
+(** We can easily show that the encoding [TMUHL] of [Lab] above is correct. We
 prove the four required lemmas, and them package them in the [TMUHLwf]
 class below. *)
-
 Lemma ZToLab_labToZ_id_HL : forall l, l = ZToLab (labToZ l).
 Proof.
   intros.

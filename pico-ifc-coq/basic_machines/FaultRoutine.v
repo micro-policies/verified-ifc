@@ -386,8 +386,8 @@ Proof.
   unfold genStoreResults.
   eapply HT_strengthen_premise.
   eapply ifNZ_spec_NZ with (v := 1); try omega.
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
   eapply genTrue_spec_wp.
   simpl.
   eapply storeAt_spec_wp.
@@ -654,7 +654,7 @@ Proof.
    eapply genVar_spec_wp.
    split_vc.
  - intros. simpl.
-   repeat eapply HT_compose_flip.
+   repeat eapply HT_compose_bwd.
    eapply genJoin_spec.
    eapply IHe1.
    eapply HT_strengthen_premise.
@@ -675,23 +675,23 @@ Proof.
     eapply genTrue_spec_wp.
     split_vc.
 
-  - repeat eapply HT_compose_flip.
+  - repeat eapply HT_compose_bwd.
     eapply genFlows_spec.
     eapply genExpr_spec_wp.
     eapply HT_strengthen_premise.
     eapply genExpr_spec_wp.
     split_vc.
 
-  - eapply HT_compose_flip.
-    eapply HT_compose_flip.
+  - eapply HT_compose_bwd.
+    eapply HT_compose_bwd.
     eapply genAnd_spec_wp.
     eapply IHc1.
     eapply HT_strengthen_premise.
     eapply IHc2.
     split_vc.
 
-  - eapply HT_compose_flip.
-    eapply HT_compose_flip.
+  - eapply HT_compose_bwd.
+    eapply HT_compose_bwd.
     eapply genOr_spec_wp.
     eapply IHc1.
     eapply HT_strengthen_premise.
@@ -796,24 +796,24 @@ Proof.
   eapply genTrue_spec_wp. split_vc.
 
   (* Flows *)
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
   eapply genFlows_spec.
   eapply genExpr_spec_wp.
   eapply HT_strengthen_premise.
   eapply genExpr_spec_wp. split_vc; eauto.
 
   (* And *)
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
   eapply genAnd_spec_wp.
   eapply IHc1; eauto.
   eapply HT_strengthen_premise.
   eapply IHc2; eauto. split_vc; eauto.
 
   (* Or *)
-  eapply HT_compose_flip.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
+  eapply HT_compose_bwd.
   eapply genOr_spec_wp.
   eapply IHc1; eauto.
   eapply HT_strengthen_premise.

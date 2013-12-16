@@ -1,0 +1,28 @@
+Utils.vo Utils.glob Utils.v.beautified: Utils.v
+Lattices.vo Lattices.glob Lattices.v.beautified: Lattices.v Utils.vo
+LibTactics.vo LibTactics.glob LibTactics.v.beautified: LibTactics.v
+Semantics.vo Semantics.glob Semantics.v.beautified: Semantics.v Utils.vo
+Instr.vo Instr.glob Instr.v.beautified: Instr.v
+AbstractCommon.vo AbstractCommon.glob AbstractCommon.v.beautified: AbstractCommon.v Utils.vo Lattices.vo Instr.vo
+AbstractMachine.vo AbstractMachine.glob AbstractMachine.v.beautified: AbstractMachine.v Utils.vo Lattices.vo Instr.vo Semantics.vo AbstractCommon.vo
+Rules.vo Rules.glob Rules.v.beautified: Rules.v Utils.vo Lattices.vo Instr.vo
+QuasiAbstractMachine.vo QuasiAbstractMachine.glob QuasiAbstractMachine.v.beautified: QuasiAbstractMachine.v Utils.vo Lattices.vo Instr.vo Semantics.vo AbstractCommon.vo Rules.vo
+TINI.vo TINI.glob TINI.v.beautified: TINI.v Utils.vo Semantics.vo
+NIAbstractMachine.vo NIAbstractMachine.glob NIAbstractMachine.v.beautified: NIAbstractMachine.v Utils.vo Lattices.vo Instr.vo AbstractCommon.vo AbstractMachine.vo TINI.vo
+Refinement.vo Refinement.glob Refinement.v.beautified: Refinement.v Utils.vo Semantics.vo TINI.vo
+TINI_inf.vo TINI_inf.glob TINI_inf.v.beautified: TINI_inf.v Utils.vo Semantics.vo TINI.vo
+Concrete.vo Concrete.glob Concrete.v.beautified: Concrete.v Utils.vo Instr.vo
+CodeGen.vo CodeGen.glob CodeGen.v.beautified: CodeGen.v Utils.vo Instr.vo
+ConcreteMachine.vo ConcreteMachine.glob ConcreteMachine.v.beautified: ConcreteMachine.v Utils.vo Instr.vo Concrete.vo Semantics.vo
+Determinism.vo Determinism.glob Determinism.v.beautified: Determinism.v Utils.vo Instr.vo Concrete.vo ConcreteMachine.vo
+ConcreteExecutions.vo ConcreteExecutions.glob ConcreteExecutions.v.beautified: ConcreteExecutions.v Utils.vo Semantics.vo Instr.vo Concrete.vo ConcreteMachine.vo Determinism.vo TINI.vo
+CodeTriples.vo CodeTriples.glob CodeTriples.v.beautified: CodeTriples.v Utils.vo LibTactics.vo Instr.vo Lattices.vo Concrete.vo CodeGen.vo ConcreteMachine.vo ConcreteExecutions.vo Semantics.vo
+CodeSpecs.vo CodeSpecs.glob CodeSpecs.v.beautified: CodeSpecs.v Utils.vo LibTactics.vo Instr.vo Lattices.vo Concrete.vo CodeGen.vo CodeTriples.vo ConcreteMachine.vo ConcreteExecutions.vo Semantics.vo
+Encodable.vo Encodable.glob Encodable.v.beautified: Encodable.v Lattices.vo CodeGen.vo Concrete.vo LibTactics.vo
+CLattices.vo CLattices.glob CLattices.v.beautified: CLattices.v LibTactics.vo Instr.vo Lattices.vo Concrete.vo CodeGen.vo CodeTriples.vo CodeSpecs.vo Encodable.vo
+CLabels.vo CLabels.glob CLabels.v.beautified: CLabels.v Instr.vo CodeSpecs.vo CodeTriples.vo Concrete.vo Encodable.vo Utils.vo
+FaultRoutine.vo FaultRoutine.glob FaultRoutine.v.beautified: FaultRoutine.v Utils.vo LibTactics.vo Instr.vo Lattices.vo Concrete.vo ConcreteMachine.vo Rules.vo CLattices.vo CodeTriples.vo CodeSpecs.vo CodeGen.vo ConcreteExecutions.vo Encodable.vo CLabels.vo QuasiAbstractMachine.vo
+RefinementAC.vo RefinementAC.glob RefinementAC.v.beautified: RefinementAC.v Utils.vo Lattices.vo CLattices.vo Instr.vo AbstractCommon.vo Rules.vo AbstractMachine.vo QuasiAbstractMachine.vo Concrete.vo ConcreteMachine.vo ConcreteExecutions.vo Determinism.vo Refinement.vo FaultRoutine.vo Semantics.vo Encodable.vo
+NIConcreteMachine.vo NIConcreteMachine.glob NIConcreteMachine.v.beautified: NIConcreteMachine.v Utils.vo Lattices.vo CLattices.vo Instr.vo AbstractCommon.vo AbstractMachine.vo NIAbstractMachine.vo Concrete.vo ConcreteMachine.vo ConcreteExecutions.vo Semantics.vo Refinement.vo RefinementAC.vo Encodable.vo TINI.vo
+RefinementCA.vo RefinementCA.glob RefinementCA.v.beautified: RefinementCA.v Semantics.vo Utils.vo Lattices.vo CLattices.vo Instr.vo AbstractCommon.vo Rules.vo QuasiAbstractMachine.vo Concrete.vo ConcreteMachine.vo CodeGen.vo CodeSpecs.vo FaultRoutine.vo Determinism.vo ConcreteExecutions.vo Refinement.vo RefinementAC.vo Encodable.vo
+Main.vo Main.glob Main.v.beautified: Main.v TINI.vo Lattices.vo CLattices.vo AbstractMachine.vo QuasiAbstractMachine.vo ConcreteMachine.vo Refinement.vo NIAbstractMachine.vo RefinementCA.vo RefinementAC.vo NIConcreteMachine.vo Encodable.vo

@@ -108,7 +108,7 @@ Lemma loadFrom_spec_wp : forall a (Q: memory-> stack -> Prop),
      Q.
 Proof.
   intros.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
   eapply load_spec_wp.
   eapply HT_strengthen_premise.
   eapply push_spec_wp.
@@ -188,7 +188,7 @@ Lemma storeAt_spec_wp: forall a v vl Q,
      Q.
 Proof.
   intros.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
   eapply store_spec_wp; eauto.
   eapply HT_strengthen_premise.
   eapply push_spec_wp.
@@ -196,12 +196,12 @@ Proof.
   substs; eauto. 
 Qed.
 
-Lemma skipNZ_continuation_spec_NZ: forall c P v l,
+Lemma skipNZ_continuation_spec_NZ: forall c Q v l,
   v <> 0 ->
   HT   (skipNZ (length c) ++ c)
        (fun m s => (exists s', s = CData (v,l) :: s' 
-                               /\ P m s'))
-       P.
+                               /\ Q m s'))
+       Q.
 Proof.
   intros c P v l Hv.
   intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
@@ -228,12 +228,12 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma skipNZ_spec_Z: forall n P v l,
+Lemma skipNZ_spec_Z: forall n Q v l,
   v = 0 ->
   HT   (skipNZ n)
        (fun m s => (exists s', s = CData (v,l) :: s' 
-                               /\ P m s'))
-       P.
+                               /\ Q m s'))
+       Q.
 Proof.
   intros c P v l Hv.
   intros imem mem0 stk0 c0 fh n n' Hcode HP Hn'.
@@ -269,15 +269,15 @@ Proof.
   auto.
 Qed.
 
-Lemma skip_spec: forall c P,
+Lemma skip_spec: forall c Q,
   HT   (skip (length c) ++ c)
-       P
-       P.
+       Q
+       Q.
 Proof.
   intros c P.
   unfold skip.
   rewrite app_ass.  
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd.
   eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
   eapply HT_strengthen_premise.
   eapply push_spec_wp.
@@ -678,7 +678,7 @@ Proof.
   destruct b1; eapply HT_strengthen_premise.
 
     eapply ifNZ_spec_NZ with (v:=1).
-    eapply HT_compose_flip.
+    eapply HT_compose_bwd.
     eapply genTrue_spec_wp. 
     eapply pop_spec_wp.
     omega.
@@ -799,9 +799,9 @@ Lemma genTestEqual_spec: forall c1 c2, forall v1 v2, forall m0,
 Proof.
   intros.
   unfold genTestEqual.
-  eapply HT_compose_flip; eauto.
-  eapply HT_compose_flip; eauto.
-  eapply HT_compose_flip.
+  eapply HT_compose_bwd; eauto.
+  eapply HT_compose_bwd; eauto.
+  eapply HT_compose_bwd.
   
   eapply (genNot_spec_wp); eauto.  
   eapply HT_strengthen_premise.

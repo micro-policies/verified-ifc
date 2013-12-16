@@ -1,4 +1,3 @@
-(* Generic tools for proving properties of (privileged) concrete machine code. *)
 
 Require Import ZArith.
 Require Import List.
@@ -15,6 +14,9 @@ Require Import Coq.Arith.Compare_dec.
 Require Import ConcreteExecutions.
 Require Import Semantics.
 
+(** Generic tools for proving properties of (privileged) concrete machine code. *)
+
+(** Tactic to automate proofs *)
 Ltac split_vc := 
   (simpl; 
    match goal with 
@@ -26,6 +28,7 @@ Ltac split_vc :=
    | _ => (eauto; try (zify; omega))
    end).
 
+(** * Definition of Hoare Triples *)
 Section CodeTriples.
 Local Open Scope Z_scope.
 
@@ -35,13 +38,7 @@ Definition stack : Type := list CStkElmt.
 Definition code := list Instr.
 Definition state := CS.
 
-(* ---------------------------------------------------------------- *)
-(* Specs for self-contained code *)
-
-(* ================================================================ *)
-(* Hoare Triples *)
-
-(* Instruction memory contains code [c] starting at address [pc]. *)
+(** Instruction memory [im] contains code [c] starting at address [pc]. *)
 Fixpoint code_at (pc: Z) (im: imemory) (c: code): Prop :=
   match c with
   | nil     => True
@@ -94,63 +91,31 @@ Proof.
   auto.
 Qed.
   
-(* Definition of conditions for Hoare triples. The kernel code we care
-about only changes the kernel memory and the stack, so our conditions
-consider only these two components. *)
+(** Conditions for Hoare triples. The kernel code we consider only
+changes the kernel memory and the stack, so our conditions consider
+only these two components. *)
 
 Definition HProp := memory -> stack -> Prop.
 
-(* Hoare triple for a list of instructions executing only in kernel
+
+(** ** Hoare Triples for contained code *)
+
+(** Hoare triple for a list of instructions executing only in kernel
 mode. This is a total-correctness triple: if some kernel state
 satisfies precondition [P] at the beginning of code [c], then it will
 reach the end of [c] in some state that satisfies postcondition [Q],
-while still being in kernel mode. *)
+while still being in kernel mode. Below are a series of lemmas about
+this first kind of hoare triple. *)
 
-Definition HT (c: code) (P Q: HProp)
-:= forall imem mem stk0 cache0 fh n n',
-  code_at n fh c ->
-  P cache0 stk0 ->
-  n' = n + Z_of_nat (length c) -> 
-  exists stk1 cache1,
-  Q cache1 stk1 /\
-  runsToEnd (CState cache0 mem fh imem stk0 (n, handlerTag) true)
-            (CState cache1 mem fh imem stk1 (n', handlerTag) true).
-
-(* We now define a different triple, [HTEscape]. The difference when
-compared to [HT] is that instead of an execution ending necessarily in
-kernel mode, we now specify cases where the machine successfully
-returns to user mode at some known pc value or simply halts in kernel
-mode before reaching the end. This is the triple we use to specify the
-complete behavior of the fault handler. *)
-
-Inductive Outcome :=
-| Success
-| Failure.
-
-Definition predicted_outcome (o: Outcome) raddr pc priv :=
-  match o with
-  | Success => priv = false /\ pc = raddr
-  | Failure => priv = true  /\ pc = (-1, handlerTag)
-  end.
-
-Definition HTEscape raddr
-  (c: code)
-  (P: memory -> stack -> Prop)
-  (Q: memory -> stack -> Prop * Outcome)
-:= forall imem mem stk0 cache0 fh n,
-  code_at n fh c ->
-  P cache0 stk0 ->
-  exists stk1 cache1 pc1 priv1,
-  let (prop, outcome) := Q cache1 stk1 in
-  prop /\
-  predicted_outcome outcome raddr pc1 priv1 /\
-  runsToEscape
-    (CState cache0 mem fh imem stk0 (n, handlerTag) true)
-    (CState cache1 mem fh imem stk1 pc1 priv1).
-
-(* ================================================================ *)
-(* Lemmas on Hoare Triples *)
-
+Definition HT (c: code) (P Q: HProp) := 
+  forall imem mem stk0 cache0 fh n n',
+    code_at n fh c ->
+    P cache0 stk0 ->
+    n' = n + Z_of_nat (length c) -> 
+    exists stk1 cache1,
+      Q cache1 stk1 /\
+      runsToEnd (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+                (CState cache1 mem fh imem stk1 (n', handlerTag) true).
 
 Lemma HT_compose: forall c1 c2 P Q R,
   HT   c1 P Q ->
@@ -171,12 +136,12 @@ Proof.
   replace (@nil CEvent) with (@nil CEvent++@nil CEvent) by reflexivity.
   eapply runsToEnd_trans; eauto.
 
-  (* NC: why is this let-binding necessary ? *)
   let t := (rewrite app_length; zify; omega) in
   exact_f_equal RTE2; rec_f_equal t.
-  (* Because 'tacarg's which are not 'id's or 'term's need to be
-     preceded by 'ltac' and enclosed in parens.  E.g., the following
-     works:
+  
+  (* let-binding necessary because 'tacarg's which are not 'id's or
+     'term's need to be preceded by 'ltac' and enclosed in parens.
+     E.g., the following works:
 
        exact_f_equal RTE2;
        rec_f_equal ltac:(rewrite app_length; zify; omega).
@@ -187,14 +152,7 @@ Proof.
    *)
 Qed.
 
-(* An alternate version, which works better when unifying pre-conditions *)
-Lemma HT_compose_flip : forall c1 c2 P Q R,
-                      HT c2 Q R ->
-                      HT c1 P Q ->
-                      HT (c1 ++ c2) P R.
-Proof. intros. eauto using HT_compose. Qed.
-
-
+(** An alternate version of [HT_compose], which works better when unifying pre-conditions *)
 Lemma HT_compose_bwd:
   forall (c1 c2 : code) (P Q R : HProp),
     HT c2 Q R -> HT c1 P Q -> HT (c1 ++ c2) P R.
@@ -233,7 +191,7 @@ Proof.
   eapply HT_strengthen_premise; eauto.
 Qed.
 
-(* A strengthened rule of consequence that takes into account that [Q]
+(** A strengthened rule of consequence that takes into account that [Q]
    need only be provable under the assumption that [P] is true for
    *some* state.  This lets us utilize any "pure" content in [P] when
    establishing [Q]. *)
@@ -265,16 +223,19 @@ Lemma HT_decide_join: forall T (v: T) c c1 c2 P1 P2 P1' P2' Q (D: T -> Prop),
 Proof.
   intros ? v c c1 c2 P1 P2 P1' P2' Q D spec1 spec2 decD HT1 HT2.
   unfold HT. intros imem mem0 stk0 n n' H_code_at HP neq.
-  (* destruct HP as [v [[HDv HP1'] | [HnDv HP2']]]. *)
   pose (decD v) as dec. intuition.
 Qed.
 
-(* Hoare triples are implications, and so this corresponds to the
-   quantifier juggling lemma:
+Lemma HT_fold_constant_premise: forall (C:Prop) c P Q ,
+  (C -> HT c P Q) ->
+  HT c (fun m s => C /\ P m s) Q.
+Proof.
+  unfold HT.
+  iauto.
+Qed.
 
-     (forall x, (P x -> Q)) ->
-     ((exists x, P x) -> Q)
-
+(** Hoare triples are implications, and so the following lemma correspond to
+   the quantifier juggling lemma: (forall x, (P x -> Q)) <-> ((exists x, P x) -> Q)
 *)
 Lemma HT_forall_exists: forall T c P Q,
   (forall (x:T), HT   c (P x) Q) ->
@@ -300,8 +261,7 @@ Proof.
 *)
 Qed.
 
-(* The other direction (which I don't need) is provable from
-   [HT_strengthen_premise] *)
+(* The other direction is provable from [HT_strengthen_premise] *)
 Lemma HT_exists_forall: forall T c P Q,
   HT   c (fun m s => exists (x:T), P x m s) Q ->
   (forall (x:T), HT   c (P x) Q).
@@ -313,13 +273,60 @@ Proof.
   eauto.
 Qed.
 
-Lemma HT_fold_constant_premise: forall (C:Prop) c P Q ,
-  (C -> HT c P Q) ->
-  HT c (fun m s => C /\ P m s) Q.
+
+(** ** Hoare Triples with ghost variables *)
+
+Definition GProp := memory -> stack -> HProp.
+
+(** Ghost prop Hoare triple *)
+Definition GT (c: code) (P: HProp) (Q: GProp) := forall m0 s0,
+  HT c (fun m s => P m0 s0 /\ m = m0 /\ s = s0)
+       (Q m0 s0).
+
+Lemma GT_consequence':
+  forall (c : code) (P' P: HProp) (Q Q': GProp),
+    GT c P Q ->
+    (forall m s, P' m s -> P m s) ->
+    (forall m0 s0 m s, P m0 s0 -> Q m0 s0 m s -> Q' m0 s0 m s) ->
+    GT c P' Q'.
 Proof.
-  unfold HT.
-  iauto.
+  unfold GT; intros.
+  eapply HT_consequence'; jauto.
 Qed.
+
+
+(** ** Escaping Hoare Triples *)
+(** We now define a different triple, [HTEscape]. The difference when
+compared to [HT] is that instead of an execution ending necessarily in
+kernel mode, we now specify cases where the machine successfully
+returns to user mode at some known pc value or simply halts in kernel
+mode before reaching the end. This is the triple we use to specify the
+complete behavior of the fault handler. *)
+
+Inductive Outcome :=
+| Success
+| Failure.
+
+Definition predicted_outcome (o: Outcome) raddr pc priv :=
+  match o with
+  | Success => priv = false /\ pc = raddr
+  | Failure => priv = true  /\ pc = (-1, handlerTag)
+  end.
+
+Definition HTEscape raddr
+  (c: code)
+  (P: memory -> stack -> Prop)
+  (Q: memory -> stack -> Prop * Outcome)
+:= forall imem mem stk0 cache0 fh n,
+  code_at n fh c ->
+  P cache0 stk0 ->
+  exists stk1 cache1 pc1 priv1,
+  let (prop, outcome) := Q cache1 stk1 in
+  prop /\
+  predicted_outcome outcome raddr pc1 priv1 /\
+  runsToEscape
+    (CState cache0 mem fh imem stk0 (n, handlerTag) true)
+    (CState cache1 mem fh imem stk1 pc1 priv1).
 
 
 Lemma HTEscape_strengthen_premise: forall r c (P' P: HProp) Q,
@@ -370,25 +377,6 @@ Proof.
   unfold HTEscape.
   intros.
   exploit code_at_compose_1; eauto.
-Qed.
-
-
-(* [HProp] with ghost variables *)
-Definition GProp := memory -> stack -> HProp.
-(* Ghost prop Hoare triple *)
-Definition GT (c: code) (P: HProp) (Q: GProp) := forall m0 s0,
-  HT c (fun m s => P m0 s0 /\ m = m0 /\ s = s0)
-       (Q m0 s0).
-
-Lemma GT_consequence':
-  forall (c : code) (P' P: HProp) (Q Q': GProp),
-    GT c P Q ->
-    (forall m s, P' m s -> P m s) ->
-    (forall m0 s0 m s, P m0 s0 -> Q m0 s0 m s -> Q' m0 s0 m s) ->
-    GT c P' Q'.
-Proof.
-  unfold GT; intros.
-  eapply HT_consequence'; jauto.
 Qed.
 
 Definition HFun  := memory -> stack -> Z.
