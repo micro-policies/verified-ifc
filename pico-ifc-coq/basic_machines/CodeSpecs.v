@@ -1,28 +1,26 @@
-(* Generic tools for proving properties of (privileged) concrete machine code. *)
-
 Require Import ZArith.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
+Require Import Coq.Arith.Compare_dec.
 Import ListNotations. 
 
 Require Import Instr.
-Require Import Lattices.
+Require Import Semantics.
 Require Import Concrete.
 Require Import CodeGen.
 Require Import CodeTriples.
 Require Import ConcreteMachine.
-Require Import Coq.Arith.Compare_dec.
 Require Import ConcreteExecutions.
-Require Import Semantics.
 
-(* ================================================================ *)
-(* Specs for concrete code *)
+(** Proof of various HT-specifications of (generic) code generators. *)
+
+(** * Specification for concrete (privileged) code *)
 
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
-Lemma nop_spec_wp: forall Q,
+Lemma nop_spec: forall Q,
   HT nop Q Q.
 Proof.
   unfold nop, HT; simpl; intros.
@@ -30,7 +28,7 @@ Proof.
   apply_f_equal rte_refl; rec_f_equal ltac:(try omega; eauto).
 Qed.
 
-Lemma add_spec_wp: forall Q,
+Lemma add_spec: forall Q,
   HT [Add]
      (fun m s => exists s0 z1 l1 z2 l2, 
                    s = (z1,l1) ::: (z2,l2) ::: s0 
@@ -46,7 +44,7 @@ Proof.
   eapply cstep_add_p ; eauto.
 Qed.
 
-Lemma sub_spec_wp: forall Q,
+Lemma sub_spec: forall Q,
   HT [Sub]
      (fun m s => exists s0 z1 l1 z2 l2, 
                    s = (z1,l1) ::: (z2,l2) ::: s0 
@@ -62,7 +60,7 @@ Proof.
   eapply cstep_sub_p ; eauto.
 Qed.
 
-Lemma push_spec_wp : forall i Q,
+Lemma push_spec : forall i Q,
   HT [Push i]
      (fun m s0 => Q m ((i,handlerTag):::s0))
      Q.
@@ -73,12 +71,11 @@ Proof.
   intuition eauto.
   subst. simpl.
   unfold code_at in *. intuition. 
-  (* Run an instruction *)
   eapply rte_step; auto.
   eapply cstep_push_p; eauto.
 Qed.
 
-Lemma load_spec_wp: forall Q,
+Lemma load_spec: forall Q,
   HT [Load]
      (fun m s0 => exists a v vl s, 
                     s0 = (a,handlerTag) ::: s /\
@@ -92,33 +89,29 @@ Proof.
   eexists.
   eexists.
   intuition eauto.
-
-  (* Load an instruction *)
   subst. simpl.
   unfold code_at in *. intuition. 
-
-  (* Run an instruction *)
   eapply rte_step; auto.
   eapply cstep_load_p; eauto.
 Qed.
 
-Lemma loadFrom_spec_wp : forall a (Q: memory-> stack -> Prop), 
+Lemma loadFrom_spec : forall a (Q: memory-> stack -> Prop), 
   HT (loadFrom a)
      (fun m s => exists v vl, index_list_Z a m = Some (v,vl) /\ Q m ((v,vl):::s))
      Q.
 Proof.
   intros.
   eapply HT_compose_bwd.
-  eapply load_spec_wp.
+  eapply load_spec.
   eapply HT_strengthen_premise.
-  eapply push_spec_wp.
+  eapply push_spec.
   split_vc. 
 Qed.
 
-(* NC: to prove that addresses are valid per this definition, we just
+(** To prove that addresses are valid per this definition, we just
    need to know that that the memory is at least as large as the
-   [tmuCacheSize] defined in Concrete.v, since we only use
-   [valid_address] assumptions for [addrTag*]. *)
+   [tmuCacheSize], since we only use [valid_address] assumptions for
+   [addrTag*]. *)
 Definition valid_address a (m: memory) :=
   (0 <= a) /\ (Z.to_nat a < length m)%nat.
 
@@ -154,7 +147,7 @@ Proof.
   eapply update_list_Z_Some; iauto.
 Qed. 
 
-Lemma store_spec_wp: forall Q a al v vl,
+Lemma store_spec: forall Q a al v vl,
   forall m s,
   HT [Store]
      (fun m0 s0 => s0 = (a,al) ::: (v,vl) ::: s /\
@@ -169,17 +162,12 @@ Proof.
   eexists.
   intuition; subst.
   eauto.
-
-  (* Load an instruction *)
   unfold code_at in *. intuition.
-
-  (* Run an instruction *)
   eapply rte_step; auto.
   eapply cstep_store_p; eauto.
 Qed.
 
-(* NC: [valid_address a m0] implies [upd_m] succeeds *)
-Lemma storeAt_spec_wp: forall a v vl Q,
+Lemma storeAt_spec: forall a v vl Q,
   forall m s,
   HT (storeAt a)
      (fun m0 s0 => s0 = (v,vl) ::: s /\
@@ -189,9 +177,9 @@ Lemma storeAt_spec_wp: forall a v vl Q,
 Proof.
   intros.
   eapply HT_compose_bwd.
-  eapply store_spec_wp; eauto.
+  eapply store_spec; eauto.
   eapply HT_strengthen_premise.
-  eapply push_spec_wp.
+  eapply push_spec.
   intuition; eauto.
   substs; eauto. 
 Qed.
@@ -280,7 +268,7 @@ Proof.
   eapply HT_compose_bwd.
   eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
   eapply HT_strengthen_premise.
-  eapply push_spec_wp.
+  eapply push_spec.
   split_vc.
 Qed.
 
@@ -394,7 +382,7 @@ Proof.
   auto.
 Qed.
 
-(* A version of [ite_spec] that restricts the effect of the condition
+(** A version of [ite_spec] that restricts the effect of the condition
    code [c] to pushing one value to the stack.
 
    In [genApplyRule_spec] we are considering a particular memory,
@@ -440,7 +428,7 @@ Proof.
   eapply ite_spec; eauto.
 Qed.
 
-(* A specialized spec for the [cases] combinator.
+(** A specialized spec for the [cases] combinator.
 
    If
 
@@ -586,23 +574,25 @@ Qed.
 
 End IndexedCasesSpec.
 
-Lemma genTrue_spec_wp: forall Q,
+
+(** * Specification for code generators *)
+Lemma genTrue_spec: forall Q,
   HT genTrue
      (fun m s => Q m ((1,handlerTag):::s))
      Q.
 Proof.
-  eapply push_spec_wp.
+  eapply push_spec.
 Qed.
 
-Lemma genFalse_spec_wp: forall Q,
+Lemma genFalse_spec: forall Q,
   HT genFalse
      (fun m s => Q m ((0,handlerTag):::s))
      Q.
 Proof.
-  eapply push_spec_wp.
+  eapply push_spec.
 Qed.
 
-Lemma pop_spec_wp: forall Q,
+Lemma pop_spec: forall Q,
   HT pop
      (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
      Q.
@@ -622,31 +612,7 @@ Proof.
   eapply cstep_pop_p; eauto.
 Qed.
 
-Lemma genAnd_spec: forall b1 b2, forall m0 s0,
-  HT genAnd
-     (* We need [handlerTag] on [b2] because [genAnd] returns [b2] when
-        [b1] is [true]. *)
-     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerTag) ::
-                               CData (boolToZ b2,handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (boolToZ (andb b1 b2),handlerTag) :: s0).
-Proof.
-  intros.
-  unfold genAnd.
-  destruct b1; eapply HT_strengthen_premise.
-    eapply ifNZ_spec_NZ with (v:=1).
-    apply nop_spec_wp.
-    omega.
-    simpl; jauto.
-
-    eapply ifNZ_spec_existential.
-    apply nop_spec_wp.
-    eapply HT_compose_bwd.
-    eapply genFalse_spec_wp.
-    eapply pop_spec_wp. 
-    split_vc. 
-Qed.
-
-Lemma genAnd_spec_wp : forall (Q:memory -> stack -> Prop),
+Lemma genAnd_spec : forall (Q:memory -> stack -> Prop),
   HT genAnd
      (fun m s => exists b1 b2 s0, s = (boolToZ b1,handlerTag):::(boolToZ b2,handlerTag):::s0 /\
                                   Q m ((boolToZ (andb b1 b2),handlerTag):::s0))
@@ -656,41 +622,31 @@ Proof.
   eapply HT_strengthen_premise with
      (fun m s => exists b1 b2 s0 m0, s = (boolToZ b1,handlerTag):::(boolToZ b2,handlerTag):::s0 /\ m = m0 /\
                                      Q m0 ((boolToZ (andb b1 b2),handlerTag):::s0)).
+
+
   eapply HT_forall_exists.  intro b1. 
   eapply HT_forall_exists.  intro b2. 
   eapply HT_forall_exists.  intro s0. 
   eapply HT_forall_exists.  intro m1. 
-  eapply HT_consequence'. 
-  eapply genAnd_spec. 
-  split_vc. 
-  split_vc. subst. eauto. 
-  split_vc. 
-Qed.
 
-Lemma genOr_spec: forall b1 b2, forall m0 s0,
-  HT genOr
-     (fun m s => m = m0 /\ s = CData (boolToZ b1,handlerTag) ::
-                               CData (boolToZ b2,handlerTag) :: s0)
-     (fun m s => m = m0 /\ s = CData (boolToZ (orb b1 b2),handlerTag) :: s0).
-Proof.
-  intros.
-  unfold genOr.
   destruct b1; eapply HT_strengthen_premise.
-
-    eapply ifNZ_spec_NZ with (v:=1).
-    eapply HT_compose_bwd.
-    eapply genTrue_spec_wp. 
-    eapply pop_spec_wp.
-    omega.
-    simpl; jauto.
-
-    eapply ifNZ_spec_Z with (v:=0).
-    apply nop_spec_wp.
-    reflexivity.
-    simpl; jauto.
+  eapply ifNZ_spec_NZ with (v:=1).
+  apply nop_spec.
+  omega.
+  simpl; jauto.
+  split_vc; subst. auto.
+  
+  eapply ifNZ_spec_existential.
+  apply nop_spec.
+  eapply HT_compose_bwd.
+  eapply genFalse_spec.
+  eapply pop_spec.
+  split_vc.
+  
+  split_vc. 
 Qed.
 
-Lemma genOr_spec_wp : forall (Q:memory -> stack -> Prop),
+Lemma genOr_spec : forall (Q:memory -> stack -> Prop),
   HT genOr
      (fun m s => exists b1 b2 s0, s = (boolToZ b1,handlerTag):::(boolToZ b2,handlerTag):::s0 /\
                                   Q m ((boolToZ (orb b1 b2),handlerTag):::s0))
@@ -704,11 +660,23 @@ Proof.
   eapply HT_forall_exists.  intro b2. 
   eapply HT_forall_exists.  intro s0. 
   eapply HT_forall_exists.  intro m1. 
-  eapply HT_consequence'. 
-  eapply genOr_spec. 
-  split_vc. 
-  split_vc. subst. eauto. 
-  split_vc. 
+
+  destruct b1; eapply HT_strengthen_premise.
+
+    eapply ifNZ_spec_NZ with (v:=1).
+    eapply HT_compose_bwd.
+    eapply genTrue_spec. 
+    eapply pop_spec.
+    omega.
+
+    split_vc. subst; auto.
+
+    eapply ifNZ_spec_Z with (v:=0).
+    apply nop_spec.
+    reflexivity.
+    split_vc. subst; auto.
+    
+    split_vc.
 Qed.
 
 Definition negz (z: Z) : Z := 
@@ -717,7 +685,7 @@ Definition negz (z: Z) : Z :=
       | _ => 0
   end.
  
-Lemma genNot_spec_wp: forall Q,
+Lemma genNot_spec: forall Q,
   HT genNot
      (fun m s => exists z s0, 
                    s = (z, handlerTag) ::: s0 
@@ -727,8 +695,8 @@ Proof.
   intros. unfold genNot.
   eapply HT_strengthen_premise.
   eapply ifNZ_spec_existential.
-  eapply genFalse_spec_wp.
-  eapply genTrue_spec_wp.
+  eapply genFalse_spec.
+  eapply genTrue_spec.
   unfold boolToZ in *. split_vc. substs; intuition; (cases x; try intuition); try congruence.
 Qed.
 
@@ -744,18 +712,18 @@ Proof.
   - apply Z.eqb_eq in Heq.
     eapply HT_strengthen_premise.
     + eapply ifNZ_spec_Z.
-      * eapply genTrue_spec_wp.
+      * eapply genTrue_spec.
       * eauto.
     + jauto.
   - apply Z.eqb_neq in Heq.
     eapply HT_strengthen_premise.
     + eapply ifNZ_spec_NZ.
-      * eapply genFalse_spec_wp.
+      * eapply genFalse_spec.
       * eauto.
     + jauto.
 Qed.
 
-Lemma genNot_spec: forall b, forall m0 s0,
+Lemma genNot_spec': forall b, forall m0 s0,
   HT genNot
      (fun m s => m = m0 /\ s = (boolToZ b, handlerTag) ::: s0)
      (fun m s => m = m0 /\ s = (boolToZ (negb b), handlerTag) ::: s0).
@@ -773,12 +741,20 @@ Lemma genImpl_spec: forall b1 b2, forall m0 s0,
      (fun m s => m = m0 /\ s = CData (boolToZ (implb b1 b2),handlerTag) :: s0).
 Proof.
   intros.
-  eapply HT_weaken_conclusion.
-  unfold genImpl.
-  eapply HT_compose.
-  eapply genNot_spec.
+  unfold genImpl.  
+  eapply HT_compose_bwd.
   eapply genOr_spec.
-  simpl. cases b1; cases b2; iauto.
+  eapply HT_strengthen_premise.
+  eapply genNot_spec.
+  intros; simpl. inv H; subst.
+  exists (boolToZ b1) ; exists ((boolToZ b2, handlerTag) ::: s0).
+  split; eauto.
+  unfold boolToZ in *.
+  (cases b1 ; cases b2; try intuition); simpl.
+  exists false; exists true;  eauto.
+  exists false; exists false;  eauto.
+  exists true; exists true;  eauto.
+  exists true; exists false;  eauto.
 Qed.
 
 (* NC: use [Z.eqb_eq] and [Z.eqb_neq] to relate the boolean equality
@@ -803,9 +779,9 @@ Proof.
   eapply HT_compose_bwd; eauto.
   eapply HT_compose_bwd.
   
-  eapply (genNot_spec_wp); eauto.  
+  eapply (genNot_spec); eauto.  
   eapply HT_strengthen_premise.
-  eapply sub_spec_wp.
+  eapply sub_spec.
   split_vc; substs. 
   repeat f_equal; eauto. 
   destruct (Z.eq_dec v1 v2); substs.
@@ -817,13 +793,6 @@ Proof.
     destruct (v2 - v1) eqn:E; try omega; simpl; eauto.
 Qed.
 
-
-  Lemma basic_arithmetic:
-    forall v1 v2, (v2 - v1 =? 0) = (v1 =? v2).
-  Proof.
-    intuition; cases (v1 =? v2);
-    try (rewrite Z.eqb_eq in *); try (rewrite Z.eqb_neq in *); omega.
-  Qed.
   
 
 Lemma valid_address_upd: forall a a' vl m m',
@@ -860,9 +829,9 @@ Proof.
   destruct Hvalid2; eauto.
 
   eapply HT_compose_bwd.
-  apply storeAt_spec_wp.
+  apply storeAt_spec.
   eapply HT_strengthen_premise.
-  apply storeAt_spec_wp.
+  apply storeAt_spec.
 
   intuition; subst; eauto.
   eauto.

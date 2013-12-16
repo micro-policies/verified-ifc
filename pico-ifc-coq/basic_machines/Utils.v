@@ -1,5 +1,6 @@
 Require Import ZArith. (* omega *)
 Require Import List.
+Require Import LibTactics.
 
 (** * Useful tactics *)
 Ltac inv H := inversion H; clear H; subst.
@@ -942,3 +943,15 @@ Lemma if_dec_right : ~P -> (if P_dec then e1 else e2) = e2.
 Proof. intros. destruct P_dec; tauto. Qed.
 
 End IfDec.
+
+Section Arith.
+Local Open Scope Z_scope.
+
+Lemma basic_arithmetic:
+    forall v1 v2, (v2 - v1 =? 0) = (v1 =? v2).
+  Proof.
+    intuition; cases (v1 =? v2);
+    try (rewrite Z.eqb_eq in *); try (rewrite Z.eqb_neq in *); omega.
+  Qed.
+
+End Arith.

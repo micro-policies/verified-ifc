@@ -85,7 +85,7 @@ Lemma genBot_spec_HL : forall Q,
 Proof.
    intros.
    unfold genBot, TMUHL. 
-   eapply genFalse_spec_wp; simpl; eauto.
+   eapply genFalse_spec; simpl; eauto.
 Qed.
 
 Lemma genJoin_spec_HL : forall Q,
@@ -98,7 +98,7 @@ Proof.
   intros.
   unfold genJoin, TMUHL.
   eapply HT_strengthen_premise.
-  eapply genOr_spec_wp; eauto.
+  eapply genOr_spec; eauto.
   simpl. intros. destruct H as [l [l' [s0 Hint]]]. intuition.
   cases l; cases l'; substs; unfold labToZ, boolToZ in *.
   exists false; exists false; exists s0 ; 
@@ -121,12 +121,12 @@ Proof.
   intros.
   unfold genFlows, TMUHL, genImpl.
   eapply HT_compose_bwd. 
-  eapply genOr_spec_wp.
+  eapply genOr_spec.
   unfold genNot.
   eapply HT_strengthen_premise.
   eapply ifNZ_spec_existential.
-  eapply push_spec_wp.
-  eapply push_spec_wp.
+  eapply push_spec.
+  eapply push_spec.
   split_vc.
   destruct x, x0 ; simpl in *; intuition; substs; unfold boolToZ.
   exists true; exists false; exists x1 ; 

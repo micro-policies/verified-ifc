@@ -124,9 +124,9 @@ Proof.
   unfold genCheckOp.
   eapply genTestEqual_spec.
   intros. eapply HT_strengthen_premise.
-  eapply push_spec_wp.
+  eapply push_spec.
   split_vc. subst; eauto.
-  intros. eapply HT_strengthen_premise. eapply loadFrom_spec_wp.
+  intros. eapply HT_strengthen_premise. eapply loadFrom_spec.
   split_vc. subst; eauto.
   destruct (labsToZs vls) as [[tag1 tag2] tag3].
   intuition eauto.
@@ -227,7 +227,7 @@ Proof.
   - Case "default case that we never reach".
     unfold GT; intros.
     eapply HT_strengthen_premise.
-    eapply nop_spec_wp.
+    eapply nop_spec.
     unfold Qnil; iauto.
   - exact H_indexed_hyps.
   - iauto.
@@ -292,9 +292,9 @@ Proof.
   eapply ifNZ_spec_NZ with (v:=1).
   eapply HT_compose_bwd.
   eapply HT_compose_bwd.
-  eapply genTrue_spec_wp.
-  eapply storeAt_spec_wp.
-  eapply storeAt_spec_wp.
+  eapply genTrue_spec.
+  eapply storeAt_spec.
+  eapply storeAt_spec.
 
   omega.
   simpl; intuition; subst; jauto.
@@ -317,7 +317,7 @@ Proof.
 
   eapply HT_strengthen_premise.
   eapply ifNZ_spec_Z with (v:=0).
-  eapply genFalse_spec_wp.
+  eapply genFalse_spec.
 
   reflexivity.
   jauto.
@@ -388,10 +388,10 @@ Proof.
   eapply ifNZ_spec_NZ with (v := 1); try omega.
   eapply HT_compose_bwd.
   eapply HT_compose_bwd.
-  eapply genTrue_spec_wp.
+  eapply genTrue_spec.
   simpl.
-  eapply storeAt_spec_wp.
-  eapply storeAt_spec_wp.
+  eapply storeAt_spec.
+  eapply storeAt_spec.
   rewrite Har_eq. simpl.
   intros m s [Hm Hs]. subst.
   eexists.
@@ -415,7 +415,7 @@ Proof.
   Focus 2.
   eapply jump_specEscape_Failure.
   eapply HT_strengthen_premise.
-  eapply push_spec_wp.
+  eapply push_spec.
   split_vc.
 Qed.
 
@@ -634,7 +634,7 @@ Proof.
   unfold genVar; subst. inv initial_mem_matches. intuition.
   destruct v; (* split_vc seems to loop *)
     (eapply HT_strengthen_premise;
-    try eapply loadFrom_spec_wp;
+    try eapply loadFrom_spec;
     simpl; intros m s [Hmem HQ]; subst;
     try erewrite <- nth_order_valid in HQ; eauto).
 Qed.
@@ -672,7 +672,7 @@ Proof.
   induction c; intros; simpl.
 
   - eapply HT_strengthen_premise.
-    eapply genTrue_spec_wp.
+    eapply genTrue_spec.
     split_vc.
 
   - repeat eapply HT_compose_bwd.
@@ -684,7 +684,7 @@ Proof.
 
   - eapply HT_compose_bwd.
     eapply HT_compose_bwd.
-    eapply genAnd_spec_wp.
+    eapply genAnd_spec.
     eapply IHc1.
     eapply HT_strengthen_premise.
     eapply IHc2.
@@ -692,7 +692,7 @@ Proof.
 
   - eapply HT_compose_bwd.
     eapply HT_compose_bwd.
-    eapply genOr_spec_wp.
+    eapply genOr_spec.
     eapply IHc1.
     eapply HT_strengthen_premise.
     eapply IHc2.
@@ -720,12 +720,12 @@ Proof.
   eapply HT_compose_bwd.
   eapply ifNZ_spec_existential.
   eapply HT_compose_bwd.
-  eapply push_spec_wp.
+  eapply push_spec.
 
   eapply HT_compose_bwd.
   eapply genExpr_spec_wp.
   eapply genExpr_spec_wp.
-  eapply push_spec_wp.
+  eapply push_spec.
   eapply genScond_spec_wp.
   split_vc.
   unfold eval_var in H2.
@@ -750,12 +750,12 @@ Proof.
   eapply HT_compose_bwd.
   eapply ifNZ_spec_existential.
   eapply HT_compose_bwd.
-  eapply push_spec_wp.
+  eapply push_spec.
 
   eapply HT_compose_bwd.
   eapply genExpr_spec_wp.
   eapply genExpr_spec_wp.
-  eapply push_spec_wp.
+  eapply push_spec.
   eapply genScond_spec_wp.
   split_vc. substs.
   split; intros;
@@ -793,7 +793,7 @@ Proof.
 
   (* True *)
   eapply HT_strengthen_premise.
-  eapply genTrue_spec_wp. split_vc.
+  eapply genTrue_spec. split_vc.
 
   (* Flows *)
   eapply HT_compose_bwd.
@@ -806,7 +806,7 @@ Proof.
   (* And *)
   eapply HT_compose_bwd.
   eapply HT_compose_bwd.
-  eapply genAnd_spec_wp.
+  eapply genAnd_spec.
   eapply IHc1; eauto.
   eapply HT_strengthen_premise.
   eapply IHc2; eauto. split_vc; eauto.
@@ -814,7 +814,7 @@ Proof.
   (* Or *)
   eapply HT_compose_bwd.
   eapply HT_compose_bwd.
-  eapply genOr_spec_wp.
+  eapply genOr_spec.
   eapply IHc1; eauto.
   eapply HT_strengthen_premise.
   eapply IHc2; eauto. split_vc; eauto.
