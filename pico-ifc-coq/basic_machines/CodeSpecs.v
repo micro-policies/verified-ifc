@@ -13,9 +13,10 @@ Require Import CodeTriples.
 Require Import ConcreteMachine.
 Require Import ConcreteExecutions.
 
-(** Proof of various HT-specifications of (generic) code generators. *)
+(** Proof of various [HT], [GT], and [HTEscape] style specifications of (generic)
+code generators, and concrete (privileged) code. *)
 
-(** * Specification for concrete (privileged) code *)
+(** * Contained [HT] specifications *)
 
 Section CodeSpecs.
 Local Open Scope Z_scope.
@@ -484,98 +485,6 @@ Proof.
   elimtype False; jauto.
 Qed.
 
-Lemma cases_spec_base_GT_specialized: forall cnil P Qnil,
-  GT cnil P Qnil ->
-  GT (cases [] cnil) P Qnil.
-Proof.
-unfold GT; intros; eapply cases_spec_base.
-  eapply HT_strengthen_premise; eauto.
-Qed.
-
-
-Definition GT_push_v (c: code) (P: HProp) (v: HFun): Prop :=
-  GT c P (fun m0 s0 m s => P m0 s0 /\
-                           m = m0 /\
-                           s = CData (v m0 s0, handlerTag) :: s0).
-Definition GT_guard_v (b: code) (P: HProp) (v: HFun) (Q: GProp): Prop :=
-  GT b (fun m s => P m s /\ v m s <> 0) Q.
-
-Lemma cases_spec_step_GT_specialized: forall c v b cbs cnil P Qb Qcbs,
-  GT_push_v c P v ->
-  GT_guard_v b P v Qb ->
-  GT (cases cbs cnil) P Qcbs ->
-  GT (cases ((c,b)::cbs) cnil)
-     P
-     (fun m0 s0 m s => (v m0 s0 <> 0 -> Qb m0 s0 m s) /\
-                       (v m0 s0 = 0 -> Qcbs m0 s0 m s)).
-Proof.
-  intros c vc b cbs d P Qb Qcbs Hc Hb Hcbs.
-  intros m0 s0.
-  pose (Hc m0 s0) as Hcm0s0.
-  eapply ite_spec with (Pt := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 <> 0))
-                       (Pf := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 =  0)).
-  eapply HT_weaken_conclusion.
-  exact Hcm0s0.
-
-  intuition.
-  exists (vc m0 s0).
-  exists handlerTag.
-  exists s0.
-  intuition; subst; auto.
-
-  apply (HT_consequence' _ _ _ _ _ (Hb m0 s0)); intuition.
-  elimtype False; jauto.
-
-  fold cases.
-  apply (HT_consequence' _ _ _ _ _ (Hcbs m0 s0)); intuition.
-  elimtype False; jauto.
-Qed.
-
-Section IndexedCasesSpec.
-
-Variable cnil: code.
-Variable Qnil: GProp.
-Variable I: Type.
-Variable genC genB: I -> code.
-Variable genQ: I -> GProp.
-Variable genV: I -> HFun.
-
-Definition indexed_post: (list I) -> GProp :=
-  fix f (indices: list I) :=
-    fun m0 s0 m s =>
-      match indices with
-      | []            => Qnil m0 s0 m s
-      | i :: indices' => (genV i m0 s0 <> 0 -> genQ i m0 s0 m s) /\
-                         (genV i m0 s0 =  0 -> f indices' m0 s0 m s)
-      end.
-
-Variable P: HProp.
-Definition indexed_hyps: (list I) -> Prop :=
-  fix f (indices: list I) :=
-    match indices with
-    | []            => True
-    | i :: indices' => GT_push_v (genC i) P (genV i) /\
-                       GT_guard_v (genB i) P (genV i) (genQ i) /\
-                       f indices'
-    end.
-
-Lemma indexed_cases_spec: forall is,
-  GT cnil P Qnil ->
-  indexed_hyps is ->
-  GT (indexed_cases cnil genC genB is)
-     P
-     (indexed_post is).
-Proof.
-  induction is; intros.
-  - eapply cases_spec_base_GT_specialized; eauto.
-  - simpl in *.
-    eapply cases_spec_step_GT_specialized; iauto.
-Qed.
-
-End IndexedCasesSpec.
-
-
-(** * Specification for code generators *)
 Lemma genTrue_spec: forall Q,
   HT genTrue
      (fun m s => Q m ((1,handlerTag):::s))
@@ -793,7 +702,54 @@ Proof.
     destruct (v2 - v1) eqn:E; try omega; simpl; eauto.
 Qed.
 
-  
+
+(** * Some specs of [cases] combinator, expressed with ghost variables *)
+Lemma cases_spec_base_GT_specialized: forall cnil P Qnil,
+  GT cnil P Qnil ->
+  GT (cases [] cnil) P Qnil.
+Proof.
+unfold GT; intros; eapply cases_spec_base.
+  eapply HT_strengthen_premise; eauto.
+Qed.
+
+Definition GT_push_v (c: code) (P: HProp) (v: HFun): Prop :=
+  GT c P (fun m0 s0 m s => P m0 s0 /\
+                           m = m0 /\
+                           s = CData (v m0 s0, handlerTag) :: s0).
+Definition GT_guard_v (b: code) (P: HProp) (v: HFun) (Q: GProp): Prop :=
+  GT b (fun m s => P m s /\ v m s <> 0) Q.
+
+Lemma cases_spec_step_GT_specialized: forall c v b cbs cnil P Qb Qcbs,
+  GT_push_v c P v ->
+  GT_guard_v b P v Qb ->
+  GT (cases cbs cnil) P Qcbs ->
+  GT (cases ((c,b)::cbs) cnil)
+     P
+     (fun m0 s0 m s => (v m0 s0 <> 0 -> Qb m0 s0 m s) /\
+                       (v m0 s0 = 0 -> Qcbs m0 s0 m s)).
+Proof.
+  intros c vc b cbs d P Qb Qcbs Hc Hb Hcbs.
+  intros m0 s0.
+  pose (Hc m0 s0) as Hcm0s0.
+  eapply ite_spec with (Pt := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 <> 0))
+                       (Pf := (fun m s => P m0 s0 /\ m = m0 /\ s = s0 /\ vc m0 s0 =  0)).
+  eapply HT_weaken_conclusion.
+  exact Hcm0s0.
+
+  intuition.
+  exists (vc m0 s0).
+  exists handlerTag.
+  exists s0.
+  intuition; subst; auto.
+
+  apply (HT_consequence' _ _ _ _ _ (Hb m0 s0)); intuition.
+  elimtype False; jauto.
+
+  fold cases.
+  apply (HT_consequence' _ _ _ _ _ (Hcbs m0 s0)); intuition.
+  elimtype False; jauto.
+Qed.
+
 
 Lemma valid_address_upd: forall a a' vl m m',
   valid_address a m ->
@@ -807,36 +763,51 @@ Proof.
   - erewrite update_preserves_length; eauto.
 Qed.
 
-Lemma store_twice_test: forall a1 a2 v1 v2 vl1 vl2,
-  a1 <> a2 ->
-  forall m s,
-  valid_address a1 m ->
-  valid_address a2 m ->
-  HT (storeAt a1 ++ storeAt a2)
-     (fun m0 s0 => m0 = m /\
-                   s0 = CData (v1, vl1) :: CData (v2,vl2) :: s)
-     (fun m1 s1 => s1 = s /\
-                   exists m', upd_m a1 (v1,vl1) m = Some m' /\
-                              upd_m a2 (v2,vl2) m' = Some m1).
+(** Proof of a specification for the switch-case generator indexed by type [I]. *)
+Section IndexedCasesSpec.
+
+Variable cnil: code.
+Variable Qnil: GProp.
+Variable I: Type.
+Variable genC genB: I -> code.
+Variable genQ: I -> GProp.
+Variable genV: I -> HFun.
+
+Definition indexed_post: (list I) -> GProp :=
+  fix f (indices: list I) :=
+    fun m0 s0 m s =>
+      match indices with
+      | []            => Qnil m0 s0 m s
+      | i :: indices' => (genV i m0 s0 <> 0 -> genQ i m0 s0 m s) /\
+                         (genV i m0 s0 =  0 -> f indices' m0 s0 m s)
+      end.
+
+Variable P: HProp.
+Definition indexed_hyps: (list I) -> Prop :=
+  fix f (indices: list I) :=
+    match indices with
+    | []            => True
+    | i :: indices' => GT_push_v (genC i) P (genV i) /\
+                       GT_guard_v (genB i) P (genV i) (genQ i) /\
+                       f indices'
+    end.
+
+Lemma indexed_cases_spec: forall is,
+  GT cnil P Qnil ->
+  indexed_hyps is ->
+  GT (indexed_cases cnil genC genB is)
+     P
+     (indexed_post is).
 Proof.
-  introv Hneq Hvalid1 Hvalid2; intros.
-
-  eapply valid_store in Hvalid1.
-  destruct Hvalid1 as [m' ?]; eauto.
-
-  eapply valid_address_upd with (m':=m') in Hvalid2.
-  eapply valid_store in Hvalid2.
-  destruct Hvalid2; eauto.
-
-  eapply HT_compose_bwd.
-  apply storeAt_spec.
-  eapply HT_strengthen_premise.
-  apply storeAt_spec.
-
-  intuition; subst; eauto.
-  eauto.
+  induction is; intros.
+  - eapply cases_spec_base_GT_specialized; eauto.
+  - simpl in *.
+    eapply cases_spec_step_GT_specialized; iauto.
 Qed.
 
+End IndexedCasesSpec.
+
+(** * HTEscape specification for escaping code *)
 
 Lemma ret_specEscape: forall raddr (P: HProp),
   HTEscape raddr [Ret]
