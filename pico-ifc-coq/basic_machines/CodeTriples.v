@@ -3,14 +3,11 @@ Require Import ZArith.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
+Require Import Coq.Arith.Compare_dec.
 Import ListNotations. 
 
 Require Import Instr.
-Require Import Lattices.
 Require Import Concrete.
-Require Import CodeGen.
-Require Import ConcreteMachine.
-Require Import Coq.Arith.Compare_dec.
 Require Import ConcreteExecutions.
 Require Import Semantics.
 
