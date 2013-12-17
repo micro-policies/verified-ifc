@@ -647,13 +647,13 @@ Definition Ifab (f : memory -> stack -> val -> val -> val) (n: memory -> stack -
         v = fold_right (f m0 s0) (n m0 s0) (dropZ i vs).
 
 Definition Ifab' (f : val -> val -> val)
-                 (n : val) a vs
+                 (n : val) a vs v
                  m s (i : Z) :=
-  exists v t1 t2 s0,
+  exists ta s0,
     i <= Z.of_nat (length vs) /\
     memarr m a vs /\
     Mem.stamp a = Kernel /\
-    s = (v,t1):::(Vptr (a,0),t2):::s0 /\
+    s = (Vptr (a,0),ta):::s0 /\
     v = fold_right f n (dropZ i vs).
 
 Lemma memseq_dropZ :
@@ -742,21 +742,22 @@ what the precondition should be.
 
 Definition fab_spec' :
   forall gen_f f n
-         (SPECf : forall (Q : memory -> stack -> Prop),
-                    HT cblock table gen_f
-                       (fun m s =>
-                          exists x tx v tv s0,
-                            s = (x,tx):::(v,tv):::s0 /\
-                            forall t, Q m ((f x v,t):::s0))
-                       Q)
+         (HTf : forall (Q : memory -> stack -> Prop),
+                  HT cblock table gen_f
+                     (fun m s =>
+                        exists x tx v tv s0,
+                          s = (x,tx):::(v,tv):::s0 /\
+                          forall t, Q m ((f x v,t):::s0))
+                     Q)
          (Q : memory -> stack -> Prop),
     HT cblock table (fold_array_body gen_f)
        (fun m s =>
-          exists i t a vs s0,
-            s = (Vint i,t):::s0 /\
-            i > 0 /\ Ifab' f n a vs m s0 i /\
-            forall s' t',
-              Ifab' f n a vs m s' (Z.pred i) -> Q m ((Vint i,t'):::s'))
+          exists i ti v tv a vs s0,
+            s = (Vint i,ti) ::: (v, tv) ::: s0 /\
+            i > 0 /\ Ifab' f n a vs v m s0 i /\
+            forall ti' v' tv',
+              Ifab' f n a vs v' m s0 (Z.pred i) ->
+              Q m ((Vint i,ti') ::: (v', tv') ::: s0))
        Q.
 Proof.
   intros.
@@ -765,12 +766,12 @@ Proof.
   { repeat (eapply HT_compose; [eapply dup_spec|]).
     eapply HT_compose; try eapply add_spec.
     eapply HT_compose; try eapply load_spec.
-    eapply HT_compose; try eapply SPECf.
+    eapply HT_compose; try eapply HTf.
     eapply HT_compose; try eapply swap_spec.
     apply pop_spec. }
   clear.
-  intros m ? (i & t & a & vs & ? & ? & POS & INV & POST). subst.
-  destruct INV as (v & t1 & t2 & s & BOUNDS & ARR & STAMP & ? & ?).
+  intros m ? (i & ti & v & tv & a & vs & ? & ? & POS & INV & POST). subst.
+  destruct INV as (ta & s & BOUNDS & ARR & STAMP & ? & ?).
   subst. simpl.
   do 3 (eexists; split; eauto).
   do 6 eexists. split; eauto. simpl. split; eauto.
@@ -791,7 +792,7 @@ Proof.
   replace x' with x in *.
   { rewrite <- H. apply POST.
     unfold Ifab'.
-    do 4 eexists. split; try split; eauto; try omega. }
+    do 2 eexists. split; try split; eauto; try omega. }
   exploit memarr_load; eauto; try omega.
   intros H'.
   rewrite index_list_Z_dropZ_zero in H'; try omega.
@@ -949,8 +950,8 @@ Lemma fold_array_spec_wp' :
                      memarr m a vs /\
                      Mem.stamp a = Kernel /\
                      s = (Vptr (a, 0), t) ::: s0 /\
-                     forall m' t' s',
-                       Q m' ((fold_right f n vs,t'):::s'))
+                     forall t',
+                       Q m ((fold_right f n vs,t'):::s0))
        Q.
 Proof.
   intros.
@@ -965,18 +966,23 @@ Proof.
     eapply HT_compose; try eapply load_spec.
     eapply HT_compose; try eapply genFor_spec_wp
                        with (I := fun (Q : HProp) m s i =>
-                                    exists a vs,
-                                      Ifab' f n a vs m s i /\
-                                      forall m' s' t,
-                                        Ifab' f n a vs m' s' 0 ->
-                                        Q m' ((Vint 0,t):::s')).
+                                    exists a v tv vs s0,
+                                      s = (v, tv) ::: s0 /\
+                                      Ifab' f n a vs v m s0 i /\
+                                      forall ti v' tv',
+                                        Ifab' f n a vs v' m s0 0 ->
+                                        Q m ((Vint 0,ti) ::: (v', tv') ::: s0)).
     { intros. eexists. split.
       - eapply fab_spec'. apply HTf.
       - simpl.
-        intros m s t (a & vs & INV & HH).
-        do 5 eexists. split; eauto. split; try omega.
-        split; eauto 7. }
-    { intros m s t (a & vs & INV & POST). apply POST. trivial. }
+        intros m s t (a & v & tv & vs & s0 & ? & INV & HH). subst.
+        do 7 eexists. split; eauto. split; try omega.
+        split; eauto.
+        intros.
+        do 2 eexists. split; eauto.
+        do 5 eexists. split; eauto. }
+
+    { intros m s t (a & v & tv & vs & s0 & ? & INV & POST). subst. apply POST. trivial. }
     eapply HT_compose; try eapply pop_spec.
     eapply HT_compose; try eapply swap_spec.
     eapply pop_spec. }
@@ -987,14 +993,15 @@ Proof.
   destruct ARR as [c ? LOAD SEQ ?]. subst.
   do 4 eexists. do 3 (split; eauto).
   do 3 eexists. split; eauto. split; try omega.
-  do 2 eexists.
+  do 5 eexists. split; eauto.
   split.
   { unfold Ifab'.
-    do 4 eexists.
+    do 2 eexists.
     repeat split; eauto; try solve [econstructor; eauto]; try omega.
     rewrite dropZ_all. reflexivity. }
   clear - POST.
-  intros m' s' ? (v & ? & ? & ? & _ & ARR & KERNEL & ? & ?).
+  unfold Ifab'.
+  intros ti v' tv' (? & ? & _ & ARR & KERNEL & ? & ?).
   subst.
   do 3 eexists. split; eauto.
   do 4 eexists. do 3 (split; eauto).
@@ -1063,6 +1070,42 @@ Lemma boolToVal_existsb : forall f xs,
 Proof.
   induction xs;  simpl; auto.
   destruct (f a); unfold orv in *; simpl; auto.
+Qed.
+
+Lemma exists_array_spec :
+  forall gen_f (f : val -> bool)
+         (HTf : forall (Q : HProp),
+                  HT cblock table gen_f
+                     (fun m s => exists x tx s0,
+                                   s = (x, tx) ::: s0 /\
+                                   forall tr, Q m ((boolToVal (f x), tr) ::: s0))
+                     Q)
+         (Q : HProp),
+    HT cblock table (exists_array gen_f)
+       (fun m s => exists a vs t s0,
+                     memarr m a vs /\
+                     Mem.stamp a = Kernel /\
+                     s = (Vptr (a, 0), t) ::: s0 /\
+                     forall t, Q m ((boolToVal (existsb f vs), t) ::: s0))
+       Q.
+Proof.
+  intros.
+  unfold exists_array.
+  eapply HT_strengthen_premise.
+  { eapply fold_array_spec_wp' with
+             (n := boolToVal false)
+             (f := fun x v => orv (boolToVal (f x)) v).
+    - clear Q. intros Q.
+      eapply HT_strengthen_premise; try apply genFalse_spec.
+      simpl. auto.
+    - clear Q. intros Q.
+      eapply HT_strengthen_premise.
+      { eapply HT_compose; try eapply HTf.
+        eapply genOr_spec. }
+      split_vc. }
+  split_vc.
+  rewrite <- boolToVal_existsb.
+  trivial.
 Qed.
 
 Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
