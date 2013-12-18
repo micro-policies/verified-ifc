@@ -97,10 +97,10 @@ Definition copy :=
           [Store]).
 
 (* The loop invariant for copy. *)
-Definition Icopy (sz:Z) bdst odst bsrc osrc (m0 : memory) s0 :=
+Definition Icopy (sz cnt:Z) bdst odst bsrc osrc (m0 : memory) s0 :=
   fun m s =>
-    exists cnt t1 t2 t3,
-      s = (Vint cnt,t1):::(Vptr (bdst, odst),t2):::(Vptr (bsrc, osrc),t3):::s0 /\
+    exists t2 t3,
+      s = (Vptr (bdst, odst),t2):::(Vptr (bsrc, osrc),t3):::s0 /\
       (cnt <= sz) /\
       (forall z, osrc < z <= osrc+cnt -> valid_address (bsrc, z) m) /\
       (forall z, odst < z <= odst+cnt -> valid_address (bdst, z) m) /\
@@ -156,61 +156,62 @@ Proof.
   eapply HT_forall_exists. intro t2.
   eapply HT_forall_exists. intro t3.
   eapply HT_fold_constant_premise; intro.
-  rename Q into Q0.
-  eapply HT_consequence' with
-    (P := (fun m s => exists s' t, s = CData(Vint sz,t)::s' /\ Icopy sz bdst odst bsrc osrc m0 s0 m s))
-    (Q := (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ Icopy sz bdst odst bsrc osrc m0 s0 m s)).
-  - eapply genFor_spec; eauto.
-    intros.
-    unfold Icopy.
-    build_vc ltac:idtac; try solve [split_vc].
-    intros m s (s' & t & Hs' & i' & t4 & t5 & t6 & ? & ? & VALIDSRC & VALIDDST & ? & ? & ? & COPY & REST & ?).
-    assert (i' = i) by congruence. subst i'. clear s' Hs'.
-    subst.
-    simpl.
-    repeat (eexists; split; eauto).
-    exploit (VALIDSRC (i + osrc)); try omega. intros [val Hval].
-    exploit (VALIDDST (i + odst)); try omega. intros [val' Hval'].
-    eapply load_some_store_some in Hval'. destruct Hval' as [m' Hm'].
-    do 38 (try eexists); simpl; eauto; try omega. (* Can break if given bigger number *)
-    intros t'.
-    do 4 (try eexists); simpl; eauto.
-    repeat split; eauto; try omega.
-    + intros.
-      eapply valid_address_upd; eauto.
-      apply VALIDSRC. omega.
-    + intros.
-      eapply valid_address_upd; eauto.
-      apply VALIDDST. omega.
-    + intros.
-      destruct (Z.eq_dec i z) as [ZEQ | ZNEQ].
-      * subst.
-        replace (odst + z) with (z + odst) by omega.
-        erewrite (load_store_new Hm').
-        rewrite <- Hval.
-        replace (osrc + z) with (z + osrc) by ring.
-        eapply load_store_old; eauto.
-        congruence.
-      * do 2 (erewrite (load_store_old Hm'); eauto; try congruence).
-        2: (intros contra; inversion contra; omega).
-        eapply COPY. omega.
-    + intros.
-      erewrite (load_store_old Hm'); eauto; try congruence.
-      2: (intros contra; inversion contra; omega).
-      apply REST. omega.
-    + intros.
-      erewrite (get_frame_store_neq _ _ _ _ _ _ _ _ Hm'); eauto.
+  eapply HT_strengthen_premise.
+  { eapply genFor_spec_wp
+      with (I := fun (Q : _ -> _ -> Prop) m s i =>
+                   Icopy sz i bdst odst bsrc osrc m0 s0 m s /\
+                   forall m' s' ti',
+                     Icopy sz 0 bdst odst bsrc osrc m0 s0 m' s' ->
+                     Q m' ((Vint 0, ti') ::: s')).
+    { intros i POS.
+      eexists. split.
+      - build_vc idtac. trivial.
+      - intros m s t (INV & END).
+        unfold Icopy in *.
+        destruct INV as (t5 & t6 & Hs & ? & VALIDSRC & VALIDDST & ? & ? & ? & COPY & REST & ?).
+        subst.
+        exploit (VALIDSRC (i + osrc)); try omega. intros [val Hval].
+        exploit (VALIDDST (i + odst)); try omega. intros [val' Hval'].
+        eapply load_some_store_some in Hval'. destruct Hval' as [m' Hm'].
+        split_vc.
+        split; [|split; eauto]; eauto.
+        split_vc.
+        split.
+        { split_vc.
+          repeat split; eauto; try omega.
+          + intros.
+            eapply valid_address_upd; eauto.
+            eapply VALIDSRC. omega.
+          + intros.
+            eapply valid_address_upd; eauto.
+            apply VALIDDST. omega.
+          + intros.
+            destruct (Z.eq_dec i z) as [ZEQ | ZNEQ].
+            * subst.
+              replace (odst + z) with (z + odst) by omega.
+              erewrite (load_store_new Hm').
+              rewrite <- Hval.
+              replace (osrc + z) with (z + osrc) by ring.
+              eapply load_store_old; eauto.
+              congruence.
+            * do 2 (erewrite (load_store_old Hm'); eauto; try congruence).
+              2: (intros contra; inversion contra; omega).
+              eapply COPY. omega.
+          + intros.
+            erewrite (load_store_old Hm'); eauto; try congruence.
+            2: (intros contra; inversion contra; omega).
+            apply REST. omega.
+          + intros.
+            erewrite (get_frame_store_neq _ _ _ _ _ _ _ _ Hm'); eauto. }
+        intros. split_vc. apply END.
+        do 2 eexists. repeat (split; eauto). }
+
+    intros m s t (END & POST). eauto. }
+
+  unfold Icopy. split_vc. split.
+  - split_vc. repeat split; intros; omega.
   - split_vc.
-    unfold Icopy.
-    repeat split; auto.
-    exists sz. do 3 eexists. intuition (solve [eauto | omega]).
-  - unfold Icopy.
-    split_vc.
-    match goal with
-      | H : _ ::: _ = _ ::: _ |- _ => inv H
-    end.
-    replace (odst + 0) with odst in * by omega.
-    eauto.
+    replace (odst + 0) with odst in * by ring. eauto.
 Qed.
 
 (* A (counted) array is a sequence of values in memory, proceeded by their count:
