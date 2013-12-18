@@ -1,12 +1,12 @@
-(** Termination-Insensitive Non-Interference (TINI). 
-    Also includes some basic definitions about execution and
-    observations for a semantics. *)
-
 Require Import RelationClasses.
 Require Import Relations.
 Require Import List.
 Require Import Utils.
 Require Import Semantics.
+
+(** Termination-Insensitive Non-Interference (TINI). 
+    Also includes some basic definitions about execution and
+    observations for a semantics. *)
 
 Set Implicit Arguments.
 
@@ -156,7 +156,7 @@ Proof.
   constructor; eauto using e_low_s_low.
 Qed.
 
-(* We define an alternative notion of execution ([oexec]) that is
+(** We define an alternative notion of execution ([oexec]) that is
 similar to [exec], but removes invisible events. The difference is
 that we merge consecutive high states in an execution together as a
 single state, since the observer can't distinguish them
@@ -287,7 +287,7 @@ Proof.
   eapply high_run_high_l; eauto.
 Qed.
 
-(* Two sequences of high states starting from equivalent states result
+(** Two sequences of high states starting from equivalent states result
 in equivalent states. *)
 
 Lemma high_run_high_run : forall o s1 s1' s2 s2'
@@ -309,7 +309,7 @@ Proof.
     eapply high_run_high_l. eauto.
 Qed.
 
-(* The following lemma summarizes the previous unwinding conditions
+(** The following lemma summarizes the previous unwinding conditions
 stated in terms of [ostep], and corresponds to the inductive case when
 proving NI for [oexec]. It says that if an observer observes a step
 from two equivalent states (as defined in [ostep]), then the resulting
@@ -344,7 +344,7 @@ Proof.
       * eapply highlowstep; eauto.
 Qed.
 
-(* Noninterference in terms of [oexec] *)
+(** Noninterference in terms of [oexec] *)
 
 Lemma oexec_equiv : forall o s1 t1 s1' s2 t2 s2'
                           (Hexec1 : oexec o s1 t1 s1')

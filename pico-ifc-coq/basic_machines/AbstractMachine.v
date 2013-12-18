@@ -1,12 +1,3 @@
-(* Definition of the step relation for the abstract machine. On each
-step, the machine loads an instruction from the intruction memory at
-the current program counter and executes it, producing a new state and
-a possible output event. Errors such as stack underflows or invalid
-memory accesses cause the machine to get stuck. 
-
-Each instruction uses labels on atoms to track and control information
-flow. *)
-
 Require Import List.
 Require Import Omega.
 
@@ -16,6 +7,14 @@ Require Import Lattices.
 Require Import Instr.
 Require Export Semantics.
 Require Import AbstractCommon.
+
+
+(** Definition of the step relation for the abstract machine. On each
+step, the machine loads an instruction from the intruction memory at
+the current program counter and executes it, producing a new state and
+a possible output event. Errors such as stack underflows or invalid
+memory accesses cause the machine to get stuck.  Each instruction uses
+labels on atoms to track and control information flow. *)
 
 Set Implicit Arguments.
 
@@ -123,8 +122,8 @@ Proof.
   inv H ; eauto.
 Qed.
 
-(* We pack everything related to the abstract machine on a [semantics]
-record, as defined in [Semantics.v]. 
+(** We pack everything related to the abstract machine on a [semantics]
+record. 
 
 In addition to the basic types and the step relation defined above, we
 define a notion of initial data for the abstract machine, and a

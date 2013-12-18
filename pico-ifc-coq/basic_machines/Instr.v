@@ -44,9 +44,9 @@ Inductive Instr :=
   | Output : Instr.
 
 (** [OpCode]s are used to index TMU rules.  
-(If we ever move to having common rules for multiple instructions
-("operation groups"), we should expect one OpCode per group.)
-There is no [OpCode] for Halt, as there is no stepping rule for Halt. *)
+There is no [OpCode] for Halt, as there is no stepping rule for Halt.*)
+(* (If we ever move to having common rules for multiple instructions
+("operation groups"), we should expect one OpCode per group.) *)
 
 Inductive OpCode : Type :=
 | OpNoop 
@@ -69,6 +69,7 @@ Proof.
   destruct o; destruct o'; solve [ left; reflexivity | right; congruence ].
 Qed.
 
+(** Opcodes corresponding to instructions *)
 Definition opcode_of_instr (i : Instr) : option OpCode :=
   match i with
     | Noop => Some OpNoop

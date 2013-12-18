@@ -7,7 +7,7 @@ Require Import Coq.Unicode.Utf8.
 Require Import Vector. 
 Set Implicit Arguments.
 
-(** This file defines a DSL for rule expressions
+(** Definition of a DSL for rule expressions
     and its evaluation function. *)
 
 Section Rules.
@@ -34,7 +34,7 @@ intros; omega.
 intros; zify; omega. 
 Qed.
 
-(* Output label expressions: the Modify part *)
+(** Output label expressions: the Modify part *)
 Inductive rule_expr (n: nat) : Type :=
 | L_Bot: rule_expr n
 | L_Var: LAB n -> rule_expr n
@@ -51,8 +51,8 @@ Inductive rule_cond (n : nat) : Type :=
 (** * Rules *)    
 Record AllowModify (n:nat) := almod  {
    allow  : rule_cond n;
-   labResPC : rule_expr n;   (* The label of the result PC *)
-   labRes : rule_expr n      (* The label of the result value (always present but sometimes ignored) *)
+   labResPC : rule_expr n;   (** The label of the result PC *)
+   labRes : rule_expr n      (** The label of the result value (always present but sometimes ignored) *)
 }.
 
 (** * Rule evaluation *)

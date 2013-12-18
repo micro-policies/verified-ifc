@@ -2,7 +2,7 @@ Require Export RelationClasses.
 Require Export SetoidClass.
 Require Export Utils.
 
-(** * Definition *)
+(** * Definition and properties *)
 
 Class JoinSemiLattice (Lab: Type) :=
 { bot : Lab
@@ -38,18 +38,18 @@ Section JoinSemiLattice_properties.
 Context {T: Type}.
 
 (* AAA: used to be assumption, not used *)
-Lemma flows_join {L:JoinSemiLattice T} : forall l1 l2, l1 <: l2 = true <-> l1 \_/ l2 = l2.
-Proof.
-  intros.
-  split.
-  - intros H.
-    apply flows_antisymm.
-    + apply join_minimal; auto with lat.
-    + apply flows_join_left.
-  - intros H.
-    rewrite <- H.
-    auto with lat.
-Qed.
+(* Lemma flows_join {L:JoinSemiLattice T} : forall l1 l2, l1 <: l2 = true <-> l1 \_/ l2 = l2. *)
+(* Proof. *)
+(*   intros. *)
+(*   split. *)
+(*   - intros H. *)
+(*     apply flows_antisymm. *)
+(*     + apply join_minimal; auto with lat. *)
+(*     + apply flows_join_left. *)
+(*   - intros H. *)
+(*     rewrite <- H. *)
+(*     auto with lat. *)
+(* Qed. *)
 
 Lemma join_1_rev {L: JoinSemiLattice T} : forall l1 l2 l,
   l1 \_/ l2 <: l = true -> l1 <: l = true.
@@ -107,7 +107,7 @@ Hint Resolve
   @not_flows_not_join_flows_right
   @not_flows_not_join_flows_left : lat.
 
-(** The two point lattice *)
+(** * The two point lattice *)
 Inductive Lab : Set :=
   | L : Lab
   | H : Lab.

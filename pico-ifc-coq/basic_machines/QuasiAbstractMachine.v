@@ -1,7 +1,3 @@
-(* Quasi-Abstract Machine. 
-   Like the abstract machine, but IFC decisions are factored out into
-   a separate rule evaluator. *)
-
 Require Import List.
 Require Import Omega.
 
@@ -14,6 +10,10 @@ Require Import AbstractCommon.
 Require Import Rules.
 
 Require Vector.
+
+(* Quasi-Abstract Machine. 
+   Like the abstract machine, but IFC decisions are factored out into
+   a separate rule evaluator. *)
 
 Set Implicit Arguments.
 

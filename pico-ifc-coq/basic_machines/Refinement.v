@@ -1,14 +1,15 @@
-(** Generic notion of Refinement between Semantics *)
-
 Require Import Relations.
 Require Import List.
 Require Import Utils.
 Require Import Semantics.
 Require TINI.
 
+(** Generic notion of refinement between two semantics *)
+
 Set Implicit Arguments.
 Hint Constructors TINI.exec.
 
+(** * Definition of refinement *)
 Section Refinement.
 
 Variable S1 : semantics.
@@ -67,6 +68,7 @@ Record state_refinement := {
                                          sref_match_events
 }.
 
+(** * Refinement from state *)
 Section RefinementFromStateRefinement.
 
 Variable SR : state_refinement.
@@ -92,10 +94,13 @@ Definition refinement_from_state_refinement : refinement :=
 
 End RefinementFromStateRefinement.
 
+(** * Refinement preserves [tini] *)
+
+Section NI.
+
 Context {O1 : TINI.Observation S1}
         {O2 : TINI.Observation S2}.
 
-Section NI.
 
 Variable R : refinement.
 
@@ -178,6 +183,7 @@ Qed.
 
 End NI.
 
+(** A proof technique for proving refinement : lockstep simulation *)
 Section Strong.
 
 Variable match_events : event S1 -> event S2 -> Prop.
@@ -236,6 +242,7 @@ End Strong.
 
 End Refinement.
 
+(** * Composition of refinements *)
 Section Composition.
 
 Variable S1 : semantics.

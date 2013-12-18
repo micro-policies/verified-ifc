@@ -1,6 +1,6 @@
-Utils.vo Utils.glob Utils.v.beautified: Utils.v
-Lattices.vo Lattices.glob Lattices.v.beautified: Lattices.v Utils.vo
+Utils.vo Utils.glob Utils.v.beautified: Utils.v LibTactics.vo
 LibTactics.vo LibTactics.glob LibTactics.v.beautified: LibTactics.v
+Lattices.vo Lattices.glob Lattices.v.beautified: Lattices.v Utils.vo
 Semantics.vo Semantics.glob Semantics.v.beautified: Semantics.v Utils.vo
 Instr.vo Instr.glob Instr.v.beautified: Instr.v
 AbstractCommon.vo AbstractCommon.glob AbstractCommon.v.beautified: AbstractCommon.v Utils.vo Lattices.vo Instr.vo
@@ -16,8 +16,8 @@ CodeGen.vo CodeGen.glob CodeGen.v.beautified: CodeGen.v Utils.vo Instr.vo
 ConcreteMachine.vo ConcreteMachine.glob ConcreteMachine.v.beautified: ConcreteMachine.v Utils.vo Instr.vo Concrete.vo Semantics.vo
 Determinism.vo Determinism.glob Determinism.v.beautified: Determinism.v Utils.vo Instr.vo Concrete.vo ConcreteMachine.vo
 ConcreteExecutions.vo ConcreteExecutions.glob ConcreteExecutions.v.beautified: ConcreteExecutions.v Utils.vo Semantics.vo Instr.vo Concrete.vo ConcreteMachine.vo Determinism.vo TINI.vo
-CodeTriples.vo CodeTriples.glob CodeTriples.v.beautified: CodeTriples.v Utils.vo LibTactics.vo Instr.vo Lattices.vo Concrete.vo ConcreteMachine.vo ConcreteExecutions.vo Semantics.vo
-CodeSpecs.vo CodeSpecs.glob CodeSpecs.v.beautified: CodeSpecs.v Utils.vo LibTactics.vo Instr.vo Lattices.vo Concrete.vo CodeGen.vo CodeTriples.vo ConcreteMachine.vo ConcreteExecutions.vo Semantics.vo
+CodeTriples.vo CodeTriples.glob CodeTriples.v.beautified: CodeTriples.v Utils.vo LibTactics.vo Instr.vo Concrete.vo ConcreteExecutions.vo Semantics.vo
+CodeSpecs.vo CodeSpecs.glob CodeSpecs.v.beautified: CodeSpecs.v Utils.vo LibTactics.vo Instr.vo Semantics.vo Concrete.vo CodeGen.vo CodeTriples.vo ConcreteMachine.vo ConcreteExecutions.vo
 Encodable.vo Encodable.glob Encodable.v.beautified: Encodable.v Lattices.vo CodeGen.vo Concrete.vo LibTactics.vo
 CLattices.vo CLattices.glob CLattices.v.beautified: CLattices.v LibTactics.vo Instr.vo Lattices.vo Concrete.vo CodeGen.vo CodeTriples.vo CodeSpecs.vo Encodable.vo
 CLabels.vo CLabels.glob CLabels.v.beautified: CLabels.v Instr.vo CodeSpecs.vo CodeTriples.vo Concrete.vo Encodable.vo Utils.vo

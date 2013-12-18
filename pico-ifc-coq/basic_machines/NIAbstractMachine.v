@@ -1,5 +1,3 @@
-(** The Abstract Machine enjoys TINI. *)
-
 Require Import ZArith.
 Require Import List.
 
@@ -14,6 +12,8 @@ Require Import AbstractCommon.
 Require Import AbstractMachine.
 Require TINI.
 
+(** The Abstract Machine satisfies TINI. *)
+
 Set Implicit Arguments.
 
 Section ObsEquiv.
@@ -21,6 +21,7 @@ Section ObsEquiv.
 Context {Label: Type}.
 Context {Latt: JoinSemiLattice Label}.
 
+(** * Low equivalence relations *)
 Definition low_pc (o: Label) (s: AS) : Prop :=
   snd (apc s) <: o = true.
 
@@ -30,7 +31,6 @@ Proof.
   destruct (flows (snd (apc s)) o); auto.
 Qed.
 
-(** * Low equivalence relations *)
 Inductive low_equiv_atom (o: Label) : relation (@Atom Label) := 
 | le_a_low : forall l v, l <: o = true -> low_equiv_atom o (v,l) (v,l)
 | le_a_high: forall l1 l2 v1 v2, 
@@ -502,7 +502,7 @@ Proof.
   eapply index_list_low_equiv_some; eauto.
 Qed.
 
-
+(** Visible event for a given observer [o] *)
 Inductive visible_event (o : Label) : (@Event Label) -> Prop :=
 | ve_low : forall i l, l <: o = true -> visible_event o (EInt (i, l)).
 Hint Constructors visible_event.
@@ -943,7 +943,6 @@ Proof.
   exact AMUnwindingSemantics. 
 Qed.
 
-(* DD/AAA : Does writing things this way in the final theorem would make things less ambiguous? *)
 Theorem abstract_noninterference :
   @TINI.tini abstract_machine AMObservation.
 Proof. 

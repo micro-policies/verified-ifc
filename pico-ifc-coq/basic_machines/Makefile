@@ -7,7 +7,8 @@ COQEXEC=coqtop $(INCLUDES) -batch -load-vernac-source
 DEP2DOT=../dep2dot/dep2dot
 
 VS=\
-	Utils.v Lattices.v LibTactics.v \
+	Utils.v LibTactics.v \
+	Lattices.v \
 	Semantics.v Instr.v \
 	AbstractCommon.v AbstractMachine.v \
 	Rules.v QuasiAbstractMachine.v \

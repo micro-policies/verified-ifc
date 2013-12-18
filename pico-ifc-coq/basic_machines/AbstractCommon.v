@@ -1,7 +1,3 @@
-(* These auxiliary definitions and lemmas are used in the semantics of
-the abstract and quasi-abstract machines. They are stack machines with
-memories. *)
-
 Require Import List.
 Require Import Utils.
 
@@ -12,7 +8,12 @@ Set Implicit Arguments.
 
 Local Open Scope Z_scope.
 
-(* The stack in our machines is used both for regular data and for
+(** These auxiliary definitions and lemmas are used in the semantics of
+the abstract and quasi-abstract machines. They are stack machines with
+memories. *)
+
+
+(** The stack in our machines is used both for regular data and for
 recording function calls. In order to prevent invalid information
 flows, we need to treat these two cases differently. Thus, a stack
 element [StkElmt] is either a regular piece of data, tagged by
@@ -25,28 +26,18 @@ Inductive StkElmt {T:Type} :=
 | AData : @Atom T -> @StkElmt T
 | ARet : @Atom T -> bool -> @StkElmt T.
 
-(* [AS] is the type of states for the abstract and symbolic rule
+(** [AS] is the type of states for the abstract and symbolic rule
 machines. It is parametric over the type used for the labels on
 atoms. *)
 
 Record AS {T: Type}  := AState {
-
-  (* The data memory. Its size is fixed during execution. *)
-  amem : list (@Atom T);
-
-  (* The instruction memory. Doesn't change during execution. *)
-  aimem : list Instr;
-
-  (* Stack *)
-  astk : list (@StkElmt T);
-
-  (* Program counter *)
-  apc : @Atom T  
-
+  amem : list (@Atom T);   (** The data memory. Its size is fixed during execution. *)
+  aimem : list Instr;   (** The instruction memory. Doesn't change during execution. *)
+  astk : list (@StkElmt T);  (** Stack *)
+  apc : @Atom T  (** Program counter *)
 }.
 
-(* When stepping, the machines may output an [Event] *)
-
+(** When stepping, the machines may output an [Event] *)
 Inductive Event {T: Type} :=
 | EInt : @Atom T -> @Event T.
 
@@ -57,7 +48,7 @@ Section ARuleMachine.
 Context {T: Type}
         {Latt: JoinSemiLattice T}.
 
-(* [pop_to_return stk1 stk2] expresses that [stk2] is obtained from
+(** [pop_to_return stk1 stk2] expresses that [stk2] is obtained from
 [stk1] by popping all the data items off the top of [stk1], stopping
 when a return address is found. It is used to define the semantics of
 the return instructions. *)

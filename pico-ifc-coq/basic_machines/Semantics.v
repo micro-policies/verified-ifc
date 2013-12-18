@@ -1,10 +1,10 @@
 Require Import Utils.
 Set Implicit Arguments.
 
-(* The [semantics] record describes the structure of a generic
+(** The [semantics] record describes the structure of a generic
 machine. The [step] relation transitions between elements of type
 [state], producing actions which can be either an [event], or the
-silent action [Silent]. [init_state] specifies how to build the
+silent action [τ]. [init_state] specifies how to build the
 initial state of an execution from some initial data. *)
 
 Record semantics :=
