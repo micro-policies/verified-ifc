@@ -1,12 +1,13 @@
 Require Import ZArith.
 Require Import List.
-
 Require Import Instr.
 Require Import CodeSpecs.
 Require Import CodeTriples.
 Require Import Concrete.
 Require Import Encodable.
 Require Import Utils.
+
+(** Definition of a type class for mapping quasi abstract rules to concrete rule implementations *)
 
 Definition listify_apply_rule {T} `{Encodable T} (ar: option (T * T)) (s0: stack): stack :=
   match ar with

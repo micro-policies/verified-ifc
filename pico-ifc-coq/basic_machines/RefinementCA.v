@@ -1,16 +1,14 @@
-(* The Abstract Machine refines the Concrete Machine (with appropriate fault handler). *)
-
-Require Import Semantics.
-Require Import Relations.
+Require Import Coq.Logic.Classical_Prop.
 Require Import EqNat.
 Require Import ZArith.
 Require Import List.
+Require Import Relations.
 Require Import FunctionalExtensionality.
-Require Import Utils Lattices CLattices.
 
+Require Import Semantics.
+Require Import Utils Lattices CLattices.
 Require Import Instr.
 Require Import AbstractCommon Rules QuasiAbstractMachine.
-
 Require Import Concrete ConcreteMachine CodeGen CodeSpecs.
 Require Import FaultRoutine.
 Require Import Determinism.
@@ -19,10 +17,10 @@ Require Import Refinement.
 Require Import RefinementAC.
 Require Import Encodable.
 
+(** The Abstract Machine refines the Concrete Machine (with appropriate fault handler). *)
+
 Set Implicit Arguments.
 Local Open Scope Z_scope.
-
-Axiom classic : forall P, P \/ ~P.
 
 Section QuasiAbstractAbstract.
 
@@ -738,26 +736,10 @@ Proof.
   eapply step_preserved; eauto.
 Qed.
 
-(*
-Lemma succ_preserved:
-  forall s1 s2,
-    match_states s1 s2 ->
-    (success s1 <-> c_success s2).
-Proof.
-  induction 1; intros.
-  split;
-    ((unfold success, c_success; simpl);
-     (inv MEM);
-     (destruct apc; simpl);
-     (destruct (read_m z i); intuition);
-     (destruct i0 ; intuition)).
-Qed.
-*)
-
 End Refinement.
 
 (** Combining the above into the final result *)
-(** This is where we INSTANTIATE THE GENERIC REFINEMENT *)
+(** This is where we instantiate the generic refinement *)
 Section RefCA.
 
 Context {observer: Type}

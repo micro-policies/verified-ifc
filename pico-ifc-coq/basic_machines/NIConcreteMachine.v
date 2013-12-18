@@ -1,5 +1,3 @@
-(* The concrete machine enjoys TINI. *)
-
 Require Import List.
 Require Import ZArith.
 
@@ -19,10 +17,12 @@ Require Import RefinementAC.
 Require Import Encodable.
 Require TINI.
 
+(** The concrete machine enjoys TINI. *)
+
+
 Open Scope Z_scope.
 
 Set Implicit Arguments.
-
 
 Section NI.
 
@@ -114,9 +114,3 @@ Proof.
 Qed.
 
 End NI.
-
-(* DD: We stick with the "implicit types" formulation of the theorem, but
-       you can print it fully using:
-Set Printing All.
-Check @concrete_noninterference.
-*)

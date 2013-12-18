@@ -24,16 +24,6 @@ Inductive LAB (n: nat) : Type :=
 | lab3 : 3 <= n -> LAB n
 | labpc : LAB n. 
 
-Fixpoint nlem (n:nat) (m:nat) : n<=(n+m).
-refine
-(match m with
-| O => _ (le_n n)
-| S m' => _ (le_S _ _ (nlem n m'))
-end). 
-intros; omega. 
-intros; zify; omega. 
-Qed.
-
 (** Output label expressions: the Modify part *)
 Inductive rule_expr (n: nat) : Type :=
 | L_Bot: rule_expr n
@@ -103,6 +93,17 @@ Definition apply_rule {n:nat} (r: AllowModify n)
 End Rules. 
 
 (** * Cosmetic notations for writing and applying rules *)
+Fixpoint nlem (n:nat) (m:nat) : n<=(n+m).
+Proof.
+refine
+(match m with
+| O => _ (le_n n)
+| S m' => _ (le_S _ _ (nlem n m'))
+end). 
+intros; omega. 
+intros; zify; omega. 
+Qed.
+
 Notation "'≪' c1 , lpc , e1 '≫'" := (almod c1 lpc e1) (at level 95, no associativity).
 Notation "'≪' c1 , lpc , '__' '≫'" := (almod c1 lpc (L_Bot _)) (at level 95, no associativity).
 Notation "'LabPC'" := (L_Var (labpc _)).

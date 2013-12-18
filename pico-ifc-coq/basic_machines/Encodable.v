@@ -6,12 +6,15 @@ Require Import LibTactics.
 
 Open Scope Z_scope.
 
+(** The type [L] is encodable to integers if we have the following two-way mapping. *)
+
 Class Encodable (L : Type) := {
   labToZ : L -> Z;
   ZToLab : Z -> L;
   ZToLab_labToZ_id : forall l, l = ZToLab (labToZ l)
 }.
 
+(** The two-point lattice element are encodable to integers. *)
 Program Instance EncodableHL : Encodable Lab := {
 
   labToZ l :=
@@ -30,6 +33,8 @@ Program Instance EncodableHL : Encodable Lab := {
 
 Next Obligation. destruct l; auto. Qed.
 
+
+(** Connecting vectors of encodable labels to triples of concrete (integer) tags. *)
 Section Encodable.
 
 Context {T : Type}
@@ -43,7 +48,6 @@ Proof.
   apply f_equal; auto.
 Qed.
 
-(* Connecting vectors of labels to triples of tags. *)
 Import Vector.VectorNotations.
 Local Open Scope nat_scope.
 
@@ -83,10 +87,6 @@ Proof.
   unfold nth_labToZ.
   destruct (le_lt_dec n m).
   false; omega.
-  (* NC: Interesting: here we have two different proofs [m < n0] being
-  used as arguments to [nth_order], and we need to know that the
-  result of [nth_order] is the same in both cases.  I.e., we need
-  proof irrelevance! *)
   erewrite nth_order_proof_irrel; eauto.
 Qed.
 

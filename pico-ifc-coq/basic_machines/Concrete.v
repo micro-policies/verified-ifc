@@ -1,19 +1,17 @@
-(* Basic definitions for the concrete machine.
+Require Import List.
+Require Import Omega.
+Require Import Utils.
+Require Import Instr.
+Set Implicit Arguments.
+Local Open Scope Z_scope.
+
+(** Basic definitions for the concrete machine.
 
 The concrete machine is very similar to the 2 other machines, but uses
 integer tags on its atoms instead of elements drawn from some abstract
 lattice. Special kernel code takes care of managing those tags through
 a cache, unlike in the other machines, where the label management is
 built into the semantics. *)
-
-Require Import List.
-Require Import Omega.
-
-Require Import Utils.
-Require Import Instr.
-
-Set Implicit Arguments.
-Local Open Scope Z_scope.
 
 Section CMach.
 
@@ -25,7 +23,7 @@ Inductive CStkElmt :=
 | CData : @Atom Z -> CStkElmt 
 | CRet : @Atom Z -> bool -> bool -> CStkElmt.
 
-(* The state of the concrete machine, [CS], adds three fields to the
+(** The state of the concrete machine, [CS], adds three fields to the
 state of the abstract machine: the kernel memory ([cache]), which
 contains the cache, the kernel code ([fhdl], for fault handler), and
 [priv], which signals the current operation mode (user or kernel). *)
@@ -43,7 +41,7 @@ Record CS  := CState {
 Inductive CEvent :=
 | CEInt : @Atom Z -> CEvent.
 
-(* An encoding of opcodes as integers *)
+(** An encoding of opcodes as integers *)
 
 Definition opCodeToZ (opcode : OpCode) : Z :=
 match opcode with 
@@ -62,7 +60,7 @@ match opcode with
 | OpOutput   => 12
 end.
 
-(* Any number that doesn't occur in the above list. *)
+(** Any number that doesn't occur in the above list. *)
 
 Definition invalidOpCodeZ := 13.
 
@@ -93,7 +91,7 @@ Definition addrTagRes   := 5.
 (* Tag that should be put on the next PC *)
 Definition addrTagResPC := 6.
 
-(* Special tags. [handlerTag] is the kernel tag; [dontCare] is used as
+(** Special tags. [handlerTag] is the kernel tag; [dontCare] is used as
 a default tag when an instruction doesn't have enough operands 
 
 These can be completely arbitrary integers, 
@@ -107,8 +105,7 @@ Section WithListNotations.
 
 Import ListNotations.
 
-
-(* Build and update a cache from its input fields, filling its output
+(** Build and update a cache from its input fields, filling its output
 fields with [dontCare]. NB: Ordering of parameters in memory must
 match addr* definitions above. *)
 
@@ -133,7 +130,7 @@ Inductive tag_in_mem' (m: list (@Atom Z)) addr tagv : Prop :=
 | tim_intro' : forall t, index_list_Z addr m = Some (tagv,t) ->
                tag_in_mem' m addr tagv.
 
-(* Tests the cache line *)  
+(** Tests the cache line *)  
 Inductive cache_hit (m: list (@Atom Z)) opcode tags pctag : Prop := 
 | ch_intro: forall tag1 tag2 tag3 tagr tagrpc
                      (UNPACK : tags = (tag1,tag2,tag3))
@@ -156,7 +153,7 @@ Proof.
   try unfold addrTagPC; unfold index_list_Z; econstructor; reflexivity. 
 Qed.
 
-(* Reads the cache line *)
+(** Reads the cache line *)
 Inductive cache_hit_read (m: list (@Atom Z)) : Z -> Z -> Prop :=
 | chr_uppriv: forall tagr tagrpc,
               forall (TAG_Res: tag_in_mem' m addrTagRes tagr)

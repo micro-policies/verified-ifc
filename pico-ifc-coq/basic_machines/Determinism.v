@@ -1,17 +1,15 @@
-(* The concrete machine is deterministic. *)
-
 Require Import Relations.
 Require Import EqNat.
 Require Import ZArith.
 Require Import List.
 Require Import Utils.
-
 Require Import Instr.
-
 Require Import Concrete ConcreteMachine.
 
 Set Implicit Arguments.
 Local Open Scope Z_scope. 
+
+(** The concrete machine is deterministic. *)
 
 Section Determinism.
 

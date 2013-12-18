@@ -1,9 +1,5 @@
-(* Some alternative predicates for expressing execution of kernel-mode
-code. Used in the specification of the fault handler *)
-
 Require Import List.
 Require Import ZArith.
-
 Require Import Utils.
 Require Import Semantics.
 Require Import Instr.
@@ -15,9 +11,12 @@ Open Scope Z_scope.
 
 Set Implicit Arguments.
 
+(** Some alternative predicates for expressing execution of kernel-mode
+code. Used in the specification of the fault handler *)
+
 Section CExec.
 
-(* [runsUntilUser s1 s2] says that the machine starts in some kernel
+(** [runsUntilUser s1 s2] says that the machine starts in some kernel
 states [s1], makes some steps while staying in kernel mode, and
 finally ends in state [s2] in user mode. *)
 
@@ -80,7 +79,7 @@ Proof.
   congruence.
 Qed.
 
-(* [runsToEnd] is similar to [runsUntilUser], but we end the execution
+(** [runsToEnd] is similar to [runsUntilUser], but we end the execution
 in kernel mode instead of user mode *)
 
 Inductive runsToEnd : CS -> CS -> Prop :=
@@ -126,7 +125,7 @@ Lemma runsUntilUser_trans : forall s1 s2 s3,
                                       runsUntilUser s1 s3.
 Proof. induction 1; eauto. Qed.
 
-(* Finally, [runsToEscape] is also similar to [runsToEnd] and
+(** Finally, [runsToEscape] is also similar to [runsToEnd] and
 [runsUntilUser], but the final state can either be in user mode or in
 kernel mode with an invalid pc, representing the fact that the
 execution was stopped by the kernel code. *)

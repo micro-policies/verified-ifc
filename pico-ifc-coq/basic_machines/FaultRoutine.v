@@ -22,6 +22,10 @@ Require Import Encodable.
 Require Import CLabels.
 Require Import QuasiAbstractMachine.
 
+(** * Definition of the fault handler generator *)
+
+(** The following definition, and specification are generic in the abstract notion of label, and in the encoding thereof. 
+    We instanciate with IFC label and their concrete encoding at the end of the file *)
 Section FaultHandler.
 
 Context {T : Type}
@@ -60,12 +64,10 @@ Definition faultHandler: code :=
   ifNZ [Ret] genError.
 
 
-(* ================================================================ *)
-(* Fault-handler Code Specifications                                *)
+(** * Fault-handler Code Specifications.  *)
 Section TMUSpecs.
 
-
-(* Connecting to the definition used in Concrete.v *)
+(** Connecting to the definition used in [Concrete.v] *)
 Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
     cache_hit m (opCodeToZ opcode) (labsToZs vls) (labToZ pcl) ->
     handler_initial_mem_matches
@@ -94,8 +96,7 @@ Ltac clean_up_initial_mem :=
   intuition;
   jauto_set_hyps; intros.
 
-
-
+(** Spec of the code generated for a given opcode's rule *)
 Lemma genRule_spec_GT :
   forall ar,
     run_tmr opcode pcl vls = ar ->
@@ -110,6 +111,7 @@ Proof.
   - intros m s (H1 & H2 & H3). subst. eauto.
 Qed.
 
+(** Spec of the code for comparison against a given opcode *)
 Lemma genCheckOp_spec:
   forall opcode', forall s0,
     HT (genCheckOp opcode')
@@ -157,9 +159,6 @@ Definition Qnil: GProp := fun m0' s0 m s => True.
 Definition genV: OpCode -> HFun :=
   fun i _ _ => boolToZ (opCodeToZ i =? opCodeToZ opcode).
 Definition genC: OpCode -> code := genCheckOp.
-
-(*
-Definition genB: OpCode -> code := genApplyRule' fetch_rule_impl. *)
 
 Definition genQ: OpCode -> GProp :=
          (fun i m0' s0 m s => m = m0 /\
@@ -214,6 +213,7 @@ Proof.
     | eapply genRule_spec_GT_guard_v ]).
 Qed.
 
+(** Spec for the top level switch case on the opcode *)
 Lemma genComputeResults_spec_GT:
   GT genComputeResults
      (fun m s => m = m0)
@@ -243,8 +243,8 @@ Proof.
     cases opcode; simpl; intuition.
 Qed.
 
-(* Under our assumptions, [genComputeResults] just runs the appropriate
-   [genApplyRule]: *)
+(** Under our assumptions, [genComputeResults] just runs the appropriate
+   [genApplyRule] *)
 Lemma genComputeResults_spec:
     forall s0,
       HT   genComputeResults
@@ -260,6 +260,7 @@ Proof.
   simpl; iauto.
 Qed.
 
+(** Spec for storing the result of a rule application *)
 Lemma genStoreResults_spec_Some: forall lr lrpc,
   valid_address addrTagRes m0 ->
   valid_address addrTagResPC m0 ->
@@ -323,7 +324,7 @@ Proof.
   jauto.
 Qed.
 
-(* The irrelevant memory never changes *)
+(** The irrelevant memory never changes *)
 Lemma genStoreResults_update_cache_spec_rvec:
   valid_address addrTagRes m0 ->
   valid_address addrTagResPC m0 ->
@@ -404,6 +405,7 @@ Proof.
   transitivity (read_m addr m'); eapply update_list_Z_spec2; eauto.
 Qed.
 
+(** Spec of the code handling a disallowed instruction *)
 Lemma genError_specEscape: forall raddr (P: memory -> stack -> Prop),
   HTEscape raddr genError
            P
@@ -419,6 +421,7 @@ Proof.
   split_vc.
 Qed.
 
+(** Spec of the fault-handler return  *)
 Definition genFaultHandlerReturn: code := ifNZ [Ret] genError.
 
 Lemma genFaultHandlerReturn_specEscape_Some: forall raddr lr lpc,
@@ -501,7 +504,7 @@ End FaultHandlerSpec.
 
 End TMUSpecs.
 
-(** Main result of this file : the correctness theorems of the fault handler generator *)
+(** ** Correctness theorems of the fault handler generator *)
 Section HandlerCorrect.
 
 Theorem handler_correct_succeed :
@@ -548,6 +551,9 @@ End HandlerCorrect.
 
 End FaultHandler.
 
+(** * Instanciating the above results for IFC labels *)
+
+(** ** TMU Fault Handler generator  *)
 Section TMU.
 
 Open Local Scope Z_scope.
@@ -558,10 +564,8 @@ Context {T: Type}
         {ELatt : Encodable T}
         {WFCLatt: WfConcreteLattice T Latt CLatt ELatt}.
 
-(* --------------------- TMU Fault Handler code ----------------------------------- *)
 
-(* Compilation of rules *)
-
+(** Compilation of rules *)
 
 Definition genVar {n:nat} (l:LAB n) :=
   match l with
@@ -599,6 +603,7 @@ Definition genApplyRule {n:nat} (am:AllowModify n): code :=
 
 End TMU.
 
+(** * Specifications *)
 Section IFC.
 
 Context {T : Type}

@@ -1,9 +1,6 @@
-(** The Concrete Machine (with appropriate Fault Handler) refines the Abstract Machine. *)
-
 Require Import List.
 Require Import ZArith.
 Require Import FunctionalExtensionality.
-
 Require Import Utils.
 Require Import Lattices.
 Require Import CLattices.
@@ -24,8 +21,9 @@ Require Import Encodable.
 Open Scope Z_scope.
 Coercion Z_of_nat : nat >-> Z.
 
-Set Implicit Arguments.
+(** The Concrete Machine (with appropriate Fault Handler) refines the Abstract Machine. *)
 
+Set Implicit Arguments.
 
 (** * First refinement : from the abstract to the quasi-abstract machine *)
 Section AbstractQuasiAbstract.
@@ -75,10 +73,8 @@ Program Definition abstract_quasi_abstract_ref :=
 
 End AbstractQuasiAbstract.
 
-
-
 (** * Second Refinement:
-     from the QUASI_ABSTRACT_MACHINE to the concrete machine *)
+     from the quasi-abstract machine to the concrete machine *)
 
 (** Matching relation between concrete and abstract values
     Generic in the rule table and fault handler *)
@@ -297,8 +293,6 @@ Qed.
 Hint Resolve match_stacks_c_pop_to_return.
 
 (** Generic fault handler code *)
-(* I'm trying to know whether we could get a fully generic proof of refinement.
-   but have to fight with Ltac. Keep this please. *)
 Variable fetch_rule_g : forall (o: OpCode), AllowModify (labelCount o).
 
 Definition fetch_rule_impl : fetch_rule_impl_type :=
@@ -432,7 +426,7 @@ Proof.
 Qed.
 
 
-(** The refinement proof itself. Generic in the rule table used to generate the FH *)
+(** The refinement proof itself. Generic in the rule table used to generate the fault handler *)
 
 Section RefQAC.
 
@@ -998,10 +992,8 @@ Definition quasi_abstract_concrete_ref :
 End RefQAC.
 End MatchAbstractConcrete.
 
-
-
-(** Combining the above into the final result *)
-(** This is where we INSTANTIATE THE GENERIC REFINEMENT! *)
+(** * Combining the above into the final result *)
+(** This is where we instantiate the generic refinement. *)
 Section RefAC.
 
 Context {observer: Type}

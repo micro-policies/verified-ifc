@@ -1,9 +1,7 @@
 Require Import List.
 Require Import Omega.
-
 Require Import Utils.
 Require Import Lattices.
-
 Require Import Instr.
 Require Import Semantics.
 Require Import AbstractCommon.
@@ -11,7 +9,7 @@ Require Import Rules.
 
 Require Vector.
 
-(* Quasi-Abstract Machine. 
+(** Quasi-Abstract Machine. 
    Like the abstract machine, but IFC decisions are factored out into
    a separate rule evaluator. *)
 
@@ -23,7 +21,7 @@ Definition run_tmr_type (labelCount : OpCode -> nat) (T : Type) :=
          (labs : Vector.t T (labelCount opcode)),
     option (T * T).
 
-(* How many argument labels come with this OpCode ? *)
+(** Count how many argument labels come with this OpCode ? *)
 Definition labelCount (c:OpCode) : nat :=
 match c with
 | OpNoop => 0
@@ -43,11 +41,10 @@ end.
 
 Local Open Scope Z_scope.
 
+(** * Rules of the abstract machine  *)
+
 Section QAMachine.
-
 Context {T: Type}.
-
-(** * Rules of the abstract machine :  *)
 
 (** The [run_tmr opcode pclab labs] should say if an instruction is
 allowed to execute on a given combination of PC label ([pclab]) and
@@ -62,34 +59,34 @@ Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop :=
 | step_nop : forall m i s pcv pcl rpcl rl,
     index_list_Z pcv i = Some Noop ->
     run_tmr OpNoop pcl <||> = Some (rpcl,rl) ->
-    step_rules (AState m i s (pcv,pcl)) Silent (AState m i s (pcv+1,rpcl))
+    step_rules (AState m i s (pcv,pcl)) τ (AState m i s (pcv+1,rpcl))
 
 | step_add: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l, 
     index_list_Z pcv i = Some Add ->
     run_tmr OpAdd pcl <|x1l;x2l|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i ((AData (x1v+x2v,rl))::s) (pcv+1,rpcl))
 
 | step_sub: forall m i s pcv pcl rpcl rl x1v x1l x2v x2l, 
     index_list_Z pcv i = Some Sub ->
     run_tmr OpSub pcl <|x1l;x2l|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (x1v,x1l)::(AData (x2v,x2l))::s)) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i ((AData (x1v-x2v,rl))::s) (pcv+1,rpcl))
 
 | step_push: forall m i s pcv pcl rpcl rl cv,
     index_list_Z pcv i = Some (Push cv) ->
     run_tmr OpPush pcl <||> = Some (rpcl,rl) ->
     step_rules (AState m i s (pcv,pcl)) 
-               Silent
+               τ
                (AState m i ((AData (cv,rl))::s) (pcv+1,rpcl))
 
 | step_pop: forall m i s pcv pcl rpcl rl a,
     index_list_Z pcv i = Some Pop ->
     run_tmr OpPop pcl <||> = Some (rpcl,rl) ->
     step_rules (AState m i (AData a :: s) (pcv,pcl))
-               Silent
+               τ
                (AState m i s (pcv+1,rpcl))
 
 | step_load: forall m i s pcv pcl addrv addrl xv xl rl rpcl, 
@@ -97,7 +94,7 @@ Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop :=
     index_list_Z addrv m = Some (xv,xl) ->
     run_tmr OpLoad pcl <|addrl;xl|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (addrv,addrl))::s) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i ((AData (xv, rl))::s) (pcv+1,rpcl))
 
 | step_store: forall m i s pcv pcl addrv addrl xv xl mv ml rl rpcl m', 
@@ -106,21 +103,21 @@ Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop :=
     update_list_Z addrv (xv, rl) m = Some m' ->
     run_tmr OpStore pcl <|addrl;xl;ml|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (addrv,addrl))::(AData (xv,xl))::s) (pcv,pcl)) 
-               Silent 
+               τ 
                (AState m' i s (pcv+1,rpcl))
 
 | step_jump: forall m i s pcv pcl pcv' pcl' rl rpcl, 
     index_list_Z pcv i = Some Jump ->
     run_tmr OpJump pcl <|pcl'|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (pcv',pcl'))::s) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i s (pcv',rpcl))
                
 | step_branchnz_true: forall m i s pcv pcl offv al rl rpcl,
     index_list_Z pcv i = Some (BranchNZ offv) -> (* relative target *)
     run_tmr OpBranchNZ pcl <|al|> = Some (rpcl,rl) ->
     step_rules (AState m i ((AData (0,al))::s) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i s (pcv+1,rpcl))
 
 | step_branchnz_false: forall m i s pcv pcl offv av al rl rpcl, 
@@ -128,7 +125,7 @@ Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop :=
     run_tmr OpBranchNZ pcl <|al|> = Some (rpcl,rl) ->
     av <> 0 ->
     step_rules (AState m i ((AData (av,al))::s) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i s (pcv+offv,rpcl))
 
 | step_call: forall m i s pcv pcl pcv' pcl' rl rpcl args a r, 
@@ -137,21 +134,21 @@ Inductive step_rules : @AS T -> (@Event T)+τ -> @AS T -> Prop :=
     length args = a ->
     (forall a, In a args -> exists d, a = AData d) ->
     step_rules (AState m i ((AData (pcv',pcl'))::args++s) (pcv,pcl)) 
-               Silent
+               τ
                (AState m i (args++(ARet (pcv+1,rl) r)::s) (pcv',rpcl))
 
 | step_ret: forall m i s pcv pcl pcv' pcl' rl rpcl s' , 
     index_list_Z pcv i = Some Ret -> 
     pop_to_return s ((ARet (pcv',pcl') false)::s') ->
     run_tmr OpRet pcl <|pcl'|> = Some (rpcl,rl) ->
-    step_rules (AState m i s  (pcv,pcl)) Silent (AState m i s' (pcv',rpcl))
+    step_rules (AState m i s  (pcv,pcl)) τ (AState m i s' (pcv',rpcl))
 
 | step_vret: forall m i s pcv pcl pcv' pcl' rl rpcl resv resl s' , 
     index_list_Z pcv i = Some VRet -> 
     pop_to_return s ((ARet (pcv',pcl') true)::s') ->
     run_tmr OpVRet pcl <|resl;pcl'|> = Some (rpcl,rl) ->
     step_rules (AState m i (AData (resv,resl)::s) (pcv,pcl)) 
-               Silent (AState m i (AData (resv, rl)::s') (pcv',rpcl))
+               τ (AState m i (AData (resv, rl)::s') (pcv',rpcl))
 
 | step_output: forall m i s pcv pcl rl rpcl xv xl, 
     index_list_Z pcv i = Some Output -> 

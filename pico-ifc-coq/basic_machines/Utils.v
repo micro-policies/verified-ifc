@@ -834,6 +834,7 @@ Definition remove_none {T} (l : list (option T)) :=
 
 Inductive with_silent {T:Type} := | E (e:T) | Silent.
 Notation "T +τ" := (@with_silent T) (at level 1).
+Notation " 'τ' " := (Silent) (at level 1).
 
 (** Reflexive transitive closure. *)
 Definition op_cons (E: Type) (oe: E+τ) (l: list E) :=
