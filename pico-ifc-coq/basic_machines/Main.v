@@ -17,7 +17,7 @@ Require Import Encodable.
 
 Section Main.
 
-(* We consider some arbitrary type [T] equipped with a lattice
+(** We consider some arbitrary type [T] equipped with a lattice
    structure [L]. [L] is implemented by the concrete lattice [CL], which
    is assumed to be a correct implementation, as denoted by [WF]. *)
 
@@ -27,7 +27,7 @@ Variable CL : ConcreteLattice T.
 Variable EL : Encodable T.
 Variable WF : WfConcreteLattice T L CL EL.
 
-(* Some handy notations *)
+(** Some handy notations *)
 Notation "s1 →* [ t ] s2" := (exec s1 t s2) (at level 60).
 Notation "i1 ≈i [ o ] i2" := (i_equiv o i1 i2) (at level 60).
 Notation "t1 ≈t t2" := (ti_trace_indist t1 t2) (at level 60).
@@ -41,7 +41,7 @@ Notation "tq ▷Rt tc" := (match_traces (quasi_abstract_machine _)
                                        match_events tq tc) (at level 60).
 
 
-(* The generic concrete machine refines the generic symbolic machine.
+(** The generic concrete machine refines the generic symbolic machine.
    The genericity lies here in the parameter [rule_table] that is used
    to define both machines 
 
@@ -66,7 +66,7 @@ Proof.
   intros. eapply (ref_prop (quasi_abstract_concrete_ref rule_table)) ; eauto. 
 Qed.
     
-(* The concrete machine running with the correct fault handler refines
+(** The concrete machine running with the correct fault handler refines
    the abstract machine *)
 
 Theorem refinement_abstract_concrete :
@@ -82,7 +82,7 @@ Theorem refinement_abstract_concrete :
       ta ▷t tc.
 Proof. intros. eapply (ref_prop abstract_concrete_ref); eauto. Qed.
 
-(* The abstract machine refines the concrete machine running with the
+(** The abstract machine refines the concrete machine running with the
    correct fault handler *)
 
 Theorem refinement_concrete_abstract :
@@ -99,7 +99,7 @@ Theorem refinement_concrete_abstract :
 Proof. intros. eapply (ref_prop concrete_abstract_ref); simpl; eauto. Qed.
 
 
-(* Definition of Termination-insensitive noninterference (TINI) *)
+(** Definition of Termination-insensitive noninterference (TINI) *)
 
 Definition TINI (S:semantics) (O:Observation S) : Prop :=
   forall (o : observer (S:=S))
@@ -112,27 +112,25 @@ Definition TINI (S:semantics) (O:Observation S) : Prop :=
     observe O o t1 ≈t observe O o t2.
 
 
-(* The abstract machine has TINI *)
+(** The abstract machine has TINI *)
 
 Theorem ni_abstract_machine : TINI abstract_machine AMObservation.
 Proof. unfold TINI. intros. eapply abstract_noninterference; eauto. Qed.
 
 
 
-(* TINI is preserved by refinement *)
+(** TINI is preserved by refinement ([S2] refines [S1], and some technical conditions (see paper's Section 10) *)
 Theorem tini_preservation_by_refinement : 
   forall (S1 S2 : semantics) (O1 : Observation S1) (O2 : Observation S2)
     (match_i: init_data S1 -> init_data S2 -> Prop)
     (match_e: event S1 -> event S2 -> Prop),
   
-    (* S2 refines S1 *)
     (forall i1 i2 t2 s2,
          match_i i1 i2 -> 
          (init_state S2 i2) →*[t2] s2 ->
          exists t1 s1,
            (init_state S1 i1) →*[t1] s1 /\ match_traces S1 S2 match_e t1 t2) ->
 
-    (* some technical conditions (see Section 10) *)
     (forall o2, exists o1,
        (forall e1 e2, match_e e1 e2 -> (e_low o1 e1 <-> e_low o2 e2))
        /\
@@ -143,7 +141,7 @@ Theorem tini_preservation_by_refinement :
        (forall e1 e2 e1' e2',
           match_e e1 e2 ->
           match_e e1' e2' ->
-          a_equiv O1 o1 (E e1) (E e1') -> (* see file TINI.v *)
+          a_equiv O1 o1 (E e1) (E e1') -> 
           a_equiv O2 o2 (E e2) (E e2'))) ->
 
     TINI S1 O1 -> TINI S2 O2.
@@ -155,7 +153,7 @@ Proof.
 Qed.
 
 
-(* The concrete_machine running with the correct fault handler has
+(** The concrete_machine running with the correct fault handler has
    TINI *)
 
 Theorem ni_concrete_machine : TINI tini_concrete_machine CMObservation.
