@@ -430,7 +430,7 @@ Proof.
   intros.
   unfold genFlows; intros.
   eapply HT_strengthen_premise.
-  eapply subset_arrays_spec_wp; eauto.
+  eapply subset_arrays_spec; eauto.
   intros m s (l & l' & z & z' & t & t' & s0 & EXT & Hl & Hl' & ? & POST). subst.
   destruct Hl as (c & b & Nb & Kb & ? & ARR & IN).
   destruct Hl' as (c' & b' & Nb' & Kb' & ? & ARR' & IN'). subst.

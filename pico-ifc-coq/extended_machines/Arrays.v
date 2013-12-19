@@ -31,6 +31,32 @@ Local Notation memory := (Mem.t Atom privilege).
 Local Notation PcAtom := (PcAtom val).
 Local Notation block := (block privilege).
 
+Fixpoint narrow (n : nat) (A B : Type) : Type :=
+  match n with
+    | O => B
+    | S n' => A -> narrow n' A B
+  end.
+
+Fixpoint nexists {n : nat} {A : Type}
+                 (P : narrow n A Prop) : Prop :=
+  match n return narrow n A Prop -> Prop with
+    | O => fun P => P
+    | S n' => fun P => exists a, nexists (P a)
+  end P.
+
+Fixpoint stk_env_aux
+           (e : list val) (s0 : list CStkElmt)
+           (k : list CStkElmt -> Prop) : narrow (length e) val Prop :=
+  match e with
+    | nil => k s0
+    | v :: e' => fun t => stk_env_aux e' s0 (fun r => k ((v,t):::r))
+  end.
+
+Definition stk_env (s : list CStkElmt) (e : list val)
+                   (s0 : list CStkElmt) : Prop :=
+  Eval compute in
+    nexists (stk_env_aux e s0 (fun r => s = r)).
+
 Ltac apply_wp :=
   try unfold pop, nop, push, dup, swap;
   match goal with
@@ -636,26 +662,16 @@ Definition fold_array gen_n gen_f :=     (* a S *)
 .
 
 (* Invariant for fold array body *)
-Definition Ifab (f : memory -> stack -> val -> val -> val) (n: memory -> stack -> val)
-                (a:block) (vs:list val) m0 s0 :=
+Definition Ifab (f : val -> val -> val) (n: val)
+                (a:block) (vs:list val) m0 s0 i :=
     fun m s =>
-      exists i v t1 t2 t3,
+      exists v,
         i <= Z.of_nat (length vs) /\
         memarr m a vs /\
         Mem.stamp a = Kernel /\
         m = m0 /\
-        s = (Vint i,t1):::(v,t2):::(Vptr (a,0),t3):::s0  /\
-        v = fold_right (f m0 s0) (n m0 s0) (dropZ i vs).
-
-Definition Ifab' (f : val -> val -> val)
-                 (n : val) a vs v
-                 m s (i : Z) :=
-  exists ta s0,
-    i <= Z.of_nat (length vs) /\
-    memarr m a vs /\
-    Mem.stamp a = Kernel /\
-    s = (Vptr (a,0),ta):::s0 /\
-    v = fold_right f n (dropZ i vs).
+        stk_env s [v; Vptr (a,0)] s0 /\
+        v = fold_right f n (dropZ i vs).
 
 Lemma memseq_dropZ :
   forall ms b z p vs
@@ -741,24 +757,29 @@ need as input and let the other rules we've proved before figure out
 what the precondition should be.
 *)
 
-Definition fab_spec' :
-  forall gen_f f n
+Definition fab_spec :
+  forall gen_f f n m0 s0
          (HTf : forall (Q : memory -> stack -> Prop),
                   HT cblock table gen_f
                      (fun m s =>
-                        exists x tx v tv s0,
-                          s = (x,tx):::(v,tv):::s0 /\
-                          forall t, Q m ((f x v,t):::s0))
+                        exists x v i0 i1 i2,
+                          stk_env s [x; v; i0; i1; i2] s0 /\
+                          m = m0 /\
+                          forall s',
+                            stk_env s' [f x v; i0; i1; i2] s0 ->
+                            Q m s')
                      Q)
          (Q : memory -> stack -> Prop),
     HT cblock table (fold_array_body gen_f)
        (fun m s =>
-          exists i ti v tv a vs s0,
-            s = (Vint i,ti) ::: (v, tv) ::: s0 /\
-            i > 0 /\ Ifab' f n a vs v m s0 i /\
-            forall ti' v' tv',
-              Ifab' f n a vs v' m s0 (Z.pred i) ->
-              Q m ((Vint i,ti') ::: (v', tv') ::: s0))
+          exists i a vs s',
+            stk_env s [Vint i] s' /\
+            i > 0 /\
+            Ifab f n a vs m0 s0 i m s' /\
+            forall s'' s''',
+              stk_env s'' [Vint i] s''' ->
+              Ifab f n a vs m0 s0 (Z.pred i) m s''' ->
+              Q m s'')
        Q.
 Proof.
   intros.
@@ -771,9 +792,9 @@ Proof.
     eapply HT_compose; try eapply swap_spec.
     apply pop_spec. }
   clear.
-  intros m ? (i & ti & v & tv & a & vs & ? & ? & POS & INV & POST). subst.
-  destruct INV as (ta & s & BOUNDS & ARR & STAMP & ? & ?).
-  subst. simpl.
+  intros m ? (i & a & vs & s' & (ti & ?) & POS & INV & POST). subst.
+  destruct INV as (v & BOUNDS & ARR & STAMP & ? & (tv & ta & ?) & ?).
+  subst m0. subst. simpl.
   do 3 (eexists; split; eauto).
   do 6 eexists. split; eauto. simpl. split; eauto.
   assert (Hx : exists x tx, load (a,i) m = Some (x,tx)).
@@ -782,8 +803,9 @@ Proof.
   destruct Hx as (x & tx & Hx).
   do 4 eexists. split; eauto. simpl. split; trivial.
   replace (i + 0) with i by ring. split; eauto.
-  do 5 eexists. split; eauto. simpl.
-  intros.
+  do 5 eexists. split; [do 5 eexists; eauto|].
+  split; trivial.
+  intros s' (? & ? & ? & ? & ?). subst.
   do 4 eexists. do 3 (split; eauto).
   do 3 eexists. split; eauto.
   change (f x (fold_right f n (dropZ i vs))) with (fold_right f n (x :: dropZ i vs)).
@@ -791,9 +813,10 @@ Proof.
   intros (x' & H).
   rewrite <- Zsucc_pred in H.
   replace x' with x in *.
-  { rewrite <- H. apply POST.
-    unfold Ifab'.
-    do 2 eexists. split; try split; eauto; try omega. }
+  { rewrite <- H. eapply POST.
+    - eexists. eauto.
+    - eexists. repeat split; eauto; try omega.
+      do 2 eexists. reflexivity. }
   exploit memarr_load; eauto; try omega.
   intros H'.
   rewrite index_list_Z_dropZ_zero in H'; try omega.
@@ -801,158 +824,39 @@ Proof.
   congruence.
 Qed.
 
-Lemma fab_spec : forall gen_f f n a vs m0 s0 i,
-  (forall (Q: memory -> stack -> Prop),
-  HT cblock table gen_f
-     (fun m s => exists x v ign0 ign1 ign2 t1 t2 t3 t4 t5,
-                   s = (x,t1):::(v,t2):::
-                       (ign0,t3):::(ign1,t4):::(ign2,t5):::s0 /\
-                   m = m0 /\
-                   forall t1' t2' t3' t4',
-                     Q m (((f m0 s0) x v,t1'):::
-                          (ign0,t2'):::(ign1,t3'):::(ign2,t4'):::s0))
-      Q) ->
-  HT cblock table (fold_array_body gen_f)
-  (fun m s => exists s' t, s = (Vint i,t):::s' /\ i > 0 /\ Ifab f n a vs m0 s0 m s)
-  (fun m s => exists s' t, s = (Vint i,t):::s' /\ Ifab f n a vs m0 s0 m ((Vint (Z.pred i),handlerTag):::s')).
-Proof.
-  intros.
-  unfold fold_array_body.
-  build_vc ltac:(try apply H).
-  split_vc'.
-  intros m s (s' & t & ? & ? & ?).
-  destruct H2 as [i' [v' [t1 [t2 [t3 [? [? [? [? [? ?]]]]]]]]]]. subst.  inv H6.  inv H3.
-  destruct (memseq_read _ _ _ _ SEQ i') as [v ?]; try omega.
-  split_vc.
-  replace (i' + 0) with i' by ring.
-  split_vc.
-  do 5 eexists.
-  split.  instantiate (1:= Zpred i'). omega.
-  split. econstructor; eauto.
-  split_vc.
-  unfold dropZ. destruct (i' <? 0) eqn:E. apply Z.ltb_lt in E. omega.
-  destruct (Z.pred i' <? 0) eqn:E'.  apply Z.ltb_lt in E'. omega.
-  apply Z.ltb_ge in E. apply Z.ltb_ge in E'.
-  remember (Z.to_nat (Z.pred i')) as p.
-  replace (Z.to_nat i') with (S p).
-  2: subst p; zify; do 2 (rewrite Z2Nat.id; eauto); omega.
-
-  (* Here we go *)
-  cut (drop p vs =  v::drop (S p) vs).
-  { intros P.
-    rewrite P.  auto. }
-  apply (memseq_drop _ _ _ p) in SEQ.
-  generalize (@drop_cons _ p vs).
-  intros HH.
-  assert (p < length vs)%nat.
-  { zify.
-    rewrite Z2Nat.id in Heqp; omega. }
-  destruct HH as [v' Hv']; auto.
-  rewrite Hv' in SEQ.
-  inv SEQ.
-  rewrite Z2Nat.id in *; auto.
-  assert (EE : 1 + Z.pred i' = i') by omega.
-  rewrite EE in H8.
-  rewrite H8 in H0. rewrite Hv'.
-  congruence.
-Qed.
-
-Lemma fold_array_spec: forall gen_f gen_n m0 s0 a vs n f,
-  (forall (Q: memory -> stack -> Prop),
-  HT cblock table gen_n
-     (fun m s => exists ign0 t,
-                   s = (ign0,t):::s0 /\ m = m0 /\
-                   forall t1 t2,
-                     Q m ((n m0 s0,t1):::(ign0,t2):::s0))
-     Q) ->
-  (forall (Q: memory -> stack -> Prop),
-  HT cblock table gen_f
-     (fun m s => exists x v ign0 ign1 ign2 t1 t2 t3 t4 t5,
-                   s = (x,t1):::(v,t2):::
-                             (ign0,t3):::(ign1,t4):::(ign2,t5):::s0 /\
-                   m = m0 /\
-                   forall t1' t2' t3' t4',
-                     Q m (((f m0 s0) x v,t1'):::
-                         (ign0,t2'):::(ign1,t3'):::(ign2,t4'):::s0))
-     Q) ->
-  memarr m0 a vs ->
-  Mem.stamp a = Kernel ->
-  HT cblock table
-     (fold_array gen_n gen_f)
-     (fun m s => exists t, s = (Vptr (a, 0),t):::s0 /\ m = m0)
-     (fun m s => exists t, s = (fold_right (f m0 s0) (n m0 s0) vs,t):::s0 /\ m = m0).
-Proof.
- intros.
- unfold fold_array.
- build_vc idtac.  (* builds some stupid glue steps *)
- eapply HT_weaken_conclusion.
- eapply (genFor_spec' _ _ (fold_array_body gen_f) (Ifab f n a vs m0 s0)).
- intros.
- eapply HT_consequence'.
- eapply (fab_spec gen_f f n a vs m0 s0 i H0).
- intros. destruct H4 as [s' [t [? ?]]]. subst. eexists s', t. intuition.
- intros. destruct H4 as [m' [s' [s'0 [t [? ?]]]]].
- destruct H6 as [i' [v' [t1 [t2 [t3 [? [? [? [? [? ?]]]]]]]]]].
- simpl in H5. destruct H5 as [s'' [t' [? ?]]].
- destruct H12 as [i0 [v0 [t1' [t2' [t3' [? [? [? [? [? ?]]]]]]]]]]. subst. inv H10. inv H16.
- do 2 eexists.  split. auto.  unfold Ifab.
- eexists (Zpred i').
- do 4 eexists.
- split; eauto.
- simpl. intros.
- destruct H3 as [s' [t'' [? ?]]].
- destruct H4 as [i' [v' [t1'' [t2'' [t3'' [? [? [? [? [? ?]]]]]]]]]]. subst. inv H8.
- do 3 eexists. split; eauto.
- do 4 eexists. split; eauto.
- split; eauto.
- split; eauto.
- do 3 eexists. split; eauto.
-
- simpl. instantiate
-          (1:= (fun m s => exists i s' t,
-                             0 <= i /\ s = (Vint i, t) ::: s' /\ Ifab f n a vs m0 s0 m s)).
- auto.
- 2: instantiate (1:= (fun m s => exists t, s = (Vptr (a, 0), t) ::: s0 /\ m = m0)); auto.
-
- inv H1.
- eapply HT_strengthen_premise.
- eapply H.
- split_vc.
- split; eauto.
- instantiate (1:= (Z.of_nat (length vs))).  omega.
- split.  eauto.
- unfold Ifab.
- split_vc.
- split. instantiate (1:= Z.of_nat(length vs)). omega.
- split. econstructor; eauto.
- split; eauto.
- split; eauto.
- rewrite dropZ_all.
- auto.
-Qed.
-
-Lemma fold_array_spec_wp' :
-  forall gen_f gen_n n f
+Lemma fold_array_spec :
+  forall gen_f gen_n n f m0 s0
          (HTn : forall (Q : memory -> stack -> Prop),
                   HT cblock table gen_n
-                     (fun m s => forall t, Q m ((n,t):::s))
+                     (fun m s =>
+                        exists i0,
+                          stk_env s [i0] s0 /\
+                          m = m0 /\
+                          forall s',
+                            stk_env s' [n; i0] s0 ->
+                            Q m s')
                      Q)
          (HTf : forall (Q : memory -> stack -> Prop),
-                    HT cblock table gen_f
-                       (fun m s =>
-                          exists x tx v tv s0,
-                            s = (x,tx):::(v,tv):::s0 /\
-                            forall t, Q m ((f x v,t):::s0))
-                       Q)
+                  HT cblock table gen_f
+                     (fun m s =>
+                        exists x v i0 i1 i2,
+                          stk_env s [x; v; i0; i1; i2] s0 /\
+                          m = m0 /\
+                          forall s',
+                            stk_env s' [f x v; i0; i1; i2] s0 ->
+                            Q m s')
+                     Q)
          (Q : memory -> stack -> Prop),
     HT cblock table
        (fold_array gen_n gen_f)
-       (fun m s => exists a vs t s0,
+       (fun m s => exists a vs,
                      memarr m a vs /\
                      Mem.stamp a = Kernel /\
-                     s = (Vptr (a, 0), t) ::: s0 /\
-                     forall t',
-                       Q m ((fold_right f n vs,t'):::s0))
+                     stk_env s [Vptr (a, 0)] s0 /\
+                     m = m0 /\
+                     forall s',
+                       stk_env s' [fold_right f n vs] s0 ->
+                       Q m s')
        Q.
 Proof.
   intros.
@@ -967,83 +871,47 @@ Proof.
     eapply HT_compose; try eapply load_spec.
     eapply HT_compose; try eapply genFor_spec_wp
                        with (I := fun (Q : HProp) m s i =>
-                                    exists a v tv vs s0,
-                                      s = (v, tv) ::: s0 /\
-                                      Ifab' f n a vs v m s0 i /\
-                                      forall ti v' tv',
-                                        Ifab' f n a vs v' m s0 0 ->
-                                        Q m ((Vint 0,ti) ::: (v', tv') ::: s0)).
+                                    exists a vs,
+                                      Ifab f n a vs m0 s0 i m s /\
+                                      forall s' s'',
+                                        stk_env s' [Vint 0] s'' ->
+                                        Ifab f n a vs m0 s0 0 m s'' ->
+                                        Q m s').
     { intros. eexists. split.
-      - eapply fab_spec'. apply HTf.
+      - eapply fab_spec. apply HTf.
       - simpl.
-        intros m s t (a & v & tv & vs & s0 & ? & INV & HH). subst.
-        do 7 eexists. split; eauto. split; try omega.
+        intros m s t (a & vs & INV & POST).
+        do 4 eexists. split; [eexists; eauto|]. split; try omega.
         split; eauto.
-        intros.
-        do 2 eexists. split; eauto.
-        do 5 eexists. split; eauto. }
+        intros s'' s''' (? & ?) INV'. subst.
+        do 2 eexists. split; eauto. }
 
-    { intros m s t (a & v & tv & vs & s0 & ? & INV & POST). subst. apply POST. trivial. }
+    { intros m s t (a & vs & INV & POST). eapply POST; eauto. eexists. eauto. }
     eapply HT_compose; try eapply pop_spec.
     eapply HT_compose; try eapply swap_spec.
     eapply pop_spec. }
 
-  intros m s (a & vs & t & s0 & ARR & KERNEL & ? & POST) ?.
+  intros m s (a & vs & ARR & KERNEL & ? & ? & POST).
   subst. simpl.
-  eexists. split; eauto.
+  eexists. do 2 (split; eauto).
+  intros s' (? & ? & ?). subst.
   destruct ARR as [c ? LOAD SEQ ?]. subst.
+  eexists. split; eauto.
   do 4 eexists. do 3 (split; eauto).
   do 3 eexists. split; eauto. split; try omega.
-  do 5 eexists. split; eauto.
+  do 2 eexists.
   split.
-  { unfold Ifab'.
-    do 2 eexists.
+  { unfold Ifab.
+    eexists.
     repeat split; eauto; try solve [econstructor; eauto]; try omega.
-    rewrite dropZ_all. reflexivity. }
+    rewrite dropZ_all. do 2 eexists. reflexivity. }
   clear - POST.
-  unfold Ifab'.
-  intros ti v' tv' (? & ? & _ & ARR & KERNEL & ? & ?).
-  subst.
+  intros s' s'' (? & ?) (? & _ & ARR & KERNEL & _ & (? & ? & ?) & ?). subst.
   do 3 eexists. split; eauto.
   do 4 eexists. do 3 (split; eauto).
-Qed.
-
-Lemma fold_array_spec_wp: forall gen_f gen_n n f m0 s0 (Q: memory -> stack -> Prop),
-  (forall (Q: memory -> stack -> Prop),
-  HT cblock table gen_n
-     (fun m s => exists ign0 t,
-                   s = (ign0,t):::s0 /\ m = m0 /\
-                   forall t1 t2,
-                     Q m ((n m0 s0,t1):::(ign0,t2):::s0))
-     Q) ->
-  (forall (Q: memory -> stack -> Prop),
-  HT cblock table gen_f
-     (fun m s => exists x v ign0 ign1 ign2 t1 t2 t3 t4 t5,
-                   s = (x,t1):::(v,t2):::(ign0,t3):::(ign1,t4):::(ign2,t5):::s0 /\
-                   m = m0 /\
-                   forall t1 t2 t3 t4,
-                     Q m (((f m0 s0) x v,t1):::
-                          (ign0,t2):::(ign1,t3):::(ign2,t4):::s0))
-     Q) ->
-  HT cblock table
-     (fold_array gen_n gen_f)
-     (fun m s => exists a vs t,
-                   memarr m0 a vs /\
-                   Mem.stamp a = Kernel /\
-                   s = (Vptr (a, 0),t):::s0 /\ m = m0 /\
-                   forall t',
-                     Q m ((fold_right (f m0 s0) (n m0 s0) vs,t'):::s0))
-     Q.
-Proof.
-  intros.
-  eapply HT_forall_exists. intro a.
-  eapply HT_forall_exists. intro vs.
-  eapply HT_forall_exists. intro t.
-  eapply HT_fold_constant_premise.  intros.
-  eapply HT_fold_constant_premise.  intros.
-  eapply HT_consequence'. eapply fold_array_spec; eauto.
-  split_vc.
-  split_vc.
+  do 3 eexists. split; eauto.
+  apply POST.
+  eexists. reflexivity.
 Qed.
 
 (* Existsb. *)
@@ -1073,79 +941,54 @@ Proof.
   destruct (f a); unfold orv in *; simpl; auto.
 Qed.
 
-Lemma exists_array_spec :
-  forall gen_f (f : val -> bool)
-         (HTf : forall (Q : HProp),
-                  HT cblock table gen_f
-                     (fun m s => exists x tx s0,
-                                   s = (x, tx) ::: s0 /\
-                                   forall tr, Q m ((boolToVal (f x), tr) ::: s0))
-                     Q)
-         (Q : HProp),
-    HT cblock table (exists_array gen_f)
-       (fun m s => exists a vs t s0,
-                     memarr m a vs /\
-                     Mem.stamp a = Kernel /\
-                     s = (Vptr (a, 0), t) ::: s0 /\
-                     forall t, Q m ((boolToVal (existsb f vs), t) ::: s0))
-       Q.
-Proof.
-  intros.
-  unfold exists_array.
-  eapply HT_strengthen_premise.
-  { eapply fold_array_spec_wp' with
-             (n := boolToVal false)
-             (f := fun x v => orv (boolToVal (f x)) v).
-    - clear Q. intros Q.
-      eapply HT_strengthen_premise; try apply genFalse_spec.
-      simpl. auto.
-    - clear Q. intros Q.
-      eapply HT_strengthen_premise.
-      { eapply HT_compose; try eapply HTf.
-        eapply genOr_spec. }
-      split_vc. }
-  split_vc.
-  rewrite <- boolToVal_existsb.
-  trivial.
-Qed.
-
-Lemma exists_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
+Lemma exists_array_spec : forall gen_f (f: val -> bool) s0 m0,
   (forall (Q: memory -> stack -> Prop),
   HT cblock table gen_f
-     (fun m s => exists x ign0 ign1 ign2 ign3 t1 t2 t3 t4 t5,
-                   s = (x,t1):::
-                       (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0 /\
+     (fun m s => exists x i0 i1 i2 i3,
+                   stk_env s [x; i0; i1; i2; i3] s0 /\
                    m = m0 /\
-                   forall t1 t2 t3 t4 t5,
-                     Q m ((boolToVal(f m0 s0 x),t1):::
-                          (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0))
+                   forall s',
+                     stk_env s' [boolToVal (f x); i0; i1; i2; i3] s0 ->
+                     Q m s')
      Q) ->
   forall (Q: memory -> stack -> Prop),
   HT cblock table (exists_array gen_f)
-     (fun m s => exists a vs t,
+     (fun m s => exists a vs,
                       memarr m a vs /\
                       Mem.stamp a = Kernel /\
-                      s = (Vptr (a, 0),t):::s0 /\
+                      stk_env s [Vptr (a, 0)] s0 /\
                       m = m0 /\
-                      forall t,
-                        Q m ((boolToVal (existsb (f m s0) vs),t):::s0))
+                      forall s',
+                        stk_env s' [boolToVal (existsb f vs)] s0 ->
+                        Q m s')
      Q.
 Proof.
   intros.
   unfold exists_array.
   eapply HT_strengthen_premise.
-  eapply fold_array_spec_wp with
-           (n:= fun _ _ => boolToVal false)
-           (f:= fun m0 s0 x v => orv (boolToVal (f m0 s0 x)) v); eauto.
-  - intro. eapply HT_strengthen_premise. eapply genFalse_spec.
-    split_vc.
-  - intro.
-    eapply HT_compose_flip.
-    eapply genOr_spec; eauto.
-    eapply HT_strengthen_premise.
-    eapply H.
-    split_vc.
-  - split_vc. rewrite boolToVal_existsb in H3.  auto.
+  { eapply fold_array_spec with
+           (n:= boolToVal false)
+           (f:= fun x v => orv (boolToVal (f x)) v); eauto.
+    - clear Q. intros Q.
+      eapply HT_strengthen_premise. eapply genFalse_spec.
+      intros m s (i0 & (? & ?) & ? & POST).
+      subst s.
+      apply POST.
+      do 2 eexists. reflexivity.
+    - clear Q. intro Q.
+      eapply HT_compose_flip; try eapply genOr_spec; eauto.
+      eapply HT_strengthen_premise.
+      eapply H.
+      intros m s (x & v & i0 & i1 & i2 & E & ? & POST).
+      do 5 eexists. split; eauto. split; eauto.
+      intros s' (? & ? & ? & ? & ? & ?). subst.
+      do 5 eexists. split; eauto.
+      intros.
+      eapply POST.
+      do 4 eexists. eauto. }
+
+  - unfold stk_env. split_vc.
+    rewrite <- boolToVal_existsb. eauto.
 Qed.
 
 (* Forallb. *)
@@ -1173,41 +1016,54 @@ Proof.
   destruct (f a); unfold andv in *; simpl; auto.
 Qed.
 
-Lemma forall_array_spec_wp : forall gen_f (f: memory -> stack -> val -> bool) s0 m0,
+Lemma forall_array_spec : forall gen_f (f: val -> bool) s0 m0,
   (forall (Q: memory -> stack -> Prop),
   HT cblock table gen_f
-     (fun m s => exists x ign0 ign1 ign2 ign3 t1 t2 t3 t4 t5,
-                   s = (x,t1):::
-                       (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0 /\
+     (fun m s => exists x i0 i1 i2 i3,
+                   stk_env s [x; i0; i1; i2; i3] s0 /\
                    m = m0 /\
-                   forall t1 t2 t3 t4 t5,
-                     Q m ((boolToVal(f m0 s0 x),t1):::
-                         (ign0,t2):::(ign1,t3):::(ign2,t4):::(ign3,t5):::s0))
+                   forall s',
+                     stk_env s' [boolToVal (f x); i0; i1; i2; i3] s0 ->
+                     Q m s')
      Q) ->
   forall (Q: memory -> stack -> Prop),
   HT cblock table (forall_array gen_f)
-     (fun m s => exists a vs t,
+     (fun m s => exists a vs,
                       memarr m a vs /\
                       Mem.stamp a = Kernel /\
-                      s = (Vptr (a, 0),t):::s0 /\
+                      stk_env s [Vptr (a, 0)] s0 /\
                       m = m0 /\
-                      forall t',
-                        Q m ((boolToVal (forallb (f m s0) vs),t'):::s0))
+                      forall s',
+                        stk_env s' [boolToVal (forallb f vs)] s0 ->
+                        Q m s')
      Q.
 Proof.
   intros.
-  unfold forall_array.
+  unfold exists_array.
   eapply HT_strengthen_premise.
-  eapply fold_array_spec_wp with
-           (n:= fun _ _ => boolToVal true)
-           (f:= fun m0 s0 x v => andv (boolToVal (f m0 s0 x)) v); eauto.
-  - intro. eapply HT_strengthen_premise; try eapply genTrue_spec.
-    split_vc.
-  - intro.
-    eapply HT_compose_flip.
-    eapply genAnd_spec; eauto.
-    eapply HT_strengthen_premise; solve [split_vc].
-  - split_vc. rewrite boolToVal_forallb in H3. auto.
+  { eapply fold_array_spec with
+           (n:= boolToVal true)
+           (f:= fun x v => andv (boolToVal (f x)) v); eauto.
+    - clear Q. intros Q.
+      eapply HT_strengthen_premise. eapply genFalse_spec.
+      intros m s (i0 & (? & ?) & ? & POST).
+      subst s.
+      apply POST.
+      do 2 eexists. reflexivity.
+    - clear Q. intro Q.
+      eapply HT_compose_flip; try eapply genAnd_spec; eauto.
+      eapply HT_strengthen_premise.
+      eapply H.
+      intros m s (x & v & i0 & i1 & i2 & E & ? & POST).
+      do 5 eexists. split; eauto. split; eauto.
+      intros s' (? & ? & ? & ? & ? & ?). subst.
+      do 5 eexists. split; eauto.
+      intros.
+      eapply POST.
+      do 4 eexists. eauto. }
+
+  - unfold stk_env. split_vc.
+    rewrite <- boolToVal_forallb. eauto.
 Qed.
 
 (* In_array *)
@@ -1228,30 +1084,7 @@ Definition in_array :=           (* a x *)
 Definition val_list_in_b (x: val) (xs:list val) : bool :=
   existsb (fun x' => if EquivDec.equiv_dec x x' then true else false) xs.
 
-Lemma in_array_spec: forall a vs x t1 t2 s0 m0,
-  memarr m0 a vs ->
-  HT cblock table
-    in_array
-    (fun m s => s = (Vptr (a, 0),t1):::(x,t2):::s0 /\ Mem.stamp a = Kernel /\ m = m0)
-    (fun m s => exists t, s = (boolToVal(val_list_in_b x vs),t):::s0 /\ m = m0)
-.
-Proof.
-  intros. unfold in_array.
-  eapply HT_strengthen_premise.
-  - eapply HT_compose_flip.
-    + build_vc idtac.
-    + eapply exists_array_spec_wp with (f := fun _ _ y => if EquivDec.equiv_dec x y then true else false)
-                                       (s0 := (x,t2):::s0).
-      intros.
-      eapply HT_compose_flip; try eapply genEq_spec.
-      eapply HT_strengthen_premise; try eapply dup_spec.
-      split_vc.
-      unfold val_eq.
-      destruct (EquivDec.equiv_dec x x0); eauto.
-  - split_vc.
-Qed.
-
-Lemma in_array_spec_wp : forall (Q: memory -> stack -> Prop),
+Lemma in_array_spec : forall (Q: memory -> stack -> Prop),
   HT cblock table
     in_array
     (fun m s => exists a vs x t1 t2 s0 m0,
@@ -1263,7 +1096,7 @@ Lemma in_array_spec_wp : forall (Q: memory -> stack -> Prop),
                     Q m0 ((boolToVal(val_list_in_b x vs),t):::s0))
     Q.
 Proof.
-  intros.
+  intros. unfold in_array.
   eapply HT_forall_exists. intro a.
   eapply HT_forall_exists. intro vs.
   eapply HT_forall_exists. intro x.
@@ -1271,12 +1104,30 @@ Proof.
   eapply HT_forall_exists. intro t2.
   eapply HT_forall_exists. intro s0.
   eapply HT_forall_exists. intro m0.
-  eapply HT_fold_constant_premise. intro.
-  eapply HT_consequence'. eapply in_array_spec; eauto.
-  simpl. intros. intuition jauto.
-  simpl. intros. destruct H0 as [m' [s' [? [? [? ?]]]]]. destruct H1 as [t [? ?]]. subst. auto.
-Qed.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply exists_array_spec with
+                         (f := fun y => if EquivDec.equiv_dec x y then true else false)
+                         (s0 := (x,t2):::s0).
+    { clear Q. intros Q.
+      eapply HT_strengthen_premise.
+      { eapply HT_compose; try eapply dup_spec.
+        eapply genEq_spec. }
+      intros m s (? & ? & ? & ? & ? & (? & ? & ? & ? & ? & ?) & ? & POST).
+      subst s. simpl.
+      eexists. split; eauto.
+      do 5 eexists. split; eauto.
+      eapply POST.
+      do 5 eexists.
+      unfold val_eq.
+      destruct (EquivDec.equiv_dec x x0); eauto. }
 
+    eapply HT_compose; try eapply swap_spec.
+    eapply pop_spec. }
+
+  intros m s (? & ? & ? & ? & POST). subst.
+  unfold stk_env.
+  split_vc.
+Qed.
 
 (* Subset_arrays *)
 
@@ -1297,28 +1148,7 @@ Definition subset_arrays :=      (* a1 a2 *)
 Definition val_list_subset_b (xs1 xs2:list val) : bool :=
   forallb (fun x1 => val_list_in_b x1 xs2) xs1.
 
-Lemma subset_arrays_spec : forall a1 a2 vs1 vs2 t1 t2 s0 m0,
-  memarr m0 a1 vs1 ->
-  memarr m0 a2 vs2 ->
-  Mem.stamp a1 = Kernel ->
-  Mem.stamp a2 = Kernel ->
-  HT cblock table subset_arrays
-     (fun m s => s = (Vptr (a1, 0),t1):::(Vptr (a2, 0),t2):::s0 /\
-                 m = m0)
-     (fun m s => exists t, s = ((boolToVal (val_list_subset_b vs1 vs2),t):::s0) /\ m = m0).
-Proof.
-  intros. unfold subset_arrays.
-  eapply HT_compose_flip; try solve [build_vc idtac].
-  eapply HT_strengthen_premise.
-  - eapply forall_array_spec_wp with (f := fun _ s0 y => val_list_in_b y vs2) (s0 := (Vptr (a2, 0),t2):::s0).
-    intros.
-    eapply HT_compose_flip; try eapply in_array_spec_wp.
-    eapply HT_strengthen_premise; try eapply dup_spec.
-    split_vc.
-  - clear H0. split_vc.
-Qed.
-
-Lemma subset_arrays_spec_wp : forall (Q: memory -> stack -> Prop),
+Lemma subset_arrays_spec : forall (Q: memory -> stack -> Prop),
   HT cblock table
     subset_arrays
     (fun m s => exists a1 a2 vs1 vs2 t1 t2 s0 m0,
@@ -1331,7 +1161,7 @@ Lemma subset_arrays_spec_wp : forall (Q: memory -> stack -> Prop),
                     Q m0 ((Vint (boolToZ(val_list_subset_b vs1 vs2)),t):::s0))
     Q.
 Proof.
-  intros.
+  intros. unfold subset_arrays.
   eapply HT_forall_exists. intro a1.
   eapply HT_forall_exists. intro a2.
   eapply HT_forall_exists. intro vs1.
@@ -1344,9 +1174,25 @@ Proof.
   eapply HT_fold_constant_premise. intro.
   eapply HT_fold_constant_premise. intro.
   eapply HT_fold_constant_premise. intro.
-  eapply HT_consequence'. eapply subset_arrays_spec with (a1:=a1) (a2:=a2); eauto.
-  simpl. intros. intuition jauto.
-  simpl. intros. destruct H3 as [m' [s' [? [? ?]]]]. destruct H4 as [? [? ?]]. subst. auto.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply forall_array_spec with
+                           (f := fun y => val_list_in_b y vs2)
+                           (s0 := (Vptr (a2, 0), t2) ::: s0).
+    { clear Q. intros Q.
+      eapply HT_strengthen_premise.
+      { eapply HT_compose; try eapply dup_spec.
+        eapply in_array_spec. }
+      intros m s (x & ? & ? & ? & ? & (? & ? & ? & ? & ? & ?) & ? & POST).
+      subst s. simpl.
+      eexists. split; eauto.
+      do 7 eexists. split_vc.
+      eapply POST.
+      unfold stk_env.
+      split_vc. }
+    build_vc idtac. }
+  intros m s (? & ? & POST). subst.
+  unfold stk_env.
+  eexists a1. split_vc.
 Qed.
 
 (* Extend array *)
