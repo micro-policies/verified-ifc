@@ -316,7 +316,7 @@ Lemma genBot_spec_SOP : forall m0 (Hm0: mem_def_on_cache cblock m0) (Q:HProp),
 Proof.
   intros.
   eapply HT_compose_flip.
-  eapply alloc_array_spec_wp; eauto.
+  eapply alloc_array_spec; eauto.
   eapply HT_strengthen_premise.
   eapply push_spec; eauto.
   intros m s (EXT & POST).
@@ -351,7 +351,7 @@ Lemma genJoin_spec_SOP: forall m0 (Hm0: mem_def_on_cache cblock m0) (Q: HProp),
 Proof.
   intros.
   eapply HT_strengthen_premise.
-  eapply concat_arrays_spec_wp ; eauto.
+  eapply concat_arrays_spec ; eauto.
   go_match.
   destruct H as (s0 & l & v & t & l' & v' & t' & ? & EXT & Hl & Hl' & POST). subst.
   unfold labToVal in *.

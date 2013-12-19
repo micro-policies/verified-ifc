@@ -137,7 +137,7 @@ Definition Icopy (sz cnt:Z) bdst odst bsrc osrc (m0 : memory) s0 :=
       (forall z, ~ (odst+cnt < z <= odst+sz) -> load (bdst,z) m = load (bdst,z) m0) /\
       (forall b, b <> bdst -> Mem.get_frame m b = Mem.get_frame m0 b).
 
-Lemma copy_spec_wp : forall (Q : memory -> stack -> Prop),
+Lemma copy_spec : forall (Q : memory -> stack -> Prop),
   HT cblock table copy
   (fun m s => exists sz bdst odst bsrc osrc s0 t1 t2 t3,
                 0 <= sz /\
@@ -183,7 +183,7 @@ Proof.
   eapply HT_forall_exists. intro t3.
   eapply HT_fold_constant_premise; intro.
   eapply HT_strengthen_premise.
-  { eapply genFor_spec_wp
+  { eapply genFor_spec
       with (I := fun (Q : _ -> _ -> Prop) m s i =>
                    Icopy sz i bdst odst bsrc osrc m0 s0 m s /\
                    forall m' s' ti',
@@ -369,9 +369,7 @@ Inductive memarr (m:memory) b (vs:list val) : Prop :=
 
 Definition alloc_array:= push 0 ++ [Dup 1] ++ push 1 ++ [Add] ++ [Alloc] ++ dup ++ [Swap 2] ++ [Swap 1] ++ [Store].
 
-
-(* a direct proof in wp form this time, just for variety. *)
-Lemma alloc_array_spec_wp: forall (Q : memory -> stack -> Prop),
+Lemma alloc_array_spec: forall (Q : memory -> stack -> Prop),
   HT cblock table alloc_array
      (fun m s => exists cnt t s0,
                    s = (Vint cnt,t):::s0 /\
@@ -456,7 +454,7 @@ Transparent Z.add.
 
 Definition sum_array_lengths := [Dup 1] ++ [Load] ++ [Dup 1] ++ [Load] ++ [Add].
 
-Lemma sum_array_lengths_spec_wp : forall Q : HProp,
+Lemma sum_array_lengths_spec : forall Q : HProp,
   HT cblock table sum_array_lengths
      (fun m s => exists a1 a2 s0 l1 l2 t1 t2 t1' t2',
                  s = (Vptr (a2,0),t2):::(Vptr (a1,0),t1):::s0 /\
@@ -509,7 +507,7 @@ Definition concat_arrays :=      (* a2 a1 *)
 .
 
 
-Lemma concat_arrays_spec_wp : forall (Q :memory -> stack -> Prop),
+Lemma concat_arrays_spec : forall (Q :memory -> stack -> Prop),
   HT cblock table
    concat_arrays
    (fun m s => exists a2 a1 vs1 vs2 s0 t1 t2,
@@ -526,7 +524,7 @@ Lemma concat_arrays_spec_wp : forall (Q :memory -> stack -> Prop),
 Proof.
   intros. unfold concat_arrays.
 
-  build_vc ltac:(try apply copy_spec_wp; try apply alloc_array_spec_wp; try apply sum_array_lengths_spec_wp).
+  build_vc ltac:(try apply copy_spec; try apply alloc_array_spec; try apply sum_array_lengths_spec).
 
   intros m s (a2 & a1 & vs1 & vs2 & t1 & t2 & s0 & ? & ARR1 & ARR2 & K1 & K2 & POST).
   destruct ARR1. destruct ARR2.
@@ -730,9 +728,9 @@ s.
 
 One partial solution is to quantify the precondition in Hc
 existentially and supplying the postcondition we want as "input", as
-in genFor_spec_wp:
+in genFor_spec:
 
-(* genFor_spec_wp *)
+(* genFor_spec *)
 (*      : forall (cblock : block) (table : CSysTable) *)
 (*          (I : HProp -> CodeTriples.memory -> list CStkElmt -> Z -> Prop) *)
 (*          (c : CodeTriples.code) (Q : HProp), *)
@@ -869,7 +867,7 @@ Proof.
   { eapply HT_compose; try eapply HTn.
     eapply HT_compose; try eapply dup_spec.
     eapply HT_compose; try eapply load_spec.
-    eapply HT_compose; try eapply genFor_spec_wp
+    eapply HT_compose; try eapply genFor_spec
                        with (I := fun (Q : HProp) m s i =>
                                     exists a vs,
                                       Ifab f n a vs m0 s0 i m s /\
@@ -1225,7 +1223,7 @@ Definition extend_array :=   (* a x *)
 .
 
 
-Lemma extend_array_spec_wp : forall (Q : memory -> stack -> Prop),
+Lemma extend_array_spec : forall (Q : memory -> stack -> Prop),
   HT cblock table
    extend_array
    (fun m s => exists a vs x s0 t1 t2,
@@ -1243,7 +1241,7 @@ Lemma extend_array_spec_wp : forall (Q : memory -> stack -> Prop),
 Proof.
   intros. unfold extend_array.
 
-  build_vc ltac:(try apply copy_spec_wp; try apply alloc_array_spec_wp). auto.
+  build_vc ltac:(try apply copy_spec; try apply alloc_array_spec). auto.
 
   intros m ? (a & vs & x & s & t1 & t2 & ? & ARR & STAMPa & POST). subst.
   destruct ARR. subst.

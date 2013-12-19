@@ -157,11 +157,11 @@ Proof.
     - eapply HT_compose; try eapply unpack_spec.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply swap_spec.
-      eapply HT_compose; try eapply concat_arrays_spec_wp; eauto.
+      eapply HT_compose; try eapply concat_arrays_spec; eauto.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply swap_spec.
       eapply HT_compose; try eapply swap_spec.
-      eapply HT_compose; try eapply extend_array_spec_wp; eauto.
+      eapply HT_compose; try eapply extend_array_spec; eauto.
       eapply HT_compose; try eapply pack_spec; eauto.
       eapply push_spec. }
   intros m s (mi & aargs & cargs & s0 & ? & LEN & MEM & MATCH & SUCC & FAIL). subst.

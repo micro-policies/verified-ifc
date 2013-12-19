@@ -1165,14 +1165,15 @@ Lemma genLoop_spec: forall c I,
   HT c
      (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
      (fun m s => exists i' s' t, s = CData (Vint i',t) :: s' /\ I m (CData (Vint i',t) :: s') /\ 0 <= i' < i)) ->
-(forall i, 0 < i ->
-  HT (genLoop c)
-     (fun m s => exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
-     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s)).
+HT (genLoop c)
+     (fun m s => exists i, 0 < i /\ exists s' t, s = CData (Vint i,t) :: s' /\ I m s)
+     (fun m s => exists s' t, s = CData (Vint 0,t) :: s' /\ I m s).
 Proof.
   intros c I P.
+  eapply HT_forall_exists. intros i.
+  eapply HT_fold_constant_premise. intros H.
   unfold genLoop, dup.
-  intros i H.  assert (0 <= i) by omega. generalize dependent H.
+  assert (0 <= i) by omega. generalize dependent H.
   set (Q := fun i => 0 < i ->
    HT (c ++ [Dup 0] ++ [BranchNZ (- Z.of_nat (length (c ++ [Dup 0])))])
      (fun (m : memory) (s : stack) => exists s' t, s = (Vint i, t) ::: s' /\ I m s)
@@ -1243,81 +1244,7 @@ Proof.
 
 Qed.
 
-Lemma genFor_spec: forall c I,
-  (forall i, 0 < i ->
-  HT c
-     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
-     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ forall t', I m (CData(Vint (Z.pred i),t')::s'))) ->
-  (forall i, 0 <= i ->
-  HT (genFor c)
-     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
-     (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ I m s)).
-Proof.
-  intros c I P.
-  unfold genFor.
-  intros i H.
-  eapply HT_compose with (Q:= (fun m s => exists s' t, s = (Vint i,t) ::: (Vint i,t) ::: s' /\ I m ((Vint i,t):::s'))).
-  eapply HT_strengthen_premise.
-  eapply dup_spec.
-  intros m s [s' [t' [H1 H2]]].
-  eexists. split.  simpl. rewrite H1; auto.
-  subst s. eexists. intuition eauto.
-  (* oh gee whiz. this is unbelievably painful. *)
-  set (Q := fun i m s' => exists i' t s'', s' = (Vint i,t):::s'' /\ I m s' /\ i > 0 /\ i' = i).
-  set (Q0 := fun m s' => exists s'' t, s' = (Vint 0,t):::s'' /\ I m s').
-  eapply HT_strengthen_premise with (fun m s => exists i' t s', s = (Vint i',t)::: s' /\
-                                           (i' <> 0 -> Q i m s') /\
-                                           (i' = 0 -> Q0 m s')).
-  eapply ifNZ_spec with (Pt := Q i) (Pf := Q0).
-  destruct (Z.eq_dec i 0). unfold CodeTriples.HT. intros. destruct H1 as [i' [t [s'' [_ [_ [CONTRA _]]]]]].  exfalso; omega.
-  eapply HT_strengthen_premise.
-  eapply genLoop_spec.
-  3: intros m s [i' [t [s'' [P1 [P2 P3]]]]]; eexists; intuition eauto.
-  2: omega.
-  intros.
-  eapply HT_compose; eauto.
-
-  { eapply HT_strengthen_premise.
-    eapply HT_compose; try eapply push_spec.
-    eapply add_spec.
-    intros m ? (s & ? & ? & ?). subst.
-    do 6 eexists. do 2 (split; eauto). reflexivity.
-    do 3 eexists. split; eauto. split; try omega.
-    replace (-1 + i0) with (Z.pred i0) by omega.
-    eauto. }
-
-  - eapply HT_strengthen_premise.
-    + eapply nop_spec.
-    + intros. destruct H0 as [s'' [t [P1 P2]]]. eexists.  intuition eauto.
-
-  - intros m s [s' [t [P1 P2]]]. eexists. eexists. eexists.
-    split; eauto.
-    split.
-    + intros. unfold Q. eexists. eexists. eexists. split. eauto. repeat split; eauto.  omega.
-    + intros. unfold Q0. eexists. eexists. split. eauto. subst i. eauto. eauto.
-Qed.
-
-Lemma genFor_spec': forall c I,
-  (forall i, 0 < i ->
-  HT c
-     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ I m s)
-     (fun m s => exists s' t, s = CData(Vint i,t)::s' /\ forall t', I m (CData(Vint (Z.pred i),t')::s'))) ->
-  HT (genFor c)
-     (fun m s => exists i s' t, 0 <= i /\ s = CData(Vint i,t)::s' /\ I m s)
-     (fun m s => exists s' t, s = CData(Vint 0,t)::s' /\ I m s).
-Proof.
-  intros c I P.
-
-  eapply HT_forall_exists. intro i.
-  eapply HT_forall_exists. intro s'.
-  eapply HT_forall_exists. intro t.
-  eapply HT_fold_constant_premise. intro.
-  generalize t. eapply HT_exists_forall.
-  generalize s'. eapply HT_exists_forall.
-  eapply genFor_spec; eauto.
-Qed.
-
-Lemma genFor_spec_wp :
+Lemma genFor_spec :
   forall I c (Q : HProp)
          (HTc : forall i,
                   i > 0 ->
@@ -1334,22 +1261,44 @@ Lemma genFor_spec_wp :
        Q.
 Proof.
   intros.
-  eapply HT_consequence.
-  { eapply genFor_spec' with (I := fun m s => exists i t s', s = (Vint i,t) ::: s' /\ I Q m s' i).
-    intros.
-    exploit (HTc i); try omega. clear HTc.
-    intros (Pc & HTc & PRE).
-    eapply HT_consequence; eauto.
-    - intros m ? (s & t & E & i' & t' & s'' & EE & HH). subst.
-      inv EE. auto.
-    - simpl.
-      intros m s (t & s' & ? & INV). subst.
-      eauto 10. }
-  - intros m s (i & t & s' & ? & POS & INV). subst.
-    do 3 eexists.
-    split; try split; eauto. omega.
-  - intros m s (s' & t & ? & ? & ? & ? & E & INV).
-    subst. apply VC. congruence.
+  unfold genFor.
+  eapply HT_strengthen_premise.
+  { eapply HT_compose; try eapply dup_spec.
+    eapply ifNZ_spec; try eapply nop_spec.
+    eapply HT_weaken_conclusion; try eapply genLoop_spec
+                                     with (I := fun m s =>
+                                                  exists i ti s',
+                                                    s = (Vint i, ti) ::: s' /\
+                                                    I Q m s' i).
+    { intros.
+      assert (POS : i > 0) by omega.
+      specialize (HTc i POS). clear POS.
+      destruct HTc as (Pc & HTc & POST).
+      eapply HT_strengthen_premise.
+      { unfold push.
+        eapply HT_compose; try eapply HTc.
+        eapply HT_strengthen_premise.
+        { eapply HT_compose; try eapply push_spec.
+          eapply add_spec. }
+        intros m s (? & s' & ? & INV). subst.
+        do 6 eexists. split; eauto.
+        split; [reflexivity|].
+        replace (-1 + i) with (Z.pred i) by omega.
+        do 3 eexists. split; eauto.
+        split; eauto.
+        omega. }
+      intros m s (s' & t & ? & i' & ? & s'' & ? & ?). subst.
+      assert (i' = i) by congruence.
+      assert (s'' = s') by congruence. subst. eauto. }
+    intros m s (s' & t & ? & i & ? & s'' & ? & ?).
+    assert (i = 0) by congruence.
+    assert (s'' = s') by congruence. subst. eauto. }
+
+  intros m s (i & t & s' & ? & ? & ?). subst. simpl.
+  eexists. split; eauto.
+  do 3 eexists. split; eauto. split.
+  - intros. eexists. split; [|do 2 eexists; split; eauto]. omega.
+  - intros. subst. eauto.
 Qed.
 
 Lemma ret_specEscape: forall raddr (Q: memory -> stack -> Prop * Outcome),
