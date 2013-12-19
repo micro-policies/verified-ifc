@@ -47,7 +47,7 @@ a sets-of-principals IFC lattice.
 
 -- Compile
         make all
-   This will compile the coq definitions and proofs.
+   This will compile the coq definitions, proofs and documentation.
    This code is known to work with Coq 8.4.
 
 -- Glossary
