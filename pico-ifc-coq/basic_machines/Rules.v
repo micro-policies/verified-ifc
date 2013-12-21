@@ -12,6 +12,10 @@ Set Implicit Arguments.
 
 Section Rules.
 
+(** All of these definitions are parameterized by [n], the number of input labels
+supplied for a rule.  This permits us to check statically that the rule
+doesn't use an undefined label. *)
+
 Context {T: Type}.
 Context {Latt: JoinSemiLattice T}.
 
@@ -46,10 +50,6 @@ Record AllowModify (n:nat) := almod  {
 }.
 
 (** * Rule evaluation *)
-
-(** All of these functions are parameterized by [n], the number of input labels
-supplied for this rule.  This permits us to check statically that the rule
-doesn't use an undefined label. *)
 
 (** [eval_var] is a mapping from abstract label names to concrete label
 values (a context). It is constructed from the vector of input labels. *) 

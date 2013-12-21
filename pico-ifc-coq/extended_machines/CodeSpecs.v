@@ -51,6 +51,18 @@ Ltac split_vc :=
    | _ => (eauto; try (zify; omega))
    end).
 
+Ltac split_vc' :=
+  (try subst; simpl;
+   match goal with
+   | H: exists X,_ |- _ => (destruct H; split_vc')
+   | H: ?P /\ ?Q |- _ => (destruct H; split_vc')
+   | |- exists X, _ => (eexists; split_vc')
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc'])
+   | _ => (eauto; try (zify; omega))
+   end).
+
+Ltac run1 L := eapply rte_step; eauto; eapply L; eauto. 
+
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
@@ -93,30 +105,7 @@ Lemma add_spec : forall Q,
           Q m0 ((vr,handlerTag) ::: s))
      Q.
 Proof.
-  intros Q.
-  eapply HT_forall_exists. intros v1.
-  eapply HT_forall_exists. intros t1.
-  eapply HT_forall_exists. intros v2.
-  eapply HT_forall_exists. intros t2.
-  eapply HT_forall_exists. intros vr.
-  eapply HT_forall_exists. intros s.
-  apply HT_strengthen_premise with (fun m0 s0 =>
-                                      add v1 v2 = Some vr /\
-                                      s0 = (v1, t1) ::: (v2, t2) ::: s /\
-                                      Q m0 ((vr, handlerTag) ::: s)); try solve [split_vc].
-  eapply HT_fold_constant_premise. intros H.
-
-  unfold CodeTriples.HT.
-  intros imem stk0 mem0 fh n n' Hcode (Hstk & H') Hn'.
-  subst.
-  eexists. eexists. split. eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_add_p; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_add_p. 
 Qed.
 
 Lemma sub_spec : forall Q,
@@ -128,30 +117,7 @@ Lemma sub_spec : forall Q,
           Q m0 ((vr,handlerTag) ::: s))
      Q.
 Proof.
-  intros Q.
-  eapply HT_forall_exists. intros v1.
-  eapply HT_forall_exists. intros t1.
-  eapply HT_forall_exists. intros v2.
-  eapply HT_forall_exists. intros t2.
-  eapply HT_forall_exists. intros vr.
-  eapply HT_forall_exists. intros s.
-  apply HT_strengthen_premise with (fun m0 s0 =>
-                                      Memory.sub v1 v2 = Some vr /\
-                                      s0 = (v1, t1) ::: (v2, t2) ::: s /\
-                                      Q m0 ((vr, handlerTag) ::: s)); try solve [split_vc].
-  eapply HT_fold_constant_premise. intros H.
-
-  unfold CodeTriples.HT.
-  intros imem stk0 mem0 fh n n' Hcode (Hstk & H') Hn'.
-  subst.
-  eexists. eexists. split. eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_sub_p; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_sub_p. 
 Qed.
 
 Lemma dup_spec:
@@ -160,18 +126,7 @@ Lemma dup_spec:
      (fun m s => exists x, index_list n s = Some x /\ Q m (x :: s))
      Q.
 Proof.
-  intros n Q.
-  unfold CodeTriples.HT.
-  intros imem mem0 stk0 fh0 n0 n0' Hcode [x [HI HP]] Hn'.
-  eexists. eexists. intuition. eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. simpl in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_dup_p ; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_dup_p.
 Qed.
 
 Lemma swap_spec: forall n Q,
@@ -182,18 +137,7 @@ Lemma swap_spec: forall n Q,
                                    Q m s')
      Q.
 Proof.
-  intros n Q.
-  unfold CodeTriples.HT.
-  intros imem mem0 stk0 fh0 n0 n0' Hcode [y [s0 [x [s' [HE [HI [HU HP]]]]]]] Hn'.
-  eexists. eexists. intuition. eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. simpl in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_swap_p ; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_swap_p. 
 Qed.
 
 Lemma push_spec: forall v Q,
@@ -201,18 +145,7 @@ Lemma push_spec: forall v Q,
      (fun m s => Q m (CData (Vint v,handlerTag) :: s))
      Q.
 Proof.
-  intros Q v.
-  intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
-  eexists. eexists. intuition. eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *. intuition.
-
-  (* Run an instruction *)
-  nil_help. econstructor; auto.
-  eapply cstep_push_p ; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_push_p. 
 Qed.
 
 Lemma PushCachePtr_spec : forall Q,
@@ -221,48 +154,9 @@ Lemma PushCachePtr_spec : forall Q,
         Q m (CData (Vptr (cblock, 0),handlerTag) :: s))
      Q.
 Proof.
-  repeat intro.
-  exists ((CData (Vptr (cblock, 0), handlerTag))::stk0).
-  exists mem0.
-  simpl in H1.
-  intuition; subst.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  econstructor; auto.
-  eapply cstep_push_cache_ptr_p; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_push_cache_ptr_p. 
 Qed.
 
-Lemma push_cptr_spec :
-  forall v Q,
-    HT (push_cptr v)
-       (fun m s => Q m ((Vptr (cblock, v), handlerTag) ::: s))
-       Q.
-Proof.
-  intros.
-  intros imem mem0 stk0 c0 fh0 n Hcode HP' Hn'.
-  eexists. eexists.
-
-  subst.
-  unfold push_cptr, code_at in *.
-  intuition.
-  Focus 2.
-  do 3 try (eapply rte_step); eauto.
-  eapply cstep_push_cache_ptr_p; eauto.
-  reflexivity.
-  eapply cstep_push_p; eauto.
-  reflexivity.
-  simpl.
-  replace (fh0 + 3) with (fh0 + 1 + 1 + 1) by omega.
-  eapply cstep_add_p; eauto.
-  reflexivity.
-  simpl. replace (v + 0) with v by omega.
-  assumption.
-Qed.
 
 Lemma load_spec : forall Q,
   HT [Load]
@@ -273,24 +167,8 @@ Lemma load_spec : forall Q,
                     Q m (x ::: s))
      Q.
 Proof.
-  intros Q. eapply HT_forall_exists.
-  intros p. eapply HT_forall_exists.
-  intros t. eapply HT_forall_exists.
-  intros x. eapply HT_forall_exists.
-  intros s0.
-  intros imem mem0 stk0 fh0 n n' Hcode HP' Hn'.
-  eexists.
-  eexists.
-  intuition eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_load_p; eauto.
-Qed.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_load_p. 
+Qed.  
 
 Lemma unpack_spec : forall Q,
   HT [Unpack]
@@ -299,19 +177,7 @@ Lemma unpack_spec : forall Q,
                    Q m ((l,handlerTag):::(x,handlerTag):::s0))
      Q.
 Proof.
-  intros Q.
-  unfold CodeTriples.HT. intros. destruct H0 as [x [l [s0 [? ?]]]].
-  eexists.
-  eexists.
-  split.  apply H2.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  simpl in H1.  subst.
-  eapply cstep_unpack_p; eauto.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_unpack_p. 
 Qed.
 
 Lemma pack_spec : forall Q,
@@ -321,19 +187,115 @@ Lemma pack_spec : forall Q,
                    Q m ((x,l):::s0))
      Q.
 Proof.
-  intros Q.
-  unfold CodeTriples.HT. intros. destruct H0 as [x [t [l [l0 [s0 [? ?]]]]]].
-  eexists.
-  eexists.
-  split.  apply H2.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_pack_p. 
+Qed.
 
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
 
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  simpl in H1.  subst.
-  eapply cstep_pack_p; eauto.
+Lemma pop_spec: forall Q,
+  HT [Pop]
+     (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
+     Q.
+Proof.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_pop_p. 
+Qed.
+
+Lemma nop_spec: forall Q, HT [Noop] Q Q.
+Proof.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_nop_p. 
+Qed.
+
+Lemma store_spec : forall Q,
+  HT [Store]
+     (fun (m0 : memory) (s0 : stack) =>
+        exists p al v m s,
+          Mem.stamp (fst p) = Kernel /\
+          s0 = (Vptr p, al) ::: v ::: s /\ store p v m0 = Some m /\ Q m s)
+     Q.
+Proof.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_store_p. 
+Qed.  
+
+
+Lemma alloc_spec : forall Q : _ -> _ -> Prop,
+  HT [Alloc]
+     (fun m0 s0 => exists s t xv xl cnt,
+                     s0 = (Vint cnt,t) ::: (xv, xl) ::: s /\
+                     cnt >= 0 /\
+                     (forall b m,
+                        c_alloc Kernel cnt (xv,xl) m0 = Some (b, m) ->
+                        Q m ((Vptr (b, 0),handlerTag):::s)))
+     Q.
+Proof.
+  intros. unfold CodeTriples.HT. intros.
+  inv H. 
+  destruct H0 as (s & t & xv & xl & cnt & ? & ? & ?).
+  assert (ALLOC: exists b m', 
+                   c_alloc Kernel cnt (xv,xl) mem0 = Some(b,m')).
+  { unfold c_alloc, alloc, zreplicate.
+    destruct (Z_lt_dec cnt 0); try omega.
+    match goal with
+      | |- context [Some ?p = Some _] => destruct p
+    end.
+    eauto. }
+  split_vc; subst; run1 cstep_alloc_p. 
+Qed.
+
+Lemma getoff_spec : forall Q : _ -> _ -> Prop,
+  HT [GetOff]
+     (fun m s =>
+        exists p t s0,
+          s = (Vptr p, t) ::: s0 /\
+          forall t', Q m ((Vint (snd p), t') ::: s0))
+     Q.
+Proof.
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_getoff_p. 
+Qed.
+
+Lemma genEq_spec : forall Q,
+  HT genEq
+     (fun m s => exists v1 t1 v2 t2 s0 ,
+                   s = (v1,t1):::(v2,t2):::s0 /\
+                   Q m ((val_eq v1 v2,handlerTag):::s0))
+     Q.
+Proof.
+  unfold genEq. unfold CodeTriples.HT; split_vc; run1 cstep_eq_p.
+Qed.  
+
+
+Ltac apply_wp :=
+  try unfold pop, nop, push, dup, swap, sub, genEq;
+  try eapply add_spec;
+  try eapply sub_spec;
+  try eapply genEq_spec;
+  try eapply dup_spec;
+  try eapply swap_spec;
+  try eapply push_spec;
+  try eapply pop_spec;
+  try eapply PushCachePtr_spec;
+  try eapply alloc_spec;
+  try eapply load_spec;
+  try eapply store_spec;
+  try eapply unpack_spec;
+  try eapply pack_spec;
+  try eapply getoff_spec;
+  simpl.
+
+Ltac build_vc wptac :=
+  let awp := (try apply_wp; try wptac) in
+  try (eapply HT_compose_flip; [(build_vc wptac; awp)| (awp; eapply HT_strengthen_premise; awp)]).
+
+
+Lemma push_cptr_spec :
+  forall v Q,
+    HT (push_cptr v)
+       (fun m s => Q m ((Vptr (cblock, v), handlerTag) ::: s))
+       Q.
+Proof.
+  unfold push_cptr. 
+  intros. 
+  build_vc ltac:idtac. 
+  split_vc. 
+  replace (v + 0) with v by omega. auto.
 Qed.
 
 Lemma loadFromCache_spec: forall ofs (Q : _ -> _ -> Prop),
@@ -346,81 +308,10 @@ Lemma loadFromCache_spec: forall ofs (Q : _ -> _ -> Prop),
 Proof.
   intros.
   unfold loadFromCache.
-  eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply push_cptr_spec.
-    eapply load_spec. }
-  intros m s (? & [] & POST). subst.
-  repeat eexists; eauto.
-Qed.
-
-Lemma pop_spec: forall Q,
-  HT [Pop]
-     (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
-     Q.
-Proof.
-  intros Q.
-  unfold CodeTriples.HT.
-  intros. destruct H0 as [v [vl [s0 [P1 P2]]]].
-  eexists.
-  eexists.
-  split; eauto.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_pop_p; eauto.
-Qed.
-
-Lemma nop_spec: forall Q, HT [Noop] Q Q.
-Proof.
-  intros Q.
-  unfold CodeTriples.HT.
-  intros.
-  exists stk0.
-  exists mem0.
-  intuition.
-  simpl in H1; subst.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *.
-  intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; eauto.
-  eapply cstep_nop_p ; eauto.
-Qed.
-
-Lemma store_spec : forall Q,
-  HT [Store]
-     (fun (m0 : memory) (s0 : stack) =>
-        exists p al v m s,
-          Mem.stamp (fst p) = Kernel /\
-          s0 = (Vptr p, al) ::: v ::: s /\ store p v m0 = Some m /\ Q m s)
-     Q.
-Proof.
-  intros Q.
-  eapply HT_forall_exists. intro. eapply HT_forall_exists.
-  intro. eapply HT_forall_exists. intro. eapply HT_forall_exists.
-  intro. eapply HT_forall_exists.
-  intro. apply HT_fold_constant_premise. intro.
-  unfold CodeTriples.HT.
-  intros.
-  jauto_set_hyps; intros.
-  eexists.
-  eexists.
-  intuition; subst.
-  eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  nil_help. econstructor; auto.
-  eapply cstep_store_p; eauto.
+  build_vc ltac:(try eapply push_cptr_spec).
+  split_vc'. 
+  intros m s (? & [] & POST). 
+  split_vc. 
 Qed.
 
 Lemma storeAt_spec: forall a Q,
@@ -432,65 +323,10 @@ Lemma storeAt_spec: forall a Q,
      Q.
 Proof.
   intros.
-  eapply HT_strengthen_premise.
-  { eapply HT_compose; try eapply push_cptr_spec.
-    eapply store_spec; eauto. }
-  intuition; eauto. destruct H as [vl [s0 [m0 Hint]]]. intuition; substs.
-  do 5 eexists; intuition; eauto.
-Qed.
-
-Lemma alloc_spec : forall Q : _ -> _ -> Prop,
-  HT [Alloc]
-     (fun m0 s0 => exists s t xv xl cnt,
-                     s0 = (Vint cnt,t) ::: (xv, xl) ::: s /\
-                     cnt >= 0 /\
-                     (forall b m,
-                        c_alloc Kernel cnt (xv,xl) m0 = Some (b, m) ->
-                        Q m ((Vptr (b, 0),handlerTag):::s)))
-     Q.
-Proof.
-  intros Q.
-  unfold CodeTriples.HT. intros.
-  destruct H0 as (s & t & xv & xl & cnt & ? & ? & ?).
-  subst.
-
-  assert (ALLOC : exists b m',
-                    c_alloc Kernel cnt (xv,xl) mem0 = Some (b, m')).
-  { unfold c_alloc, alloc, zreplicate.
-    destruct (Z_lt_dec cnt 0); try omega.
-    match goal with
-      | |- context [Some ?p = Some _] => destruct p
-    end.
-    eauto. }
-
-  destruct ALLOC as (b & m' & ALLOC).
-
-  repeat eexists; eauto.
-
-  (* Load an instruction *)
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_alloc_p; eauto.
-Qed.
-
-Lemma getoff_spec : forall Q : _ -> _ -> Prop,
-  HT [GetOff]
-     (fun m s =>
-        exists p t s0,
-          s = (Vptr p, t) ::: s0 /\
-          forall t', Q m ((Vint (snd p), t') ::: s0))
-     Q.
-Proof.
-  intros Q imem stk0 mem0 fh n n' CODE (p & t & s0 & ? & POST) Hn'. subst.
-
-  do 2 eexists.
-
-  split; try apply (POST handlerTag).
-  unfold code_at in *. intuition.
-  eapply rte_step; auto.
-  eapply cstep_getoff_p; eauto.
+  unfold storeAt. 
+  build_vc ltac:(try eapply push_cptr_spec).
+  split_vc; subst.
+  intuition; eauto. (* split_vc can't quite manage the order *)
 Qed.
 
 Lemma skipNZ_continuation_spec_NZ: forall c P v,
@@ -500,28 +336,15 @@ Lemma skipNZ_continuation_spec_NZ: forall c P v,
                                  /\ P m s'))
        P.
 Proof.
-  intros c P v Hv.
-  intros imem stk0 c0 fh0 n n' Hcode HP Hn'.
-  destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. exists c0.
-  intuition.
+  unfold CodeTriples.HT; split_vc. 
 
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *. intuition. fold code_at in *.
-
-  (* Run an instruction *)
-  nil_help.   eapply rte_step; eauto.
-  match goal with
+  (* massage to match the rule we want to run *)
+  match goal with 
     | |- context[n + ?z] =>
       replace (n + z) with (if v =? 0 then n + 1 else n + z)
   end.
-  eapply cstep_branchnz_p ; eauto.
-
-  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).
-  rewrite Hif.
-  reflexivity.
+  run1 cstep_branchnz_p. 
+  rewrite <- Z.eqb_neq in H. rewrite H. auto.
 Qed.
 
 Lemma skipNZ_spec_Z: forall n P v,
@@ -531,25 +354,7 @@ Lemma skipNZ_spec_Z: forall n P v,
                                  /\ P m s'))
        P.
 Proof.
-  intros c P v Hv.
-  intros imem stk0 c0 fh n n' Hcode HP Hn'.
-  destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. eexists c0.
-  intuition.
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *.
-  intuition.
-
-  (* Run an instruction *)
-  nil_help.
-  eapply rte_step; auto.
-
-  replace (n + 1) with
-    (if 0 =? 0 then n + 1 else n + Z.pos (Pos.of_succ_nat c)); try reflexivity.
-  eapply cstep_branchnz_p ; eauto.
+  unfold CodeTriples.HT; split_vc; run1 cstep_branchnz_p.
 Qed.
 
 Lemma skipNZ_continuation_spec_Z: forall c P Q v,
@@ -938,25 +743,6 @@ Definition valToBool (v : val) :=
     | _ => true
   end.
 
-Lemma genEq_spec : forall Q,
-  HT genEq
-     (fun m s => exists v1 t1 v2 t2 s0 ,
-                   s = (v1,t1):::(v2,t2):::s0 /\
-                   Q m ((val_eq v1 v2,handlerTag):::s0))
-     Q.
-Proof.
-  intros Q. unfold genEq.
-  intros imem stk0 mem0 fh n n' CODE PRE Hn'. subst.
-  simpl in CODE. destruct CODE as [CODE _].
-  destruct PRE as (v1 & t1 & v2 & t2 & s0 & H1 & H2). subst.
-
-  repeat eexists; eauto.
-
-  eapply rte_step; eauto.
-
-  eapply cstep_eq_p; eauto.
-Qed.
-
 Lemma val_eq_int :
   forall z1 z2,
     val_eq (Vint z1) (Vint z2) = Vint (boolToZ (z1 =? z2)).
@@ -970,7 +756,7 @@ Proof.
     rewrite E'. reflexivity.
 Qed.
 
-Definition andv (v1 v2 : val) : val :=
+Definition andv (v1 v2 : val) : val := 
   if valToBool v1 then v2 else Vint 0.
 
 Lemma genAnd_spec: forall (Q:memory -> stack -> Prop),
@@ -989,16 +775,13 @@ Proof.
   unfold genAnd, andv.
   destruct (valToBool v1) eqn:E.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
-    eapply HT_strengthen_premise.
+    eapply HT_strengthen_premise. 
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       apply nop_spec.
-    + intros m s [H1 H2]. subst.
-      do 6 eexists. do 2 (split; eauto).
-      do 2 eexists. split; repeat f_equal; eauto.
-      unfold val_eq.
-      destruct (equiv_dec (Vint 0) v1); congruence.
+    + split_vc.  subst. split_vc. split; eauto. 
+      unfold val_eq. destruct (equiv_dec (Vint 0) v1).  congruence. eauto.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
@@ -1006,9 +789,7 @@ Proof.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply HT_compose; try eapply pop_spec.
       eapply genFalse_spec.
-    + intros m s [H1 H2]. subst.
-      do 6 eexists. do 2 (split; eauto).
-      do 2 eexists. rewrite val_eq_int. split; eauto.
+    + split_vc. subst. rewrite val_eq_int. split_vc. 
 Qed.
 
 Definition orv (v1 v2 : val) : val :=
@@ -1037,20 +818,15 @@ Proof.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       eapply HT_compose; try eapply pop_spec.
       eapply genTrue_spec.
-    + intros m s [H1 H2]. subst.
-      do 6 eexists. do 2 (split; eauto).
-      do 2 eexists. split; repeat f_equal; eauto.
-      * unfold val_eq.
-        destruct (equiv_dec (Vint 0) v1); congruence.
+    + split_vc. subst. split_vc. split; eauto. 
+      unfold val_eq. destruct (equiv_dec (Vint 0) v1).  congruence. eauto.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply nop_spec.
-    + intros m s [H1 H2]. subst.
-      do 6 eexists. do 2 (split; eauto).
-      do 2 eexists. rewrite val_eq_int. split; eauto.
+    + split_vc. subst. rewrite val_eq_int. split_vc. 
 Qed.
 
 Lemma genNot_spec : forall Q : _ -> _ -> Prop,
@@ -1071,17 +847,11 @@ Proof.
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec.
-    + intros m s [H1 H2]. subst.
-      do 6 eexists.
-      repeat (split; eauto).
-      rewrite val_eq_int. eauto.
+    + split_vc. subst. split_vc. rewrite val_eq_int. simpl. auto. 
   - eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec.
-    + intros m s [H1 H2]. subst.
-      do 6 eexists.
-      repeat (split; eauto).
-      rewrite val_eq_int. rewrite Z.eqb_sym. eauto.
+    + split_vc. subst. split_vc. rewrite val_eq_int. rewrite Z.eqb_sym. eauto. 
 Qed.
 
 Lemma genTestEqual_spec:

@@ -58,6 +58,29 @@ Definition stk_env (s : list CStkElmt) (e : list val)
     nexists (stk_env_aux e s0 (fun r => s = r)).
 
 Ltac apply_wp :=
+  try unfold pop, nop, push, dup, swap, sub, genEq;
+  try eapply add_spec;
+  try eapply sub_spec;
+  try eapply genEq_spec;
+  try eapply dup_spec;
+  try eapply swap_spec;
+  try eapply push_spec;
+  try eapply pop_spec;
+  try eapply PushCachePtr_spec;
+  try eapply alloc_spec;
+  try eapply load_spec;
+  try eapply store_spec;
+  try eapply unpack_spec;
+  try eapply pack_spec;
+  try eapply getoff_spec;
+  simpl.
+
+Ltac build_vc wptac :=
+  let awp := (try apply_wp; try wptac) in
+  try (eapply HT_compose_flip; [(build_vc wptac; awp)| (awp; eapply HT_strengthen_premise; awp)]).
+
+(*
+Ltac apply_wp :=
   try unfold pop, nop, push, dup, swap;
   match goal with
   | |- HT _ _ [Store] _ _ => eapply store_spec
@@ -73,6 +96,7 @@ Ltac apply_wp :=
 Ltac build_vc wptac :=
   let awp := (try apply_wp; try wptac) in
   try (eapply HT_compose_flip; [(build_vc wptac; awp)| (awp; eapply HT_strengthen_premise; awp)]).
+*)
 
 (* This version doesn't progress past introductions, which makes it useful when
    we need to do some manual work after an introduction but before doing an eexists *)
@@ -191,7 +215,7 @@ Proof.
                      Q m' ((Vint 0, ti') ::: s')).
     { intros i POS.
       eexists. split.
-      - build_vc idtac. trivial.
+      - build_vc idtac.
       - intros m s t (INV & END).
         unfold Icopy in *.
         destruct INV as (t5 & t6 & Hs & ? & VALIDSRC & VALIDDST & ? & ? & ? & COPY & REST & ?).
@@ -388,11 +412,8 @@ Proof.
   Opaque Z.add. (* not sure why this is necessary this time *)
   unfold alloc_array.
   build_vc ltac: (try apply alloc_spec; eauto).
-  intros m s (cnt & t & s0 & ? & ? & H).
-  subst. simpl.
-  clear stamp_cblock.
-  do 31 (try eexists; simpl; eauto); try omega.
-  repeat (split; eauto).
+  intros m s (cnt & t & s0 & ? & ? & H). subst.
+  split_vc'. intros.  
   assert (VALID : valid_address (b,0) m0).
   { eexists (Vint 0, handlerTag).
     erewrite load_alloc; eauto.
@@ -411,8 +432,8 @@ Proof.
   match goal with
     | H : match ?B with _ => _ end = Some _ |- _ =>
       destruct B; inv H
-  end.
-  repeat eexists; simpl; eauto.
+  end. 
+  split_vc. intuition eauto. 
   - eapply Mem.alloc_stamp; eauto.
   - assert (FRESH : Mem.get_frame m b = None).
     { eapply Mem.alloc_get_fresh; eauto. }
@@ -538,13 +559,12 @@ Proof.
   { intros contra. subst. unfold load in *. simpl in *.
     rewrite FRESH in LOAD0.
     congruence. }
+(* XXX *)
 
-  do 8 (try eexists); eauto.
-  eexists (Vint (Z.of_nat (length vs1)), t).
-  split_vc.
-  split; eauto using extends_load.
-  split_vc.
-  split; split_vc; try omega.
+  split_vc'. 
+  split; eauto using extends_load. 
+  exists (Z.of_nat (length vs1)). 
+  split_vc'. 
   split.
   { intros.
     eapply extends_valid_address; eauto.
@@ -552,9 +572,8 @@ Proof.
     omega. }
   split.
   { intros. apply VALID. omega. }
-  split; try congruence.
-  split; auto.
-  split_vc.
+  split; try congruence. 
+  split_vc. 
   assert (LOADm0m1 : forall b' off,
                        b' <> b ->
                        load (b', off) m0 = load (b', off) m1).
@@ -568,7 +587,7 @@ Proof.
     { intros E. rewrite E. eassumption. }
     unfold load.
     rewrite H3; trivial. }
-  split_vc.
+  split_vc. 
   split.
   { assert (LOAD'' := LOAD0).
     eapply extends_load with (m3 := m1) in LOAD''; eauto.
@@ -576,9 +595,9 @@ Proof.
     { intros E. rewrite E. eassumption. }
     unfold load.
     rewrite H3; trivial. }
-  split_vc.
-  split; try (split; try solve [eauto]); try omega.
-  split.
+  exists (Z.of_nat (length vs2)).
+  split_vc. 
+  split. 
   { simpl. intros.
     eapply memseq_valid with (z := z) in SEQ0; try omega.
     exploit @extends_valid_address; eauto.
@@ -629,6 +648,7 @@ Proof.
         symmetry.
         eapply extends_load with (m3 := m); eauto.
 Qed.
+
 
 (* Foldr over an array. *)
 
@@ -793,6 +813,7 @@ Proof.
   intros m ? (i & a & vs & s' & (ti & ?) & POS & INV & POST). subst.
   destruct INV as (v & BOUNDS & ARR & STAMP & ? & (tv & ta & ?) & ?).
   subst m0. subst. simpl.
+
   do 3 (eexists; split; eauto).
   do 6 eexists. split; eauto. simpl. split; eauto.
   assert (Hx : exists x tx, load (a,i) m = Some (x,tx)).

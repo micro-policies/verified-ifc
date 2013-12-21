@@ -34,7 +34,7 @@ a sets-of-principals IFC lattice.
        what is a concrete lattice,
        and a correct concrete lattice.
        In particular, the encoding and decoding of tags
-       are now relations, that involve the kernel memory.
+       are now relations, which involve the kernel memory.
        Also show that the concrete implementation of sets of
        integers (represented as arrays) is correct.
 
@@ -90,7 +90,7 @@ marks are checked on each memory access, providing some additional
 memory safety guarantees. In the abstract machine, we stamp blocks
 with labels that represent the security level of their context of
 allocation. This makes the definition of the indistinguishability
-relation on states easier to define. In file Memory.v, we define a
+relation on states easier to state. In file Memory.v, we define a
 notion of memory injections that is used when proving state
 refinements for our machines.
 

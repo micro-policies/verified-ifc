@@ -14,7 +14,7 @@ Class Encodable (L : Type) := {
   ZToLab_labToZ_id : forall l, l = ZToLab (labToZ l)
 }.
 
-(** The two-point lattice element are encodable to integers. *)
+(** The two-point lattice elements are encodable to integers. *)
 Program Instance EncodableHL : Encodable Lab := {
 
   labToZ l :=

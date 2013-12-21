@@ -21,11 +21,13 @@ code generators, and concrete (privileged) code. *)
 Section CodeSpecs.
 Local Open Scope Z_scope.
 
+Ltac run1 := eapply rte_step; eauto; econstructor; eauto. 
+
 Lemma nop_spec: forall Q,
   HT nop Q Q.
 Proof.
   unfold nop, HT; simpl; intros.
-  eexists; eexists; intuition eauto.
+  split_vc.
   apply_f_equal rte_refl; rec_f_equal ltac:(try omega; eauto).
 Qed.
 
@@ -36,13 +38,7 @@ Lemma add_spec: forall Q,
                    /\ Q m ((z1 + z2,handlerTag) ::: s0))
      Q.
 Proof.
-  unfold HT; simpl; intros.
-  destruct H0 as [s0 [z1 [l1 [z2 [l2 Hint]]]]]. intuition; substs.
-  eexists; eexists; intuition eauto. 
-
-  (* Run an instruction *)
-  eapply rte_step; eauto.
-  eapply cstep_add_p ; eauto.
+  unfold HT; split_vc; subst; run1. 
 Qed.
 
 Lemma sub_spec: forall Q,
@@ -52,13 +48,7 @@ Lemma sub_spec: forall Q,
                    /\ Q m ((z1 - z2,handlerTag) ::: s0))
      Q.
 Proof.
-  unfold HT; simpl; intros.
-  destruct H0 as [s0 [z1 [l1 [z2 [l2 Hint]]]]]. intuition; substs.
-  eexists; eexists; intuition eauto. 
-
-  (* Run an instruction *)
-  eapply rte_step; eauto.
-  eapply cstep_sub_p ; eauto.
+  unfold HT; split_vc; subst; run1. 
 Qed.
 
 Lemma push_spec : forall i Q,
@@ -66,14 +56,7 @@ Lemma push_spec : forall i Q,
      (fun m s0 => Q m ((i,handlerTag):::s0))
      Q.
 Proof.
-  intros. 
-  eexists.
-  eexists.
-  intuition eauto.
-  subst. simpl.
-  unfold code_at in *. intuition. 
-  eapply rte_step; auto.
-  eapply cstep_push_p; eauto.
+  unfold HT; split_vc; subst; run1.
 Qed.
 
 Lemma load_spec: forall Q,
@@ -84,16 +67,7 @@ Lemma load_spec: forall Q,
                    Q m ((v,vl) ::: s))
      Q.
 Proof.
-  intros Q.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP' Hn'.
-  destruct HP' as [a [v [vl [s Hint]]]]. intuition.  
-  eexists.
-  eexists.
-  intuition eauto.
-  subst. simpl.
-  unfold code_at in *. intuition. 
-  eapply rte_step; auto.
-  eapply cstep_load_p; eauto.
+  unfold HT; split_vc; subst; run1. 
 Qed.
 
 Lemma loadFrom_spec : forall a (Q: memory-> stack -> Prop), 
@@ -101,7 +75,7 @@ Lemma loadFrom_spec : forall a (Q: memory-> stack -> Prop),
      (fun m s => exists v vl, index_list_Z a m = Some (v,vl) /\ Q m ((v,vl):::s))
      Q.
 Proof.
-  intros.
+  intros. 
   eapply HT_compose_bwd.
   eapply load_spec.
   eapply HT_strengthen_premise.
@@ -115,6 +89,18 @@ Qed.
    [addrTag*]. *)
 Definition valid_address a (m: memory) :=
   (0 <= a) /\ (Z.to_nat a < length m)%nat.
+
+Lemma valid_address_upd: forall a a' vl m m',
+  valid_address a m ->
+  upd_m a' vl m = Some m' ->
+  valid_address a m'.
+Proof.
+  unfold valid_address; intuition.
+  unfold upd_m in *.
+  destruct (a' <? 0).
+  - false.
+  - erewrite update_preserves_length; eauto.
+Qed.
 
 Lemma valid_read: forall a m,
   valid_address a m ->
@@ -156,16 +142,7 @@ Lemma store_spec: forall Q a al v vl,
                    Q m s)
      Q.
 Proof.
-  unfold HT.
-  intros.
-  jauto_set_hyps; intros.
-  eexists.
-  eexists.
-  intuition; subst.
-  eauto.
-  unfold code_at in *. intuition.
-  eapply rte_step; auto.
-  eapply cstep_store_p; eauto.
+  unfold HT; split_vc; subst; run1.
 Qed.
 
 Lemma storeAt_spec: forall a v vl Q,
@@ -178,11 +155,11 @@ Lemma storeAt_spec: forall a v vl Q,
 Proof.
   intros.
   eapply HT_compose_bwd.
-  eapply store_spec; eauto.
+  eapply store_spec. 
   eapply HT_strengthen_premise.
   eapply push_spec.
-  intuition; eauto.
-  substs; eauto. 
+  split_vc. 
+  subst; split_vc. 
 Qed.
 
 Lemma skipNZ_continuation_spec_NZ: forall c Q v l,
@@ -192,29 +169,15 @@ Lemma skipNZ_continuation_spec_NZ: forall c Q v l,
                                /\ Q m s'))
        Q.
 Proof.
-  intros c P v l Hv.
-  intros imem mem0 stk0 c0 fh0 n n' Hcode HP Hn'.
-  destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. exists c0. 
-  intuition.
+  unfold HT; split_vc. 
 
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *. intuition. fold code_at in *.
-
-  (* Run an instruction *) 
-  eapply rte_step; eauto. 
+  (* massage to match the rule we want to run *)
   match goal with 
     | |- context[n + ?z] =>
       replace (n + z) with (if v =? 0 then n + 1 else n + z)
   end.
-
-  eapply cstep_branchnz_p ; eauto. 
-
-  assert (Hif: v =? 0 = false) by (destruct v; [omega | auto | auto]).  
-  rewrite Hif.
-  reflexivity.
+  run1. 
+  rewrite <- Z.eqb_neq in H. rewrite H. auto.
 Qed.
 
 Lemma skipNZ_spec_Z: forall n Q v l,
@@ -224,24 +187,12 @@ Lemma skipNZ_spec_Z: forall n Q v l,
                                /\ Q m s'))
        Q.
 Proof.
-  intros c P v l Hv.
-  intros imem mem0 stk0 c0 fh n n' Hcode HP Hn'.
-  destruct HP as [stk1 [H_stkeq HPs']].
-  exists stk1. eexists c0.
-  intuition.
+  unfold HT; split_vc. 
 
-  (* Load an instruction *)
-  subst. simpl.
-  unfold skipNZ in *.
-  unfold code_at in *. simpl in *. 
-  intuition. 
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-
-  replace (n + 1) with 
-    (if 0 =? 0 then n + 1 else n + Z.pos (Pos.of_succ_nat c)); try reflexivity.
-  eapply cstep_branchnz_p ; eauto. 
+  (* pick the rule we want to run *)
+  eapply rte_step; auto. 
+  apply_f_equal cstep_branchnz_p. 
+  eauto. 
 Qed.
 
 Lemma skipNZ_continuation_spec_Z: forall c P Q v l,
@@ -284,11 +235,8 @@ Proof.
   unfold ifNZ.
   rewrite app_ass.
   eapply HT_compose.
-  
   apply skipNZ_spec_Z; auto.
-
   eapply HT_compose; eauto.
-
   apply skip_spec.
 Qed.
 
@@ -445,6 +393,7 @@ Qed.
   Actually, that's what you get if you unfold this definition over a
   list of [(guard, branch)] pairs; this spec is just one step of
   unfolding. *)
+
 Lemma cases_spec_step_specialized: forall c vc b cbs d P Qb Qcbs,
   (* This could be abstracted: code that transforms the stack by
   pushing one value computed from the existing stack and memory *)
@@ -506,19 +455,8 @@ Lemma pop_spec: forall Q,
      (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
      Q.
 Proof.
-  unfold CodeTriples.HT, pop.
-  intros. destruct H0 as [v [vl [s0 [P1 P2]]]]. 
-  eexists.
-  eexists.
-  split; eauto. 
-
-  (* Load an instruction *)
-  subst. simpl.
-  unfold code_at in *. intuition.
-
-  (* Run an instruction *)
-  eapply rte_step; auto.
-  eapply cstep_pop_p; eauto.
+  unfold HT, pop.
+  split_vc; simpl; run1.
 Qed.
 
 Lemma genAnd_spec : forall (Q:memory -> stack -> Prop),
@@ -593,7 +531,7 @@ Definition negz (z: Z) : Z :=
       | 0 => 1 
       | _ => 0
   end.
- 
+
 Lemma genNot_spec: forall Q,
   HT genNot
      (fun m s => exists z s0, 
@@ -606,42 +544,9 @@ Proof.
   eapply ifNZ_spec_existential.
   eapply genFalse_spec.
   eapply genTrue_spec.
-  unfold boolToZ in *. split_vc. substs; intuition; (cases x; try intuition); try congruence.
+  split_vc. substs; intuition; (cases x; try intuition); try congruence.
 Qed.
 
-Lemma genNot_spec_general: forall v, forall m0 s0,
-  HT genNot
-     (fun m s => m = m0 /\ s = CData (v, handlerTag) :: s0)
-     (fun m s => m = m0 /\ 
-                 s = CData (boolToZ (v =? 0),handlerTag) :: s0).
-Proof.
-  intros.
-  unfold genNot.
-  cases (v =? 0) as Heq.
-  - apply Z.eqb_eq in Heq.
-    eapply HT_strengthen_premise.
-    + eapply ifNZ_spec_Z.
-      * eapply genTrue_spec.
-      * eauto.
-    + jauto.
-  - apply Z.eqb_neq in Heq.
-    eapply HT_strengthen_premise.
-    + eapply ifNZ_spec_NZ.
-      * eapply genFalse_spec.
-      * eauto.
-    + jauto.
-Qed.
-
-Lemma genNot_spec': forall b, forall m0 s0,
-  HT genNot
-     (fun m s => m = m0 /\ s = (boolToZ b, handlerTag) ::: s0)
-     (fun m s => m = m0 /\ s = (boolToZ (negb b), handlerTag) ::: s0).
-Proof.
-  intros.
-  eapply HT_weaken_conclusion.
-  - eapply genNot_spec_general.
-  - cases b; auto.
-Qed.
 
 Lemma genImpl_spec: forall b1 b2, forall m0 s0,
   HT genImpl
@@ -658,7 +563,7 @@ Proof.
   intros; simpl. inv H; subst.
   exists (boolToZ b1) ; exists ((boolToZ b2, handlerTag) ::: s0).
   split; eauto.
-  unfold boolToZ in *.
+  unfold boolToZ in *. 
   (cases b1 ; cases b2; try intuition); simpl.
   exists false; exists true;  eauto.
   exists false; exists false;  eauto.
@@ -751,17 +656,6 @@ Proof.
 Qed.
 
 
-Lemma valid_address_upd: forall a a' vl m m',
-  valid_address a m ->
-  upd_m a' vl m = Some m' ->
-  valid_address a m'.
-Proof.
-  unfold valid_address; intuition.
-  unfold upd_m in *.
-  destruct (a' <? 0).
-  - false.
-  - erewrite update_preserves_length; eauto.
-Qed.
 
 (** Proof of a specification for the switch-case generator indexed by type [I]. *)
 Section IndexedCasesSpec.
@@ -815,14 +709,8 @@ Lemma ret_specEscape: forall raddr (P: HProp),
     (fun m s => (P m s , Success)).
 Proof.
   intros. cases raddr; subst.
-  unfold HTEscape. intros. intuition.
-  jauto_set_hyps; intuition.
-  repeat eexists.
-  eauto.
-
-  (* Load an instruction *)
-  subst.
-  unfold code_at in *. intuition.
+  unfold HTEscape. 
+  split_vc; subst.
 
   (* Run an instruction *)
   eapply rte_success; auto.
@@ -837,14 +725,8 @@ Lemma jump_specEscape_Failure: forall tag raddr (P: HProp),
            (fun m s => (P m s , Failure)).
 Proof.
   intros.
-  unfold HTEscape. intros.
-  jauto_set_hyps; intuition.
-  repeat eexists.
-  eauto.
-
-  (* Load an instruction *)
-  subst.
-  unfold code_at in *. intuition.
+  unfold HTEscape. 
+  split_vc; subst.
 
   (* Run an instruction *)
   eapply rte_fail; auto.
@@ -896,3 +778,4 @@ Proof.
 Qed.
 
 End CodeSpecs.
+

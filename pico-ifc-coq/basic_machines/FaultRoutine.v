@@ -91,10 +91,6 @@ Hypothesis initial_mem_matches: handler_initial_mem_matches
                                   (labsToZs vls)
                                   (labToZ pcl) m0.
 
-Ltac clean_up_initial_mem :=
-  unfold handler_initial_mem_matches in *;
-  intuition;
-  jauto_set_hyps; intros.
 
 (** Spec of the code generated for a given opcode's rule *)
 Lemma genRule_spec_GT :
@@ -121,8 +117,9 @@ Lemma genCheckOp_spec:
                   s = (boolToZ (opCodeToZ opcode' =? opCodeToZ opcode)
                       ,handlerTag) ::: s0).
 Proof.
-  clean_up_initial_mem.
-  intros.
+  unfold handler_initial_mem_matches in *;
+  intuition;
+  jauto_set_hyps; intros.
   unfold genCheckOp.
   eapply genTestEqual_spec.
   intros. eapply HT_strengthen_premise.
@@ -551,7 +548,7 @@ End HandlerCorrect.
 
 End FaultHandler.
 
-(** * Instanciating the above results for IFC labels *)
+(** * Instantiating the above results for IFC labels *)
 
 (** ** TMU Fault Handler generator  *)
 Section TMU.
@@ -637,7 +634,7 @@ Lemma genVar_spec_wp: forall v (Q: memory -> stack -> Prop),
 Proof.
   intros v Q.
   unfold genVar; subst. inv initial_mem_matches. intuition.
-  destruct v; (* split_vc seems to loop *)
+  destruct v;
     (eapply HT_strengthen_premise;
     try eapply loadFrom_spec;
     simpl; intros m s [Hmem HQ]; subst;
@@ -680,12 +677,12 @@ Proof.
     eapply genTrue_spec.
     split_vc.
 
-  - repeat eapply HT_compose_bwd.
-    eapply genFlows_spec.
-    eapply genExpr_spec_wp.
+  - repeat eapply HT_compose_bwd. 
+    eapply genFlows_spec. 
+    eapply genExpr_spec_wp. 
     eapply HT_strengthen_premise.
-    eapply genExpr_spec_wp.
-    split_vc.
+    eapply genExpr_spec_wp. 
+    split_vc. 
 
   - eapply HT_compose_bwd.
     eapply HT_compose_bwd.
@@ -721,7 +718,7 @@ Proof.
   cases_if in Happly.
   inv Happly; subst.
 
-  eapply HT_strengthen_premise. unfold ite.
+  eapply HT_strengthen_premise. unfold ite. 
   eapply HT_compose_bwd.
   eapply ifNZ_spec_existential.
   eapply HT_compose_bwd.

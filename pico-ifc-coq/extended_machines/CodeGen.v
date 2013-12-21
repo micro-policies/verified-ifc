@@ -20,7 +20,7 @@ Definition pop : code := [Pop].  (* for backward compatibility. *)
 (* still a real instruction (why?): Definition nop: code := []. *)
 Definition nop := [Noop].
 Definition push v: code := [Push v].
-Definition push_cptr ofs: code := [PushCachePtr;Push ofs;Add].
+Definition push_cptr ofs: code := [PushCachePtr] ++ [Push ofs] ++ [Add].
 
 Definition storeAt loc :=
   push_cptr loc ++ [Store].

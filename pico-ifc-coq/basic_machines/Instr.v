@@ -29,7 +29,7 @@ Inductive Instr :=
   | Jump : Instr 
   | BranchNZ : Z -> Instr
 
-  (* [Call n b] : call a function with n arguments, the boolean
+  (* [Call n b] : call a function with n arguments; the boolean
   indicates a value or void returning function.  We need that flag to
   ensure two calls to high contexts have the same stack layout upon a
   return *)
