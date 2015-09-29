@@ -58,7 +58,7 @@ Definition state_refinement_statement match_states
     match_states s1 s2 ->
     @TINI.exec S2 s2 t2 s2' ->
     exists t1 s1',
-l      @TINI.exec S1 s1 t1 s1' /\
+      @TINI.exec S1 s1 t1 s1' /\
       match_traces match_events t1 t2.
 
 Record state_refinement := {
