@@ -9,7 +9,7 @@ Require Import Semantics.
 Require Import AbstractCommon.
 Require Import Rules.
 
-Require Vector.
+Require Coq.Vectors.Vector.
 
 Set Implicit Arguments.
 

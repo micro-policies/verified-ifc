@@ -2,7 +2,7 @@ Require Import ZArith.
 Require Import List.
 Require Import Utils.
 Import ListNotations.
-Require Vector.
+Require Coq.Vectors.Vector.
 
 Require Import LibTactics.
 Require Import Instr Memory.

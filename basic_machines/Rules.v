@@ -4,7 +4,7 @@ Require Import Utils.
 Require Import Lattices.
 Require Import Instr.
 Require Import Coq.Unicode.Utf8. 
-Require Import Vector. 
+Require Import Coq.Vectors.Vector. 
 Set Implicit Arguments.
 
 (** Definition of a DSL for rule expressions

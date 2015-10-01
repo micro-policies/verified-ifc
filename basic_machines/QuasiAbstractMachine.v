@@ -7,7 +7,7 @@ Require Import Semantics.
 Require Import AbstractCommon.
 Require Import Rules.
 
-Require Vector.
+Require Coq.Vectors.Vector.
 
 (** Quasi-Abstract Machine. 
    Like the abstract machine, but IFC decisions are factored out into
