@@ -44,7 +44,7 @@ additional generality doesn't affect much the rest of the development.
 -- Compile
         make all
    This will compile the coq definitions, proofs and documentation.
-   This code is known to work with Coq 8.4.
+   This code is known to work with Coq 8.5.
 
 -- Glossary
 
