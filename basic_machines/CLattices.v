@@ -1,18 +1,16 @@
-
 Require Import ZArith.
 Require Import List.
-Import ListNotations. 
-Require Import LibTactics.
+Import ListNotations.
 
 Require Import Instr.
 Require Import Lattices.
 Require Import Concrete.
 Require Import CodeGen.
-Require Import CodeTriples. 
+Require Import CodeTriples.
 Require Import CodeSpecs.
 Require Import Encodable.
 
-Local Open Scope Z_scope. 
+Local Open Scope Z_scope.
 
 (** A [ConcreteLattice] is a way of computing over the elements of some
 encodable lattice, as defined in [Encodable.v] and [Lattices.v]. This
@@ -84,7 +82,7 @@ Lemma genBot_spec_HL : forall Q,
       Q.
 Proof.
    intros.
-   unfold genBot, TMUHL. 
+   unfold genBot, TMUHL.
    eapply genFalse_spec; simpl; eauto.
 Qed.
 
@@ -100,14 +98,14 @@ Proof.
   eapply HT_strengthen_premise.
   eapply genOr_spec; eauto.
   simpl. intros. destruct H as [l [l' [s0 Hint]]]. intuition.
-  cases l; cases l'; substs; unfold labToZ, boolToZ in *.
-  exists false; exists false; exists s0 ; 
+  destruct l eqn:?; destruct l' eqn:?; subst; unfold labToZ, boolToZ in *.
+  exists false; exists false; exists s0 ;
   intuition; eauto.
-  exists false; exists true; exists s0 ; 
+  exists false; exists true; exists s0 ;
   intuition; eauto.
-  exists true; exists false; exists s0 ; 
+  exists true; exists false; exists s0 ;
   intuition; eauto.
-  exists true; exists true; exists s0 ; 
+  exists true; exists true; exists s0 ;
   intuition; eauto.
 Qed.
 
@@ -121,7 +119,7 @@ Lemma genFlows_spec_HL: forall Q,
 Proof.
   intros.
   unfold genFlows, TMUHL, genImpl.
-  eapply HT_compose_bwd. 
+  eapply HT_compose_bwd.
   eapply genOr_spec.
   unfold genNot.
   eapply HT_strengthen_premise.
@@ -129,14 +127,14 @@ Proof.
   eapply push_spec.
   eapply push_spec.
   split_vc.
-  destruct x, x0 ; simpl in *; intuition; substs; unfold boolToZ.
-  exists true; exists false; exists x1 ; 
+  destruct x, x0 ; simpl in *; intuition; subst; unfold boolToZ.
+  exists true; exists false; exists x1 ;
   intuition; eauto.
-  exists true; exists true; exists x1 ; 
+  exists true; exists true; exists x1 ;
   intuition; eauto.
-  exists false; exists false; exists x1 ; 
+  exists false; exists false; exists x1 ;
   intuition; eauto.
-  exists false; exists true; exists x1 ; 
+  exists false; exists true; exists x1 ;
   intuition; eauto.
 Qed.
 

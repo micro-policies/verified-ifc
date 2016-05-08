@@ -61,7 +61,7 @@ Ltac split_vc' :=
    | _ => (eauto; try (zify; omega))
    end).
 
-Ltac run1 L := eapply rte_step; eauto; eapply L; eauto. 
+Ltac run1 L := eapply rte_step; eauto; eapply L; eauto.
 
 Section CodeSpecs.
 Local Open Scope Z_scope.
@@ -83,7 +83,7 @@ Lemma cstep_branchnz_p' : forall m fh i s pcv pcl offv av al pc',
              (CState m fh i s (pc',handlerTag) true).
 Proof.
   intros. subst.
-  econstructor (solve [eauto]).
+  [> once (econstructor; solve [eauto]) ..].
 Qed.
 
 Definition imemory : Type := list Instr.
@@ -105,7 +105,7 @@ Lemma add_spec : forall Q,
           Q m0 ((vr,handlerTag) ::: s))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_add_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_add_p.
 Qed.
 
 Lemma sub_spec : forall Q,
@@ -117,7 +117,7 @@ Lemma sub_spec : forall Q,
           Q m0 ((vr,handlerTag) ::: s))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_sub_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_sub_p.
 Qed.
 
 Lemma dup_spec:
@@ -137,7 +137,7 @@ Lemma swap_spec: forall n Q,
                                    Q m s')
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_swap_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_swap_p.
 Qed.
 
 Lemma push_spec: forall v Q,
@@ -145,7 +145,7 @@ Lemma push_spec: forall v Q,
      (fun m s => Q m (CData (Vint v,handlerTag) :: s))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_push_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_push_p.
 Qed.
 
 Lemma PushCachePtr_spec : forall Q,
@@ -154,7 +154,7 @@ Lemma PushCachePtr_spec : forall Q,
         Q m (CData (Vptr (cblock, 0),handlerTag) :: s))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_push_cache_ptr_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_push_cache_ptr_p.
 Qed.
 
 
@@ -167,8 +167,8 @@ Lemma load_spec : forall Q,
                     Q m (x ::: s))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_load_p. 
-Qed.  
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_load_p.
+Qed.
 
 Lemma unpack_spec : forall Q,
   HT [Unpack]
@@ -177,7 +177,7 @@ Lemma unpack_spec : forall Q,
                    Q m ((l,handlerTag):::(x,handlerTag):::s0))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_unpack_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_unpack_p.
 Qed.
 
 Lemma pack_spec : forall Q,
@@ -187,7 +187,7 @@ Lemma pack_spec : forall Q,
                    Q m ((x,l):::s0))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_pack_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_pack_p.
 Qed.
 
 
@@ -196,12 +196,12 @@ Lemma pop_spec: forall Q,
      (fun m s => exists v vl s0, s = (v,vl):::s0 /\ Q m s0)
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_pop_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_pop_p.
 Qed.
 
 Lemma nop_spec: forall Q, HT [Noop] Q Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_nop_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_nop_p.
 Qed.
 
 Lemma store_spec : forall Q,
@@ -212,8 +212,8 @@ Lemma store_spec : forall Q,
           s0 = (Vptr p, al) ::: v ::: s /\ store p v m0 = Some m /\ Q m s)
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_store_p. 
-Qed.  
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_store_p.
+Qed.
 
 
 Lemma alloc_spec : forall Q : _ -> _ -> Prop,
@@ -227,9 +227,9 @@ Lemma alloc_spec : forall Q : _ -> _ -> Prop,
      Q.
 Proof.
   intros. unfold CodeTriples.HT. intros.
-  inv H. 
+  inv H.
   destruct H0 as (s & t & xv & xl & cnt & ? & ? & ?).
-  assert (ALLOC: exists b m', 
+  assert (ALLOC: exists b m',
                    c_alloc Kernel cnt (xv,xl) mem0 = Some(b,m')).
   { unfold c_alloc, alloc, zreplicate.
     destruct (Z_lt_dec cnt 0); try omega.
@@ -237,7 +237,7 @@ Proof.
       | |- context [Some ?p = Some _] => destruct p
     end.
     eauto. }
-  split_vc; subst; run1 cstep_alloc_p. 
+  split_vc; subst; run1 cstep_alloc_p.
 Qed.
 
 Lemma getoff_spec : forall Q : _ -> _ -> Prop,
@@ -248,7 +248,7 @@ Lemma getoff_spec : forall Q : _ -> _ -> Prop,
           forall t', Q m ((Vint (snd p), t') ::: s0))
      Q.
 Proof.
-  unfold CodeTriples.HT; split_vc; subst; run1 cstep_getoff_p. 
+  unfold CodeTriples.HT; split_vc; subst; run1 cstep_getoff_p.
 Qed.
 
 Lemma genEq_spec : forall Q,
@@ -259,7 +259,7 @@ Lemma genEq_spec : forall Q,
      Q.
 Proof.
   unfold genEq. unfold CodeTriples.HT; split_vc; run1 cstep_eq_p.
-Qed.  
+Qed.
 
 
 Ltac apply_wp :=
@@ -291,10 +291,10 @@ Lemma push_cptr_spec :
        (fun m s => Q m ((Vptr (cblock, v), handlerTag) ::: s))
        Q.
 Proof.
-  unfold push_cptr. 
-  intros. 
-  build_vc ltac:idtac. 
-  split_vc. 
+  unfold push_cptr.
+  intros.
+  build_vc ltac:idtac.
+  split_vc.
   replace (v + 0) with v by omega. auto.
 Qed.
 
@@ -309,9 +309,9 @@ Proof.
   intros.
   unfold loadFromCache.
   build_vc ltac:(try eapply push_cptr_spec).
-  split_vc'. 
-  intros m s (? & [] & POST). 
-  split_vc. 
+  split_vc'.
+  intros m s (? & [] & POST).
+  split_vc.
 Qed.
 
 Lemma storeAt_spec: forall a Q,
@@ -323,7 +323,7 @@ Lemma storeAt_spec: forall a Q,
      Q.
 Proof.
   intros.
-  unfold storeAt. 
+  unfold storeAt.
   build_vc ltac:(try eapply push_cptr_spec).
   split_vc; subst.
   intuition; eauto. (* split_vc can't quite manage the order *)
@@ -336,14 +336,14 @@ Lemma skipNZ_continuation_spec_NZ: forall c P v,
                                  /\ P m s'))
        P.
 Proof.
-  unfold CodeTriples.HT; split_vc. 
+  unfold CodeTriples.HT; split_vc.
 
   (* massage to match the rule we want to run *)
-  match goal with 
+  match goal with
     | |- context[n + ?z] =>
       replace (n + z) with (if v =? 0 then n + 1 else n + z)
   end.
-  run1 cstep_branchnz_p. 
+  run1 cstep_branchnz_p.
   rewrite <- Z.eqb_neq in H. rewrite H. auto.
 Qed.
 
@@ -756,7 +756,7 @@ Proof.
     rewrite E'. reflexivity.
 Qed.
 
-Definition andv (v1 v2 : val) : val := 
+Definition andv (v1 v2 : val) : val :=
   if valToBool v1 then v2 else Vint 0.
 
 Lemma genAnd_spec: forall (Q:memory -> stack -> Prop),
@@ -775,12 +775,12 @@ Proof.
   unfold genAnd, andv.
   destruct (valToBool v1) eqn:E.
   - assert (v1 <> Vint 0). { intro. subst. unfold valToBool in E. congruence. }
-    eapply HT_strengthen_premise. 
+    eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       apply nop_spec.
-    + split_vc.  subst. split_vc. split; eauto. 
+    + split_vc.  subst. split_vc. split; eauto.
       unfold val_eq. destruct (equiv_dec (Vint 0) v1).  congruence. eauto.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
@@ -789,7 +789,8 @@ Proof.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply HT_compose; try eapply pop_spec.
       eapply genFalse_spec.
-    + split_vc. subst. rewrite val_eq_int. split_vc. 
+    + split_vc. subst. rewrite val_eq_int.
+      split; eauto. split_vc.
 Qed.
 
 Definition orv (v1 v2 : val) : val :=
@@ -818,7 +819,7 @@ Proof.
       eapply ifNZ_spec_Z with (v:=0); eauto.
       eapply HT_compose; try eapply pop_spec.
       eapply genTrue_spec.
-    + split_vc. subst. split_vc. split; eauto. 
+    + split_vc. subst. split_vc. split; eauto.
       unfold val_eq. destruct (equiv_dec (Vint 0) v1).  congruence. eauto.
   - assert (v1 = Vint 0). { unfold valToBool in E. destruct v1 as [[]|]; congruence. }
     eapply HT_strengthen_premise.
@@ -826,7 +827,7 @@ Proof.
       eapply HT_compose; try eapply genEq_spec.
       eapply ifNZ_spec_NZ with (v:=1); try omega.
       eapply nop_spec.
-    + split_vc. subst. rewrite val_eq_int. split_vc. 
+    + split_vc. subst. rewrite val_eq_int. split; eauto.
 Qed.
 
 Lemma genNot_spec : forall Q : _ -> _ -> Prop,
@@ -847,11 +848,11 @@ Proof.
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec.
-    + split_vc. subst. split_vc. rewrite val_eq_int. simpl. auto. 
+    + split_vc. subst. split_vc. rewrite val_eq_int. simpl. auto.
   - eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply genEq_spec.
-    + split_vc. subst. split_vc. rewrite val_eq_int. rewrite Z.eqb_sym. eauto. 
+    + split_vc. subst. split_vc. rewrite val_eq_int. rewrite Z.eqb_sym. eauto.
 Qed.
 
 Lemma genTestEqual_spec:

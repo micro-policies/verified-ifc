@@ -115,12 +115,12 @@ Proof.
              simpl in H
          end;
   intuition; repeat subst;
-  constructor (solve [simpl; eauto;
-                      repeat match goal with
+  [> once (constructor; solve [simpl; eauto;
+                        repeat match goal with
                                | H : labToVal _ _ _ |- _ =>
                                  eapply labToVal_valToLab_id in H; eauto; rewrite H
                              end;
-                      eauto]).
+                      eauto]) ..].
 Qed.
 
 Lemma ac_tini_preservation_premises :

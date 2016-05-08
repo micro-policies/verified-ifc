@@ -1,9 +1,14 @@
-
 DATE=`date --i`
 
-all:
+all: basic_machines/Makefile extended_machines/Makefile
 	make -j -C basic_machines
 	make -j -C extended_machines
+
+basic_machines/Makefile: basic_machines/_CoqProject
+	cd basic_machines; coq_makefile -f _CoqProject -o Makefile
+
+extended_machines/Makefile: extended_machines/_CoqProject
+	cd extended_machines; coq_makefile -f _CoqProject -o Makefile
 
 clean:
 	make clean -C basic_machines

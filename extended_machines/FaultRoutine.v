@@ -90,12 +90,12 @@ Definition genVar {n:nat} (l:LAB n) :=
   | lab1 _ => loadFromCache addrTag1
   | lab2 _ => loadFromCache addrTag2
   | lab3 _ => loadFromCache addrTag3
-  | labpc => loadFromCache addrTagPC
+  | labpc _ => loadFromCache addrTagPC
   end.
 
 Fixpoint genExpr {n:nat} (e: rule_expr n) :=
   match e with
-  | L_Bot => genBot
+  | L_Bot _ => genBot
   | L_Var l => genVar l
   (* NC: push the arguments in reverse order. *)
   | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
@@ -103,8 +103,8 @@ Fixpoint genExpr {n:nat} (e: rule_expr n) :=
 
 Fixpoint genScond {n:nat} (s: rule_cond n) : code :=
   match s with
-  | A_True => genTrue
-  | A_False => genFalse
+  | A_True _ => genTrue
+  | A_False _ => genFalse
   | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
   | A_And s1 s2 => genScond s2 ++ genScond s1 ++ genAnd
   | A_Or s1 s2 => genScond s2 ++ genScond s1 ++ genOr
@@ -1119,6 +1119,7 @@ Proof.
           end;
    econstructor; simpl in LABS; intuition; eauto;
    econstructor; eauto.
+ - simpl. eauto.
  - destruct HH as [cache1 [pc1 [priv1 [[zr [zpc' [P1 P2]]] [P3 P4]]]]].
    subst. inv P3.
    exists cache1;  exists zr; exists zpc'.
@@ -1148,6 +1149,7 @@ Proof.
            end;
     econstructor; simpl in LABS; intuition; eauto;
     econstructor; eauto.
+  - simpl; eauto.
   - destruct HH as [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]].
     substs. inv P3.
     eexists ; eexists; intuition; eauto.

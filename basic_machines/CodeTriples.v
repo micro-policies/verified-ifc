@@ -1,10 +1,8 @@
-
 Require Import ZArith.
 Require Import List.
 Require Import Utils.
-Require Import LibTactics.
 Require Import Coq.Arith.Compare_dec.
-Import ListNotations. 
+Import ListNotations.
 
 Require Import Instr.
 Require Import Concrete.
@@ -14,9 +12,9 @@ Require Import Semantics.
 (** Generic tools for proving properties of (privileged) concrete machine code. *)
 
 (** Tactic to automate proofs *)
-Ltac split_vc := 
-  (simpl; 
-   match goal with 
+Ltac split_vc :=
+  (simpl;
+   match goal with
    | H: exists X,_ |- _ => (destruct H; split_vc)
    | H: ?P /\ ?Q |- _ => (destruct H; split_vc)
    | |- forall P, _ => (intro; try subst; split_vc)
@@ -30,7 +28,7 @@ Section CodeTriples.
 Local Open Scope Z_scope.
 
 Definition imemory : Type := list Instr.
-Definition memory : Type := list (@Atom Z). 
+Definition memory : Type := list (@Atom Z).
 Definition stack : Type := list CStkElmt.
 Definition code := list Instr.
 Definition state := CS.
@@ -39,7 +37,7 @@ Definition state := CS.
 Fixpoint code_at (pc: Z) (im: imemory) (c: code): Prop :=
   match c with
   | nil     => True
-  | i :: c' => index_list_Z pc im = Some i 
+  | i :: c' => index_list_Z pc im = Some i
                /\ code_at (pc + 1) im c'
   end.
 
@@ -64,30 +62,30 @@ Proof.
   apply_f_equal IHc1; eauto; zify; omega.
 Qed.
 
-Lemma code_at_app : forall c2 c1 n, 
-  n = Z_of_nat (length c1) -> 
+Lemma code_at_app : forall c2 c1 n,
+  n = Z_of_nat (length c1) ->
   code_at n (c1 ++ c2) c2.
 Proof.
-  induction c2; intros. 
+  induction c2; intros.
   simpl. auto.
-  simpl. 
-  split. 
+  simpl.
+  split.
   rewrite index_list_Z_app. auto.
   subst n; auto.
-  replace (c1 ++ a :: c2) with ((c1 ++ [a]) ++ c2). 
+  replace (c1 ++ a :: c2) with ((c1 ++ [a]) ++ c2).
   eapply IHc2.
   rewrite app_length. simpl. subst n; auto.
-  zify; omega. 
+  zify; omega.
   rewrite app_ass. auto.
 Qed.
 
 Lemma code_at_id : forall c, code_at 0%Z c c.
 Proof.
   intros. pattern c at 1.  replace c with ([]++c) by auto.
-  eapply code_at_app. 
+  eapply code_at_app.
   auto.
 Qed.
-  
+
 (** Conditions for Hoare triples. The kernel code we consider only
 changes the kernel memory and the stack, so our conditions consider
 only these two components. *)
@@ -104,11 +102,11 @@ reach the end of [c] in some state that satisfies postcondition [Q],
 while still being in kernel mode. Below are a series of lemmas about
 this first kind of hoare triple. *)
 
-Definition HT (c: code) (P Q: HProp) := 
+Definition HT (c: code) (P Q: HProp) :=
   forall imem mem stk0 cache0 fh n n',
     code_at n fh c ->
     P cache0 stk0 ->
-    n' = n + Z_of_nat (length c) -> 
+    n' = n + Z_of_nat (length c) ->
     exists stk1 cache1,
       Q cache1 stk1 /\
       runsToEnd (CState cache0 mem fh imem stk0 (n, handlerTag) true)
@@ -122,7 +120,7 @@ Proof.
   unfold HT   in *.
   intros c1 c2 P Q R HT1 HT2 imem mem0 stk0 cache0 fh0 n n' HC12 HP Hn'.
   subst.
-  
+
   edestruct HT1 as [stk1 [cache1 [HQ RTE1]]]; eauto.
   apply code_at_compose_1 in HC12; eauto.
 
@@ -135,7 +133,7 @@ Proof.
 
   let t := (rewrite app_length; zify; omega) in
   exact_f_equal RTE2; rec_f_equal t.
-  
+
   (* let-binding necessary because 'tacarg's which are not 'id's or
      'term's need to be preceded by 'ltac' and enclosed in parens.
      E.g., the following works:
@@ -228,7 +226,7 @@ Lemma HT_fold_constant_premise: forall (C:Prop) c P Q ,
   HT c (fun m s => C /\ P m s) Q.
 Proof.
   unfold HT.
-  iauto.
+  solve [intuition auto].
 Qed.
 
 (** Hoare triples are implications, and so the following lemma correspond to
@@ -288,7 +286,10 @@ Lemma GT_consequence':
     GT c P' Q'.
 Proof.
   unfold GT; intros.
-  eapply HT_consequence'; jauto.
+  eapply HT_consequence'; intuition eauto.
+  apply H1; trivial.
+  destruct H2 as (m' & s' & H21 & _ & _).
+  eauto.
 Qed.
 
 
@@ -331,7 +332,7 @@ Lemma HTEscape_strengthen_premise: forall r c (P' P: HProp) Q,
   (forall m s, P' m s -> P m s) ->
   HTEscape r c P' Q.
 Proof.
-  introv HTPQ P'__P.
+  intros r c P' P Q HTPQ P'__P.
   unfold HTEscape; intros.
   edestruct HTPQ as [mem2 [stk2 [HR RTE2]]]; eauto.
 Qed.
@@ -341,7 +342,7 @@ Lemma HTEscape_compose: forall r c1 c2 P Q R,
   HTEscape r c2 Q R ->
   HTEscape r (c1 ++ c2) P R.
 Proof.
-  introv H_HT H_HTE.
+  intros r c1 c2 P Q R H_HT H_HTE.
   intro; intros.
 
   edestruct H_HT as [cache1 [stk1 [HQ Hstar1]]]; eauto.
@@ -350,7 +351,7 @@ Proof.
   edestruct H_HTE as [stk2 [cache2 [pc2 [priv2 Hlet]]]]; eauto.
   eapply code_at_compose_2; eauto.
 
-  exists stk2 cache2 pc2 priv2.
+  exists stk2, cache2, pc2, priv2.
   destruct (R cache2 stk2).
   destruct Hlet as [? [Houtcome ?]].
   destruct o; unfold predicted_outcome in Houtcome; simpl; intuition; subst.
@@ -364,7 +365,7 @@ Proof.
     inv H2; eauto.
     + apply runsUntilUser_r in STAR.
       simpl in STAR. congruence.
-    + simpl. omega. 
+    + simpl. omega.
 Qed.
 
 Lemma HTEscape_append: forall r c1 c2 P Q,

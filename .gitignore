@@ -1,4 +1,8 @@
+*.aux
 *.vo
 *.v.d
 *.glob
+basic_machines/Makefile
+extended_machines/Makefile
 Makefile.coq
+Makefile.bak

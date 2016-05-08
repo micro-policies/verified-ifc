@@ -46,7 +46,7 @@ Proof.
              destruct b eqn:E; inv H
          end;
   unfold Vector.nth_order in *; simpl in *;
-  try econstructor (solve [compute; eauto]).
+  try [> once (econstructor; solve [compute; eauto]) ..].
 
   econstructor; eauto.
   unfold QuasiAbstractMachine.ifc_run_tmr, apply_rule. simpl.
@@ -536,7 +536,7 @@ Proof.
 
   try solve [
         eexists; eexists; split; try split;
-        try (econstructor (solve [compute; eauto]));
+        try [> once (econstructor; solve [compute; eauto]) ..];
         repeat (constructor; eauto); simpl; f_equal; intuition
       ].
 

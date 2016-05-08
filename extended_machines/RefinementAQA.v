@@ -15,7 +15,7 @@ Open Scope list_scope.
 
 Set Implicit Arguments.
 
-Section Refinement.
+Section Ref.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}.
@@ -373,8 +373,9 @@ Proof.
       end;
 
   (* Always using mem_irrel causes spurious existentials to be generated *)
-  solve [eexists; split; econstructor (simpl; solve [eauto 9 using Forall2_length
-                                                    |eauto 9 with mem_irrel])].
+  solve [eexists; split; [> once (econstructor;
+                                  simpl; solve [simpl; eauto 9 using Forall2_length
+                                               |eauto 9 with mem_irrel]) ..]].
 Qed.
 
 Program Definition abstract_quasi_abstract_sref :=
@@ -421,4 +422,4 @@ Next Obligation.
   econstructor; eauto.
 Qed.
 
-End Refinement.
+End Ref.

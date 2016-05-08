@@ -175,9 +175,9 @@ Module Mem: MEM.
     (fun s => if s == stamp _ b then fst b + 1 else 1)%Z
     _.
   Next Obligation.
-    simpl in *.
+    destruct b as [b1 s0]. simpl in *.
     destruct (s == s0) as [EQ | NEQ].
-    - compute in EQ. subst s0.
+    - compute in EQ.
       destruct (equiv_dec (i,s)) as [contra|]; trivial.
       inv contra.
       omega.
@@ -232,7 +232,7 @@ Module Mem: MEM.
   : option (t A S) :=
     match upd_frame_rich m b0 fr with
       | None => None
-      | Some (exist m' _) => Some m'
+      | Some (exist _ m' _) => Some m'
     end.
 
   Lemma upd_get_frame : forall A S (EqS:EqDec S eq) (m:t A S) (b:block S) fr fr',
@@ -471,11 +471,9 @@ Proof.
   unfold alloc, load; intros. simpl in *.
   destruct (zreplicate size a) eqn:Ez; try congruence; inv H.
   rewrite (Mem.alloc_get_frame _ _ _ _ _ _ _ _ _ H1).
-  destruct (equiv_dec b).
-  - inv e.
-    destruct (equiv_dec b'); try congruence.
-    eapply index_list_Z_zreplicate; eauto.
-  - destruct (equiv_dec b); try congruence.
+  destruct (equiv_dec b); auto.
+  inv e.
+  eapply index_list_Z_zreplicate; eauto.
 Qed.
 
 Require Import Coq.Logic.Eqdep_dec.

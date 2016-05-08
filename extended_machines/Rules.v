@@ -24,6 +24,8 @@ Inductive LAB (n: nat) : Type :=
 | lab3 : 3 <= n -> LAB n
 | labpc : LAB n.
 
+Arguments labpc {n}.
+
 Fixpoint nlem (n:nat) (m:nat) : n<=(n+m).
 refine
 (match m with
@@ -40,6 +42,8 @@ Inductive rule_expr (n: nat) : Type :=
 | L_Var: LAB n -> rule_expr n
 | L_Join: rule_expr n -> rule_expr n -> rule_expr n.
 
+Arguments L_Bot {n}.
+
 (** Side conditions for rules: the Allow part *)
 Inductive rule_cond (n : nat) : Type :=
 | A_True: @rule_cond n
@@ -48,6 +52,9 @@ Inductive rule_cond (n : nat) : Type :=
 | A_And: @rule_cond n -> @rule_cond n -> @rule_cond n
 | A_Or: @rule_cond n -> @rule_cond n -> @rule_cond n
 .
+
+Arguments A_True {n}.
+Arguments A_False {n}.
 
 (** * Rules *)
 Record AllowModify (n:nat) := almod  {

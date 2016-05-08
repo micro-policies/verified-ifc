@@ -2,7 +2,6 @@ Require Import ZArith.
 Require Import Lattices.
 Require Import CodeGen.
 Require Import Concrete.
-Require Import LibTactics.
 
 Open Scope Z_scope.
 
@@ -63,10 +62,10 @@ Lemma of_nat_lt_proof_irrel:
 Proof.
   induction m; intros.
     destruct n.
-      false; omega.
+      omega.
       reflexivity.
     destruct n.
-      false; omega.
+      omega.
       simpl; erewrite IHm; eauto.
 Qed.
 
@@ -86,7 +85,7 @@ Proof.
   intros.
   unfold nth_labToZ.
   destruct (le_lt_dec n m).
-  false; omega.
+  omega.
   erewrite nth_order_proof_irrel; eauto.
 Qed.
 

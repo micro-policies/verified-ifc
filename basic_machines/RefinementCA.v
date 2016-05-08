@@ -47,7 +47,7 @@ Program Definition quasi_abstract_abstract_ref :=
 
 End QuasiAbstractAbstract.
 
-Section Refinement.
+Section Ref.
 
 Context {L: Type}
         {Latt: JoinSemiLattice L}
@@ -348,16 +348,16 @@ Ltac priv_steps :=
       (eapply plus_trans with (s2:= s) (t:= @nil CEvent); eauto);
       try (match goal with
           | [ |- cstep _ _ _ ] =>
-            econstructor (solve [ eauto | eauto; solve_read_m ])
+            [> once (econstructor; solve [ eauto | eauto; solve_read_m ]) ..]
           | [ |- cstep _ _ _ ] =>
             econstructor ; eauto
            end);
       try match goal with
             | [ |- plus _ _ _ _ ] =>
               (eapply plus_right with (s2:= s') (t:= nil) (e:= Silent); eauto);
-              (econstructor (solve [eauto;
-                                    try (eapply handler_final_cache_hit_preserved; eauto);
-                                    try (solve_read_m; eauto)]))
+              [> once (econstructor; solve [eauto;
+                                            try (eapply handler_final_cache_hit_preserved; eauto);
+                                            try (solve_read_m; eauto)]) ..]
           end
   end.
 
@@ -736,7 +736,7 @@ Proof.
   eapply step_preserved; eauto.
 Qed.
 
-End Refinement.
+End Ref.
 
 (** Combining the above into the final result *)
 (** This is where we instantiate the generic refinement *)

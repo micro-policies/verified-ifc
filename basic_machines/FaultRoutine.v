@@ -24,7 +24,7 @@ Require Import QuasiAbstractMachine.
 
 (** * Definition of the fault handler generator *)
 
-(** The following definition, and specification are generic in the abstract notion of label, and in the encoding thereof. 
+(** The following definition, and specification are generic in the abstract notion of label, and in the encoding thereof.
     We instanciate with IFC label and their concrete encoding at the end of the file *)
 Section FaultHandler.
 
@@ -78,7 +78,7 @@ Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl,
 Proof.
   intros. unfold labsToZs in H.
   inv H. inv UNPACK. inv OP. inv TAG1. inv TAG2. inv TAG3. inv TAGPC.
-  econstructor; jauto.
+  econstructor; eauto.
 Qed.
 
 Variable opcode: OpCode.
@@ -521,7 +521,7 @@ Proof.
   edestruct (faultHandler_specEscape_Some opcode vls pcl c)
       as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto.
    eapply init_enough; auto.
-  apply code_at_id.
+  apply code_at_id. simpl. eauto.
   exists cache1.
   inversion P3.  subst.
   intuition.
@@ -541,7 +541,7 @@ Proof.
       as [stk1 [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]]]; eauto.
    eapply init_enough; eauto.
    eapply code_at_id.
-   inv P3. eexists. eauto.
+   simpl; eauto. inv P3. eexists. eauto.
 Qed.
 
 End HandlerCorrect.
@@ -571,12 +571,12 @@ Definition genVar {n:nat} (l:LAB n) :=
   | lab1 _ => loadFrom addrTag1
   | lab2 _ => loadFrom addrTag2
   | lab3 _ => loadFrom addrTag3
-  | labpc => loadFrom addrTagPC
+  | labpc _ => loadFrom addrTagPC
   end.
 
 Fixpoint genExpr {n:nat} (e: rule_expr n) :=
   match e with
-  | L_Bot => genBot
+  | L_Bot _ => genBot
   | L_Var l => genVar l
   (* NC: push the arguments in reverse order. *)
   | L_Join e1 e2 => genExpr e2 ++ genExpr e1 ++ genJoin
@@ -584,7 +584,7 @@ Fixpoint genExpr {n:nat} (e: rule_expr n) :=
 
 Fixpoint genCond {n:nat} (s: rule_cond n) : code :=
   match s with
-  | A_True => genTrue
+  | A_True _ => genTrue
   | A_LE e1 e2 => genExpr e2 ++ genExpr e1 ++ genFlows
   | A_And s1 s2 => genCond s2 ++ genCond s1 ++ genAnd
   | A_Or s1 s2 => genCond s2 ++ genCond s1 ++ genOr
@@ -677,12 +677,12 @@ Proof.
     eapply genTrue_spec.
     split_vc.
 
-  - repeat eapply HT_compose_bwd. 
-    eapply genFlows_spec. 
-    eapply genExpr_spec_wp. 
+  - repeat eapply HT_compose_bwd.
+    eapply genFlows_spec.
+    eapply genExpr_spec_wp.
     eapply HT_strengthen_premise.
-    eapply genExpr_spec_wp. 
-    split_vc. 
+    eapply genExpr_spec_wp.
+    split_vc.
 
   - eapply HT_compose_bwd.
     eapply HT_compose_bwd.
@@ -718,7 +718,7 @@ Proof.
   cases_if in Happly.
   inv Happly; subst.
 
-  eapply HT_strengthen_premise. unfold ite. 
+  eapply HT_strengthen_premise. unfold ite.
   eapply HT_compose_bwd.
   eapply ifNZ_spec_existential.
   eapply HT_compose_bwd.

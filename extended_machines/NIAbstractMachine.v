@@ -38,7 +38,7 @@ Inductive low_equiv_atom {A} (o: Label) : relation (A * Label)%type :=
   low_equiv_atom o (v1,l1) (v2,l2).
 Hint Constructors low_equiv_atom.
 
-Lemma low_equiv_atom_equal: 
+Lemma low_equiv_atom_equal:
   forall {A} (a b:A) (k l:Label) (o:Label), k <: o = true ->
     low_equiv_atom o (a,k) (b,l) -> a = b.
 Proof.
@@ -816,7 +816,7 @@ Local Ltac go :=
   try omega;
   auto using below_lret_low_equiv with lat;
   try apply below_lret_low_equiv;
-  constructor (go).
+  [> once (constructor; go) ..].
 
 Local Ltac inv_equiv_atom :=
  match goal with
@@ -1653,7 +1653,7 @@ Qed.
 
 Next Obligation.
   inv H1; inv H2;
-  try solve [econstructor (intros H'; inv H'; solve [eauto])];
+  try solve [ [> once (econstructor; intros H'; inv H'; solve [eauto]) ..]];
   match goal with
     | H : low_equiv_full_state _ _ _ |- _ =>
       inv H

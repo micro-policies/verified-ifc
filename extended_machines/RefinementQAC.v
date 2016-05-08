@@ -855,15 +855,14 @@ Proof.
                     generalize (@match_stacks_all_data mi aargs cargs mem MATCH ARGS); intro
                 end);
 
-
   on_case ltac:(instr OpBranchNZ)
           "Case analysis for BranchNZ failed"
           ltac:(idtac;
                 match goal with
-                  | |- context[if (?z =? 0) then _ else _ ] =>
+                  | |- context[if (?z =? 0)%Z then _ else _ ] =>
                     let H := fresh "H" in
                     assert (H := Z.eqb_spec z 0);
-                    destruct (z =? 0);
+                    destruct (z =? 0)%Z;
                     inv H
                 end);
 
@@ -874,7 +873,7 @@ Proof.
 
   solve [
       eexists; eexists; split; try split;
-      try (econstructor (solve [compute; eauto]));
+      try [> once (econstructor; solve [compute; eauto]) ..];
       repeat (econstructor; eauto); simpl; f_equal; intuition (eauto 7 with valid_update)
     ].
 
@@ -1002,7 +1001,7 @@ Proof.
     exploit mi_valid; eauto.
     intros (f1 & f2 & H1 & H2 & H3).
     repeat eexists; eauto.
-    clear - H3 VALID.
+    clear - H3 VALID stamp_cblock ctable Latt WFCLatt.
     induction H3; eauto.
     constructor; eauto with valid_update.
 
@@ -1564,7 +1563,7 @@ Definition ctable_impl_correct : Prop :=
 
 End CorrectImpl.
 
-Section Refinement.
+Section Ref.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}
@@ -1707,7 +1706,6 @@ Proof.
   induction 1 as [|[xv1 xl1] [xv2 xl2] sd1 sd2 [H1 H2]];
   intros;
   repeat (simpl fst in *; subst; constructor; auto).
-  simpl in *. subst. constructor.
 Qed.
 Hint Resolve match_init_stacks.
 
@@ -1960,4 +1958,4 @@ Definition quasi_abstract_concrete_ref :
                                    ac_match_initial_data
                                    ac_match_initial_data_match_initial_states.
 
-End Refinement.
+End Ref.

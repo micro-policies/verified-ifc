@@ -156,7 +156,7 @@ Lemma equiv_trace_high : forall o s1 e1 s1' s2 e2 s2'
 Proof.
   intros.
   assert (Hhigh2 : ~ s_low o s2) by (apply s_equiv_low in Heq; intuition).
-  destruct e1; destruct e2; try (constructor (auto; fail)).
+  destruct e1; destruct e2; try [> once (constructor; auto; fail) ..].
   constructor 5; eauto using e_low_s_low.
   constructor 3; eauto using e_low_s_low.
   constructor 4; eauto using e_low_s_low.
