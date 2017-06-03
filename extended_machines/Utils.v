@@ -172,7 +172,7 @@ Lemma test_apply_f_equal:
   forall b, P (b - b) (((1+n1)::nil)::nil) (n2+n1).
 Proof.
   intros ? ? ? HP ?.
-  apply_f_equal HP; rec_f_equal auto.
+  apply_f_equal HP; rec_f_equal omega.
 Qed.
 
 Lemma test_exact_f_equal: forall (n1 n2: nat) (P: nat -> nat -> Prop),
@@ -360,7 +360,7 @@ CoInductive trace (A : Type) : Type :=
   | TNil : trace A
   | TCons : A -> trace A -> trace A.
 
-Implicit Arguments TNil [A].
+Arguments TNil [A].
 
 Fixpoint list_to_trace (A : Type) (xs : list A) : trace A :=
   match xs with

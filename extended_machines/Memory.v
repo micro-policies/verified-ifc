@@ -143,8 +143,8 @@ Module Mem: MEM.
      next : S -> Z;
      content_next : forall s i, (next s<=i)%Z -> content (i,s) = None
   }.
-  Implicit Arguments _t [].
-  Implicit Arguments MEM [A S].
+  Arguments _t A S :clear implicits.
+  Arguments MEM [A S].
   Definition t := _t.
 
   Definition get_frame {A S} (m:t A S) := content m.
@@ -376,7 +376,7 @@ Definition ptr S := (block S * Z)%type.
 Inductive val {S} :=
   | Vint (n:Z)
   | Vptr (p:ptr S).
-Implicit Arguments val [].
+Arguments val S :clear implicits. 
 
 Definition add {S} (v1 v2:val S) : option (val S) :=
   match v1, v2 with

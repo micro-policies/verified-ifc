@@ -293,7 +293,7 @@ Lemma push_cptr_spec :
 Proof.
   unfold push_cptr.
   intros.
-  build_vc ltac:idtac.
+  build_vc ltac:(idtac).
   split_vc.
   replace (v + 0) with v by omega. auto.
 Qed.

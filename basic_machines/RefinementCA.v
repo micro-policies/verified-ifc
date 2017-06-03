@@ -17,6 +17,8 @@ Require Import Refinement.
 Require Import RefinementAC.
 Require Import Encodable.
 
+Unset Regular Subst Tactic.
+
 (** The Abstract Machine refines the Concrete Machine (with appropriate fault handler). *)
 
 Set Implicit Arguments.
@@ -391,7 +393,7 @@ Proof.
       eapply plus_step; eauto; eapply cstep_nop; eauto.
       econstructor; eauto.
 
-    + build_cache_and_tmu. res_label.
+    + build_cache_and_tmu. (*  res_label.  *)
       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
       * priv_steps.
       * econstructor; eauto.

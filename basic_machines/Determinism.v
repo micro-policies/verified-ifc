@@ -23,140 +23,81 @@ Proof.
   allinv'. allinv'. intuition.
 Qed.
 
-Lemma cmach_determ: 
-  forall s e s' e' s'', 
-    cstep s e s' -> 
-    cstep s e' s'' -> 
-    s' = s'' /\ e = e'.
+Lemma c_pop_to_return_determ : forall s s1,
+  c_pop_to_return s s1 -> forall s2,
+  c_pop_to_return s s2 -> s1 = s2.
 Proof.
-  induction 1; intros;
-  match goal with 
-      | [HH: cstep _ _ _ |- _ ] => inv HH; try congruence; auto
-  end;
+  induction 1; intros s2 H2; inv H2; auto; congruence.
+Qed.
+
+Lemma cmach_determ: 
+  forall s e s' e' s'' 
+    (STEP1: cstep s e s')
+    (STEP2: cstep s e' s''),
+    s' = s'' /\ e = e'.
+  intros.
+  destruct STEP1; inv STEP2;
   try (match goal with 
     | [H1 : cache_hit_read ?c ?rl _, 
        H2 : cache_hit_read ?c ?rl0 _ |- _ ] =>
   (exploit (@cache_hit_read_determ c rl); eauto; intros [Heq Heq'])
   end);
-  (allinv'; split ; try reflexivity).
+  try match goal with
+        | [H1: c_pop_to_return ?s ?s1,
+           H2: c_pop_to_return ?s ?s2 |- _ ] =>
+          let EQ := fresh in
+          assert (EQ:=@c_pop_to_return_determ _ _ POP _ POP0); inv EQ
+      end;
+  try match goal with
+    | H1 : read_m _ _ = Some ?instr1,
+      H2 : read_m _ _ = Some ?instr2 |- _ =>
 
-  Case "Store user".
-  allinv'. split ; reflexivity.
-  
+      match constr:((instr1, instr2)) with
+        | (?instr, ?instr) => idtac
+        | _ =>
+          let H := fresh in 
+          assert (H : instr1 = instr2) by congruence; try discriminate;
+          inversion H
+      end
+  end;
+  try intuition congruence.
   Case "Call user".
+    subst.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
-    split ; reflexivity.
+    split; reflexivity.
 
   Case "Call kernel".
+    subst.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
-    split ; reflexivity.
+    split; reflexivity.
 
-  Case "Ret Ret user".
+  Case "Ret user".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. 
-    
-    exploit @c_pop_to_return_spec3; eauto. clear POP.
-    exploit @c_pop_to_return_spec3; eauto. 
-    intros.  inv H.    
-    split ; reflexivity.
+    try match goal with
+        | [H1: c_pop_to_return ?s ?s1,
+           H2: c_pop_to_return ?s ?s2 |- _ ] => 
+        (exploit (@c_pop_to_return_spec3 _ _ _ _ _ _ _ _ _ H1); eauto; 
+         exploit (@c_pop_to_return_spec3 _ _ _ _ _ _ _ _ _ H2); eauto; 
+         exploit (@c_pop_to_return_spec2 _ _ _ _ _ _ _ _ _ H1); eauto; 
+         exploit (@c_pop_to_return_spec2 _ _ _ _ _ _ _ _ _ H2); eauto)
+        end; 
+    intuition congruence.
 
-  Case "Ret kernel / user".
+  Case "Ret kernel".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. congruence.
-
-  Case "Ret kernel / user - sym".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. congruence.
-
-  Case "Ret kernel".    
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. 
-    split ; reflexivity.
-    
-  Case "Ret Ret".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top H12.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H1. inv H2. 
-    
-    exploit @c_pop_to_return_spec3; eauto. clear H0.
-    exploit @c_pop_to_return_spec3; eauto. 
-    intros.  inv H1.    
-    split ; reflexivity.
-
-  Case "VRet user ".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-
-    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-
-    exploit @c_pop_to_return_spec3; eauto. intros. 
-    generalize POP0 ; clear POP0 ; intros POP0.
-    exploit @c_pop_to_return_spec3; eauto. intros.
-    inv H1.  inv H. inv H0.
-    split ; reflexivity.
-
-  Case "Ret kernel / user ".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. 
-    congruence. 
-
-  Case "Ret kernel / user - sym".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0. 
-    congruence. 
-
-  Case "VRet priv".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-    
-    exploit @c_pop_to_return_spec2; eauto.  move_to_top POP0.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H. inv H0.
-    
-    exploit @c_pop_to_return_spec3; eauto. 
-
-  Case "VRet true".
-    exploit @c_pop_to_return_spec; eauto.
-    intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
-
-    exploit @c_pop_to_return_spec2; eauto. intros. move_to_top H14.
-    exploit @c_pop_to_return_spec2; eauto. intros. 
-    inv H1. inv H2.
-
-    exploit @c_pop_to_return_spec3; eauto. move_to_top H0.
-    exploit @c_pop_to_return_spec3; eauto. intros. 
-    inv H1. 
-    split ; reflexivity.
+    try match goal with
+        | [H1: c_pop_to_return ?s ?s1,
+           H2: c_pop_to_return ?s ?s2 |- _ ] => 
+        (exploit (@c_pop_to_return_spec3 _ _ _ _ _ _ _ _ _ H1); eauto; 
+         exploit (@c_pop_to_return_spec3 _ _ _ _ _ _ _ _ _ H2); eauto; 
+         exploit (@c_pop_to_return_spec2 _ _ _ _ _ _ _ _ _ H1); eauto; 
+         exploit (@c_pop_to_return_spec2 _ _ _ _ _ _ _ _ _ H2); eauto)
+        end; 
+    intuition congruence.
 Qed.
 
 End Determinism.

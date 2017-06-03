@@ -2902,7 +2902,7 @@ Tactic Notation "destructs" constr(N) constr(T) :=
 (** Underlying implementation of [branch]. *)
 
 Ltac branch_tactic K N :=
-  match constr:(K,N) with
+  match constr: ((K,N)) with
   | (_,0) => fail 1
   | (0,_) => fail 1
   | (1,1) => idtac
@@ -3470,7 +3470,7 @@ Ltac skip_with_existential :=
   match goal with |- ?G =>
     let H := fresh in evar(H:G); eexact H end.
 
-Variable skip_axiom : False.
+Local Parameter skip_axiom : False.
   (* To obtain a safe development, change to [skip_axiom : True] *)
 Ltac skip_with_axiom :=
   elimtype False; apply skip_axiom.

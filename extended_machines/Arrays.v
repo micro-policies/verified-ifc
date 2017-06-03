@@ -488,7 +488,7 @@ Lemma sum_array_lengths_spec : forall Q : HProp,
       Q.
 Proof.
   intros. unfold sum_array_lengths.
-  build_vc ltac:idtac.
+  build_vc ltac:(idtac).
   split_vc.
 Qed.
 

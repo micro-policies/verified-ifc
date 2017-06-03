@@ -24,7 +24,7 @@ Notation block := (block privilege).
 
 Section TMU.
 
-Open Local Scope Z_scope.
+Local Open Scope Z_scope.
 
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.

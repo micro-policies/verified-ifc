@@ -57,7 +57,7 @@ Proof.
   match goal with
     | H1 : read_m _ _ = Some ?instr1,
       H2 : read_m _ _ = Some ?instr2 |- _ =>
-      match constr:(instr1, instr2) with
+      match constr:((instr1, instr2)) with
         | (?instr, ?instr) => idtac
         | _ =>
           assert (H : instr1 = instr2) by congruence; try discriminate;

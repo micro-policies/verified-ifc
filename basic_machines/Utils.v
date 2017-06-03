@@ -176,8 +176,9 @@ Lemma test_apply_f_equal:
   forall b, P (b - b) (((1+n1)::nil)::nil) (n2+n1).
 Proof.
   intros ? ? ? HP ?.
-  apply_f_equal HP; rec_f_equal auto.
+  apply_f_equal HP; rec_f_equal omega. 
 Qed.
+
 
 Lemma test_exact_f_equal: forall (n1 n2: nat) (P: nat -> nat -> Prop),
   P (n1+1) (n1+n2) -> P (1+n1) (n2+n1).
@@ -364,7 +365,7 @@ CoInductive colist (A : Type) : Type :=
   | Nil : colist A
   | Cons : A -> colist A -> colist A.
 
-Implicit Arguments Nil [A].
+Arguments Nil [A].
 
 Fixpoint list_to_colist (A : Type) (xs : list A) : colist A :=
   match xs with

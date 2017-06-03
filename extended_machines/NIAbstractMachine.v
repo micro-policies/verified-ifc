@@ -539,7 +539,7 @@ Proof.
           rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H6).
           destruct (equiv_dec b2 b) as [Eb|Eb].
           + constructor.
-            eapply Forall2_update_Z with (8:= E) (9:= E0); eauto.
+            eapply Forall2_update_Z with (8:= E0) (9:= E); eauto.
           + auto.
       - unfold Atom in *.
         destruct (Mem.get_frame (A:=val _*Label) m1 b1) eqn:E1; try congruence.
