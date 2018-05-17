@@ -364,6 +364,8 @@ Ltac priv_steps :=
 Require Import Refinement.
 Require RefinementAC.
 
+Unset Regular Subst Tactic.
+
 Lemma step_preserved:
   forall s1 s1' e s2,
     step_rules (ifc_run_tmr fetch_rule_g) s1 e s1' ->
@@ -391,7 +393,7 @@ Proof.
       eapply plus_step; eauto; eapply cstep_nop; eauto.
       econstructor; eauto.
 
-    + build_cache_and_tmu. res_label.
+    + build_cache_and_tmu.
       exists (CState c cm faultHandler i cstk (pcv+1, rpct) false). split.
       * priv_steps.
       * econstructor; eauto.
@@ -658,6 +660,7 @@ Proof.
        inv_cache_update.
 Qed.
 
+Set Regular Subst Tactic.
 
 Lemma plus_exec :
   forall (S : semantics) s t s',

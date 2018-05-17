@@ -246,7 +246,7 @@ Module Zset : ZFSET.
     match l with
         nil => a::nil
       | x::q => if Z_lt_dec a x then a::l else
-                  if Z_eq_dec a x then x::q
+                  if Z.eq_dec a x then x::q
                   else x::(insert a q)
     end.
 

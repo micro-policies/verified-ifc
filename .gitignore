@@ -4,3 +4,5 @@
 *.glob
 Makefile.coq
 Makefile.bak
+*.conf
+.coqdeps.d

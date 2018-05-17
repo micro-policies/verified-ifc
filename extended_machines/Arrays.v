@@ -413,7 +413,7 @@ Proof.
   unfold alloc_array.
   build_vc ltac: (try apply alloc_spec; eauto).
   intros m s (cnt & t & s0 & ? & ? & H). subst.
-  split_vc'. intros.  
+  split_vc'. intros.
   assert (VALID : valid_address (b,0) m0).
   { eexists (Vint 0, handlerTag).
     erewrite load_alloc; eauto.
@@ -432,8 +432,8 @@ Proof.
   match goal with
     | H : match ?B with _ => _ end = Some _ |- _ =>
       destruct B; inv H
-  end. 
-  split_vc. intuition eauto. 
+  end.
+  split_vc. intuition eauto.
   - eapply Mem.alloc_stamp; eauto.
   - assert (FRESH : Mem.get_frame m b = None).
     { eapply Mem.alloc_get_fresh; eauto. }
@@ -488,7 +488,7 @@ Lemma sum_array_lengths_spec : forall Q : HProp,
       Q.
 Proof.
   intros. unfold sum_array_lengths.
-  build_vc ltac:idtac.
+  build_vc ltac:(idtac).
   split_vc.
 Qed.
 
@@ -561,10 +561,10 @@ Proof.
     congruence. }
 (* XXX *)
 
-  split_vc'. 
-  split; eauto using extends_load. 
-  exists (Z.of_nat (length vs1)). 
-  split_vc'. 
+  split_vc'.
+  split; eauto using extends_load.
+  exists (Z.of_nat (length vs1)).
+  split_vc'.
   split.
   { intros.
     eapply extends_valid_address; eauto.
@@ -572,8 +572,8 @@ Proof.
     omega. }
   split.
   { intros. apply VALID. omega. }
-  split; try congruence. 
-  split_vc. 
+  split; try congruence.
+  split_vc.
   assert (LOADm0m1 : forall b' off,
                        b' <> b ->
                        load (b', off) m0 = load (b', off) m1).
@@ -587,7 +587,7 @@ Proof.
     { intros E. rewrite E. eassumption. }
     unfold load.
     rewrite H3; trivial. }
-  split_vc. 
+  split_vc.
   split.
   { assert (LOAD'' := LOAD0).
     eapply extends_load with (m3 := m1) in LOAD''; eauto.
@@ -596,8 +596,8 @@ Proof.
     unfold load.
     rewrite H3; trivial. }
   exists (Z.of_nat (length vs2)).
-  split_vc. 
-  split. 
+  split_vc.
+  split.
   { simpl. intros.
     eapply memseq_valid with (z := z) in SEQ0; try omega.
     exploit @extends_valid_address; eauto.

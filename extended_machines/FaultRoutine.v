@@ -24,7 +24,7 @@ Notation block := (block privilege).
 
 Section TMU.
 
-Open Local Scope Z_scope.
+Local Open Scope Z_scope.
 
 Variable cblock : block.
 Variable stamp_cblock : Mem.stamp cblock = Kernel.
@@ -1098,33 +1098,33 @@ Theorem handler_correct_succeed : handler_spec_succeed cblock table labelCount f
 Proof.
  unfold handler_spec_succeed.
  intros.
-  assert (valid_address (cblock, addrTagRes) c).
+  assert (H : valid_address (cblock, addrTagRes) c).
   { unfold cache_hit_mem, valid_address, load in *. simpl.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGR. eauto. }
-  assert (valid_address (cblock, addrTagResPC) c).
+  assert (H0 : valid_address (cblock, addrTagResPC) c).
   { unfold cache_hit_mem, valid_address, load in *. simpl.
     destruct (Mem.get_frame c cblock) as [fr|]; try solve [intuition].
     inv INPUT. inv TAGRPC. eauto. }
+  assert (INIT : INIT_MEM cblock labelCount opcode vls pcl c).
+  { exploit (@init_enough cblock stamp_cblock table _ fetch_rule _ _ _ _ (labelCount opcode) vls); eauto.
+    intros Hmem.
+    repeat match goal with
+             | H : valid_address _ _ |- _ =>
+               destruct H as ([? ?] & ?)
+           end;
+    econstructor; simpl in LABS; intuition; eauto;
+    econstructor; eauto. }
   edestruct (faultHandler_specEscape_Some cblock stamp_cblock table
-                                          _ fetch_rule
-                                          (Some (lpc,lr))
-                                          opcode vls pcl RULE raddr lr lpc c)
-    as [stk1 HH]; eauto.
- - exploit (@init_enough cblock stamp_cblock table _ fetch_rule _ _ _ _ (labelCount opcode) vls); eauto.
-   intros Hmem.
-   repeat match goal with
-            | H : valid_address _ _ |- _ =>
-              destruct H as ([? ?] & ?)
-          end;
-   econstructor; simpl in LABS; intuition; eauto;
-   econstructor; eauto.
- - simpl. eauto.
- - destruct HH as [cache1 [pc1 [priv1 [[zr [zpc' [P1 P2]]] [P3 P4]]]]].
-   subst. inv P3.
-   exists cache1;  exists zr; exists zpc'.
-   split; auto.
-   eapply P4.
+                                         _ fetch_rule
+                                         (Some (lpc,lr))
+                                         opcode vls pcl RULE raddr lr lpc c INIT H H0 eq_refl)
+   as [stk1 HH]; eauto.
+  destruct HH as [cache1 [pc1 [priv1 [[zr [zpc' [P1 P2]]] [P3 P4]]]]].
+  subst. inv P3.
+  exists cache1;  exists zr; exists zpc'.
+  split; auto.
+  eapply P4.
 Qed.
 
 Theorem handler_correct_fail : handler_spec_fail cblock table labelCount fetch_rule handler.
@@ -1149,7 +1149,6 @@ Proof.
            end;
     econstructor; simpl in LABS; intuition; eauto;
     econstructor; eauto.
-  - simpl; eauto.
   - destruct HH as [cache1 [pc1 [priv1 [[P1 P2] [P3 P4]]]]].
     substs. inv P3.
     eexists ; eexists; intuition; eauto.

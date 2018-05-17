@@ -119,12 +119,12 @@ Lemma ti_cotrace_indist_via_prefixes : forall (t t2 : cotrace),
                 list_prefix_colist p2 t2 ->
                 ti_trace_indist p p2) ->
   ti_cotrace_indist t t2.
-Proof. cofix. intros.
+Proof. cofix CIH. intros.
   destruct t; destruct t2. eauto. eauto. eauto.
   - assert (J : ti_trace_indist (e :: nil) (e0 :: nil)) by (apply H; eauto).
     inv J.
     apply ticti_cons; auto.
-    apply ti_cotrace_indist_via_prefixes; auto.
+    apply CIH; auto.
     intros.
     assert (G : ti_trace_indist (e0 :: p) (e0 :: p2)); auto.
     inv G. auto.

@@ -59,6 +59,9 @@ Proof.
   exact_f_equal H; omega.
 
   intuition.
+  assert (E : Z.pos (Pos.of_succ_nat (length c1)) = Z.of_nat (S (length c1))) by reflexivity.
+  rewrite E. zify.
+
   apply_f_equal IHc1; eauto; zify; omega.
 Qed.
 

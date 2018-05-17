@@ -969,7 +969,6 @@ Proof.
       destruct sys_info; simpl in *; subst
   end.
   repeat eexists; eauto.
-  congruence.
 Qed.
 
 Lemma build_cache_cache_hit :

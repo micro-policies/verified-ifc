@@ -539,7 +539,7 @@ Proof.
           rewrite (Mem.get_upd_frame _ _ _ _ _ _ _ H6).
           destruct (equiv_dec b2 b) as [Eb|Eb].
           + constructor.
-            eapply Forall2_update_Z with (8:= E) (9:= E0); eauto.
+            eapply Forall2_update_Z; eauto.
           + auto.
       - unfold Atom in *.
         destruct (Mem.get_frame (A:=val _*Label) m1 b1) eqn:E1; try congruence.
@@ -1550,16 +1550,6 @@ Qed.
 
 End fix_observer.
 
-Program Instance AMUnwindingSemantics
-  (SL : forall o, syscall_lowstep o atable)
-  (SI : systable_inv atable) :
-  TINI.UnwindingSemantics AMObservation := {
-  s_equiv := low_equiv_full_state;
-  s_low := low_pc;
-  s_low_dec := low_pc_dec;
-  s_inv := inv_state
-}.
-
 Lemma Forall2_map : forall E1 E2
                            (R1: relation E1)
                            (R2: relation E2)
@@ -1603,6 +1593,16 @@ Proof.
   destruct a.
   eauto.
 Qed.
+
+Program Instance AMUnwindingSemantics
+  (SL : forall o, syscall_lowstep o atable)
+  (SI : systable_inv atable) :
+  TINI.UnwindingSemantics AMObservation := {
+  s_equiv := low_equiv_full_state;
+  s_low := low_pc;
+  s_low_dec := low_pc_dec;
+  s_inv := inv_state
+}.
 
 Next Obligation.
   inv H.

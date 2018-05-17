@@ -553,7 +553,7 @@ End FaultHandler.
 (** ** TMU Fault Handler generator  *)
 Section TMU.
 
-Open Local Scope Z_scope.
+Local Open Scope Z_scope.
 
 Context {T: Type}
         {Latt: JoinSemiLattice T}

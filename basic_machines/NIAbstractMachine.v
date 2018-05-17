@@ -828,13 +828,6 @@ Qed.
 
 End fix_observer.
 
-Program Instance AMUnwindingSemantics :
-  TINI.UnwindingSemantics AMObservation := {
-  s_equiv := low_equiv_full_state;
-  s_low := low_pc;
-  s_low_dec := low_pc_dec
-}.
-
 Lemma low_equiv_list_map : forall E1 E2
                                   (R1: relation E1)
                                   (R2: relation E2)
@@ -865,6 +858,13 @@ Lemma map_AData :
 Proof.
   induction l ; intros; inv H; eauto.
 Qed.
+
+Program Instance AMUnwindingSemantics :
+  TINI.UnwindingSemantics AMObservation := {
+  s_equiv := low_equiv_full_state;
+  s_low := low_pc;
+  s_low_dec := low_pc_dec
+}.
 
 Next Obligation.
   inv H.

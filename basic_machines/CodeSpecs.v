@@ -27,7 +27,7 @@ Lemma nop_spec: forall Q,
 Proof.
   unfold nop, HT; simpl; intros.
   split_vc.
-  apply_f_equal rte_refl; rec_f_equal ltac:(try omega; eauto).
+  apply_f_equal rte_refl; subst; rec_f_equal ltac:(try omega; eauto).
 Qed.
 
 Lemma add_spec: forall Q,
