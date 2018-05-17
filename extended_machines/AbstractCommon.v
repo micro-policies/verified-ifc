@@ -14,7 +14,7 @@ Local Open Scope Z_scope.
 Inductive StkElmt {T S} := 
 | AData : Atom T S -> StkElmt
 | ARet : PcAtom T -> bool -> StkElmt.
-Implicit Arguments StkElmt [].
+Arguments StkElmt T S :clear implicits. 
 (* CH: not sure which variant is better, but in the Haskell version
        the bool in ARet is labeled by the same label as the int *)
 
@@ -24,7 +24,8 @@ Record AS {T S}  := AState {
   astk : list (StkElmt T S);
   apc : PcAtom T  
 }.
-Implicit Arguments AS [].
+Arguments AS T S :clear implicits.
+
 
 (* DD -> DP: is PcAtom supposed to restrict the kind of output values?
              at some point, I guess the code is going to be put in memory too, at
@@ -32,7 +33,7 @@ Implicit Arguments AS [].
 *)
 Inductive Event {T: Type} :=
 | EInt : PcAtom T -> @Event T.
-Implicit Arguments Event [].
+Arguments Event T :clear implicits.
 
 Hint Resolve @flows_refl @flows_join_right  @flows_join_left.
 

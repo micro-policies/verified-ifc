@@ -17,6 +17,8 @@ Require Import Refinement.
 Require Import RefinementAC.
 Require Import Encodable.
 
+Unset Regular Subst Tactic.
+
 (** The Abstract Machine refines the Concrete Machine (with appropriate fault handler). *)
 
 Set Implicit Arguments.

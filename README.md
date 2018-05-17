@@ -3,7 +3,8 @@ Coq formalization accompanying the paper: A Verified Information-Flow Architectu
 
 Arthur Azevedo de Amorim, Nathan Collins, André DeHon, Delphine Demange, Cătălin Hriţcu, David Pichardie, Benjamin C. Pierce, Randy Pollack, and Andrew Tolmach. A Verified Information-Flow Architecture. In 41st ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL), pages 165-178. ACM, January 2014.
 http://www.crash-safe.org/node/29
-- Extended version submitted to Special Issue on Verified Information Flow Security, September 2015.
+- Extended version in Journal of Computer Security, 24(6), pages 689-734, Dec. 2016.
+http://content.iospress.com/articles/journal-of-computer-security/jcs15784
 http://arxiv.org/abs/1509.06503
 
 There are two subdirectories:

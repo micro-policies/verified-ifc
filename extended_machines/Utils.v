@@ -360,7 +360,7 @@ CoInductive trace (A : Type) : Type :=
   | TNil : trace A
   | TCons : A -> trace A -> trace A.
 
-Implicit Arguments TNil [A].
+Arguments TNil [A].
 
 Fixpoint list_to_trace (A : Type) (xs : list A) : trace A :=
   match xs with

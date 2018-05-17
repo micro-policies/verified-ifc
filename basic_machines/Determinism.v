@@ -44,11 +44,13 @@ Proof.
   allinv'. split ; reflexivity.
 
   Case "Call user".
+    subst.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
-    split ; reflexivity.
+    split; reflexivity.
 
   Case "Call kernel".
+    subst.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     split ; reflexivity.
@@ -66,7 +68,7 @@ Proof.
     intros.  inv H.
     split ; reflexivity.
 
-  Case "Ret kernel / user".
+  Case "Ret user".
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
