@@ -31,7 +31,7 @@ Inductive runsUntilUser : CS -> CS -> Prop :=
                cstep s Silent s' ->
                runsUntilUser s' s'' ->
                runsUntilUser s s''.
-Hint Constructors runsUntilUser.
+Hint Constructors runsUntilUser : core.
 
 Lemma runsUntilUser_l : forall s s',
                                   runsUntilUser s s' ->
@@ -39,7 +39,7 @@ Lemma runsUntilUser_l : forall s s',
 Proof.
   intros. inv H; trivial.
 Qed.
-Hint Resolve runsUntilUser_l.
+Hint Resolve runsUntilUser_l : core.
 
 Lemma runsUntilUser_r : forall s s',
                                   runsUntilUser s s' ->
@@ -53,7 +53,7 @@ Lemma runsUntilUser_star :
     runsUntilUser cs cs' ->
     star cstep cs nil cs'.
 Proof. induction 1; eauto. Qed.
-Hint Resolve runsUntilUser_star.
+Hint Resolve runsUntilUser_star : core.
 
 Lemma runsUntilUser_determ :
   forall s1 s21 s22
@@ -89,7 +89,7 @@ Inductive runsToEnd : CS -> CS -> Prop :=
                cstep s Silent s' -> (* slippery to put Silent, but justified *)
                runsToEnd s' s'' ->
                runsToEnd s s''.
-Hint Constructors runsToEnd.
+Hint Constructors runsToEnd : core.
 
 Lemma runsToEnd_l : forall s s',
                        runsToEnd s s' ->
@@ -110,14 +110,14 @@ Lemma runsToEnd_star :
     runsToEnd cs cs' ->
     star cstep cs nil cs'.
 Proof. induction 1; eauto. Qed.
-Hint Resolve runsToEnd_star.
+Hint Resolve runsToEnd_star : core.
 
 Lemma runsToEnd_trans : forall cs1 cs2 cs3,
                            runsToEnd cs1 cs2 ->
                            runsToEnd cs2 cs3 ->
                            runsToEnd cs1 cs3.
 Proof. induction 1; eauto. Qed.
-Hint Resolve runsToEnd_trans.
+Hint Resolve runsToEnd_trans : core.
 
 Lemma runsUntilUser_trans : forall s1 s2 s3,
                                       runsToEnd s1 s2 ->
@@ -159,5 +159,5 @@ Qed.
 
 End CExec.
 
-Hint Constructors runsUntilUser runsToEnd.
-Hint Resolve runsUntilUser_l runsUntilUser_r.
+Hint Constructors runsUntilUser runsToEnd : core.
+Hint Resolve runsUntilUser_l runsUntilUser_r : core.

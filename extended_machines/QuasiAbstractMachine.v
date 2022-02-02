@@ -1,5 +1,6 @@
 Require Import List.
-Require Import Omega.
+Require Import ZArith.
+Require Import Lia.
 
 Require Import Utils.
 Require Import Lattices.
@@ -37,7 +38,7 @@ match c with
 end.
 
 Lemma labelCountBounds : forall opcode, labelCount opcode <= 3.
-Proof. intros. destruct opcode; simpl; omega. Qed.
+Proof. intros. destruct opcode; simpl; lia. Qed.
 
 Local Open Scope Z_scope.
 

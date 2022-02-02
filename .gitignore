@@ -1,5 +1,8 @@
 *.aux
 *.vo
+*.vos
+*.vok
+.lia.cache
 *.v.d
 *.glob
 Makefile.coq

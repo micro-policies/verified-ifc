@@ -2,6 +2,7 @@ Require Import EquivDec.
 Require Export RelationClasses.
 Require Export SetoidClass.
 Require Import ZArith.
+Require Import Lia.
 Require Import ListSet.
 Require Import List.
 Require Import Bool.
@@ -35,13 +36,13 @@ Notation "l1 <: l2" := (flows l1 l2) (at level 50, no associativity) : type_scop
 Parameter top : Lab.
 Hypothesis flows_top : forall l, l <: top. *)
 
-Hint Resolve
-  @flows_refl
-  @flows_trans
-  @flows_join_left
-  @flows_join_right
-  @flows_antisymm
-  @join_minimal: lat.
+ Hint Resolve
+  flows_refl
+  flows_trans
+  flows_join_left
+  flows_join_right
+  flows_antisymm
+  join_minimal: lat.
 
 (** Immediate properties from the semi-lattice structure. *)
 Section JoinSemiLattice_properties.
@@ -131,17 +132,18 @@ Qed.
 End JoinSemiLattice_properties.
 
 Hint Resolve
-  @join_1
-  @join_2
-  @bot_flows
-  @not_flows_not_join_flows_right
-  @not_flows_not_join_flows_left : lat.
+  join_1
+  join_2
+  bot_flows
+  not_flows_not_join_flows_right
+  not_flows_not_join_flows_left : lat.
 
 (** The two point lattice *)
 Inductive Lab : Set :=
   | L : Lab
   | H : Lab.
 
+#[refine]
 Instance HL : JoinSemiLattice Lab :=
 {  bot := L
 ;  join l1 l2 :=
@@ -223,7 +225,7 @@ Module Zset : ZFSET.
 
   Record t_ := ZS { elements:> list Z; sorted_elements: sorted elements = true }.
   Definition t := t_.
-  Hint Resolve sorted_elements.
+  Hint Resolve sorted_elements : core.
 
   Definition In (z:Z) (s:t) := In z (elements s).
 
@@ -263,7 +265,7 @@ Module Zset : ZFSET.
       + destruct Z.eq_dec; simpl; auto.
         rewrite andb_true_iff; split; auto.
         rewrite <- Zlt_is_lt_bool.
-        omega.
+        lia.
     - rewrite andb_true_iff in H0; destruct H0.
       destruct Z_lt_dec.
       + simpl.
@@ -279,7 +281,7 @@ Module Zset : ZFSET.
             destruct Z_lt_dec; simpl.
             - rewrite Zlt_is_lt_bool in l0.
               rewrite l0.
-              assert (a < z)%Z by omega.
+              assert (a < z)%Z by lia.
               rewrite Zlt_is_lt_bool in H2.
               rewrite H2.
               simpl in H1; rewrite H1; auto.
@@ -287,8 +289,8 @@ Module Zset : ZFSET.
               + rewrite H0; auto.
               + rewrite H0.
                 generalize (IHl z); simpl.
-                destruct Z_lt_dec; try omega.
-                destruct Z.eq_dec; try omega.
+                destruct Z_lt_dec; try lia.
+                destruct Z.eq_dec; try lia.
                 auto.
           }
   Qed.
@@ -431,7 +433,7 @@ Module Zset : ZFSET.
     - subst.
       rewrite <- Zlt_is_lt_bool in H2; auto.
     - generalize (H0 _ H1).
-      rewrite <- Zlt_is_lt_bool in H2; omega.
+      rewrite <- Zlt_is_lt_bool in H2; lia.
   Qed.
 
   Lemma inv_sorted_cons_2: forall a l,
@@ -450,7 +452,7 @@ Module Zset : ZFSET.
     red; intros.
     assert (a<a)%Z.
     eapply inv_sorted_cons_2; eauto.
-    omega.
+    lia.
   Qed.
 
   Lemma set_antisym : forall l1 l2,
@@ -469,7 +471,7 @@ Module Zset : ZFSET.
         exploit inv_sorted_cons_2; eauto.
         clear H3.
         exploit inv_sorted_cons_2; eauto.
-        omega.
+        lia.
       subst.
       f_equal.
       apply IHl1.
@@ -511,6 +513,7 @@ Proof.
   intro T; rewrite T; auto.
 Qed.
 
+#[refine]
 Instance ZsetLat : JoinSemiLattice Zset.t :=
 {  bot := Zset.empty
 ;  join := Zset.union

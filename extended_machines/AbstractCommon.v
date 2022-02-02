@@ -35,7 +35,7 @@ Inductive Event {T: Type} :=
 | EInt : PcAtom T -> @Event T.
 Arguments Event T :clear implicits.
 
-Hint Resolve @flows_refl @flows_join_right  @flows_join_left.
+Hint Resolve flows_refl flows_join_right  flows_join_left : core.
 
 (* Same for both the abstract and quasi-abstract machines *)
 Definition abstract_init_data T :=

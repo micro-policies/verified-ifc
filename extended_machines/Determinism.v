@@ -81,17 +81,17 @@ Proof.
       end;
   subst; split; try congruence.
 
-  Case "Call user".
+  - (* Call user *)
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     split ; reflexivity.
 
-  Case "Call kernel".
+  - (* Call kernel *)
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     split ; reflexivity.
 
-  Case "SysCall".
+  - (* SysCall *)
     assert (sys_info0 = sys_info) by congruence. subst.
     assert (args0 = args /\ s0 = s1).
     { assert (LENGTHS : length args0 = length args) by congruence.

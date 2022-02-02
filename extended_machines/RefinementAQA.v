@@ -22,10 +22,10 @@ Context {T: Type}
 
 Definition match_tags (t1 t2 : T) (m2 : memory T unit) : Prop :=
   t1 = t2.
-Hint Unfold match_tags.
+Hint Unfold match_tags : core.
 
 Definition valid_update (m2 m2' : memory T unit) : Prop := True.
-Hint Unfold valid_update.
+Hint Unfold valid_update : core.
 
 Lemma valid_update_match_tags :
   forall t1 t2 m2 m2',
@@ -41,29 +41,29 @@ Notation match_vals := (match_vals T unit).
 Notation match_ptrs := (match_ptrs T unit).
 Notation update_meminj := (update_meminj T unit).
 
-Hint Resolve match_vals_eq.
-Hint Constructors Memory.match_atoms.
-Hint Constructors Memory.match_vals.
-Hint Constructors Memory.match_ptrs.
-Hint Resolve update_meminj_eq.
+Hint Resolve match_vals_eq : core.
+Hint Constructors Memory.match_atoms : core.
+Hint Constructors Memory.match_vals : core.
+Hint Constructors Memory.match_ptrs : core.
+Hint Resolve update_meminj_eq : core.
 
 Inductive match_stk_elmt (mi : meminj) : StkElmt T T -> StkElmt T unit -> memory T unit -> Prop :=
 | mse_data : forall a1 a2 m2
                     (ATOMS : match_atoms mi a1 a2 m2),
                match_stk_elmt mi (AData a1) (AData a2) m2
 | mse_ret : forall pc b m2, match_stk_elmt mi (ARet pc b) (ARet pc b) m2.
-Hint Constructors match_stk_elmt.
+Hint Constructors match_stk_elmt : core.
 
 Definition match_stacks (mi : meminj) : list (StkElmt T T) -> list (StkElmt T unit) -> memory T unit -> Prop :=
   fun s1 s2 m2 => Forall2 (fun se1 se2 => match_stk_elmt mi se1 se2 m2) s1 s2.
-Hint Unfold match_stacks.
+Hint Unfold match_stacks : core.
 
 Inductive match_states : @a_state T -> @qa_state T -> Prop :=
 | aqa_intro : forall mi m1 m2 p stk1 stk2 pc
                      (INJ : Meminj m1 m2 mi)
                      (STK : match_stacks mi stk1 stk2 m2),
                 match_states (AState m1 p stk1 pc) (AState m2 p stk2 pc).
-Hint Constructors match_states.
+Hint Constructors match_states : core.
 
 Lemma alloc_match_stacks :
   forall size
@@ -115,7 +115,7 @@ Lemma match_stacks_length :
          (STKS : match_stacks mi stk1 stk2 m2),
     length stk1 = length stk2.
 Proof. induction 1; simpl; eauto. Qed.
-Hint Resolve match_stacks_length.
+Hint Resolve match_stacks_length : core.
 
 Lemma match_stacks_all_data :
   forall mi stk1 stk2 m2
@@ -130,7 +130,7 @@ Proof.
     congruence.
   - apply IHSTKS; simpl in *; auto.
 Qed.
-Hint Resolve match_stacks_all_data.
+Hint Resolve match_stacks_all_data : core.
 
 Lemma match_stacks_app_2 :
   forall mi stk11 stk12 stk21 stk22 m2
@@ -138,9 +138,9 @@ Lemma match_stacks_app_2 :
          (STKS2 : match_stacks mi stk12 stk22 m2),
     match_stacks mi (stk11 ++ stk12) (stk21 ++ stk22) m2.
 Proof. intros. eauto using Forall2_app. Qed.
-Hint Resolve match_stacks_app_2.
+Hint Resolve match_stacks_app_2 : core.
 
-Hint Constructors pop_to_return.
+Hint Constructors pop_to_return : core.
 
 Lemma match_stacks_pop_to_return :
   forall mi stk1 stk2 stk2' pc b m2
@@ -237,8 +237,8 @@ Lemma match_stacks_mem_irrel :
 Proof. intros. induction STKS; eauto with mem_irrel. Qed.
 Hint Resolve match_stacks_mem_irrel : mem_irrel.
 
-Hint Unfold a_alloc.
-Hint Unfold qa_alloc.
+Hint Unfold a_alloc : core.
+Hint Unfold qa_alloc : core.
 
 Inductive parametric_asyscall : ASysCall T -> Prop :=
 | masc_intro : forall ar f
@@ -390,7 +390,7 @@ Next Obligation.
 Qed.
 
 Definition emptyinj : meminj := fun _ => None.
-Hint Unfold emptyinj.
+Hint Unfold emptyinj : core.
 
 Definition emptyinj_meminj :
   Meminj (Mem.empty _ _) (Mem.empty _ _) emptyinj.
@@ -398,7 +398,7 @@ Proof.
   unfold emptyinj.
   constructor; simpl; congruence.
 Qed.
-Hint Resolve emptyinj_meminj.
+Hint Resolve emptyinj_meminj : core.
 
 Lemma match_init_stacks: forall m2 d1,
  match_stacks emptyinj
@@ -409,7 +409,7 @@ Proof.
   induction d1 as [|[xv xl] d1 IH]; intros;
   (simpl; constructor; auto).
 Qed.
-Hint Resolve match_init_stacks.
+Hint Resolve match_init_stacks : core.
 
 Program Definition abstract_quasi_abstract_ref :=
   @refinement_from_state_refinement (abstract_machine atable)

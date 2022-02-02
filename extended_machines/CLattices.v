@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Import ListNotations.
 Require Import LibTactics.
@@ -203,10 +204,10 @@ Lemma of_nat_lt_proof_irrel:
 Proof.
   induction m; intros.
     destruct n.
-      false; omega.
+      false; lia.
       reflexivity.
     destruct n.
-      false; omega.
+      false; lia.
       simpl; erewrite IHm; eauto.
 Qed.
 
@@ -227,7 +228,7 @@ Proof.
   intros.
   unfold nth_labToVal.
   destruct (le_lt_dec n m).
-  false; omega.
+  false; lia.
   (* NC: Interesting: here we have two different proofs [m < n0] being
   used as arguments to [nth_order], and we need to know that the
   result of [nth_order] is the same in both cases.  I.e., we need
@@ -266,7 +267,7 @@ Proof.
   intuition;
   eapply extension_comp_nth_labToVal; eauto.
 Qed.
-Hint Resolve labsToVals_extension_comp.
+Hint Resolve labsToVals_extension_comp : core.
 
 Lemma labsToVals_cache :
   forall m1 m2 n (vls : Vector.t _ n) ts
@@ -285,7 +286,7 @@ Proof.
          end;
   eauto using labToVal_cache.
 Qed.
-Hint Resolve labsToVals_cache.
+Hint Resolve labsToVals_cache : core.
 
 End Glue.
 

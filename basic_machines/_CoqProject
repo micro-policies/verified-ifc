@@ -1,3 +1,4 @@
+-arg "-w -undeclared-scope,-deprecated-instance-without-locality,-deprecated-hint-without-locality,-deprecated-ident-entry"
 -R . Top
 Utils.v
 LibTactics.v

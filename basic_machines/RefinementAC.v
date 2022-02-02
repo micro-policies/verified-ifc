@@ -1,5 +1,6 @@
 Require Import List.
 Require Import ZArith.
+Require Import Lia.
 Require Import FunctionalExtensionality.
 Require Import Utils.
 Require Import Lattices.
@@ -182,7 +183,7 @@ Inductive match_stacks : list (@StkElmt L) ->  list CStkElmt -> Prop :=
                   match_stacks s cs ->
                   ca = atom_labToZ a ->
                   match_stacks (ARet a r:: s) (CRet ca r false:: cs).
-Hint Constructors match_stacks.
+Hint Constructors match_stacks : core.
 
 Lemma match_stacks_args :
   forall s args cs,
@@ -262,7 +263,7 @@ Proof.
     intros [Hmatch Hmatch']; split; eauto.
 Qed.
 
-Hint Constructors pop_to_return.
+Hint Constructors pop_to_return : core.
 
 Lemma match_stacks_c_pop_to_return :
   forall astk cstk rpc rpcl b1 b2 cstk'
@@ -290,7 +291,7 @@ Proof.
   destruct IHPOP as [? [? [? [? ?]]]].
   subst. eauto 7.
 Qed.
-Hint Resolve match_stacks_c_pop_to_return.
+Hint Resolve match_stacks_c_pop_to_return : core.
 
 (** Generic fault handler code *)
 Variable fetch_rule_g : forall (o: OpCode), AllowModify (labelCount o).
@@ -361,10 +362,10 @@ Proof.
   induction n; intros.
   - unfold nth_labToZ.
     case_eq (le_lt_dec (S nth) 1); case_eq (le_lt_dec nth 0); intros; auto;
-    try (zify ; omega).
+    try (zify ; lia).
   - unfold nth_labToZ.
     case_eq (le_lt_dec (S (S n)) (S nth)); case_eq (le_lt_dec (S n) nth); intros; auto;
-    try (zify ; omega).
+    try (zify ; lia).
     unfold Vector.nth_order. simpl. symmetry.
     erewrite of_nat_lt_proof_irrel ; eauto.
 Qed.
@@ -383,7 +384,7 @@ Proof.
   auto.
   unfold nth_labToZ.
   case_eq (le_lt_dec n0 2); intros; auto.
-  zify ; omega.
+  zify ; lia.
 Qed.
 
 
@@ -398,9 +399,9 @@ Proof.
   unfold P in *. intros.
   exploit labsToZs_cons_hd; eauto. intros Heq ; inv Heq.
   eapply labsToZs_cons_tail in H1; eauto.
-  exploit H ; eauto. zify; omega.
+  exploit H ; eauto. zify; lia.
   intros Heq. inv Heq.
-  reflexivity. zify ; omega.
+  reflexivity. zify ; lia.
 Qed.
 
 Definition abstract_action (ce : CEvent+τ) : (@Event L)+τ :=
@@ -716,7 +717,7 @@ Proof.
   destruct MATCH as [RES UP].
   destruct RES.
   econstructor; eauto; econstructor;
-  try solve [rewrite <- UP; eauto; compute; omega];
+  try solve [rewrite <- UP; eauto; compute; lia];
   repeat match goal with
            | H : tag_in_mem _ _ _ |- _ =>
              inv H
@@ -781,7 +782,7 @@ Proof.
     apply labsToZs_inj in E2.
     + subst. rewrite E.
       destruct MATCH'. trivial.
-    + destruct op'; simpl; omega.
+    + destruct op'; simpl; lia.
   - exploit (handler_correct_fail (CT := LCL)); eauto.
     simpl in *.
     intros [stk' ESCAPE1].
@@ -863,7 +864,7 @@ Inductive exec_end : CS -> CS -> Prop :=
                      cstep s Silent s' ->
                      runsToEnd s' s'' ->
                      exec_end s s''.
-Hint Constructors exec_end.
+Hint Constructors exec_end : core.
 
 Inductive cexec : CS -> ctrace -> CS -> Prop :=
 | ce_end : forall s s', exec_end s s' -> cexec s nil s'
@@ -883,7 +884,7 @@ Inductive cexec : CS -> ctrace -> CS -> Prop :=
                    runsUntilUser s' s'' ->
                    cexec s'' t s''' ->
                    cexec s t s'''.
-Hint Constructors cexec.
+Hint Constructors cexec : core.
 
 Lemma exec_end_step : forall s e s' s''
                              (STEP : cstep s e s')
@@ -897,7 +898,7 @@ Proof.
   [exploit priv_no_event_r; eauto; intros ?; subst|]);
   inv EXEC; eauto.
 Qed.
-Hint Resolve exec_end_step.
+Hint Resolve exec_end_step : core.
 
 Lemma cexec_step : forall s e s' t s''
                           (Hstep : cstep s e s')

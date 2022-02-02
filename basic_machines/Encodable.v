@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import Lattices.
 Require Import CodeGen.
 Require Import Concrete.
@@ -62,10 +63,10 @@ Lemma of_nat_lt_proof_irrel:
 Proof.
   induction m; intros.
     destruct n.
-      omega.
+      lia.
       reflexivity.
     destruct n.
-      omega.
+      lia.
       simpl; erewrite IHm; eauto.
 Qed.
 
@@ -85,7 +86,7 @@ Proof.
   intros.
   unfold nth_labToZ.
   destruct (le_lt_dec n m).
-  omega.
+  lia.
   erewrite nth_order_proof_irrel; eauto.
 Qed.
 

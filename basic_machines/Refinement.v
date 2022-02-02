@@ -7,7 +7,7 @@ Require TINI.
 (** Generic notion of refinement between two semantics *)
 
 Set Implicit Arguments.
-Hint Constructors TINI.exec.
+Hint Constructors TINI.exec : core.
 
 (** * Definition of refinement *)
 Section Refinement.
@@ -25,7 +25,7 @@ Inductive match_traces (match_events : event S1 -> event S2 -> Prop)
               match_events e1 e2 ->
               match_traces match_events t1 t2 ->
               match_traces match_events (e1 :: t1) (e2 :: t2).
-Hint Constructors match_traces.
+Hint Constructors match_traces : core.
 
 Lemma match_traces_no_filter:
   forall (match_events: event S1 -> event S2 -> Prop) tr1 tr2,

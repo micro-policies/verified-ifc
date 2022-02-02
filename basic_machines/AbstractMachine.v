@@ -1,5 +1,6 @@
 Require Import List.
-Require Import Omega.
+Require Import ZArith.
+Require Import Lia.
 
 Require Import Utils.
 Require Import Lattices.

@@ -1,6 +1,7 @@
 (* Generic tools for proving properties of (privileged) concrete machine code. *)
 
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
@@ -47,8 +48,8 @@ Ltac split_vc :=
    | H: ?P /\ ?Q |- _ => (destruct H; split_vc)
    | |- forall P, _ => (intro; try subst; split_vc)
    | |- exists X, _ => (eexists; split_vc)
-   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc])
-   | _ => (eauto; try (zify; omega))
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; lia);fail) | split_vc])
+   | _ => (eauto; try (zify; lia))
    end).
 
 Ltac split_vc' :=
@@ -57,8 +58,8 @@ Ltac split_vc' :=
    | H: exists X,_ |- _ => (destruct H; split_vc')
    | H: ?P /\ ?Q |- _ => (destruct H; split_vc')
    | |- exists X, _ => (eexists; split_vc')
-   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc'])
-   | _ => (eauto; try (zify; omega))
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; lia);fail) | split_vc'])
+   | _ => (eauto; try (zify; lia))
    end).
 
 Ltac run1 L := eapply rte_step; eauto; eapply L; eauto.
@@ -232,7 +233,7 @@ Proof.
   assert (ALLOC: exists b m',
                    c_alloc Kernel cnt (xv,xl) mem0 = Some(b,m')).
   { unfold c_alloc, alloc, zreplicate.
-    destruct (Z_lt_dec cnt 0); try omega.
+    destruct (Z_lt_dec cnt 0); try lia.
     match goal with
       | |- context [Some ?p = Some _] => destruct p
     end.
@@ -295,7 +296,7 @@ Proof.
   intros.
   build_vc ltac:(idtac).
   split_vc.
-  replace (v + 0) with v by omega. auto.
+  replace (v + 0) with v by lia. auto.
 Qed.
 
 Lemma loadFromCache_spec: forall ofs (Q : _ -> _ -> Prop),
@@ -381,7 +382,7 @@ Proof.
   { unfold skip.
     rewrite app_ass.
     eapply HT_compose; try eapply push_spec.
-    eapply skipNZ_continuation_spec_NZ with (v:= 1); omega. }
+    eapply skipNZ_continuation_spec_NZ with (v:= 1); lia. }
   simpl. intros.
   repeat eexists. auto.
 Qed.
@@ -431,7 +432,7 @@ Proof.
   eapply HT_decide_join' with (D := fun v => v = 0).
   apply ifNZ_spec_NZ.
   apply ifNZ_spec_Z.
-  intros; omega.
+  intros; lia.
   auto.
   auto.
 Qed.
@@ -786,7 +787,7 @@ Proof.
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec.
-      eapply ifNZ_spec_NZ with (v:=1); try omega.
+      eapply ifNZ_spec_NZ with (v:=1); try lia.
       eapply HT_compose; try eapply pop_spec.
       eapply genFalse_spec.
     + split_vc. subst. rewrite val_eq_int.
@@ -825,7 +826,7 @@ Proof.
     eapply HT_strengthen_premise.
     + eapply HT_compose; try eapply push_spec.
       eapply HT_compose; try eapply genEq_spec.
-      eapply ifNZ_spec_NZ with (v:=1); try omega.
+      eapply ifNZ_spec_NZ with (v:=1); try lia.
       eapply nop_spec.
     + split_vc. subst. rewrite val_eq_int. split; eauto.
 Qed.
@@ -888,7 +889,7 @@ Proof.
   eapply HT_forall_exists. intros i.
   eapply HT_fold_constant_premise. intros H.
   unfold genLoop, dup.
-  assert (0 <= i) by omega. generalize dependent H.
+  assert (0 <= i) by lia. generalize dependent H.
   set (Q := fun i => 0 < i ->
    HT (c ++ [Dup 0] ++ [BranchNZ (- Z.of_nat (length (c ++ [Dup 0])))])
      (fun (m : memory) (s : stack) => exists s' t, s = (Vint i, t) ::: s' /\ I m s)
@@ -934,13 +935,13 @@ Proof.
   destruct (0 =? 0) eqn:E.
      eapply rte_refl; eauto.
      inv E.
-  replace (n + Z.of_nat (length c) + 1 + 1) with (n + Z.of_nat (length c + 2)) by (zify; omega). subst n'. eauto.
+  replace (n + Z.of_nat (length c) + 1 + 1) with (n + Z.of_nat (length c + 2)) by (zify; lia). subst n'. eauto.
 
   - (* loop *)
   assert (i' <> 0).  eapply Z.eqb_neq;  eauto.
   edestruct H as [stk3 [cache3 [[s''' [t''' [R1 R2]]] R3]]].
-  instantiate (1:= i').  omega.
-  zify; omega.
+  instantiate (1:= i').  lia.
+  zify; lia.
   eauto.
   exists s''.  eauto. eauto.
   eexists.  eexists. split. eexists. eexists. split. eauto. eauto.
@@ -953,7 +954,7 @@ Proof.
   simpl; eauto.
   eapply rte_step; eauto.
   eapply cstep_branchnz_p'; eauto.
-  rewrite EQ. zify ; omega.
+  rewrite EQ. zify ; lia.
   subst.
   eapply rte_refl; auto.
 
@@ -986,7 +987,7 @@ Proof.
                                                     s = (Vint i, ti) ::: s' /\
                                                     I Q m s' i).
     { intros.
-      assert (POS : i > 0) by omega.
+      assert (POS : i > 0) by lia.
       specialize (HTc i POS). clear POS.
       destruct HTc as (Pc & HTc & POST).
       eapply HT_strengthen_premise.
@@ -998,10 +999,10 @@ Proof.
         intros m s (? & s' & ? & INV). subst.
         do 6 eexists. split; eauto.
         split; [reflexivity|].
-        replace (-1 + i) with (Z.pred i) by omega.
+        replace (-1 + i) with (Z.pred i) by lia.
         do 3 eexists. split; eauto.
         split; eauto.
-        omega. }
+        lia. }
       intros m s (s' & t & ? & i' & ? & s'' & ? & ?). subst.
       assert (i' = i) by congruence.
       assert (s'' = s') by congruence. subst. eauto. }
@@ -1012,7 +1013,7 @@ Proof.
   intros m s (i & t & s' & ? & ? & ?). subst. simpl.
   eexists. split; eauto.
   do 3 eexists. split; eauto. split.
-  - intros. eexists. split; [|do 2 eexists; split; eauto]. omega.
+  - intros. eexists. split; [|do 2 eexists; split; eauto]. lia.
   - intros. subst. eauto.
 Qed.
 
@@ -1066,7 +1067,7 @@ Proof.
   eapply rte_fail; auto.
   eapply rte_step; eauto.
   eapply cstep_jump_p; eauto.
-  simpl; eauto; omega.
+  simpl; eauto; lia.
 Qed.
 
 Lemma skipNZ_specEscape: forall r c1 c2 v P1 P2 Q,
@@ -1196,7 +1197,7 @@ Proof.
     eexists s0, mem0. repeat eexists.
     destruct (Q mem0 s0) as [prop outcome]. destruct POST.
     simpl in *. subst. simpl. repeat (split; auto).
-    eapply rte_fail; simpl; try omega.
+    eapply rte_fail; simpl; try lia.
     eapply rte_step; try reflexivity.
     { eapply cstep_branchnz_p'; eauto. } simpl.
     eapply rte_step; try reflexivity.

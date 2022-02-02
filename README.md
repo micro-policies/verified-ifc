@@ -21,4 +21,4 @@ and the `Main.v` file to get a top-level view of the results.
 `/extended_machines` contain a longer `README` that is intended to help
 guide you to the important differences in this developments.
 
-The code is known to work with Coq 8.8.
+The code is known to work with Coq 8.14.

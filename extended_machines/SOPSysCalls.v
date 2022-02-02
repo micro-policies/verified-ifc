@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Import ListNotations.
 Require Import LibTactics.
@@ -65,14 +66,14 @@ Proof.
   destruct v as [i|[b off]].
   - eexists (Vint 0).
     simpl.
-    replace (i - i)%Z with 0%Z by omega.
+    replace (i - i)%Z with 0%Z by lia.
     split; eauto.
     destruct (EquivDec.equiv_dec (Vint 0) (Vint 0)); try congruence.
     reflexivity.
   - eexists (Vptr (b,0%Z)).
     simpl.
     rewrite equiv_dec_refl.
-    replace (off - off)%Z with 0%Z by omega.
+    replace (off - off)%Z with 0%Z by lia.
     split; eauto.
     destruct (EquivDec.equiv_dec (Vint 0) (Vptr (b, 0%Z))); try congruence.
     reflexivity.
@@ -130,9 +131,9 @@ Definition joinPCSysCallImpl := (2%nat, joinPbody).
 
 Definition SOPCSysTable := [joinPCSysCallImpl].
 
-Hint Resolve extends_refl.
-Hint Resolve extends_trans.
-Hint Resolve extends_valid_address.
+Hint Resolve extends_refl : core.
+Hint Resolve extends_trans : core.
+Hint Resolve extends_valid_address : core.
 
 Lemma sop_syscall_impls_correct :
   ctable_impl_correct (CLatt := SOPClatt cblock) cblock SOPASysTable SOPCSysTable faultHandler.
@@ -265,7 +266,7 @@ Proof.
   intros id args asc res pcl EQ INV RES.
   destruct id as [|[|[|?]]]; inv EQ.
   destruct args as [| [v12 l12] [| [[p1|[? ?]] l1] [|[? ?]]]]; inv RES.
-  destruct v12 as [i|b off]; simpl; trivial.
+  destruct v12 as [i|b]; simpl; trivial.
   assert (H := INV _ (or_introl eq_refl)). simpl in H.
   rewrite Zset_incl_spec in *.
   intros p IN.

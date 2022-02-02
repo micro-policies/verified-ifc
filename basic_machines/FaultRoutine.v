@@ -1,6 +1,7 @@
 (** Fault Handler Generation code and correctness proofs. *)
 
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Utils.
 Import ListNotations.
@@ -178,7 +179,7 @@ Lemma opCodeToZ_inj: forall opcode opcode',
   opcode' = opcode.
 Proof.
   intros o o'.
-  destruct o; destruct o'; simpl; solve [ auto | intros; false; omega ].
+  destruct o; destruct o'; simpl; solve [ auto | intros; false; lia ].
 Qed.
 
 Lemma genRule_spec_GT_guard_v :
@@ -221,17 +222,17 @@ Proof.
   eapply GT_consequence'.
   unfold genComputeResults.
   eapply indexed_cases_spec with (Qnil:=Qnil).
-  - Case "default case that we never reach".
+  - (* default case that we never reach *)
     unfold GT; intros.
     eapply HT_strengthen_premise.
     eapply nop_spec.
     unfold Qnil; iauto.
   - exact H_indexed_hyps.
   - iauto.
-  - Case "untangle post condition".
+  - (* untangle post condition *)
     simpl.
     assert (0 = 0) by reflexivity.
-    assert (1 <> 0) by omega.
+    assert (1 <> 0) by lia.
     (* NC: Otherwise [cases] fails.  Thankfully, [cases] tells us this
     is the problematic lemma, whereas [destruct] just spits out a huge
     term and says it's ill typed *)
@@ -294,7 +295,7 @@ Proof.
   eapply storeAt_spec.
   eapply storeAt_spec.
 
-  omega.
+  lia.
   simpl; intuition; subst; jauto.
   eauto.
 Qed.
@@ -383,7 +384,7 @@ Proof.
   intros [m'' Hm''].
   unfold genStoreResults.
   eapply HT_strengthen_premise.
-  eapply ifNZ_spec_NZ with (v := 1); try omega.
+  eapply ifNZ_spec_NZ with (v := 1); try lia.
   eapply HT_compose_bwd.
   eapply HT_compose_bwd.
   eapply genTrue_spec.
@@ -395,7 +396,7 @@ Proof.
   eexists.
   generalize (update_list_Z_spec _ _ _ Hm''). intros H1.
   generalize (update_list_Z_spec _ _ _ Hm'). intros H2.
-  erewrite update_list_Z_spec2 in H2; eauto; try solve [compute; omega].
+  erewrite update_list_Z_spec2 in H2; eauto; try solve [compute; lia].
   repeat (split; eauto); try econstructor; eauto.
   clear - Hm' Hm''.
   intros addr H1 H2.
@@ -411,8 +412,7 @@ Proof.
   intros.
   unfold genError.
   eapply HTEscape_compose.
-  Focus 2.
-  eapply jump_specEscape_Failure.
+  2: eapply jump_specEscape_Failure.
   eapply HT_strengthen_premise.
   eapply push_spec.
   split_vc.
@@ -732,7 +732,7 @@ Proof.
   split_vc.
   unfold eval_var in H2.
   rewrite H in H2 at 1.
-  false; omega.
+  false; lia.
 Qed.
 
 Lemma genApplyRule_spec_None_wp:
@@ -824,6 +824,7 @@ Qed.
 
 End Specs.
 
+#[refine]
 Instance LatticeConcreteLabels :
   ConcreteLabels T ET _ (fun op pcl vls => apply_rule (am op) pcl vls) := {
   genRule op := genApplyRule (am op)

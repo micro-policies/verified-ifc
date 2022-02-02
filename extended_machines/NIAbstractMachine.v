@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 
 Require Setoid.
@@ -36,7 +37,7 @@ Inductive low_equiv_atom {A} (o: Label) : relation (A * Label)%type :=
   l1 <: o = false ->
   l2 <: o = false ->
   low_equiv_atom o (v1,l1) (v2,l2).
-Hint Constructors low_equiv_atom.
+Hint Constructors low_equiv_atom : core.
 
 Lemma low_equiv_atom_equal:
   forall {A} (a b:A) (k l:Label) (o:Label), k <: o = true ->
@@ -65,7 +66,7 @@ Global Instance low_pcatom (o: Label) : @Equivalence (PcAtom Label) (low_equiv_a
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_atom _ _ _ => reflexivity
-  end.
+  end : core.
 
 
 Lemma low_equiv_atom_join_value:
@@ -98,7 +99,7 @@ Inductive low_equiv_stkelt (o: Label) : StkElmt Label Label -> StkElmt Label Lab
 | le_aret : forall a1 a2 b
   (LEa: low_equiv_atom o a1 a2),
   low_equiv_stkelt o (ARet a1 b) (ARet a2 b).
-Hint Constructors low_equiv_stkelt.
+Hint Constructors low_equiv_stkelt : core.
 
 Global Instance low_stkelt (o: Label) : @Equivalence (StkElmt Label Label) (low_equiv_stkelt o).
 Proof.
@@ -112,7 +113,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_stkelt _ _ _ => reflexivity
-  end.
+  end : core.
 
 (* TODO: Rename and move *)
 Lemma Forall2_app_left (A: Type) (low_equiv_a: A -> A -> Prop) :
@@ -228,7 +229,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- Forall2 _ _ _ => reflexivity
-  end.
+  end : core.
 
 Lemma update_list_low_equiv: forall A a obs l  m m' o (v:A)
   (Hl : l <: obs = false),
@@ -450,7 +451,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- match_options _ _ _ => reflexivity
-  end.
+  end : core.
 
 (* Low-equivalent memories:
    (1) low-equivalence of frames pointed to by low blocks
@@ -484,7 +485,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- equiv_mem _ _ _ => reflexivity
-  end.
+  end : core.
 
 
 Lemma load_equiv_mem:
@@ -632,7 +633,7 @@ Inductive low_equiv_full_state (o: Label) : @a_state Label -> @a_state Label -> 
     low_equiv_full_state o
       (AState m1 i stk1 (pcv,l))
       (AState m2 i stk2 (pcv,l)).
-Hint Constructors low_equiv_full_state.
+Hint Constructors low_equiv_full_state : core.
 
 Global Instance low_state (o: Label) : @Equivalence (@a_state Label) (@low_equiv_full_state o).
 Proof.
@@ -657,7 +658,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_full_state _ _ _ => reflexivity
-  end.
+  end : core.
 
 Lemma pc_labels1 : forall o s1 s2,
   low_equiv_full_state o s1 s2 ->
@@ -705,7 +706,7 @@ Qed.
 
 Inductive visible_event (o : Label) : @Event Label -> Prop :=
 | ve_low : forall i l, l <: o = true -> visible_event o (EInt (i, l)).
-Hint Constructors visible_event.
+Hint Constructors visible_event : core.
 
 Lemma visible_event_dec : forall o e, {visible_event o e} + {~ visible_event o e}.
 Proof.
@@ -716,13 +717,13 @@ Defined.
 
 End ObsEquiv.
 
-Hint Resolve low_state.
+Hint Resolve low_state : core.
 
 Hint Constructors
   low_equiv_atom
   low_equiv_stkelt
   Forall2
-  low_equiv_full_state.
+  low_equiv_full_state : core.
 
 Hint Extern 1 =>
   match goal with
@@ -731,7 +732,7 @@ Hint Extern 1 =>
     | |- Forall2 _ _ _ => reflexivity
     | |- equiv_mem _ _ _ => reflexivity
     | |- low_equiv_full_state _ _ _ => reflexivity
-  end.
+  end : core.
 
 (** * Non-interference property *)
 
@@ -813,7 +814,7 @@ Variable hyp_syscall_lowstep : syscall_lowstep atable.
 
 Local Ltac go :=
   try congruence;
-  try omega;
+  try lia;
   auto using below_lret_low_equiv with lat;
   try apply below_lret_low_equiv;
   [> once (constructor; go) ..].
@@ -1254,29 +1255,29 @@ Proof.
 
   exploit_low; try (repeat inv_equiv_atom; go).
 
-  - Case "Add".
+  - (* Add *)
     assert (Hmemv: low_equiv_atom o (xv, x1l \_/ x2l) (xv0, x1l0 \_/ x2l0)) by
       (eapply low_equiv_atom_binop_value; eauto).
     inv Hmemv; go.
 
-  - Case "Sub".
+  - (* Sub *)
     assert (Hmemv: low_equiv_atom o (xv, x1l \_/ x2l) (xv0, x1l0 \_/ x2l0)) by
       (eapply low_equiv_atom_binop_value; eauto).
     inv Hmemv; go.
 
-  - Case "Dup".
+  - (* Dup *)
     eapply low_equiv_low; eauto.
     constructor; auto.
     exploit index_list_low_eq; eauto using index_list_app.
 
-  - Case "Swap".
+  - (* Swap *)
     eapply low_equiv_low; eauto.
     clear DATA DATA0 INSTR Hi1 Hi2 Hpc.
     eapply swap_app with (l2 := s3) in SWAP0.
     eapply swap_app with (l2 := s2) in SWAP.
     eapply swap_low_equiv; eauto.
 
-  - Case "Alloc".
+  - (* Alloc *)
     assert (m' ~~m m'0).
     + inv_equiv_atom.
       * eapply a_alloc_loc with (3:=ALLOC) (4:=ALLOC0); eauto with lat.
@@ -1287,16 +1288,16 @@ Proof.
       * subst.
         go.
 
-  - Case "Load".
+  - (* Load *)
     inv_equiv_atom; try go.
-    SCase "Load from low addresses".
+    (* Load from low addresses *)
     assert (Mem.stamp (fst p0) <: addrl0 \_/ l = true).
     { inv Hi2. inv ISTACK. simpl in *. trivial. }
     assert (Hmemv: low_equiv_atom o (xv, xl) (xv0, xl0)) by
         (eapply load_equiv_mem; eauto with lat).
     inv Hmemv; go.
 
-  - Case "Store".
+  - (* Store *)
     assert (Mem.stamp (fst p0) <: addrl0 \_/ l = true).
     { inv Hi2. inv ISTACK. simpl in *. trivial. }
     assert (Mem.stamp (fst p) <: addrl \_/ l = true).
@@ -1307,21 +1308,21 @@ Proof.
       eauto with lat);
     go.
 
-  - Case "Call".
+  - (* Call *)
     exploit Forall2_app_left ; eauto; intros Hl.
     exploit Forall2_app_right ; eauto; intros Hr.
     inv_equiv_atom.
-    SCase "Low Call".
+    + (* Low Call *)
        constructor 2; eauto with lat.
        eapply Forall2_app ; eauto.
 
-    SCase "High Call".
+    + (* High Call *)
        constructor; auto with lat.
        rewrite below_lret_adata ; eauto.
        rewrite below_lret_adata ; eauto.
        simpl; rewrite Flowl; go.
 
-  - Case "Ret".
+  - (* Ret *)
     spec_pop_return.
     spec_pop_return.
     exploit low_equiv_step_pop_to_return; eauto; intros HspecRet.
@@ -1329,14 +1330,14 @@ Proof.
     exploit_low.
     inv_equiv_atom; go.
 
-  - Case "VRet".
+  - (* VRet *)
     spec_pop_return.
     spec_pop_return.
     exploit low_equiv_step_pop_to_return; eauto; intros HspecRet.
     exploit_low.
     repeat inv_equiv_atom; go.
 
-  - Case "SysCall".
+  - (* SysCall *)
     assert (sys_info0 = sys_info) by congruence. subst. clear SYS0.
     assert (EQ : map AData args ~~l map AData args0 /\ s ~~l s0).
     { split.
@@ -1348,7 +1349,7 @@ Proof.
     specialize (hyp_syscall_lowstep SYS args args0 EQ1 SYSSEM SYSSEM0).
     go.
 
-  - Case "SizeOf".
+  - (* SizeOf *)
     inv LEa.
     + assert (LEN : length fr = length fr0).
       { inv Hi1. inv ISTACK.
@@ -1389,7 +1390,7 @@ Proof.
   assert (t <: o = false) by (destruct (flows t o) eqn:E; congruence).
   clear Hpc. inv Hs; try go.
 
-  - Case "Dup".
+  - (* Dup *)
     constructor; auto.
     match goal with
       | SE : StkElmt T T |- _ =>
@@ -1399,27 +1400,27 @@ Proof.
     simpl.
     reflexivity.
 
-  - Case "Swap".
+  - (* Swap *)
     constructor; auto.
     repeat (rewrite all_data_below_lret; eauto).
     eapply swap_forall; eauto.
 
-  - Case "Alloc".
+  - (* Alloc *)
     simpl in Hpc'.
     assert (amem ~~m m').
     + eapply a_alloc_high_step; eauto with lat.
     + go.
-  - Case "Store".
+  - (* Store *)
     destruct (flows ml o) eqn:?.
-    SCase "ml <: o = true".
+    + (* ml <: o = true *)
       assert (t <: o = true) by eauto with lat.
       congruence.
-    SCase "ml <: o = false".
+    + (* ml <: o = false *)
       assert (amem ~~m m') by
         (eapply store_high_equiv_mem with (3:= LOAD) (4:= STORE); eauto with lat).
       constructor; eauto.
 
-  - Case "Call".
+  - (* Call *)
     constructor; eauto with lat.
     simpl.
     erewrite below_lret_adata; [idtac|eauto].
@@ -1427,7 +1428,7 @@ Proof.
     simpl in *.
     destruct (t<:o) eqn:Hc; go.
 
-  - Case "Ret".
+  - (* Ret *)
     spec_pop_return.
     simpl in *.
     exploit @pop_to_return_spec2; eauto. intros HTEMP. inv HTEMP.
@@ -1438,7 +1439,7 @@ Proof.
     simpl. rewrite e.
     auto.
 
- - Case "VRet".
+ - (* VRet *)
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto. intros HTEMP. inv HTEMP.
     exploit @pop_to_return_spec3; eauto. intros HTEMP. inv HTEMP.
@@ -1450,7 +1451,7 @@ Proof.
     simpl. rewrite e.
     auto.
 
- - Case "SysCall".
+ - (* SysCall *)
    constructor; try congruence; try reflexivity.
    simpl.
    rewrite all_data_below_lret; try reflexivity.
@@ -1481,12 +1482,14 @@ Proof.
   try assert (l2 <: o = true) by (eapply join_2_rev; eassumption);
   try congruence.
 
-  - Case "P1 is Ret and P2 is Ret".
+  - (* P1 is Ret and P2 is Ret *)
     spec_pop_return.
+    revert POP0.
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP.
+    intros POP0.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP0.
@@ -1498,12 +1501,14 @@ Proof.
     exploit_low.
     inv_equiv_atom; go.
 
-  - Case "P1 is Ret and P2 is Vret". (* contradiction *)
+  - (* P1 is Ret and P2 is Vret; contradiction *)
     spec_pop_return.
+    revert POP0.
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP.
+    intros POP0.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP0.
@@ -1514,12 +1519,14 @@ Proof.
     intros Temp; inv Temp.
     exploit_low.
 
-  - Case "P1 is VRet and P2 is Ret". (* contradiction *)
+  - (* P1 is VRet and P2 is Ret; *)
     spec_pop_return.
+    revert POP0.
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP.
+    intros POP0.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP0.
@@ -1530,12 +1537,14 @@ Proof.
     intros Temp; inv Temp.
     exploit_low.
 
-  - Case "P1 is Vret and P2 is Vret".
+  - (* P1 is Vret and P2 is Vret *)
     spec_pop_return.
+    revert POP0.
     spec_pop_return.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP.
+    intros POP0.
     exploit @pop_to_return_spec2; eauto; intros Temp; inv Temp.
     exploit @pop_to_return_spec3; eauto; intros Temp; inv Temp.
     clear POP0.

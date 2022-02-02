@@ -1,6 +1,7 @@
 (** Code, specifications, proofs for manipulating arrays in kernel memory *)
 
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
@@ -106,8 +107,8 @@ Ltac split_vc' :=
    | H: exists X,_ |- _ => (destruct H; split_vc')
    | H: ?P /\ ?Q |- _ => (destruct H; split_vc')
    | |- exists X, _ => (eexists; split_vc')
-   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc'])
-   | _ => (eauto; try (zify; omega))
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; lia);fail) | split_vc'])
+   | _ => (eauto; try (zify; lia))
    end).
 
 (* This version is more aggressive. *)
@@ -118,17 +119,17 @@ Ltac split_vc :=
    | H: ?P /\ ?Q |- _ => (destruct H; split_vc)
    | |- forall P, _ => (intro; try subst; split_vc)
    | |- exists X, _ => (eexists; split_vc)
-   | |- ?P /\ ?Q => (split; [(eauto; try (zify; omega);fail) | split_vc])
-   | _ => (eauto; try (zify; omega))
+   | |- ?P /\ ?Q => (split; [(eauto; try (zify; lia);fail) | split_vc])
+   | _ => (eauto; try (zify; lia))
    end).
 
 Section with_hints.  (* Limit hints to this section. *)
 
 (* These are intended to work with split_vc. *)
-Hint Resolve extends_refl.
-Hint Resolve extends_trans.
-Hint Resolve extends_valid_address.
-Hint Resolve extends_update.
+Hint Resolve extends_refl : core.
+Hint Resolve extends_trans : core.
+Hint Resolve extends_valid_address : core.
+Hint Resolve extends_update : core.
 
 (* Memory copy.  *)
 
@@ -220,37 +221,37 @@ Proof.
         unfold Icopy in *.
         destruct INV as (t5 & t6 & Hs & ? & VALIDSRC & VALIDDST & ? & ? & ? & COPY & REST & ?).
         subst.
-        exploit (VALIDSRC (i + osrc)); try omega. intros [val Hval].
-        exploit (VALIDDST (i + odst)); try omega. intros [val' Hval'].
+        exploit (VALIDSRC (i + osrc)); try lia. intros [val Hval].
+        exploit (VALIDDST (i + odst)); try lia. intros [val' Hval'].
         eapply load_some_store_some in Hval'. destruct Hval' as [m' Hm'].
         split_vc.
         split; [|split; eauto]; eauto.
         split_vc.
         split.
         { split_vc.
-          repeat split; eauto; try omega.
+          repeat split; eauto; try lia.
           + intros.
             eapply valid_address_upd; eauto.
-            eapply VALIDSRC. omega.
+            eapply VALIDSRC. lia.
           + intros.
             eapply valid_address_upd; eauto.
-            apply VALIDDST. omega.
+            apply VALIDDST. lia.
           + intros.
             destruct (Z.eq_dec i z) as [ZEQ | ZNEQ].
             * subst.
-              replace (odst + z) with (z + odst) by omega.
+              replace (odst + z) with (z + odst) by lia.
               erewrite (load_store_new Hm').
               rewrite <- Hval.
               replace (osrc + z) with (z + osrc) by ring.
               eapply load_store_old; eauto.
               congruence.
             * do 2 (erewrite (load_store_old Hm'); eauto; try congruence).
-              2: (intros contra; inversion contra; omega).
-              eapply COPY. omega.
+              2: (intros contra; inversion contra; lia).
+              eapply COPY. lia.
           + intros.
             erewrite (load_store_old Hm'); eauto; try congruence.
-            2: (intros contra; inversion contra; omega).
-            apply REST. omega.
+            2: (intros contra; inversion contra; lia).
+            apply REST. lia.
           + intros.
             erewrite (get_frame_store_neq _ _ _ _ _ _ _ _ Hm'); eauto. }
         intros. split_vc. apply END.
@@ -259,7 +260,7 @@ Proof.
     intros m s t (END & POST). eauto. }
 
   unfold Icopy. split_vc. split.
-  - split_vc. repeat split; intros; omega.
+  - split_vc.
   - split_vc.
     replace (odst + 0) with odst in * by ring. eauto.
 Qed.
@@ -289,25 +290,25 @@ Lemma memseq_valid : forall m b a vs,
   forall z, a <= z < a + Z.of_nat(length vs) -> valid_address (b,z) m.
 Proof.
   induction 1; intros.
-  simpl in H. exfalso; omega.
+  simpl in H. exfalso; lia.
   simpl in H1.
   destruct (Z.eq_dec z z0).
   { subst. econstructor. eauto. }
-  eapply IHmemseq. zify; omega.
+  eapply IHmemseq. zify; lia.
 Qed.
 
-Hint Resolve memseq_valid.
+Hint Resolve memseq_valid : core.
 
 Lemma memseq_read : forall m b a vs,
   memseq m b a vs ->
   forall z, a <= z < a + Z.of_nat(length vs) -> exists v t, load (b,z) m = Some(v,t).
 Proof.
   induction 1; intros.
-  simpl in H. exfalso; omega.
+  simpl in H. exfalso; lia.
   simpl in H1.
   destruct (Z.eq_dec z z0).
   { subst. eexists; eauto. }
-  eapply IHmemseq. zify; omega.
+  eapply IHmemseq. zify; lia.
 Qed.
 
 Lemma memseq_app: forall m b a vs1 vs2,
@@ -325,14 +326,14 @@ Proof.
       split.
       econstructor; eauto.
       simpl (length (a::vs1)).
-      replace (a0 + Z.of_nat (S (length vs1))) with (a0 + 1 + Z.of_nat(length vs1)) by (zify;omega).
+      replace (a0 + Z.of_nat (S (length vs1))) with (a0 + 1 + Z.of_nat(length vs1)) by (zify;lia).
       assumption.
   - generalize dependent a.
     induction vs1; intros.
     + simpl in *. inv H. replace (a+0) with a in H1 by ring. auto.
     + inv H. simpl. inv H0. econstructor; eauto.
       eapply IHvs1. split. auto. simpl (length (a::vs1)) in H1.
-      replace (a0 + 1 + Z.of_nat (length vs1)) with (a0 + Z.of_nat(S(length vs1))) by (zify;omega).
+      replace (a0 + 1 + Z.of_nat (length vs1)) with (a0 + Z.of_nat(S(length vs1))) by (zify;lia).
       assumption.
 Qed.
 
@@ -350,14 +351,14 @@ Proof.
   - intros.
     assert (Hz : load (b1,z) m1 = load (b2,a2) m2).
     { replace z with (z+0) by ring. replace a2 with (a2+0) by ring.
-      eapply LOAD. simpl. zify; omega. }
+      eapply LOAD. simpl. zify; lia. }
     destruct (load (b2,a2) m2) as [[v0 l0]|] eqn:E; try congruence.
     rewrite Hz in H. inv H.
     econstructor; eauto.
     eapply IHSEQ. intros.
-    replace (z+1 + z0) with (z+(1+z0)) by omega.
-    replace (a2+1 + z0) with (a2+ (1+z0)) by omega.
-    eapply LOAD. simpl (length (v::vs)). zify; omega.
+    replace (z+1 + z0) with (z+(1+z0)) by lia.
+    replace (a2+1 + z0) with (a2+ (1+z0)) by lia.
+    eapply LOAD. simpl (length (v::vs)). zify; lia.
 Qed.
 
 Lemma memseq_drop :
@@ -374,7 +375,7 @@ Proof.
       rewrite Zplus_comm. auto.
     * rewrite Nat2Z.inj_succ in *.
       inv MEM.
-      replace (z + Z.succ (Z.of_nat p)) with (z + 1 + Z.of_nat p); try omega.
+      replace (z + Z.succ (Z.of_nat p)) with (z + 1 + Z.of_nat p); try lia.
       apply IH. auto.
 Qed.
 
@@ -424,7 +425,7 @@ Proof.
     destruct(
        @EquivDec.equiv_dec _ _
          (@eq_equivalence (Memory.block privilege)) _ b b); try congruence.
-    destruct (Z_lt_dec 0 (1 + cnt)); try omega.
+    destruct (Z_lt_dec 0 (1 + cnt)); try lia.
     reflexivity. }
   eapply valid_store in VALID. destruct VALID.
   assert (ALLOC' := H0).
@@ -454,12 +455,12 @@ Proof.
         destruct (
            @EquivDec.equiv_dec _
               (@eq (Memory.block privilege)) _ _ b); try congruence.
-        destruct (Z_le_dec 0 p); try omega.
-        destruct (Z_lt_dec p (1 + cnt)); try omega.
+        destruct (Z_le_dec 0 p); try lia.
+        destruct (Z_lt_dec p (1 + cnt)); try lia.
         reflexivity.
       * intros contra.
         inv contra.
-        omega.
+        lia.
     + eexists. eapply load_store_new; eauto.
     + eapply Mem.alloc_stamp; eauto.
 Qed.
@@ -569,9 +570,9 @@ Proof.
   { intros.
     eapply extends_valid_address; eauto.
     eapply memseq_valid; eauto.
-    omega. }
+    lia. }
   split.
-  { intros. apply VALID. omega. }
+  { intros. apply VALID. lia. }
   split; try congruence.
   split_vc.
   assert (LOADm0m1 : forall b' off,
@@ -599,15 +600,15 @@ Proof.
   split_vc.
   split.
   { simpl. intros.
-    eapply memseq_valid with (z := z) in SEQ0; try omega.
+    eapply memseq_valid with (z := z) in SEQ0; try lia.
     exploit @extends_valid_address; eauto.
     unfold valid_address in *.
     rewrite LOADm0m1; eauto. }
   split.
   { intros.
     unfold valid_address in *.
-    rewrite H2; try omega.
-    apply VALID. omega. }
+    rewrite H2; try lia.
+    apply VALID. lia. }
   split_vc.
   apply POST; trivial.
   - intros b' fr' FRAME'.
@@ -615,20 +616,20 @@ Proof.
     rewrite H3; try congruence.
     eauto.
   - econstructor; eauto.
-    + rewrite H5; try omega.
-      rewrite H2; try omega.
+    + rewrite H5; try lia.
+      rewrite H2; try lia.
       rewrite LOADSUM.
       repeat f_equal.
-      rewrite app_length. zify. omega.
+      rewrite app_length. zify. lia.
     + rewrite memseq_app.
       split.
       * apply memseq_eq with (m1 := m) (b1 := a1) (a1 := 1); eauto.
         intros.
-        rewrite H5; try omega.
-        rewrite <- H1; try omega.
+        rewrite H5; try lia.
+        rewrite <- H1; try lia.
         rewrite LOADm0m1; try congruence.
         assert (VALID' : valid_address (a1,1 + z) m).
-        { eapply memseq_valid; eauto. omega. }
+        { eapply memseq_valid; eauto. lia. }
         destruct VALID' as [a VALID'].
         rewrite VALID'.
         symmetry.
@@ -636,13 +637,13 @@ Proof.
       * apply memseq_eq with (m1 := m) (b1 := a2) (a1 := 1); eauto.
         intros.
         replace (1 + Z.of_nat (length vs1) + z) with (Z.of_nat (length vs1) + 0 + (1 + z)) by ring.
-        rewrite <- H4; try omega.
+        rewrite <- H4; try lia.
         assert (LOADm2m0 : load (a2,1 + z) m2 = load (a2,1 + z) m0).
         { unfold load. rewrite H6; trivial. }
         rewrite LOADm2m0.
         rewrite LOADm0m1; try congruence.
         assert (VALID' : valid_address (a2,1 + z) m).
-        { eapply memseq_valid; eauto. omega. }
+        { eapply memseq_valid; eauto. lia. }
         destruct VALID' as [a VALID'].
         rewrite VALID'.
         symmetry.
@@ -699,8 +700,8 @@ Lemma memseq_dropZ :
 Proof.
   intros.
   unfold dropZ.
-  destruct (Z.ltb_spec0 p 0); try omega.
-  replace (_ + p) with (z + Z.of_nat (Z.to_nat p)) by (rewrite Z2Nat.id; omega).
+  destruct (Z.ltb_spec0 p 0); try lia.
+  replace (_ + p) with (z + Z.of_nat (Z.to_nat p)) by (rewrite Z2Nat.id; lia).
   auto using memseq_drop.
 Qed.
 
@@ -714,11 +715,11 @@ Proof.
   intros.
   destruct ARR.
   assert (SEQ' : memseq m a i (dropZ (Z.pred i) vs)).
-  { assert (E : i = 1 + Z.pred i) by omega.
+  { assert (E : i = 1 + Z.pred i) by lia.
     rewrite E at 1. apply memseq_dropZ; trivial.
-    omega. }
-  rewrite index_list_Z_dropZ_zero; try omega.
-  exploit (@dropZ_cons _ (Z.pred i) vs); try omega.
+    lia. }
+  rewrite index_list_Z_dropZ_zero; try lia.
+  exploit (@dropZ_cons _ (Z.pred i) vs); try lia.
   intros (x' & H). rewrite H in *.
   rewrite <- Zsucc_pred in *.
   inv SEQ'.
@@ -818,7 +819,7 @@ Proof.
   do 6 eexists. split; eauto. simpl. split; eauto.
   assert (Hx : exists x tx, load (a,i) m = Some (x,tx)).
   { eapply memseq_read.
-    destruct ARR. eauto. omega. }
+    destruct ARR. eauto. lia. }
   destruct Hx as (x & tx & Hx).
   do 4 eexists. split; eauto. simpl. split; trivial.
   replace (i + 0) with i by ring. split; eauto.
@@ -828,17 +829,17 @@ Proof.
   do 4 eexists. do 3 (split; eauto).
   do 3 eexists. split; eauto.
   change (f x (fold_right f n (dropZ i vs))) with (fold_right f n (x :: dropZ i vs)).
-  exploit (@dropZ_cons _ (Z.pred i) vs); try omega.
+  exploit (@dropZ_cons _ (Z.pred i) vs); try lia.
   intros (x' & H).
   rewrite <- Zsucc_pred in H.
   replace x' with x in *.
   { rewrite <- H. eapply POST.
     - eexists. eauto.
-    - eexists. repeat split; eauto; try omega.
+    - eexists. repeat split; eauto; try lia.
       do 2 eexists. reflexivity. }
-  exploit memarr_load; eauto; try omega.
+  exploit memarr_load; eauto; try lia.
   intros H'.
-  rewrite index_list_Z_dropZ_zero in H'; try omega.
+  rewrite index_list_Z_dropZ_zero in H'; try lia.
   rewrite H in H'. compute in H'.
   congruence.
 Qed.
@@ -900,7 +901,7 @@ Proof.
       - eapply fab_spec. apply HTf.
       - simpl.
         intros m s t (a & vs & INV & POST).
-        do 4 eexists. split; [eexists; eauto|]. split; try omega.
+        do 4 eexists. split; [eexists; eauto|]. split; try lia.
         split; eauto.
         intros s'' s''' (? & ?) INV'. subst.
         do 2 eexists. split; eauto. }
@@ -917,12 +918,12 @@ Proof.
   destruct ARR as [c ? LOAD SEQ ?]. subst.
   eexists. split; eauto.
   do 4 eexists. do 3 (split; eauto).
-  do 3 eexists. split; eauto. split; try omega.
+  do 3 eexists. split; eauto. split; try lia.
   do 2 eexists.
   split.
   { unfold Ifab.
     eexists.
-    repeat split; eauto; try solve [econstructor; eauto]; try omega.
+    repeat split; eauto; try solve [econstructor; eauto]; try lia.
     rewrite dropZ_all. do 2 eexists. reflexivity. }
   clear - POST.
   intros s' s'' (? & ?) (? & _ & ARR & KERNEL & _ & (? & ? & ?) & ?). subst.
@@ -1273,7 +1274,7 @@ Proof.
   do 6 eexists.
   do 2 (split; try reflexivity).
   do 3 eexists.
-  do 2 (split; try reflexivity; try omega).
+  do 2 (split; try reflexivity; try lia).
   intros b m' t' EXT VALID [t'' LOAD'] FRESH STAMPb.
   assert (NEQab : a <> b).
   { intros contra. subst. unfold load in LOAD. simpl in *.
@@ -1284,13 +1285,13 @@ Proof.
   do 3 (split; eauto).
   do 9 eexists.
   split.
-  2: split; eauto. omega.
+  2: split; eauto. lia.
   split.
   { intros.
     eapply extends_valid_address; eauto.
-    eapply memseq_valid; eauto. omega. }
+    eapply memseq_valid; eauto. lia. }
   split.
-  { intros. apply VALID. omega. }
+  { intros. apply VALID. lia. }
   split; try congruence.
   do 2 (split; auto).
   intros m'' t1' t2' t3' (COPY & EQLOAD & EQFRAME).
@@ -1314,8 +1315,8 @@ Proof.
   do 4 eexists. do 3 (split; eauto).
   assert (STORE : valid_address (b,1 + Z.of_nat (length vs) + 0) m'').
   { unfold valid_address.
-    rewrite EQLOAD; try omega.
-    apply VALID. omega. }
+    rewrite EQLOAD; try lia.
+    apply VALID. lia. }
   eapply valid_store in STORE. destruct STORE as [m''' STORE].
   do 5 eexists. split; [|split; eauto]; eauto.
   split; eauto.
@@ -1326,7 +1327,7 @@ Proof.
     rewrite EQFRAME; eauto.
   - econstructor; eauto.
     + erewrite load_store_old; eauto.
-      * rewrite EQLOAD; try omega.
+      * rewrite EQLOAD; try lia.
         rewrite LOAD'.
         repeat f_equal.
         rewrite app_length.
@@ -1334,13 +1335,13 @@ Proof.
         zify. ring.
       * intros contra.
         assert (0 = 1 + Z.of_nat (length vs) + 0) by congruence.
-        omega.
+        lia.
     + apply memseq_app with (vs1 := vs) (vs2 := [x]).
       split.
       * eapply memseq_eq with (m1 := m); eauto.
         intros z RANGE.
         { rewrite (load_store_old STORE); eauto.
-          - rewrite <- COPY; try omega.
+          - rewrite <- COPY; try lia.
             rewrite EQFRAME'; try congruence.
             unfold load in LOAD.
             unfold load. simpl in *.
@@ -1350,7 +1351,7 @@ Proof.
             reflexivity.
           - intros contra.
             assert (1 + z = 1 + Z.of_nat (length vs) + 0) by congruence.
-            omega. }
+            lia. }
       * econstructor; try solve [constructor].
         replace (1 + Z.of_nat (length vs) + 0) with (1 + Z.of_nat (length vs)) in STORE by ring.
         erewrite load_store_new; eauto.

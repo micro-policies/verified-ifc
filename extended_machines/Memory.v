@@ -1,6 +1,7 @@
 Require Import Datatypes.
 Require Import Lattices.
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import EquivDec.
 
@@ -19,7 +20,7 @@ Lemma index_list_replicate: forall A n (a:A) n',
 Proof.
   induction n; destruct n'; simpl; try congruence.
   rewrite IHn.
-  do 2 destruct lt_dec; try congruence; try omega.
+  do 2 destruct lt_dec; try congruence; try lia.
 Qed.
 
 Lemma index_list_Z_zreplicate: forall A z (a:A) z' l,
@@ -32,15 +33,15 @@ Proof.
   inv H.
   destruct (z' <? 0)%Z eqn:Ez.
   - rewrite Z.ltb_lt in Ez.
-    destruct Z_lt_dec; try omega.
-    destruct Z_le_dec; auto; omega.
+    destruct Z_lt_dec; try lia.
+    destruct Z_le_dec; auto; lia.
   - assert (~ (z' < 0 )%Z).
     rewrite <- Z.ltb_lt; try congruence.
-    destruct Z_le_dec; try omega.
+    destruct Z_le_dec; try lia.
     rewrite index_list_replicate.
     assert ( (z'<z)%Z <-> (Z.to_nat z') < (Z.to_nat z)).
-      apply Z2Nat.inj_lt; try omega.
-    destruct lt_dec; destruct Z_lt_dec; auto; try omega.
+      apply Z2Nat.inj_lt; try lia.
+    destruct lt_dec; destruct Z_lt_dec; auto; try lia.
 Qed.
 
 Inductive alloc_mode := Global | Local.
@@ -180,7 +181,7 @@ Module Mem: MEM.
     - compute in EQ.
       destruct (equiv_dec (i,s)) as [contra|]; trivial.
       inv contra.
-      omega.
+      lia.
     - destruct (equiv_dec (i,s)) as [E|E]; try congruence.
   Qed.
 
@@ -268,7 +269,7 @@ Module Mem: MEM.
     exists fr', get_frame m b = Some fr'.
   Proof.
     unfold upd_frame, upd_frame_rich, get_frame.
-    intros until 0.
+    intros *.
     generalize (@eq_refl (option (list A)) (@content A S m b)).
     generalize (upd_frame_rich_obligation_2 A S EqS m b fr).
     simpl.
@@ -292,11 +293,11 @@ Module Mem: MEM.
     destruct (equiv_dec (next m s, s)).
     - inv e.
       destruct (equiv_dec s0); try congruence.
-      omega.
+      lia.
     - destruct (equiv_dec s).
       + inv e.
-        apply content_next; omega.
-      + apply content_next; omega.
+        apply content_next; lia.
+      + apply content_next; lia.
   Qed.
 
   Lemma alloc_stamp : forall A S (EqS:EqDec S eq) am (m m':t A S) s fr b,
@@ -311,7 +312,7 @@ Module Mem: MEM.
   Proof.
     unfold alloc; intros.
     inv H.
-    apply content_next; omega.
+    apply content_next; lia.
   Qed.
 
   Lemma alloc_get_frame : forall A S (eqS:EqDec S eq) am (m m':t A S) s fr b,
@@ -782,14 +783,14 @@ Inductive match_ptrs (mi : meminj) : ptr S1 -> ptr S2 -> Prop :=
 | mp_intro : forall b1 b2 off
                     (BLOCK : mi b2 = Some b1),
                match_ptrs mi (b1, off) (b2, off).
-Hint Constructors match_ptrs.
+Hint Constructors match_ptrs : core.
 
 Inductive match_vals (mi : meminj) : val S1 -> val S2 -> Prop :=
 | mv_num : forall z, match_vals mi (Vint z) (Vint z)
 | mv_ptr : forall p1 p2
                   (PTRS : match_ptrs mi p1 p2),
              match_vals mi (Vptr p1) (Vptr p2).
-Hint Constructors match_vals.
+Hint Constructors match_vals : core.
 
 Variable match_tags : T1 -> T2 -> memory T2 S2 -> Prop.
 Variable valid_update : memory T2 S2 -> memory T2 S2 -> Prop.
@@ -804,15 +805,15 @@ Inductive match_atoms (mi : meminj) : Atom T1 S1 -> Atom T2 S2 -> memory T2 S2 -
                     (VALS : match_vals mi v1 v2)
                     (TAGS : match_tags t1 t2 m2),
                match_atoms mi (v1, t1) (v2, t2) m2.
-Hint Constructors match_atoms.
+Hint Constructors match_atoms : core.
 
 Definition match_frames (mi : meminj) : list (Atom T1 S1) ->
                                         list (Atom T2 S2) ->
                                         memory T2 S2 ->
                                         Prop :=
   fun f1 f2 m2 => Forall2 (fun a1 a2 => match_atoms mi a1 a2 m2) f1 f2.
-Hint Constructors Forall2.
-Hint Unfold match_frames.
+Hint Constructors Forall2 : core.
+Hint Unfold match_frames : core.
 
 Record Meminj (m1 : memory T1 S1) (m2 : memory T2 S2) (mi : meminj) := {
 
@@ -868,7 +869,7 @@ Proof.
   - trivial.
   - compute in E. intuition.
 Qed.
-Hint Resolve update_meminj_eq.
+Hint Resolve update_meminj_eq : core.
 
 Lemma update_meminj_neq : forall mi b2 b1 b2'
                                  (NEQ : b2' <> b2),
@@ -1116,7 +1117,7 @@ Lemma match_atoms_valid_update :
          (VALID : valid_update m2 m2'),
     match_atoms mi a1 a2 m2'.
 Proof. intros. inv ATOMS; eauto. Qed.
-Hint Resolve match_atoms_valid_update.
+Hint Resolve match_atoms_valid_update : core.
 
 Lemma match_frames_valid_update :
   forall mi f1 f2 m2 m2'
@@ -1124,7 +1125,7 @@ Lemma match_frames_valid_update :
          (VALID : valid_update m2 m2'),
     match_frames mi f1 f2 m2'.
 Proof. intros. induction FRAMES; eauto. Qed.
-Hint Resolve match_frames_valid_update.
+Hint Resolve match_frames_valid_update : core.
 
 Lemma match_frames_upd_frame :
   forall m1 m2 m2' mi

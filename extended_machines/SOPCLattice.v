@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Import ListNotations.
 Require Import LibTactics.
@@ -156,8 +157,8 @@ Proof.
     unfold read_m, dropZ in *.
     destruct (off <? 0); try congruence.
     destruct (off + 1 <? 0) eqn:LT.
-    - rewrite Z.ltb_lt in LT. omega.
-    - rewrite Z2Nat.inj_add; try omega.
+    - rewrite Z.ltb_lt in LT. lia.
+    - rewrite Z2Nat.inj_add; try lia.
       gdep (Z.to_nat off). clear.
       intros off LOAD.
       change (off + Z.to_nat 1)%nat with (off + 1)%nat.
@@ -169,7 +170,7 @@ Proof.
   simpl.
   f_equal.
   apply IH.
-  omega.
+  lia.
 Qed.
 
 Lemma labToVal_inj_SOP : forall l1 l2 t m, labToVal l1 t m -> labToVal l2 t m -> l1 = l2.
@@ -284,7 +285,7 @@ Proof.
   change (take (length (map Vint vs : list (val privilege))) fr)
     with (take (length (map Vint vs : list (val privilege)))
                (dropZ 1 ((Vint (Z.of_nat (length (map Vint vs : list (val privilege)))), t) :: fr))).
-  exploit memseq_get_frame; eauto; try omega.
+  exploit memseq_get_frame; eauto; try lia.
   intros H.
   unfold Atom in H. (* Invisible, grr... *)
   rewrite <- H.
@@ -321,7 +322,7 @@ Proof.
   eapply push_spec; eauto.
   intros m s (EXT & POST).
   do 3 eexists.
-  repeat (split; eauto; try omega).
+  repeat (split; eauto; try lia).
   intros b m1 t EXT' VALID [t' LOAD] FRESH KERNEL.
   apply POST; eauto.
   eapply extends_mem_def_on_cache with (m' := m) in Hm0; eauto using extends_trans.

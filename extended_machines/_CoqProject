@@ -1,3 +1,4 @@
+-arg "-w -masking-absolute-name,-undeclared-scope,-deprecated-instance-without-locality,-deprecated-hint-without-locality,-deprecated-ident-entry"
 -R . Top
 Utils.v
 Lattices.v

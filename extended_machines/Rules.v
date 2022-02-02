@@ -1,5 +1,6 @@
 Require Import List.
-Require Import Omega.
+Require Import ZArith.
+Require Import Lia.
 Require Import Utils.
 Require Import Lattices.
 Require Import Instr.
@@ -32,8 +33,8 @@ refine
 | O => _ (le_n n)
 | S m' => _ (le_S _ _ (nlem n m'))
 end).
-intros; omega.
-intros; zify; omega.
+intros; lia.
+intros; zify; lia.
 Qed.
 
 (* Output label expressions: the Modify part *)

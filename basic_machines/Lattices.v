@@ -1,6 +1,7 @@
 Require Export RelationClasses.
 Require Export SetoidClass.
 Require Export Utils.
+Require Import Program.
 
 (** * Definition and properties *)
 
@@ -25,12 +26,12 @@ Parameter top : Lab.
 Hypothesis flows_top : forall l, l <: top. *)
 
 Hint Resolve
-  @flows_refl
-  @flows_trans
-  @flows_join_left 
-  @flows_join_right
-  @flows_antisymm  
-  @join_minimal: lat.
+  flows_refl
+  flows_trans
+  flows_join_left
+  flows_join_right
+  flows_antisymm
+  join_minimal: lat.
 
 (** Immediate properties from the semi-lattice structure. *)
 Section JoinSemiLattice_properties.
@@ -101,17 +102,18 @@ Qed.
 End JoinSemiLattice_properties.
 
 Hint Resolve 
-  @join_1
-  @join_2
-  @bot_flows
-  @not_flows_not_join_flows_right
-  @not_flows_not_join_flows_left : lat.
+  join_1
+  join_2
+  bot_flows
+  not_flows_not_join_flows_right
+  not_flows_not_join_flows_left : lat.
 
 (** * The two point lattice *)
 Inductive Lab : Set :=
   | L : Lab
   | H : Lab.
 
+#[refine]
 Instance HL : JoinSemiLattice Lab :=
 {  bot := L 
 ;  join l1 l2 :=
@@ -127,6 +129,7 @@ Instance HL : JoinSemiLattice Lab :=
       | _, _ => false
     end   
 }.
+
 Proof.
 auto. 
 intros l; destruct l; auto.

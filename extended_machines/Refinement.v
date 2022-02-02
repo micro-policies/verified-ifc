@@ -5,7 +5,7 @@ Require Import Semantics.
 Require TINI.
 
 Set Implicit Arguments.
-Hint Constructors TINI.exec.
+Hint Constructors TINI.exec : core.
 
 Section Refinement.
 

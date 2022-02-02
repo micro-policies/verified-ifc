@@ -63,7 +63,7 @@ CoInductive ti_cotrace_indist : relation cotrace :=
 | ticti_cons : forall e t1 t2,
     ti_cotrace_indist t1 t2 ->
     ti_cotrace_indist (Cons e t1) (Cons e t2).
-Hint Constructors ti_cotrace_indist.
+Hint Constructors ti_cotrace_indist : core.
 
 (* [contains P t l e t'] expresses that we can decompose [t = l ++ e
 :: t'], where [l] is a finite list, such that [P] holds of [e] but
@@ -79,7 +79,7 @@ Inductive contains T (P : T -> Prop)
       contains P t e' l t' ->
       contains P (Cons e t) e' (e :: l) t'.
 
-Hint Constructors contains.
+Hint Constructors contains : core.
 
 (* Because of the guard conditions for cofixpoints, we must define
 filter on infinite lists as a predicate. [colist_filter P t1 t2]
@@ -169,7 +169,7 @@ Proof.
     eapply contains_P_e. eassumption.
 Qed.
 
-Hint Constructors exec.
+Hint Constructors exec : core.
 Lemma next_event_exec :
   forall s e s' t s''
          (NEXT : next_event S s e s')

@@ -1,6 +1,7 @@
 Require Import Coq.Logic.Classical_Prop.
 Require Import EqNat.
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Relations.
 Require Import FunctionalExtensionality.
@@ -17,7 +18,8 @@ Require Import Refinement.
 Require Import RefinementAC.
 Require Import Encodable.
 
-Unset Regular Subst Tactic.
+Require Import Refinement.
+Require RefinementAC.
 
 (** The Abstract Machine refines the Concrete Machine (with appropriate fault handler). *)
 
@@ -186,7 +188,7 @@ Lemma handler_final_cache_hit_preserved:
     cache_hit tmuc  opcode labs pcl ->
     cache_hit tmuc' opcode labs pcl.
 Proof.
-  intros until 0. intros Hfinal HCHIT. inv HCHIT.
+  intros *. intros Hfinal HCHIT. inv HCHIT.
   inv Hfinal. unfold update_cache_spec_rvec in *.
   assert (exists tagr tagrpc, cache_hit_read tmuc' tagr tagrpc)
     by (eexists; eexists; eauto).
@@ -210,7 +212,7 @@ Proof.
   destruct o1, o2; inv Heq; try congruence.
 Qed.
 
-Hint Constructors cstep runsToEscape match_stacks match_states.
+Hint Constructors cstep runsToEscape match_stacks match_states : core.
 
 Ltac inv_cache_update :=
   unfold cache_up2date in *;
@@ -223,7 +225,7 @@ Ltac inv_cache_update :=
        destruct (cache_hit_unique CHIT CHIT') as [P1 [P2 P3]];
        subst;
        apply opCodeToZ_inj in P1; subst;
-       apply labsToZs_inj in P2; try (zify; omega); subst;
+       apply labsToZs_inj in P2; try (zify; lia); subst;
        apply labToZ_inj in P3 ;subst
    end;
   try allinv';
@@ -246,7 +248,7 @@ Proof.
   auto.
 Qed.
 
-Hint Constructors star plus.
+Hint Constructors star plus : core.
 
 Lemma update_list_map : forall xv rl m n m',
    update_list n (xv, rl) m = Some m' ->
@@ -325,7 +327,7 @@ Ltac build_cache_and_tmu :=
       eauto
   end.
 
-Hint Resolve match_stacks_app match_stacks_data' match_stacks_length.
+Hint Resolve match_stacks_app match_stacks_data' match_stacks_length : core.
 
 Definition op_cons_ZToLab (oe: Event+τ) (t: list CEvent) :=
   match oe with
@@ -363,11 +365,6 @@ Ltac priv_steps :=
           end
   end.
 
-Require Import Refinement.
-Require RefinementAC.
-
-Unset Regular Subst Tactic.
-
 Lemma step_preserved:
   forall s1 s1' e s2,
     step_rules (ifc_run_tmr fetch_rule_g) s1 e s1' ->
@@ -385,7 +382,7 @@ Proof.
   generalize (cache_up2date_success CACHE);
   intros CACHE'.
 
-  - Case "Noop".
+  - (* Noop *)
     destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
     + exists (CState tmuc cm faultHandler i cstk (pcv+1, pct) false).
       res_label. subst pct.
@@ -401,13 +398,12 @@ Proof.
       * econstructor; eauto.
         inv_cache_update.
 
- - Case "Add".
+ - (* Add *)
    inv STKS. inv H3.
    destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((x1v+x2v,rt):::cs0) (pcv+1,rpct) false).
      split.
      * eapply plus_step ; eauto. eapply cstep_add ; eauto.
-       eapply CACHE' with (1:= H0); eauto.
        auto.
      * eauto.
        econstructor; eauto.
@@ -418,13 +414,13 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
- - Case "Sub".
+ - (* Sub *)
    inv STKS. inv H3.
    destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((x1v-x2v,rt):::cs0) (pcv+1,rpct) false).
      split.
      * eapply plus_step ; eauto. eapply cstep_sub ; eauto.
-       eapply CACHE' with (1:= H0); eauto. auto.
+       auto.
      * eauto.
        econstructor; eauto.
    + build_cache_and_tmu.
@@ -434,12 +430,12 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case "Push ".
+- (* Push *)
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((cv,rt):::cstk) (pcv+1,rpct) false).
      split.
      * eapply plus_step ; eauto. eapply cstep_push ; eauto.
-       eapply CACHE' with (1:= H0); eauto. auto.
+       auto.
      * eauto.
        econstructor; eauto.
    + build_cache_and_tmu.
@@ -448,7 +444,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case "Pop".
+- (* Pop *)
   inv STKS.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
   + exists (CState tmuc cm faultHandler i cs (pcv+1,rpct) false).
@@ -456,7 +452,6 @@ Proof.
     split; eauto.
     eapply plus_step; eauto.
     eapply cstep_pop; eauto.
-    eapply CACHE' with (1:=H0); eauto.
     econstructor; eauto.
   + build_cache_and_tmu.
     exists (CState c cm faultHandler i cs (pcv+1, rpct) false). split.
@@ -464,14 +459,13 @@ Proof.
     * econstructor; eauto.
       inv_cache_update.
 
-- Case "Load ".
+- (* Load *)
   inv STKS.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i ((xv,rt):::cs) (pcv+1,rpct) false).
      split.
      * eapply plus_step ; eauto.
        eapply cstep_load ; eauto.
-       eapply CACHE' with (1:= H1); eauto.
        solve_read_m. auto.
      * eauto.
        econstructor; eauto.
@@ -481,7 +475,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case "Store ".
+- (* Store *)
   inv STKS. inv H5.
   exploit upd_m_mem_labToZ ; eauto. intros Hcm'.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
@@ -489,7 +483,6 @@ Proof.
      split.
      * eapply plus_step ; eauto.
        eapply cstep_store  ; eauto.
-       eapply CACHE' with (1:= H2); eauto.
        solve_read_m. auto.
      * econstructor; eauto.
    + build_cache_and_tmu.
@@ -498,7 +491,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case " Jump ".
+- (* Jump *)
   inv STKS.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i cs (pcv',rpct) false).
@@ -512,7 +505,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case " Branch ".
+- (* Branch *)
   inv STKS.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i cs
@@ -530,7 +523,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case " Branch YES ".
+- (* Branch YES *)
   inv STKS.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i cs
@@ -553,7 +546,7 @@ Proof.
        eelim H1; eauto.
        rewrite Z.eqb_eq in H2. auto.
 
-- Case " Call ".
+- (* Call *)
   inv STKS.
   edestruct (match_stacks_args' _ _ H4) as [args' [cs' [Heq [Hargs Hcs]]]]; eauto.
   inv Heq.
@@ -563,7 +556,7 @@ Proof.
      split.
      * eapply plus_step; eauto.
        eapply cstep_call ; eauto.
-       eapply CACHE' with (1:= H0); eauto. auto.
+       auto.
      * econstructor; eauto.
    + build_cache_and_tmu.
      exists (CState c cm faultHandler i
@@ -573,7 +566,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case " Ret ".
+- (* Ret *)
   exploit @pop_to_return_spec; eauto.
   intros [dstk [stk [a [b [Heq Hdata]]]]]. inv Heq.
   exploit @pop_to_return_spec2; eauto. intros Heq. inv Heq.
@@ -599,7 +592,7 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case " VRet ".
+- (* VRet *)
   inv STKS.
   exploit @pop_to_return_spec; eauto.
   intros [dstk [stk [a [b [Heq Hdata]]]]]. inv Heq.
@@ -616,7 +609,7 @@ Proof.
      split.
      * eapply plus_step ; eauto.
        eapply cstep_vret ; eauto.
-       eapply CACHE' with (1:= H1); eauto. auto.
+       auto.
      * econstructor; eauto.
    + build_cache_and_tmu.
      exists (CState c cm faultHandler i (CData (resv,rt)::cs) (pcv',rpct) false).
@@ -636,14 +629,14 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 
-- Case " Output ".
+- (* Output *)
   inv STKS.
   destruct (classic (cache_hit tmuc op tags pct)) as [CHIT | CMISS].
    + exists (CState tmuc cm faultHandler i cs (pcv+1,rpct) false).
      split.
      * eapply plus_step ; eauto.
        eapply cstep_out ; eauto.
-       eapply CACHE' with (1:= H0); eauto. auto.
+       auto.
      * econstructor; eauto.
    + build_cache_and_tmu.
      exists (CState c cm faultHandler i cs (pcv+1, rpct) false).
@@ -661,8 +654,6 @@ Proof.
      * econstructor ; eauto.
        inv_cache_update.
 Qed.
-
-Set Regular Subst Tactic.
 
 Lemma plus_exec :
   forall (S : semantics) s t s',

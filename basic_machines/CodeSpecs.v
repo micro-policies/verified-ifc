@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Utils.
 Require Import Coq.Arith.Compare_dec.
@@ -27,7 +28,7 @@ Lemma nop_spec: forall Q,
 Proof.
   unfold nop, HT; simpl; intros.
   split_vc.
-  apply_f_equal rte_refl; subst; rec_f_equal ltac:(try omega; eauto).
+  apply_f_equal rte_refl; subst; rec_f_equal ltac:(try lia; eauto).
 Qed.
 
 Lemma add_spec: forall Q,
@@ -109,13 +110,13 @@ Proof.
   unfold valid_address in H.
   unfold read_m.
   destruct (a <? 0) eqn:E.
-  - rewrite Z.ltb_lt in E. omega.
+  - rewrite Z.ltb_lt in E. lia.
   - remember (Z.to_nat a) as n; clear Heqn.
     destruct H as [_ Hbound].
     generalize dependent n.
     generalize dependent m.
     induction m; intros.
-    + simpl in *; omega.
+    + simpl in *; lia.
     + destruct n eqn:En; subst.
       * simpl; eauto.
       * simpl in Hbound.
@@ -216,7 +217,7 @@ Proof.
   unfold skip.
   rewrite app_ass.
   eapply HT_compose_bwd.
-  eapply skipNZ_continuation_spec_NZ with (v:= 1); omega.
+  eapply skipNZ_continuation_spec_NZ with (v:= 1); lia.
   eapply HT_strengthen_premise.
   eapply push_spec.
   split_vc.
@@ -264,7 +265,7 @@ Proof.
   eapply HT_decide_join with (D := fun v => v = 0).
   apply ifNZ_spec_NZ.
   apply ifNZ_spec_Z.
-  intros; omega.
+  intros; lia.
   auto.
   auto.
 Qed.
@@ -481,7 +482,7 @@ Proof.
   destruct b1; eapply HT_strengthen_premise.
   eapply ifNZ_spec_NZ with (v:=1).
   apply nop_spec.
-  omega.
+  lia.
   simpl; intuition eauto; subst. eauto.
   split_vc; subst. auto.
 
@@ -516,7 +517,7 @@ Proof.
     eapply HT_compose_bwd.
     eapply genTrue_spec.
     eapply pop_spec.
-    omega.
+    lia.
 
     split_vc. subst; auto.
 
@@ -605,7 +606,7 @@ Proof.
     reflexivity.
   - generalize n. intros. rewrite <- Z.eqb_neq in n.
     rewrite n.
-    destruct (v2 - v1) eqn:E; try omega; simpl; eauto.
+    destruct (v2 - v1) eqn:E; try lia; simpl; eauto.
 Qed.
 
 
@@ -735,7 +736,7 @@ Proof.
   eapply rte_fail; auto.
   eapply rte_step; eauto.
   eapply cstep_jump_p; auto.
-  simpl; eauto; omega.
+  simpl; eauto; lia.
 Qed.
 
 Lemma skipNZ_specEscape: forall r c1 c2 v P1 P2 Q,

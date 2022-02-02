@@ -1,5 +1,6 @@
 Require Import List.
-Require Import Omega.
+Require Import ZArith.
+Require Import Lia.
 Require Import Utils.
 Require Import Instr.
 Set Implicit Arguments.
@@ -253,4 +254,4 @@ End CMach.
 Notation read_m := index_list_Z.
 Notation upd_m := update_list_Z. 
 Notation "a ::: b" := ((CData a) :: b)  (at level 60, right associativity).
-Hint Constructors cache_hit cache_hit_read.
+Hint Constructors cache_hit cache_hit_read : core.

@@ -1,5 +1,6 @@
-Require Import ZArith. (* omega *)
+Require Import ZArith.
 Require Import List.
+Require Import Lia.
 
 (** * Useful tactics *)
 Ltac inv H := inversion H; clear H; subst.
@@ -24,8 +25,6 @@ Ltac invh f :=
     | [ id: f _ _ _ _ _ _ _ _ _ _ _ _ _ |- _ ] => inv id
     | [ id: f _ _ _ _ _ _ _ _ _ _ _ _ _ _ |- _ ] => inv id
     end.
-
-Require Coq.Strings.String. Open Scope string_scope.
 
 Ltac move_to_top x :=
   match reverse goal with
@@ -176,21 +175,21 @@ Lemma test_apply_f_equal:
   forall b, P (b - b) (((1+n1)::nil)::nil) (n2+n1).
 Proof.
   intros ? ? ? HP ?.
-  apply_f_equal HP; rec_f_equal omega.
+  apply_f_equal HP; rec_f_equal lia.
 Qed.
 
 
 Lemma test_exact_f_equal: forall (n1 n2: nat) (P: nat -> nat -> Prop),
   P (n1+1) (n1+n2) -> P (1+n1) (n2+n1).
 Proof.
-  intros ? ? ? HP. exact_f_equal HP; omega.
+  intros ? ? ? HP. exact_f_equal HP; lia.
 Qed.
 
 Lemma test_rec_f_equal:
   forall (n1 n2: nat) (P: list (list nat) -> nat -> Prop),
   P (((n1+1)::nil)::nil) (n1+n2) -> P (((1+n1)::nil)::nil) (n2+n1).
 Proof.
-  intros ? ? ? HP. exact_f_equal HP; rec_f_equal omega.
+  intros ? ? ? HP. exact_f_equal HP; rec_f_equal lia.
 Qed.
 
 End Test.
@@ -365,7 +364,7 @@ CoInductive colist (A : Type) : Type :=
   | Nil : colist A
   | Cons : A -> colist A -> colist A.
 
-Arguments Nil [A].
+Arguments Nil {A}.
 
 Fixpoint list_to_colist (A : Type) (xs : list A) : colist A :=
   match xs with
@@ -396,7 +395,7 @@ Inductive list_prefix_colist {T} : list T -> colist T -> Prop :=
       list_prefix_colist l c ->
       list_prefix_colist (e :: l) (Cons e c).
 
-Hint Constructors list_prefix_colist.
+Hint Constructors list_prefix_colist : core.
 
 Fixpoint index_list A n (xs : list A) : option A :=
   match xs, n with
@@ -436,7 +435,7 @@ Lemma index_list_cons (T: Type): forall n a (l:list T),
  index_list n l = index_list (n+1)%nat (a :: l).
 Proof.
   intros.
-  replace ((n+1)%nat) with (S n) by omega.
+  replace ((n+1)%nat) with (S n) by lia.
   gdep n. induction n; intros.
   destruct l ; simpl; auto.
   destruct l. auto.
@@ -450,9 +449,9 @@ Proof.
   induction i; intros.
   auto.
   unfold index_list_Z. simpl.
-  replace (Pos.to_nat (p + 1)) with ((Pos.to_nat p)+1)%nat by (zify; omega).
+  replace (Pos.to_nat (p + 1)) with ((Pos.to_nat p)+1)%nat by (zify; lia).
   eapply index_list_cons with (l:= l1) (a:= a) ; eauto.
-  zify; omega.
+  zify; lia.
 Qed.
 
 Lemma index_list_Z_app:
@@ -463,9 +462,9 @@ Proof.
   simpl in *. subst. auto.
   simpl (length (a::l1)) in H.  zify.
   simpl.
-  replace i with (i - 1 + 1)%Z by omega.
-  erewrite <- index_list_Z_cons by try omega.
-  eapply IHl1. omega.
+  replace i with (i - 1 + 1)%Z by lia.
+  erewrite <- index_list_Z_cons by try lia.
+  eapply IHl1. lia.
 Qed.
 
 Lemma index_list_Z_eq (T: Type) : forall (l1 l2: list T),
@@ -482,10 +481,10 @@ Proof.
   inv H0.
   erewrite IHl1 ; eauto.
   intros. destruct i.
-  erewrite index_list_Z_cons with (a:= t); eauto; try omega.
+  erewrite index_list_Z_cons with (a:= t); eauto; try lia.
   erewrite H ; eauto.
-  erewrite index_list_Z_cons with (a:= t); eauto; try (zify ; omega).
-  erewrite H ; eauto. symmetry. eapply index_list_Z_cons; eauto. zify; omega.
+  erewrite index_list_Z_cons with (a:= t); eauto; try (zify ; lia).
+  erewrite H ; eauto. symmetry. eapply index_list_Z_cons; eauto. zify; lia.
   destruct l1, l2 ; auto.
 Qed.
 
@@ -494,9 +493,9 @@ Lemma index_list_valid (T:Type): forall n (l:list T) v,
 Proof.
   induction n; intros; destruct l; simpl in H.
      inv H.
-     inv H.  simpl.  omega.
+     inv H.  simpl.  lia.
      inv H.
-     pose proof (IHn _ _ H). simpl. omega.
+     pose proof (IHn _ _ H). simpl. lia.
 Qed.
 
 Lemma index_list_Z_valid (T:Type): forall i (l:list T) v,
@@ -533,10 +532,10 @@ Lemma index_list_update_list_list (T:Type) :
     index_list i new.
 Proof.
   induction i as [|i IH];
-  intros [|n new] [|o old]; simpl; trivial; try omega.
+  intros [|n new] [|o old]; simpl; trivial; try lia.
   intros H.
   apply IH.
-  omega.
+  lia.
 Qed.
 
 Lemma index_list_Z_update_list_list (T:Type) :
@@ -551,10 +550,9 @@ Proof.
   intros REFL.
   destruct (i <? 0)%Z; trivial.
   inv REFL.
-  assert (POS : (0 <= i)%Z) by omega.
+  assert (POS : (0 <= i)%Z) by lia.
   apply index_list_update_list_list.
-  rewrite Z2Nat.inj_lt in H; try omega.
-  rewrite Nat2Z.id in H. trivial.
+  rewrite Z2Nat.inj_lt in H; try lia.
 Qed.
 
 Lemma update_some_not_nil : forall A (v:A) l a l',
@@ -635,7 +633,7 @@ Proof.
   destruct n; simpl in *; inv H.
   destruct n.
     destruct n'.
-      exfalso; omega.
+      exfalso; lia.
       destruct l'; inv H.
       simpl. auto.
     destruct n'.
@@ -673,7 +671,7 @@ Proof.
   - inv H.
   - destruct n.
     + simpl.  eauto.
-    + simpl. edestruct IHl as [l' E]. simpl in H. instantiate (1:= n). omega.
+    + simpl. edestruct IHl as [l' E]. simpl in H. instantiate (1:= n). lia.
       eexists. rewrite E. eauto.
 Qed.
 
@@ -721,7 +719,7 @@ Lemma update_list_Z_Some (T:Type): forall (v:T) l (i:Z),
 Proof.
   intros. unfold update_list_Z.
   destruct (i <? 0)%Z eqn:?.
-  - rewrite Z.ltb_lt in Heqb. omega.
+  - rewrite Z.ltb_lt in Heqb. lia.
   - eapply update_list_Some; eauto.
 Qed.
 
@@ -794,7 +792,7 @@ Inductive star (S E: Type) (Rstep: S -> E+τ -> S -> Prop): S -> list E -> S -> 
       Rstep s1 e s2 -> star Rstep s2 t s3 ->
       t' = (op_cons e t) ->
       star Rstep s1 t' s3.
-Hint Constructors star.
+Hint Constructors star : core.
 
 Lemma op_cons_app : forall E (e: E+τ) t t', (op_cons e t)++t' = op_cons e (t++t').
 Proof. intros. destruct e; reflexivity. Qed.
@@ -822,8 +820,8 @@ Inductive plus (S E: Type) (Rstep: S -> E+τ -> S -> Prop): S -> list E -> S -> 
       t' = (op_cons e t) ->
       plus Rstep s1 t' s3.
 
-Hint Constructors star.
-Hint Constructors plus.
+Hint Constructors star : core.
+Hint Constructors plus : core.
 
 Lemma plus_right : forall E S (Rstep: S -> E+τ -> S -> Prop) s1 s2 t,
                      plus Rstep s1 t s2 ->
@@ -851,7 +849,7 @@ Proof.
   gdep e. gdep s1.
   induction H0; subst; eauto.
 Qed.
-Hint Resolve step_star_plus.
+Hint Resolve step_star_plus : core.
 
 Lemma star_trans: forall S E (Rstep: S -> E+τ -> S -> Prop) s0 t s1,
   star Rstep s0 t s1 ->
@@ -895,7 +893,7 @@ Lemma basic_arithmetic:
     forall v1 v2, (v2 - v1 =? 0) = (v1 =? v2).
   Proof.
     intuition; destruct (v1 =? v2) eqn:E;
-    try (rewrite Z.eqb_eq in *); try (rewrite Z.eqb_neq in *); omega.
+    try (rewrite Z.eqb_eq in *); try (rewrite Z.eqb_neq in *); lia.
   Qed.
 
 End Arith.

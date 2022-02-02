@@ -40,22 +40,22 @@ Proof.
   end);
   (allinv'; split ; try reflexivity).
 
-  Case "Store user".
-  allinv'. split ; reflexivity.
+  - (* Store user *)
+    allinv'. split ; reflexivity.
 
-  Case "Call user".
+  - (* Call user *)
     subst.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     split; reflexivity.
 
-  Case "Call kernel".
+  - (* Call kernel *)
     subst.
     exploit app_same_length_eq; eauto. intro Heq ; inv Heq.
     exploit app_same_length_eq_rest ; eauto. intro Heq ; inv Heq.
     split ; reflexivity.
 
-  Case "Ret Ret user".
+  - (* Ret Ret user *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -68,7 +68,7 @@ Proof.
     intros.  inv H.
     split ; reflexivity.
 
-  Case "Ret user".
+  - (* Ret user *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -76,7 +76,7 @@ Proof.
     exploit @c_pop_to_return_spec2; eauto. intros.
     inv H. inv H0. congruence.
 
-  Case "Ret kernel / user - sym".
+  - (* Ret kernel / user - sym *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -84,7 +84,7 @@ Proof.
     exploit @c_pop_to_return_spec2; eauto. intros.
     inv H. inv H0. congruence.
 
-  Case "Ret kernel".
+  - (* Ret kernel *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -93,7 +93,7 @@ Proof.
     inv H. inv H0.
     split ; reflexivity.
 
-  Case "Ret Ret".
+  - (* Ret Ret *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -106,7 +106,7 @@ Proof.
     intros.  inv H1.
     split ; reflexivity.
 
-  Case "VRet user ".
+  - (* VRet user *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -119,7 +119,7 @@ Proof.
     inv H1.  inv H. inv H0.
     split ; reflexivity.
 
-  Case "Ret kernel / user ".
+  - (* Ret kernel / user *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -128,7 +128,7 @@ Proof.
     inv H. inv H0.
     congruence.
 
-  Case "Ret kernel / user - sym".
+  - (* Ret kernel / user - sym *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -137,7 +137,7 @@ Proof.
     inv H. inv H0.
     congruence.
 
-  Case "VRet priv".
+  - (* VRet priv *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 
@@ -147,7 +147,7 @@ Proof.
 
     exploit @c_pop_to_return_spec3; eauto.
 
-  Case "VRet true".
+  - (* VRet true *)
     exploit @c_pop_to_return_spec; eauto.
     intros [dstk [stk [a [b [p [Hs Hdstk]]]]]]. inv Hs.
 

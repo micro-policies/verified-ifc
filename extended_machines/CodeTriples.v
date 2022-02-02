@@ -1,6 +1,7 @@
 (* Definitions and generic properties of Hoare triples for proofs on (privileged) machine code. *)
 
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Utils.
 Require Import LibTactics.
@@ -62,10 +63,10 @@ Lemma code_at_compose_2: forall im c1 c2 n,
 Proof.
   induction c1; intros; simpl in *.
 
-  exact_f_equal H; omega.
+  exact_f_equal H; lia.
 
   intuition.
-  apply_f_equal IHc1; eauto; zify; omega.
+  apply_f_equal IHc1; eauto; zify; lia.
 Qed.
 
 Lemma code_at_app : forall c2 c1 n,
@@ -81,7 +82,7 @@ Proof.
   replace (c1 ++ a :: c2) with ((c1 ++ [a]) ++ c2).
   eapply IHc2.
   rewrite app_length. simpl. subst n; auto.
-  zify; omega.
+  zify; lia.
   rewrite app_ass. auto.
 Qed.
 
@@ -169,7 +170,7 @@ Proof.
     inv H2; eauto.
     + apply runsUntilUser_r in STAR.
       simpl in STAR. congruence.
-    + simpl. omega.
+    + simpl. lia.
 Qed.
 
 Lemma HTEscape_compose_flip: forall r c1 c2 P Q R,
@@ -209,14 +210,14 @@ Proof.
   eapply runsToEnd_trans; eauto.
 
   (* NC: why is this let-binding necessary ? *)
-  let t := (rewrite app_length; zify; omega) in
+  let t := (rewrite app_length; zify; lia) in
   exact_f_equal RTE2; rec_f_equal t.
   (* Because 'tacarg's which are not 'id's or 'term's need to be
      preceded by 'ltac' and enclosed in parens.  E.g., the following
      works:
 
        exact_f_equal RTE2;
-       rec_f_equal ltac:(rewrite app_length; zify; omega).
+       rec_f_equal ltac:(rewrite app_length; zify; lia).
 
      See grammar at
      http://coq.inria.fr/distrib/8.4/refman/Reference-Manual012.html

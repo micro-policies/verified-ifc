@@ -41,7 +41,7 @@ Record AS {T: Type}  := AState {
 Inductive Event {T: Type} :=
 | EInt : @Atom T -> @Event T.
 
-Hint Resolve @flows_refl @flows_join_right  @flows_join_left.
+Hint Resolve flows_refl flows_join_right flows_join_left : core.
 
 Section ARuleMachine.
 

@@ -1,4 +1,6 @@
+Require Import Coq.Strings.String. Open Scope string_scope.
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 
 Require Setoid.
@@ -37,7 +39,7 @@ Inductive low_equiv_atom (o: Label) : relation (@Atom Label) :=
   l1 <: o = false ->
   l2 <: o = false ->
   low_equiv_atom o (v1,l1) (v2,l2).
-Hint Constructors low_equiv_atom.
+Hint Constructors low_equiv_atom : core.
 
 Global Instance low_atom (o: Label) : @Equivalence (@Atom Label) (low_equiv_atom o).
 Proof.
@@ -52,7 +54,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_atom _ _ _ => reflexivity
-  end.
+  end : core.
 
 
 Lemma low_equiv_atom_join_value:
@@ -72,7 +74,7 @@ Inductive low_equiv_stkelt (o: Label) : @StkElmt Label -> @StkElmt Label -> Prop
 | le_aret : forall a1 a2 b
   (LEa: low_equiv_atom o a1 a2),
   low_equiv_stkelt o (ARet a1 b) (ARet a2 b).
-Hint Constructors low_equiv_stkelt.
+Hint Constructors low_equiv_stkelt : core.
 
 Global Instance low_stkelt (o: Label) : @Equivalence (@StkElmt Label) (low_equiv_stkelt o).
 Proof.
@@ -86,7 +88,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_stkelt _ _ _ => reflexivity
-  end.
+  end : core.
 
 Inductive low_equiv_list (A: Type) (low_equiv_a: A -> A -> Prop) :
   list A -> list A -> Prop :=
@@ -95,7 +97,7 @@ Inductive low_equiv_list (A: Type) (low_equiv_a: A -> A -> Prop) :
   (low_equiv_a a1 a2) ->
   (low_equiv_list low_equiv_a l1 l2) ->
   low_equiv_list low_equiv_a (a1::l1) (a2::l2).
-Hint Constructors low_equiv_list.
+Hint Constructors low_equiv_list : core.
 
 Lemma low_equiv_list_app_left (A: Type) (low_equiv_a: A -> A -> Prop) :
   forall l1 l1' l2 l2',
@@ -231,7 +233,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_list _ _ _ => reflexivity
-  end.
+  end : core.
 
 Lemma update_list_low_equiv: forall a obs l  m m' o v
   (Hl : l <: obs = false),
@@ -429,7 +431,7 @@ Inductive low_equiv_full_state (o: Label) : @AS Label -> @AS Label -> Prop :=
     low_equiv_full_state o
       (AState m1 i stk1 (pcv,l))
       (AState m2 i stk2 (pcv,l)).
-Hint Constructors low_equiv_full_state.
+Hint Constructors low_equiv_full_state : core.
 
 Global Instance low_state (o: Label) : @Equivalence AS (@low_equiv_full_state o).
 Proof.
@@ -457,7 +459,7 @@ Qed.
 Hint Extern 1 =>
   match goal with
     | |- low_equiv_full_state _ _ _ => reflexivity
-  end.
+  end : core.
 
 Lemma pc_labels1 : forall o s1 s2,
   low_equiv_full_state o s1 s2 ->
@@ -505,7 +507,7 @@ Qed.
 (** Visible event for a given observer [o] *)
 Inductive visible_event (o : Label) : (@Event Label) -> Prop :=
 | ve_low : forall i l, l <: o = true -> visible_event o (EInt (i, l)).
-Hint Constructors visible_event.
+Hint Constructors visible_event : core.
 
 Lemma visible_event_dec : forall o e, {visible_event o e} + {~ visible_event o e}.
 Proof.
@@ -516,13 +518,13 @@ Defined.
 
 End ObsEquiv.
 
-Hint Resolve low_state.
+Hint Resolve low_state : core.
 
 Hint Constructors
   low_equiv_atom
   low_equiv_stkelt
   low_equiv_list
-  low_equiv_full_state.
+  low_equiv_full_state : core.
 
 Hint Extern 1 =>
   match goal with
@@ -530,7 +532,7 @@ Hint Extern 1 =>
     | |- low_equiv_stkelt _ _ _ => reflexivity
     | |- low_equiv_list _ _ _ => reflexivity
     | |- low_equiv_full_state _ _ _ => reflexivity
-  end.
+  end : core.
 
 (** * Non-interference property *)
 
@@ -599,7 +601,7 @@ Arguments low_pc {Label Latt} o s /.
 
 Local Ltac go :=
   try congruence;
-  try omega;
+  try lia;
   auto using below_lret_low_equiv with lat;
   try apply below_lret_low_equiv;
   [> once (constructor; go) ..].

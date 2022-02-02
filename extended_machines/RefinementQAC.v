@@ -1,6 +1,8 @@
+Require Import Coq.Strings.String.
 Require Import EquivDec.
 Require Import List.
 Require Import ZArith.
+Require Import Lia.
 
 Require Import Utils.
 Require Import Lattices.
@@ -38,11 +40,11 @@ Context {T: Type}
         {WFCLatt: WfConcreteLattice cblock ctable T Latt CLatt}.
 
 Definition match_tags l t m := labToVal l t m.
-Hint Unfold match_tags.
+Hint Unfold match_tags : core.
 
 Definition valid_update (m2 m2' : CodeTriples.memory) :=
   mem_eq_except_cache cblock m2 m2'.
-Hint Unfold valid_update.
+Hint Unfold valid_update : core.
 
 Lemma valid_update_match_tags :
   forall t1 t2 m2 m2',
@@ -50,8 +52,8 @@ Lemma valid_update_match_tags :
     valid_update m2 m2' ->
     match_tags t1 t2 m2'.
 Proof. eapply labToVal_cache; eauto. Qed.
-Hint Resolve valid_update_match_tags.
-Hint Resolve labToVal_cache.
+Hint Resolve valid_update_match_tags : core.
+Hint Resolve labToVal_cache : core.
 
 Notation meminj := (meminj unit privilege).
 Notation Meminj := (Meminj T (val privilege) unit privilege match_tags).
@@ -60,12 +62,12 @@ Notation match_vals := (match_vals unit privilege).
 Notation match_ptrs := (match_ptrs unit privilege).
 Notation update_meminj := (update_meminj unit privilege).
 
-Hint Resolve match_vals_eq.
-Hint Constructors Memory.match_atoms.
-Hint Constructors Memory.match_vals.
-Hint Constructors Memory.match_ptrs.
-Hint Resolve update_meminj_eq.
-Hint Unfold match_frames.
+Hint Resolve match_vals_eq : core.
+Hint Constructors Memory.match_atoms : core.
+Hint Constructors Memory.match_vals : core.
+Hint Constructors Memory.match_ptrs : core.
+Hint Resolve update_meminj_eq : core.
+Hint Unfold match_frames : core.
 
 Record Userinj (mi : meminj) : Prop := {
 
@@ -101,11 +103,11 @@ Inductive match_stk_elmt (mi : meminj) : StkElmt T unit -> CStkElmt -> CodeTripl
 | mse_ret : forall pcv pcl pct b m2
                    (TAG : labToVal pcl pct m2),
               match_stk_elmt mi (ARet (pcv,pcl) b) (CRet (pcv,pct) b false) m2.
-Hint Constructors match_stk_elmt.
+Hint Constructors match_stk_elmt : core.
 
 Definition match_stacks (mi : meminj) : list (StkElmt T unit) -> list CStkElmt -> CodeTriples.memory -> Prop :=
   fun s1 s2 m2 => Forall2 (fun se1 se2 => match_stk_elmt mi se1 se2 m2) s1 s2.
-Hint Unfold match_stacks.
+Hint Unfold match_stacks : core.
 
 Variable fetch_rule :
   forall opcode : OpCode, AllowModify (labelCount opcode).
@@ -139,7 +141,7 @@ Inductive match_states kc : @qa_state T -> CS -> Prop :=
                 match_states kc
                              (AState m1 p stk1 (pcv,pcl))
                              (CState m2 kc p stk2 (pcv,pct) false).
-Hint Constructors match_states.
+Hint Constructors match_states : core.
 
 Lemma alloc_match_stacks :
   forall size
@@ -201,7 +203,7 @@ Lemma match_stacks_length :
          (STKS : match_stacks mi stk1 stk2 m2),
     length stk1 = length stk2.
 Proof. induction 1; simpl; eauto. Qed.
-Hint Resolve match_stacks_length.
+Hint Resolve match_stacks_length : core.
 
 Lemma match_stacks_all_data :
   forall mi stk1 stk2 m2
@@ -216,7 +218,7 @@ Proof.
     congruence.
   - apply IHSTKS; simpl in *; auto.
 Qed.
-Hint Resolve match_stacks_all_data.
+Hint Resolve match_stacks_all_data : core.
 
 Lemma match_stacks_app_2 :
   forall mi stk11 stk12 stk21 stk22 m2
@@ -224,9 +226,9 @@ Lemma match_stacks_app_2 :
          (STKS2 : match_stacks mi stk12 stk22 m2),
     match_stacks mi (stk11 ++ stk12) (stk21 ++ stk22) m2.
 Proof. intros. eauto using Forall2_app. Qed.
-Hint Resolve match_stacks_app_2.
+Hint Resolve match_stacks_app_2 : core.
 
-Hint Constructors pop_to_return.
+Hint Constructors pop_to_return : core.
 
 Lemma match_stacks_pop_to_return :
   forall mi stk1 stk2 stk2' m2 pcv cpcl b p
@@ -355,10 +357,10 @@ Proof.
   induction n; simpl; intros.
   - unfold nth_labToVal in *.
     case_eq (le_lt_dec (S nth) 1); case_eq (le_lt_dec nth 0); intros; auto;
-    try (zify ; omega).
+    try (zify ; lia).
   - unfold nth_labToVal in *.
     destruct (le_lt_dec (S (S n)) (S nth)) eqn:E; case_eq (le_lt_dec (S n) nth); intros; auto;
-    try (zify ; omega).
+    try (zify ; lia).
     unfold Vector.nth_order in *. simpl in H.
     erewrite of_nat_lt_proof_irrel ; eauto.
 Qed.
@@ -379,9 +381,9 @@ Proof.
   exists (z1,z2,dontCare); repeat split;
   try (eapply nth_labToVal_cons; eauto; fail).
   unfold nth_labToVal.
-  destruct (le_lt_dec n0 2); auto; zify ; omega.
+  destruct (le_lt_dec n0 2); auto; zify ; lia.
   unfold nth_labToVal.
-  destruct (le_lt_dec n0 2); auto; zify ; omega.
+  destruct (le_lt_dec n0 2); auto; zify ; lia.
 Qed.
 
 Lemma labsToVals_inj: forall n (v1 v2: Vector.t T n), n <= 3 ->
@@ -399,8 +401,8 @@ Proof.
   elim labsToVals_cons_tail with (2:=H1) (3:=H2).
   intros ts' (T1 & T2).
   apply H with ts' m; auto.
-  zify; omega.
-  zify; omega.
+  zify; lia.
+  zify; lia.
 Qed.
 
 Inductive match_events : Event T -> CEvent -> Prop :=
@@ -527,7 +529,7 @@ Proof.
   inv ALLOC.
   eapply Mem.alloc_stamp; eauto.
 Qed.
-Hint Resolve alloc_stamp.
+Hint Resolve alloc_stamp : core.
 
 Lemma cache_up2date_res :
   forall tmuc opcode vls ts pcl pct
@@ -696,7 +698,7 @@ Proof.
   cut (b2 = b3); try congruence.
   eapply mi_inj; eauto.
 Qed.
-Hint Resolve match_vals_eq.
+Hint Resolve match_vals_eq : core.
 
 Lemma cache_hit_mem_mem_def_on_cache :
   forall m o ts pct
@@ -708,7 +710,7 @@ Proof.
   destruct (Mem.get_frame m cblock) as [cache|] eqn:FRAME; intuition.
   eexists; eauto.
 Qed.
-Hint Resolve cache_hit_mem_mem_def_on_cache.
+Hint Resolve cache_hit_mem_mem_def_on_cache : core.
 
 Lemma cache_hit_read_mem_mem_def_on_cache :
   forall m rpct rt
@@ -720,7 +722,7 @@ Proof.
   destruct (Mem.get_frame m cblock) as [cache|] eqn:FRAME; intuition.
   eexists; eauto.
 Qed.
-Hint Resolve cache_hit_read_mem_mem_def_on_cache.
+Hint Resolve cache_hit_read_mem_mem_def_on_cache : core.
 
 Lemma store_user_valid_update :
   forall p a m2 m2'
@@ -736,7 +738,7 @@ Proof.
   eapply get_frame_store_neq; eauto.
   congruence.
 Qed.
-Hint Resolve store_user_valid_update.
+Hint Resolve store_user_valid_update : core.
 
 
 Lemma alloc_user_valid_update :
@@ -755,7 +757,7 @@ Proof.
   cut (Mem.stamp b = User); try congruence.
   eapply Mem.alloc_stamp; eauto.
 Qed.
-Hint Resolve alloc_user_valid_update.
+Hint Resolve alloc_user_valid_update : core.
 
 Lemma match_atoms_valid_update :
   forall mi a1 a2 m2 m2'
@@ -895,7 +897,7 @@ Proof.
     rewrite <- EQ.
     eapply get_frame_upd_frame_neq; eauto.
 Qed.
-Hint Resolve cupd_mem_eq_except_cache.
+Hint Resolve cupd_mem_eq_except_cache : core.
 
 Lemma configuration_at_miss :
   forall kc s1 s21 e2 s22
@@ -1261,7 +1263,7 @@ Proof.
     apply cache_hit_mem_mem_def_on_cache in HIT.
     destruct MATCH; intuition eauto.
 Qed.
-Hint Resolve handler_final_mem_cache_up2date.
+Hint Resolve handler_final_mem_cache_up2date : core.
 
 Lemma cache_miss_simulation :
   forall kc s1 s21 e21 s22 s23
@@ -1338,7 +1340,7 @@ Inductive exec_end : CS -> CS -> Prop :=
                      cstep cblock ctable s Silent s' ->
                      runsToEnd cblock ctable s' s'' ->
                      exec_end s s''.
-Hint Constructors exec_end.
+Hint Constructors exec_end : core.
 
 Inductive cexec : CS -> ctrace -> CS -> Prop :=
 | ce_end : forall s s', exec_end s s' -> cexec s nil s'
@@ -1358,7 +1360,7 @@ Inductive cexec : CS -> ctrace -> CS -> Prop :=
                    runsUntilUser cblock ctable s' s'' ->
                    cexec s'' t s''' ->
                    cexec s t s'''.
-Hint Constructors cexec.
+Hint Constructors cexec : core.
 
 Lemma exec_end_step : forall s e s' s''
                              (STEP : cstep cblock ctable s e s')
@@ -1372,7 +1374,7 @@ Proof.
   [exploit priv_no_event_r; eauto; intros ?; subst|]);
   inv EXEC; eauto.
 Qed.
-Hint Resolve exec_end_step.
+Hint Resolve exec_end_step : core.
 
 Lemma cexec_step : forall s e s' t s''
                           (Hstep : cstep cblock ctable s e s')
@@ -1680,20 +1682,20 @@ Inductive ac_match_initial_data :
 
 (* Maybe move this later *)
 Definition emptyinj : meminj := fun _ => None.
-Hint Unfold emptyinj.
+Hint Unfold emptyinj : core.
 
 Lemma emptyinj_meminj : forall mem, Meminj (Mem.empty _ _) mem emptyinj.
 Proof.
   unfold emptyinj.
   constructor; simpl; congruence.
 Qed.
-Hint Resolve emptyinj_meminj.
+Hint Resolve emptyinj_meminj : core.
 
 Lemma emptyinj_userinj : Userinj emptyinj.
 Proof.
   constructor; simpl; auto.
 Qed.
-Hint Resolve emptyinj_userinj.
+Hint Resolve emptyinj_userinj : core.
 
 Lemma match_init_stacks:
   forall stkdata1 stkdata2 mem
@@ -1706,7 +1708,7 @@ Proof.
   intros;
   repeat (simpl fst in *; subst; constructor; auto).
 Qed.
-Hint Resolve match_init_stacks.
+Hint Resolve match_init_stacks : core.
 
 Lemma ac_match_initial_data_match_initial_states :
   forall ai ci,
@@ -1793,7 +1795,7 @@ Proof.
   intros b2 fr H.
   destruct (Mem.stamp b2) eqn:STAMP; eauto.
 Qed.
-Hint Resolve syscall_extends.
+Hint Resolve syscall_extends : core.
 
 Lemma match_atoms_syscall :
   forall m1 m2 m2' mi

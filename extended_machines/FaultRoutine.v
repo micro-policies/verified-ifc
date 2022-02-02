@@ -1,4 +1,5 @@
 Require Import ZArith.
+Require Import Lia.
 Require Import List.
 Require Import Utils.
 Import ListNotations.
@@ -200,7 +201,7 @@ Inductive handler_initial_mem_matches
                  (HTAG3 : value_on_cache cblock m addrTag3 tag3)
                  (HPC : value_on_cache cblock m addrTagPC pctag),
                  handler_initial_mem_matches opcode tag1 tag2 tag3 pctag m.
-Hint Constructors handler_initial_mem_matches.
+Hint Constructors handler_initial_mem_matches : core.
 
 (* Connecting to the definition used in ConcreteMachine.v *)
 Lemma init_enough: forall {n} (vls:Vector.t T n) m opcode pcl z0 z1 z2 zpc,
@@ -237,7 +238,7 @@ Inductive INIT_MEM (m0 : memory) : Prop :=
       value_on_cache cblock m0 addrTagResPC zrpc ->
       value_on_cache cblock m0 addrTagRes zr ->
       INIT_MEM m0.
-Hint Constructors INIT_MEM.
+Hint Constructors INIT_MEM : core.
 
 Variable (m0: memory).
 Hypothesis initial_m0 : INIT_MEM m0.
@@ -253,7 +254,7 @@ Proof.
   eapply extends_load in H; eauto.
   econstructor. eauto.
 Qed.
-Hint Resolve extension_comp_value_on_cache.
+Hint Resolve extension_comp_value_on_cache : core.
 
 Lemma INIT_MEM_def_on_cache: forall m, INIT_MEM m -> mem_def_on_cache cblock m.
 Proof.
@@ -300,15 +301,15 @@ Proof.
   split; eauto;
   split; eauto; simpl;
   subst; unfold nth_labToVal in *; eauto using labToVal_extension_comp.
-  - destruct (le_lt_dec n 0); try omega.
+  - destruct (le_lt_dec n 0); try lia.
     erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
-  - destruct (le_lt_dec n 1); try omega.
+  - destruct (le_lt_dec n 1); try lia.
     erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
-  - destruct (le_lt_dec n 2); try omega.
+  - destruct (le_lt_dec n 2); try lia.
     erewrite nth_order_proof_irrel; eauto using labToVal_extension_comp.
 Qed.
 
-Hint Resolve  extension_comp_INIT_MEM INIT_MEM_def_on_cache.
+Hint Resolve  extension_comp_INIT_MEM INIT_MEM_def_on_cache : core.
 
 Lemma genExpr_spec: forall (e: rule_expr n),
   forall l,
@@ -514,7 +515,7 @@ Proof.
       go_match.
       do 3 eexists. split; eauto.
       split; eauto.
-      omega.
+      congruence.
 
     - unfold some.
       eapply HT_compose; try eapply push_spec.
@@ -569,7 +570,7 @@ Proof.
       do 3 eexists. split; eauto.
 
     - eapply HT_fold_constant_premise.
-      omega.
+      lia.
 
     - eapply HT_strengthen_premise; try eapply none_spec.
       intuition.
@@ -755,7 +756,7 @@ Lemma opCodeToZ_inj: forall opcode opcode',
   opcode' = opcode.
 Proof.
   intros o o'.
-  destruct o; destruct o'; simpl; solve [ auto | intros; false; omega ].
+  destruct o; destruct o'; simpl; solve [ auto | intros; false; lia ].
 Qed.
 
 Lemma genApplyRule'_spec_GT_guard_v_ext:
@@ -826,7 +827,7 @@ Proof.
   (genV:= genV opcode)
   (P:= fun m s => extends m0 m /\ I m s)
   (genQ:= genQ ar I); try assumption.
-  - Case "default case that we never reach".
+  - (* default case that we never reach *)
     unfold GT_ext; intros.
     eapply HT_strengthen_premise.
     eapply nop_spec.
@@ -836,10 +837,10 @@ Proof.
     unfold Qnil; iauto.
   - eapply (H_indexed_hyps ar opcode vls pcl H_apply_rule m0 INIT_MEM0  I); auto.
   - simpl. iauto.
-  - Case "untangle post condition".
+  - (* untangle post condition *)
     simpl.
     assert (0 = 0) by reflexivity.
-    assert (1 <> 0) by omega.
+    assert (1 <> 0) by lia.
     (* NC: Otherwise [cases] fails.  Thankfully, [cases] tells us this
     is the problematic lemma, whereas [destruct] just spits out a huge
     term and says it's ill typed *)
@@ -1091,8 +1092,6 @@ Context {T : Type}
 Variable labelCount : OpCode -> nat.
 Variable fetch_rule : forall (opcode:OpCode), AllowModify (labelCount opcode).
 Definition handler : list Instr := faultHandler _ fetch_rule.
-
-Require Import ConcreteExecutions.
 
 Theorem handler_correct_succeed : handler_spec_succeed cblock table labelCount fetch_rule handler.
 Proof.
